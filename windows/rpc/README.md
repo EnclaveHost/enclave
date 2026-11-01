@@ -1402,3 +1402,9 @@ was compiled, not executed; sourcepins and both R2executable hashes verified.
 No SYSTEM/WMI/VM/TPM execution or production boot was established. Failure details
 and unchanged bounds are in
 `../../ops/unified-funding-20261028/rpc-native-security-ci-r2/ROOT-RESULT.md`.
+
+Native RPC preparation now verifies and privately copies the two fixed optical
+containers bound by its existing profile/2. The supervised worker revalidates
+both streams and holds handles denying write/replacement before provider work.
+This does not attach media or start a VM. See the optical preparation section in
+[NATIVE-MANAGER-CONTROLLER.md](NATIVE-MANAGER-CONTROLLER.md).

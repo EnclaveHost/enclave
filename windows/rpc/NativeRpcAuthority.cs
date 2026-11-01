@@ -12,7 +12,63 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Web.Script.Serialization;
 namespace Enclave.OwnedRpc {
+ // Fixed native RPC profile and optical containers. These pins authenticate
+ // bytes relative to the operator's accepted profile, not hardware or boot.
+ internal sealed class NativeRpcMediaProfile {
+  internal const int Header=65536,ImageBytes=1073741824,HashBytes=8458240;
+  internal readonly string ImageHash,TreeHash;
+  static string S(object x){return StartRecords.Text(x);}
+  static string Pin(object x){string h=S(x);StartIdentity.Hex(h,64);if(h==new string('0',64))throw new InvalidOperationException("Nonzero media profile digest required");return h;}
+  static Dictionary<string,object> Object(object x,string[] keys){var d=x as Dictionary<string,object>;if(d==null||d.Count!=keys.Length)throw new InvalidOperationException("Media profile object differs");foreach(string key in keys)if(!d.ContainsKey(key))throw new InvalidOperationException("Media profile key missing");return d;}
+  internal NativeRpcMediaProfile(byte[] bytes,string digest){
+   if(bytes==null||bytes.Length<1||bytes.Length>16384||ProtectedAttempt.Hash(bytes)!=digest)throw new InvalidOperationException("Exact native RPC profile bytes required");
+   string raw=new UTF8Encoding(false,true).GetString(bytes);
+   var p=StartRecords.Parse(raw,new[]{"controllerSha256","entrySha256","kernel","profile","root","schema","wrapperSha256"});
+   var k=Object(p["kernel"],new[]{"bootSha256","elfSha256","release"});
+   var r=Object(p["root"],new[]{"dataBlocks","hashBytes","hashSha256","imageBytes","imageSha256","rootHash","salt"});
+   if(S(p["schema"])!="enclave-native-rpc-profile/2"||S(p["profile"])!="ethereum-base-rpc-v1"||S(k["release"])!="6.6.87.2-enclave-kvm-box"||StartRecords.Number(r["dataBlocks"])!=262144||StartRecords.Number(r["hashBytes"])!=HashBytes||StartRecords.Number(r["imageBytes"])!=ImageBytes)throw new InvalidOperationException("Fixed RPC profile geometry differs");
+   ImageHash=Pin(r["imageSha256"]);TreeHash=Pin(r["hashSha256"]);
+   var kernel=new Dictionary<string,object>{{"bootSha256",Pin(k["bootSha256"])},{"elfSha256",Pin(k["elfSha256"])},{"release",S(k["release"])}};
+   var root=new Dictionary<string,object>{{"dataBlocks",262144},{"hashBytes",HashBytes},{"hashSha256",TreeHash},{"imageBytes",ImageBytes},{"imageSha256",ImageHash},{"rootHash",Pin(r["rootHash"])},{"salt",Pin(r["salt"])}};
+   var canonical=new Dictionary<string,object>{{"controllerSha256",Pin(p["controllerSha256"])},{"entrySha256",Pin(p["entrySha256"])},{"kernel",kernel},{"profile",S(p["profile"])},{"root",root},{"schema",S(p["schema"])},{"wrapperSha256",Pin(p["wrapperSha256"])}};
+   if(StartRecords.Encode(canonical)+"\n"!=raw)throw new InvalidOperationException("Canonical RPC profile required");
+  }
+  internal static string Name(bool tree){return tree?"hash.container":"image.container";}
+  internal static int Size(bool tree){return Header+(tree?HashBytes:ImageBytes);}
+  // Both input and optional new private output belong to the caller's held
+  // namespace. No allocation proportional to media size; no header extensions.
+  internal string Verify(Stream input,bool tree,Action current,Stream output){
+   if(input==null||current==null||!input.CanRead||!input.CanSeek||input.Position!=0||input.Length!=Size(tree))throw new InvalidOperationException("Exact optical container geometry required");
+   current();var buffer=new byte[65536];long position=0;
+   using(var payload=new SHA256Cng())using(var whole=new SHA256Cng()){
+    while(position<input.Length){
+     current();int need=(int)Math.Min(buffer.Length,input.Length-position),n=input.Read(buffer,0,need);if(n==0)throw new EndOfStreamException("Short optical container");
+     int header=(int)Math.Min(n,Math.Max(0,Header-position));for(int i=0;i<header;i++)if(buffer[i]!=0)throw new InvalidOperationException("Optical header must be zero");
+     if(n>header)payload.TransformBlock(buffer,header,n-header,buffer,header);
+     whole.TransformBlock(buffer,0,n,buffer,0);if(output!=null)output.Write(buffer,0,n);position+=n;
+    }
+    if(position!=Size(tree)||input.ReadByte()!=-1||input.Length!=Size(tree))throw new InvalidOperationException("Optical container changed");
+    payload.TransformFinalBlock(new byte[0],0,0);whole.TransformFinalBlock(new byte[0],0,0);
+    string actual=BitConverter.ToString(payload.Hash).Replace("-","").ToLowerInvariant();
+    if(actual!=(tree?TreeHash:ImageHash))throw new InvalidOperationException("Optical payload differs from original profile");
+    current();return BitConverter.ToString(whole.Hash).Replace("-","").ToLowerInvariant();
+   }
+  }
+ }
  public sealed partial class ProtectedAttempt {
+  internal void PinNativeMedia(){
+   if(LeaseProfile!="native-definition-journal"||NativeDefinitionPlan==null||accessLease.Operation!="define")throw new InvalidOperationException("Original native media custody requires submit lease");
+   var p=NativeDefinitionPlan;var profile=new NativeRpcMediaProfile(Bytes(HoldRead(Path.Combine(Root,"profile.json"),16384),16384),p.Profile);
+   foreach(bool tree in new[]{false,true}){
+    CheckDeadline();string path=Path.Combine(Root,NativeRpcMediaProfile.Name(tree));
+    var h=CreateFile(path,0x80000000|0x20000,1,IntPtr.Zero,3,0x00200000,IntPtr.Zero);
+    if(h.IsInvalid){int error=Marshal.GetLastWin32Error();h.Dispose();throw new Win32Exception(error);}
+    FileStream f=null;
+    try{Authority(h,true,false,path);FileInfo info;if(!GetFileInformationByHandle(h,out info)||info.Links!=1)throw new InvalidOperationException("Single-link optical media required");
+     f=new FileStream(h,FileAccess.Read);profile.Verify(f,tree,CheckDeadline,null);held.Add(f);f=null;
+    }catch{if(f!=null)f.Dispose();else if(!h.IsClosed)h.Dispose();throw;}
+   }CheckDeadline();
+  }
   internal void PinNativeAsset(string name,string digest,int maximum,bool mutable){
    if(LeaseProfile!="native-definition-journal"||NativeDefinitionPlan==null||accessLease.Operation!="define"||
       (name!="runtime.igvm"&&name!="guest-state.vmgs"&&name!="bundle.bin"&&name!="record.json"&&name!="profile.json")||mutable!=(name=="guest-state.vmgs"))throw new InvalidOperationException("Fixed original native assets required");
@@ -102,7 +158,7 @@ namespace Enclave.OwnedRpc {
    if(p==null||p.Encode()!=plan.NativeDefinitionPlan.Encode()||lease.PermitHash!=plan.ContractHash||lease.Boot!=p.Boot||p.Boot!=ProtectedAttempt.CurrentBoot())throw new InvalidOperationException("Held native original plan differs");
    if(mutation){
     if(lease.Operation!="define"||Now<p.Origin||Now>=p.Deadline)throw new InvalidOperationException("Native original submit authority expired");
-    if(!pinned){plan.PinNativeAsset("runtime.igvm",p.FirmwareHash,Int32.MaxValue,false);plan.PinNativeAsset("guest-state.vmgs",p.StateHash,64*1024*1024,true);plan.PinNativeAsset("bundle.bin",p.App,9*1024*1024,false);plan.PinNativeAsset("record.json",p.Record,65536,false);plan.PinNativeAsset("profile.json",p.Profile,65536,false);pinned=true;}
+    if(!pinned){plan.PinNativeAsset("runtime.igvm",p.FirmwareHash,Int32.MaxValue,false);plan.PinNativeAsset("guest-state.vmgs",p.StateHash,64*1024*1024,true);plan.PinNativeAsset("bundle.bin",p.App,9*1024*1024,false);plan.PinNativeAsset("record.json",p.Record,65536,false);plan.PinNativeAsset("profile.json",p.Profile,65536,false);plan.PinNativeMedia();pinned=true;}
     WindowsStartAdmission.VerifyNativeDefinition(plan,lease,ref completed);
    }
    guard();plan.CheckDeadline();if(mutation&&Now>=p.Deadline)throw new InvalidOperationException("Native startup deadline expired");

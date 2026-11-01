@@ -1,0 +1,9 @@
+{
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md": "d4fdff2cdaf35ea4ec777ce2bb096079602b03be13d707297df4cbebdfbdb3b4",
+  "windows/rpc/NativeRpcAuthority.cs": "2f7b0ff0a809580e80e00a46fd4e019ff527436026bbfb55d0b48f3706501d0f",
+  "windows/rpc/NativeRpcController.cs": "a46f6ac28b0b0623c795fe3f245f9ccef67dc63a05cdddb2cb1bf11f47670b38",
+  "windows/rpc/README.md": "9967b740b6c42031e25c926b64fc065d6cb522a019b9d93f8e7a5013d4cdb9b6",
+  ".github/workflows/rpc-native-media.yml": "9034e9a4d9d1abe8f8da61e3d59d63de4caef33cef35d2f826e46e43b0ce9e47",
+  "test/rpc-windows-worker/NativeRpcMediaHarness.cs": "682aec043e7c281884c861c330d42af9bb1a3c4ce19907892cb0dc3d89f46faa",
+  "test/rpc-windows-worker/run-native-media-ci.ps1": "8074c722fd4d12da7a4274e40d123c7143ea758a6d83dcc5d59018e2fba01cd3"
+}

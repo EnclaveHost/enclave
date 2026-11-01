@@ -130,3 +130,35 @@ was compiled, not executed; sourcepins and both R2executable hashes verified.
 No SYSTEM/WMI/VM/TPM execution or production boot was established. Failure details
 and unchanged bounds are in
 `../../ops/unified-funding-20261028/rpc-native-security-ci-r2/ROOT-RESULT.md`.
+
+## Profile-bound optical media preparation
+
+The same fixed operator `profilePath` now selects `image.container` and
+`hash.container` from its private parent directory. No added app-supplied paths,
+configuration switches, geometry overrides or unrelated image copy exist.
+The canonical profile/2 already binds the client image and verity payload
+hashes, fixed sizes, kernel and wrapper. The controller validates that complete
+profile and exclusively copies both optical containers into the original
+attempt after consuming the original launch/define request. A 64 KiB all-zero
+prefix and exact payload size/hash are mandatory. Copies stream through a
+64 KiB buffer, fsync before publication, retain partial pending files on failure,
+and never overwrite or retry. The source namespace and files stay held against
+write/replacement during copying. The prepared receipt is descriptive and says
+`attached=false`; it grants no provider or boot authority.
+
+Before any native mutation, the original supervised worker independently reads
+the exact profile and validates both full containers, holding single-link,
+protected, non-reparse file handles without write/delete sharing through its
+lifetime. SHA-256 uses Windows CNG for streamed media; no media-sized allocation
+or whole-file `ReadAllBytes` is used. Existing original900s/controller30s/worker20s
+limits include the copy and verification work. This implementation does not
+qualify target I/O speed, disk growth, persistent custody after worker exit, or
+whole-stack capacity. Required read access for the original VM SID and journaled
+SCSI/DVD attachment/readback remain separate prerequisites before boot.
+
+The source qualification builds both actual native entry points separately:
+`NativeRpcControllerEntry` and `NativeRpcWorkerEntry`. A controller executable is
+not a substitute for the worker configured in `workerPath`. Neither is activated
+by a successful hosted build. Previous hosted component results remain scoped to
+their original revisions. Device configuration/start, original owner bootstrap,
+accepted complete image and actual RPC readiness remain unproven.

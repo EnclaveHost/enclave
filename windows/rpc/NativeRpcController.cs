@@ -67,6 +67,16 @@ namespace Enclave.OwnedRpc {
    // No overwrite. Torn pending records consume the operation, including empty.
    current();File.Move(pending,path);current();
   }
+  internal string CopyMedia(string path,FileStream input,NativeRpcMediaProfile profile,bool tree){
+   current();ProtectedAttempt.LocalPath(path);PinDirectory(Path.GetDirectoryName(path),true);
+   if(Path.GetFileName(path)!=NativeRpcMediaProfile.Name(tree))throw new InvalidOperationException("Fixed optical destination required");
+   string pending=path+".pending",digest;
+   using(var output=new FileStream(pending,FileMode.CreateNew,FileSystemRights.WriteData|FileSystemRights.ReadPermissions,FileShare.None,65536,FileOptions.WriteThrough,Security())){
+    ProtectedAttempt.Authority(output.SafeFileHandle,true,false,pending);
+    digest=profile.Verify(input,tree,current,output);output.Flush(true);
+   }
+   current();File.Move(pending,path);current();return digest;
+  }
   public void Dispose(){for(int i=held.Count-1;i>=0;i--)held[i].Dispose();held.Clear();}
  }
  internal sealed partial class NativeRpcManagerLedger:IDisposable {
@@ -171,6 +181,16 @@ namespace Enclave.OwnedRpc {
    foreach(var item in new[]{new[]{"runtime.igvm","firmwarePath",plan.FirmwareHash},new[]{"guest-state.vmgs","initialStatePath",plan.StateHash},new[]{"profile.json","profilePath",plan.Profile}}){
     int maximum=item[0]=="runtime.igvm"?Int32.MaxValue:(item[0]=="guest-state.vmgs"?67108864:65536);var input=Files.Open(S(c[item[1]]),maximum,false);Files.Copy(Path.Combine(plan.Root,item[0]),input,maximum,item[2]);
    }
+   // Profile already binds both payload hashes/geometry. Fixed siblings of the
+   // operator-pinned profile are the ONLY source paths, never app request paths.
+   // Original define-request/launch records consumed before all preparation.
+   var mediaProfile=new NativeRpcMediaProfile(Files.Read(Path.Combine(plan.Root,"profile.json"),16384,plan.Profile),plan.Profile);
+   var mediaDigests=new Dictionary<string,object>();
+   foreach(bool tree in new[]{false,true}){
+    string name=NativeRpcMediaProfile.Name(tree),source=Path.Combine(Path.GetDirectoryName(S(c["profilePath"])),name);
+    string digest=Files.CopyMedia(Path.Combine(plan.Root,name),Files.Open(source,NativeRpcMediaProfile.Size(tree),false),mediaProfile,tree);mediaDigests.Add(name,digest);
+   }
+   Files.Publish(Path.Combine(plan.Root,"native-media-prepared.json"),E(new{plan=plan.Digest,profile=plan.Profile,containers=mediaDigests,attached=false,rpcReady=false}));
    Files.Copy(Path.Combine(plan.Root,"bundle.bin"),Files.Open(bundlePath,9*1048576,false),9*1048576,plan.App);
    Files.Publish(Path.Combine(plan.Root,"record.json"),Files.Read(recordPath,65536,plan.Record));
    byte[] image=Files.Read(S(c["workerPath"]),262144,plan.WorkerImageHash);
