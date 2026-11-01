@@ -160,11 +160,19 @@ namespace Enclave.OwnedRpc {
   }
 
   static readonly string[] MemoryFields={"ResourceType","ResourceSubType","AllocationUnits","VirtualQuantityUnits","VirtualQuantity","Reservation","Limit","DynamicMemoryEnabled"};
-  internal static string InventoryPath(object value,string type){
+  // Report reference shape only: never instance keys or the complete path.
+  internal static string InventoryAtom(string value){
+   if(value==null)return "<null>";var b=new StringBuilder();
+   for(int i=0;i<Math.Min(value.Length,96);i++){char c=value[i];b.Append(c>=32&&c<=126&&c!='|'?c:'?');}
+   return b.ToString();
+  }
+  internal static string InventoryPath(object value,string type,string source){
    string text=Str(value);var p=new ManagementPath(text);string server=p.Server,ns=p.NamespacePath;
-   if(!p.IsInstance||(!String.Equals(server,Environment.MachineName,StringComparison.OrdinalIgnoreCase)&&server!="."&&server!="")||
-      (!String.Equals(ns,@"root\virtualization\v2",StringComparison.OrdinalIgnoreCase)&&!String.Equals(ns,@"\\"+server+@"\root\virtualization\v2",StringComparison.OrdinalIgnoreCase))||
-      (type!=null&&!String.Equals(p.ClassName,type,StringComparison.OrdinalIgnoreCase)))throw new InvalidOperationException("Foreign inventory reference");
+   int bad=(!p.IsInstance?1:0)|
+    ((!String.Equals(server,Environment.MachineName,StringComparison.OrdinalIgnoreCase)&&server!="."&&server!="")?2:0)|
+    ((!String.Equals(ns,@"root\virtualization\v2",StringComparison.OrdinalIgnoreCase)&&!String.Equals(ns,@"\\"+server+@"\root\virtualization\v2",StringComparison.OrdinalIgnoreCase))?4:0)|
+    ((type!=null&&!String.Equals(p.ClassName,type,StringComparison.OrdinalIgnoreCase))?8:0);
+   if(bad!=0)throw new InvalidOperationException("Foreign inventory reference | source="+source+" | flags="+bad+" | server="+InventoryAtom(server)+" | namespace="+InventoryAtom(ns)+" | class="+InventoryAtom(p.ClassName));
    return p.RelativePath;
   }
   internal static SortedDictionary<string,MemoryRecord> InventoryRows(List<Dictionary<string,object>> systems,List<Dictionary<string,object>> settings,List<Dictionary<string,object>> links,List<Dictionary<string,object>> memory){
@@ -172,12 +180,12 @@ namespace Enclave.OwnedRpc {
    var expected=new HashSet<string>();foreach(var row in systems){Guid id;if(!Guid.TryParseExact(Str(row["Name"]),"D",out id)||!expected.Add(id.ToString("D")))throw new InvalidOperationException("VM identifier ambiguity");}
    var groups=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);var covered=new HashSet<string>();
    foreach(var row in settings){Guid id;if(!Guid.TryParseExact(Str(row["VirtualSystemIdentifier"]),"D",out id)||!expected.Contains(id.ToString("D"))||!covered.Add(id.ToString("D")))throw new InvalidOperationException("Realized VM inventory differs");
-    groups.Add(InventoryPath(row["__PATH"],"Msvm_VirtualSystemSettingData"),id.ToString("D"));}
+    groups.Add(InventoryPath(row["__PATH"],"Msvm_VirtualSystemSettingData","settings.path"),id.ToString("D"));}
    if(covered.Count!=expected.Count)throw new InvalidOperationException("Incomplete all-VM inventory: systems="+expected.Count+" settings="+covered.Count);
    var records=new Dictionary<string,Dictionary<string,object>>(StringComparer.OrdinalIgnoreCase);
-   foreach(var row in memory)records.Add(InventoryPath(row["__PATH"],"Msvm_MemorySettingData"),row);
+   foreach(var row in memory)records.Add(InventoryPath(row["__PATH"],"Msvm_MemorySettingData","memory.path"),row);
    var used=new HashSet<string>(StringComparer.OrdinalIgnoreCase);var result=new SortedDictionary<string,MemoryRecord>(StringComparer.Ordinal);
-   foreach(var row in links){string group=InventoryPath(row["GroupComponent"],"Msvm_VirtualSystemSettingData"),part=InventoryPath(row["PartComponent"],null),id;
+   foreach(var row in links){string group=InventoryPath(row["GroupComponent"],"Msvm_VirtualSystemSettingData","link.group"),part=InventoryPath(row["PartComponent"],null,"link.part"),id;
     if(!groups.TryGetValue(group,out id)||!String.Equals(new ManagementPath(part).ClassName,"Msvm_MemorySettingData",StringComparison.OrdinalIgnoreCase))continue;
     Dictionary<string,object> d;if(!records.TryGetValue(part,out d))throw new InvalidOperationException("Associated memory row missing: rows="+records.Count);
     if(!used.Add(part)||result.ContainsKey(id))throw new InvalidOperationException("VM memory association ambiguity");

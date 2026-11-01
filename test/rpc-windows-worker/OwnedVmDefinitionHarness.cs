@@ -177,6 +177,23 @@ public static class OwnedVmDefinitionHarness {
   Test("batch-inventory-missing-memory-refused",()=>{var c=new InventoryCase();c.Memory.Clear();Refuse(()=>c.Read());});
   Test("batch-inventory-duplicate-memory-refused",()=>{var c=new InventoryCase();c.Memory.Add(c.Memory[0]);Refuse(()=>c.Read());});
   Test("batch-inventory-foreign-reference-refused",()=>{foreach(string path in new[]{@"\\foreign.invalid\root\virtualization\v2:Msvm_MemorySettingData.InstanceID=""memory""",@"\\.\root\cimv2:Msvm_MemorySettingData.InstanceID=""memory""","Msvm_MemorySettingData"}){var c=new InventoryCase();c.Links[0]["PartComponent"]=path;Refuse(()=>c.Read());}});
+  Test("batch-inventory-failure-identifies-source-without-instance-key",()=>{
+   foreach(string source in new[]{"settings.path","memory.path","link.group","link.part"}){
+    var c=new InventoryCase();string type=source=="settings.path"||source=="link.group"?"Msvm_VirtualSystemSettingData":"Msvm_MemorySettingData";
+    string path=InventoryCase.PathFor(type,"private-instance-key").Replace(@"\\.",@"\\foreign.invalid");
+    if(source=="settings.path")c.Settings[0]["__PATH"]=path;else if(source=="memory.path")c.Memory[0]["__PATH"]=path;else c.Links[0][source=="link.group"?"GroupComponent":"PartComponent"]=path;
+    bool refused=false;try{c.Read();}catch(InvalidOperationException e){refused=true;Check(e.Message.Contains("source="+source)&&e.Message.Contains("server=foreign.invalid")&&!e.Message.Contains("private-instance-key")&&e.Message.Length<450);}Check(refused);
+   }
+  });
+  Test("batch-inventory-path-reason-flags",()=>{
+   foreach(var pair in new[]{new[]{"Msvm_MemorySettingData", "5"},new[]{InventoryCase.PathFor("Msvm_ProcessorSettingData","private-instance-key"),"8"}}){
+    bool refused=false;try{LegacyHandoff.InventoryPath(pair[0],"Msvm_MemorySettingData","fixture");}catch(InvalidOperationException e){refused=true;Check(e.Message.Contains("flags="+pair[1]+" |")&&!e.Message.Contains("private-instance-key"));}Check(refused);
+   }
+  });
+  Test("batch-inventory-diagnostic-atoms-bounded-single-line",()=>{
+   Check(LegacyHandoff.InventoryAtom(new string('x',200)).Length==96);
+   Check(LegacyHandoff.InventoryAtom("a\r\n|\u0000z")=="a????z"&&LegacyHandoff.InventoryAtom(null)=="<null>");
+  });
   Test("batch-inventory-other-resource-not-memory",()=>{var c=new InventoryCase();c.Links[0]["PartComponent"]=InventoryCase.PathFor("Msvm_ProcessorSettingData","memory");Refuse(()=>c.Read());});
   Test("batch-inventory-unrelated-template-not-a-claim",()=>{var c=new InventoryCase();c.Links.Add(D("GroupComponent",InventoryCase.PathFor("Msvm_VirtualSystemSettingData","template"),"PartComponent",c.Memory[0]["__PATH"]));Check(c.Read().Count==1);});
   Test("batch-inventory-shared-memory-refused",()=>{var c=new InventoryCase();string id=Guid.NewGuid().ToString("D"),g=InventoryCase.PathFor("Msvm_VirtualSystemSettingData","other");c.Systems.Add(D("Name",id));c.Settings.Add(D("__PATH",g,"VirtualSystemIdentifier",id));c.Links.Add(D("GroupComponent",g,"PartComponent",c.Memory[0]["__PATH"]));Refuse(()=>c.Read());});
