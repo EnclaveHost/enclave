@@ -12,7 +12,7 @@ using Microsoft.Win32.SafeHandles;
 namespace Enclave.OwnedRpc {
  public sealed partial class ProtectedAttempt {
   internal string PinNativeStartGroup(string path,string hash){
-   if(LeaseProfile!="native-cleanup-journal")throw new InvalidOperationException("Cleanup custody required");
+   if((LeaseProfile!="native-cleanup-journal"&&LeaseProfile!="native-lifecycle-journal"))throw new InvalidOperationException("Cleanup custody required");
    CheckDeadline();LocalPath(path);Hex(hash,64);if(Path.GetFileName(path)!="contract.txt")throw new ArgumentException("Fixed start worker contract path");
    string root=Path.GetDirectoryName(path),current=Path.GetPathRoot(root);HoldDirectory(current,false);string[] parts=root.Substring(3).Split('\\');
    for(int i=0;i<parts.Length;i++){current=Path.Combine(current,parts[i]);HoldDirectory(current,i==parts.Length-1);}
@@ -24,7 +24,7 @@ namespace Enclave.OwnedRpc {
    if(Hash(Bytes(HoldRead(Path.Combine(root,"entry.exe"),262144),262144))!=p.WorkerImageHash)throw new InvalidOperationException("Original start worker image differs");CheckDeadline();return f[1]+f[2]+hash;
   }
   internal string PinNativeStartPeer(string contract,string role){
-   if(LeaseProfile!="native-cleanup-journal"||(role!="owner"&&role!="observer"&&role!="child"))throw new ArgumentException("Exact start peer role");
+   if((LeaseProfile!="native-cleanup-journal"&&LeaseProfile!="native-lifecycle-journal")||(role!="owner"&&role!="observer"&&role!="child"))throw new ArgumentException("Exact start peer role");
    CheckDeadline();return Utf8.GetString(Bytes(HoldRead(Path.Combine(Path.GetDirectoryName(contract),role+".consumed"),4096),4096));
   }
  }
@@ -38,7 +38,7 @@ namespace Enclave.OwnedRpc {
   [DllImport("advapi32.dll",SetLastError=true)]static extern bool OpenProcessToken(IntPtr h,uint access,out SafeWaitHandle token);
   readonly List<SafeWaitHandle> handles=new List<SafeWaitHandle>();readonly ProtectedAttempt pin;readonly string digest;bool disposed;
   internal NativeRpcStartGroup(ProtectedAttempt pin,IntPtr[] transferred){
-   if(pin==null||pin.LeaseProfile!="native-cleanup-journal"||transferred==null||transferred.Length!=3)throw new ArgumentException("Original cleanup and three preheld peers required");
+   if(pin==null||pin.(LeaseProfile!="native-cleanup-journal"&&LeaseProfile!="native-lifecycle-journal")||transferred==null||transferred.Length!=3)throw new ArgumentException("Original cleanup and three preheld peers required");
    this.pin=pin;var journal=new NativeRpcCleanupJournal(pin);string raw=journal.Read("native-start.workers");
    var d=StartRecords.Parse(raw,new[]{"schema","plan","intent","contractPath","contractHash","owner","observer","child"});
    string path=StartRecords.Text(d["contractPath"]),hash=StartRecords.Text(d["contractHash"]),guid,authority;
@@ -61,7 +61,7 @@ namespace Enclave.OwnedRpc {
  internal sealed class NativeRpcCleanupRuntime:INativeRpcCleanupRuntime {
   readonly ProtectedAttempt lease,pin;readonly NativeRpcStartGroup group;readonly Action guard;
   internal NativeRpcCleanupRuntime(ProtectedAttempt lease,ProtectedAttempt pin,NativeRpcStartGroup group,Action guard){
-   if(lease==null||pin==null||group==null||guard==null||lease.LeaseProfile!="native-cleanup"||pin.LeaseProfile!="native-cleanup-journal"||lease.PermitHash!=pin.ContractHash)throw new ArgumentException("Supervised original cleanup runtime required");this.lease=lease;this.pin=pin;this.group=group;this.guard=guard;
+   if(lease==null||pin==null||group==null||guard==null||lease.LeaseProfile!="native-cleanup"||pin.(LeaseProfile!="native-cleanup-journal"&&LeaseProfile!="native-lifecycle-journal")||lease.PermitHash!=pin.ContractHash)throw new ArgumentException("Supervised original cleanup runtime required");this.lease=lease;this.pin=pin;this.group=group;this.guard=guard;
   }
   public long Now{get{return BoundedWorker.MonotonicMilliseconds();}}
   public void Check(NativeRpcDefinitionPlan p,bool mutation){

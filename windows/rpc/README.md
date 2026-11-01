@@ -1618,3 +1618,40 @@ clock/deathwitness plus3actualadministratornamespace. ActualSYSTEMhandletransfer
 cleanupentrypoints onlyCOMPILED. Independent lifecycleowner/startlease producer
 stillmissing; productionRPC OFFLINE. Sourcepins/binaryhashes/resultlimits:
 `../../ops/unified-funding-20261028/rpc-native-cleanup-ci-r1/ROOT-RESULT.md`.
+
+Native lifecycle/start composition candidate (not activated)
+
+Explicit start-owner/start-observer/start-child roles now use a protected start
+lease, independently armed SYSTEM lifecycle peer and a second pre-resume gate.
+The owner prepares the original start intent before creating its suspended child.
+It publishes exact worker contract registration after observer binding and waits
+for the lifecycle process to pin the original worker image, boot, nonce, PID,
+creation and SYSTEM identity for all three peers. The lifecycle process publishes
+workers/bound records before the owner resumes; the child rechecks those records
+and fresh physical admission before one NativeRpcStart.Submit. Definition commands
+still end owned-Off; manager default behavior is unchanged.
+
+NativeRpcLifecycleEntry is a separate SYSTEM entrypoint with an independent watch
+thread armed before publishing authority. Original deadline or failed original
+worker triggers one cleanup dispatch independent of a blocked caller/main loop.
+A dedicated short cleanup owner/observer receives query/sync-only duplicates of
+the retained original peers, after exact death. It invokes the existing original
+stop-only worker. Task creation and Run are one-shot, no retry on ambiguity.
+Cleanup time is clipped to original D+30s, never a start extension. All result
+fence/release claims remain false; no adoption or readiness claim is added.
+
+Still missing: trusted manager launcher that prepares/schedules the lifecycle
+contract and worker copy, secondary protection if the lifecycle process itself
+dies after a successful start, actual SYSTEM scheduler/process-transfer/provider
+qualification, and original bootstrap/enrollment. A successful short worker exit
+only keeps the watch until original D; there is no persistent-service adoption.
+The independent callback cannot establish VM death if provider response is lost.
+Target activation remains unadmitted. Start asset checks still require original
+VMGS hash; definition/TPM may mutate that file, so real mutable VMGS custody must
+be qualified/implemented before target start rather than relaxing that check.
+
+Shared strict NativeControllerFiles extracted byte-identically into its maintained
+file. Native-only compiler symbol excludes unused ordinary ProviderStart reducer
+and ordinary HyperVStartProvider.Start entrypoint; shared exact provider helpers
+and all native provider behavior remain. Legacy compilation without the symbol
+is unchanged. No cap increase.

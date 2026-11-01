@@ -179,6 +179,10 @@ namespace Enclave.OwnedRpc {
         public static ProtectedAttempt PinHostBootstrapController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"host-bootstrap");}
         public static ProtectedAttempt OpenProviderWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"provider");}
         public static ProtectedAttempt PinProviderController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"provider");}
+        public static ProtectedAttempt OpenNativeStartWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"native-start");}
+        public static ProtectedAttempt PinNativeStartController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"native-start");}
+        public static ProtectedAttempt OpenNativeLifecycle(string path,string hash) {return new ProtectedAttempt(path,hash,false,"native-lifecycle");}
+        public static ProtectedAttempt PinNativeLifecycleController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"native-lifecycle");}
         public static ProtectedAttempt OpenNativeCleanupWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"native-cleanup");}
         public static ProtectedAttempt PinNativeCleanupController(string path,string hash) {RequireAdministrator();return new ProtectedAttempt(path,hash,true,"native-cleanup");}
         public static ProtectedAttempt OpenNativeDefinitionWorker(string path,string hash) {return new ProtectedAttempt(path,hash,false,"native-definition");}
@@ -236,6 +240,12 @@ namespace Enclave.OwnedRpc {
                 } else if(profile=="host-bootstrap") {
                     if(fields.Length!=9||fields[0]!="owned-rpc-host-bootstrap-v1"||fields[6]!="host-bootstrap-v1"||fields[8]!="")throw new InvalidOperationException("Exact host bootstrap profile required");
                     Operation=fields[6];PermitPath=Path.Combine(Root,"bootstrap-plan.txt");PermitHash=fields[7];Hex(PermitHash,64);
+                } else if(profile=="native-start"||profile=="native-lifecycle") {
+                    string schema=profile=="native-start"?"owned-native-rpc-start-worker-v1":"owned-native-rpc-lifecycle-v1";
+                    string operation=profile=="native-start"?"start":"watch";
+                    if(fields.Length!=10||fields[0]!=schema||fields[6]!=operation||fields[9]!="")throw new InvalidOperationException("Exact native lifecycle contract required");
+                    Operation=fields[6];PermitPath=LocalPath(fields[7]);PermitHash=fields[8];Hex(PermitHash,64);
+                    if(Path.GetFileName(PermitPath)!="native-definition-plan.txt")throw new InvalidOperationException("Original native plan required");
                 } else if(profile=="native-cleanup") {
                     if(fields.Length!=10||fields[0]!="owned-native-rpc-cleanup-worker-v1"||(fields[6]!="stop"&&fields[6]!="stop-reconcile")||fields[9]!="")throw new InvalidOperationException("Exact native cleanup worker contract required");
                     Operation=fields[6];PermitPath=LocalPath(fields[7]);PermitHash=fields[8];Hex(PermitHash,64);
@@ -265,8 +275,9 @@ namespace Enclave.OwnedRpc {
                 Origin=Int64.Parse(fields[3],NumberStyles.None,CultureInfo.InvariantCulture);
                 Deadline=Int64.Parse(fields[4],NumberStyles.None,CultureInfo.InvariantCulture);
                 long now=BoundedWorker.MonotonicMilliseconds();
-                if(Origin<0 || Origin>Int64.MaxValue-30000 || Origin>now || now-Origin>=5000 ||
-                    Deadline<=now || Deadline-Origin>30000 || Deadline<=Origin)
+                long maximum=profile=="native-lifecycle"?930000:30000;
+                if(Origin<0 || Origin>Int64.MaxValue-maximum || Origin>now || now-Origin>=5000 ||
+                    Deadline<=now || Deadline-Origin>maximum || Deadline<=Origin)
                     throw new InvalidOperationException("Original inert contract timing invalid");
                 if(CurrentBoot()!=Boot)throw new InvalidOperationException("Attempt belongs to another boot");
                 if(Hash(Bytes(HoldRead(Path.Combine(Root,"entry.exe"),262144),262144))!=ExecutableHash)
@@ -325,6 +336,11 @@ namespace Enclave.OwnedRpc {
                 bool boot=accessLease.Operation=="boot"||accessLease.Operation=="boot-reconcile";
                 if(boot?!BootRecordAllowed(name,accessLease.Operation=="boot-reconcile"):!DefinitionRecordAllowed(name,accessLease.Operation=="definition-reconcile"))throw new InvalidOperationException("Fixed definition/boot journal record required");
                 if((accessLease.Operation=="define"||accessLease.Operation=="boot")&&(BoundedWorker.MonotonicMilliseconds()<Origin||BoundedWorker.MonotonicMilliseconds()>=Deadline))throw new InvalidOperationException("Original definition time expired");
+            } else if(LeaseProfile=="native-lifecycle-journal") {
+                if(name!="native-lifecycle.armed"&&name!="native-lifecycle.bound"&&name!="native-lifecycle.stop"&&name!="native-lifecycle.result"&&name!="native-start.workers")throw new InvalidOperationException("Lifecycle cannot submit provider operations");
+            } else if(LeaseProfile=="native-start-journal") {
+                if(BoundedWorker.MonotonicMilliseconds()>=Deadline||accessLease==null||accessLease.Operation!="start")throw new InvalidOperationException("Original native start window expired");
+                if(name!="native-device.observed"&&name!="native-start.intent"&&name!="native-start.submit"&&name!="native-start.invoke"&&name!="native-start.receipt"&&name!="native-start.job"&&name!="native-start.terminal"&&name!="native-start.observed"&&name!="native-start.registration")throw new InvalidOperationException("Start cannot alter prior configuration or lifecycle authority");
             } else if(LeaseProfile=="native-cleanup-journal") {
                 bool observed=name=="native-start.job"||name=="native-start.terminal"||name=="native-stop.job"||name=="native-stop.terminal"||name=="native-stop.observed";
                 bool submit=accessLease!=null&&accessLease.Operation=="stop"&&(name=="native-stop.intent"||name=="native-stop.submit"||name=="native-stop.invoke"||name=="native-stop.receipt");

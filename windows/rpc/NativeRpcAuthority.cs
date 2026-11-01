@@ -61,7 +61,7 @@ namespace Enclave.OwnedRpc {
  public sealed partial class ProtectedAttempt {
   readonly Dictionary<string,SafeFileHandle> nativeReadPins=new Dictionary<string,SafeFileHandle>();
   internal void PinNativeMedia(){
-   if(LeaseProfile!="native-definition-journal"||NativeDefinitionPlan==null||accessLease.Operation!="define")throw new InvalidOperationException("Original native media custody requires submit lease");
+   if(NativeDefinitionPlan==null||accessLease==null||!((LeaseProfile=="native-definition-journal"&&accessLease.Operation=="define")||(LeaseProfile=="native-start-journal"&&accessLease.Operation=="start")))throw new InvalidOperationException("Original native media custody requires submit lease");
    var p=NativeDefinitionPlan;var profile=new NativeRpcMediaProfile(Bytes(HoldRead(Path.Combine(Root,"profile.json"),16384),16384),p.Profile);
    foreach(bool tree in new[]{false,true}){
     CheckDeadline();string path=Path.Combine(Root,NativeRpcMediaProfile.Name(tree));
@@ -74,7 +74,7 @@ namespace Enclave.OwnedRpc {
    }CheckDeadline();
   }
   internal void PinNativeAsset(string name,string digest,int maximum,bool mutable){
-   if(LeaseProfile!="native-definition-journal"||NativeDefinitionPlan==null||accessLease.Operation!="define"||
+   if(NativeDefinitionPlan==null||accessLease==null||!((LeaseProfile=="native-definition-journal"&&accessLease.Operation=="define")||(LeaseProfile=="native-start-journal"&&accessLease.Operation=="start"))||
       (name!="runtime.igvm"&&name!="guest-state.vmgs"&&name!="bundle.bin"&&name!="record.json"&&name!="profile.json")||mutable!=(name=="guest-state.vmgs"))throw new InvalidOperationException("Fixed original native assets required");
    CheckDeadline();Hex(digest,64);string path=Path.Combine(Root,name);
    var h=CreateFile(path,0x80000000|0x20000,mutable?3U:1U,IntPtr.Zero,3,0x00200000,IntPtr.Zero);
@@ -141,7 +141,7 @@ namespace Enclave.OwnedRpc {
  }
  internal sealed partial class WindowsStartAdmission {
   internal static void VerifyNativeDefinition(ProtectedAttempt plan,ProtectedAttempt reader,ref LegacyHandoff.Completion completed){
-   if(plan==null||plan.NativeDefinitionPlan==null||reader==null||reader.LeaseProfile!="native-definition"||reader.Operation!="define")throw new InvalidOperationException("Explicit native definition admission required");
+   if(plan==null||plan.NativeDefinitionPlan==null||reader==null||!((reader.LeaseProfile=="native-definition"&&reader.Operation=="define")||(reader.LeaseProfile=="native-start"&&reader.Operation=="start")))throw new InvalidOperationException("Explicit native definition admission required");
    plan.CheckDeadline();reader.CheckDeadline();var p=plan.NativeDefinitionPlan;
    var reviewed=Obj(new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32}.DeserializeObject(new UTF8Encoding(false,true).GetString(plan.ReadAdmission(p.Admission))));
    if(reviewed.ContainsKey("unsubmittedPredecessor"))throw new InvalidOperationException("Native app cannot adopt ordinary predecessor authority");

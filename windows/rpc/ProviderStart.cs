@@ -112,6 +112,7 @@ namespace Enclave.OwnedRpc {
         internal static long Number(object v){if(!(v is int)&&!(v is long))throw new InvalidOperationException("Record integer");return Convert.ToInt64(v,CultureInfo.InvariantCulture);}
         internal static void Name(string n){if(n=="stop.intent"||n=="stop.submit"||n=="stop.native"||n=="stop.receipt"||n=="stop.job"||n=="stop.terminal")return;if(n!="start.intent"&&n!="start.submit"&&n!="start.native"&&n!="start.receipt"&&n!="start.job"&&n!="start.terminal")throw new ArgumentException("Fixed record name");}
     }
+#if !NATIVE_RPC_ONLY
     public static class ProviderStart {
         static string Hash(string s){return ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(s));}
         static void Current(StartIdentity id,IStartRuntime runtime){long now=runtime.Now;if(now<id.Origin||now>=id.Deadline)throw new InvalidOperationException("Original start deadline/clock");}
@@ -182,7 +183,12 @@ namespace Enclave.OwnedRpc {
     }
     // Fixed local provider implementation, with no arbitrary method/path dispatch.
     // This library has no entry point and is not reachable from InertEntry.
-    public sealed class HyperVStartProvider : IStartProvider {
+#endif
+    public sealed class HyperVStartProvider
+#if !NATIVE_RPC_ONLY
+        : IStartProvider
+#endif
+    {
         internal static void RequireGuestMemory(IDictionary<string,object> row,long bytes) {
             if(bytes<=0||bytes%1048576!=0)throw new InvalidOperationException("Guest memory byte budget");
             foreach(string key in MemoryFields)if(!row.ContainsKey(key)||row[key]==null)throw new InvalidOperationException("Incomplete configured memory");
@@ -241,6 +247,7 @@ namespace Enclave.OwnedRpc {
                 if(found==null)throw new InvalidOperationException("Exact provider object absent");return found;
             }catch{if(found!=null)found.Dispose();throw;}
         }
+#if !NATIVE_RPC_ONLY
         public StartResponse Start(StartIdentity id){
             ProtectedAttempt.RequireSystem();runtime.VerifyBeforeSubmit(id);
             var physical=runtime as IPhysicalStartRuntime;
@@ -271,6 +278,7 @@ namespace Enclave.OwnedRpc {
                 }
             }
         }
+#endif
         public StartJob ReadJob(string reference){
             ProtectedAttempt.RequireSystem();string path=CanonicalJobReference(reference);if(path!=reference)throw new InvalidOperationException("Persisted canonical reference required");
             using(var job=new ManagementObject(Scope(),new ManagementPath(path),new ObjectGetOptions{Timeout=TimeSpan.FromSeconds(2)})){

@@ -10,10 +10,15 @@ namespace Enclave.OwnedRpc {
  public sealed partial class ProtectedAttempt {
   public static ProtectedAttempt OpenNativeCleanupJournal(string path,string hash,ProtectedAttempt reader){RequireSystem();return new ProtectedAttempt(path,hash,reader,false,1);}
   public static ProtectedAttempt PinNativeCleanupJournalController(string path,string hash,ProtectedAttempt reader){RequireAdministrator();return new ProtectedAttempt(path,hash,reader,true,1);}
+  public static ProtectedAttempt OpenNativeStartJournal(string path,string hash,ProtectedAttempt reader){RequireSystem();return new ProtectedAttempt(path,hash,reader,false,2);}
+  public static ProtectedAttempt PinNativeStartJournalController(string path,string hash,ProtectedAttempt reader){RequireAdministrator();return new ProtectedAttempt(path,hash,reader,true,2);}
+  public static ProtectedAttempt OpenNativeLifecycleJournal(string path,string hash,ProtectedAttempt reader){RequireSystem();return new ProtectedAttempt(path,hash,reader,false,3);}
+  public static ProtectedAttempt PinNativeLifecycleJournalController(string path,string hash,ProtectedAttempt reader){RequireAdministrator();return new ProtectedAttempt(path,hash,reader,true,3);}
   private ProtectedAttempt(string path,string hash,ProtectedAttempt reader,bool controller,int nativeCleanup){
-   if(nativeCleanup!=1||reader==null||reader.accessLease!=null||reader.LeaseProfile!="native-cleanup"||reader.PermitPath!=path||reader.PermitHash!=hash)throw new ArgumentException("Exact original native cleanup lease required");
+   string profile=nativeCleanup==1?"native-cleanup":nativeCleanup==2?"native-start":nativeCleanup==3?"native-lifecycle":"invalid";
+   if(profile=="invalid"||reader==null||reader.accessLease!=null||reader.LeaseProfile!=profile||reader.PermitPath!=path||reader.PermitHash!=hash)throw new ArgumentException("Exact original native cleanup lease required");
    reader.CheckDeadline();LocalPath(path);Hex(hash,64);if(Path.GetFileName(path)!="native-definition-plan.txt")throw new ArgumentException("Original native plan filename");
-   Root=Path.GetDirectoryName(path);ContractHash=hash;recordOwner=controller?AdminSid:SystemSid;accessLease=reader;LeaseProfile="native-cleanup-journal";
+   Root=Path.GetDirectoryName(path);ContractHash=hash;recordOwner=controller?AdminSid:SystemSid;accessLease=reader;LeaseProfile=profile+"-journal";
    try{
     string current=Path.GetPathRoot(Root);HoldDirectory(current,false);string[] parts=Root.Substring(3).Split('\\');
     for(int i=0;i<parts.Length;i++){current=Path.Combine(current,parts[i]);HoldDirectory(current,i==parts.Length-1);}
@@ -25,13 +30,14 @@ namespace Enclave.OwnedRpc {
   void RootIdentity(NativeRpcDefinitionPlan p,ProtectedAttempt reader){
    // Cleanup has a separate <=30s lease, clipped to original startup end+30s.
    // It can stop early after a failure. It cannot submit/revive any start.
-   if(p.Root!=Root||p.Boot!=reader.Boot||p.Boot!=CurrentBoot()||p.WorkerImageHash!=reader.ExecutableHash||p.Origin>reader.Origin||p.Deadline>Int64.MaxValue-30000||reader.Deadline>p.Deadline+30000)throw new InvalidOperationException("Original cleanup namespace boot image or window differs");
+   if(p.Root!=Root||p.Boot!=reader.Boot||p.Boot!=CurrentBoot()||(reader.LeaseProfile!="native-lifecycle"&&p.WorkerImageHash!=reader.ExecutableHash)||p.Origin>reader.Origin||p.Deadline>Int64.MaxValue-30000||reader.Deadline>p.Deadline+30000)throw new InvalidOperationException("Original cleanup namespace boot image or window differs");
+   if((reader.LeaseProfile=="native-start"&&reader.Deadline>p.Deadline)||(reader.LeaseProfile=="native-lifecycle"&&reader.Deadline!=p.Deadline+30000))throw new InvalidOperationException("Original lifecycle endpoint differs");
   }
  }
  public sealed class NativeRpcCleanupJournal:IStartJournal {
   readonly ProtectedAttempt pin;
-  public NativeRpcCleanupJournal(ProtectedAttempt pin){if(pin==null||pin.NativeDefinitionPlan==null||pin.LeaseProfile!="native-cleanup-journal")throw new ArgumentException("Protected native cleanup journal required");this.pin=pin;pin.CheckDeadline();}
-  static bool StartName(string n){return n=="native-start.intent"||n=="native-start.submit"||n=="native-start.invoke"||n=="native-start.receipt"||n=="native-start.job"||n=="native-start.terminal"||n=="native-start.observed"||n=="native-start.workers";}
+  public NativeRpcCleanupJournal(ProtectedAttempt pin){if(pin==null||pin.NativeDefinitionPlan==null||(pin.LeaseProfile!="native-cleanup-journal"&&pin.LeaseProfile!="native-start-journal"&&pin.LeaseProfile!="native-lifecycle-journal"))throw new ArgumentException("Protected native cleanup journal required");this.pin=pin;pin.CheckDeadline();}
+  static bool StartName(string n){return n=="native-start.intent"||n=="native-start.submit"||n=="native-start.invoke"||n=="native-start.receipt"||n=="native-start.job"||n=="native-start.terminal"||n=="native-start.observed"||n=="native-start.workers"||n=="native-start.registration"||n=="native-lifecycle.armed"||n=="native-lifecycle.bound"||n=="native-lifecycle.stop"||n=="native-lifecycle.result";}
   static bool StopName(string n){return n=="native-stop.intent"||n=="native-stop.submit"||n=="native-stop.invoke"||n=="native-stop.receipt"||n=="native-stop.job"||n=="native-stop.terminal"||n=="native-stop.observed";}
   static void Name(string n){if(!StartName(n)&&!StopName(n)&&!ProtectedAttempt.NativeDefinitionRecordAllowed(n,false))throw new ArgumentException("Fixed cleanup record required");}
   public string Read(string n){Name(n);pin.CheckDeadline();if(pin.ReadOptionalOnce(n+".pending")!=null)throw new InvalidOperationException("Torn original record held");return pin.ReadOptionalOnce(n);}

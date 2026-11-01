@@ -1,5 +1,6 @@
 // Explicit SYSTEM-only native definition or original-VM cleanup worker.
-// Independent owner/observer and suspended child gate; no start/delete/adoption.
+// Explicit start roles require independently armed lifecycle custody and a second
+// pre-resume handshake. No default manager activation/delete/adoption.
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -82,7 +83,7 @@ namespace Enclave.OwnedRpc {
             // the suspended child's private job terminates it on failure.
             a.WriteOnce("cleanup.child-handles",String.Join(",",fields));
         }
-        static int Owner(ProtectedAttempt a,string contract,bool cleanup) {
+        static int Owner(ProtectedAttempt a,string contract,bool cleanup,bool start) {
             a.WriteOnce("owner.consumed",Identity(a,"owner"));
             if(WaitMessage(a,"admit")!=a.Token)throw new InvalidOperationException("Closed owner gate differs");
             uint pid;long creation;
@@ -91,19 +92,25 @@ namespace Enclave.OwnedRpc {
                 BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);
                 string root=Environment.GetEnvironmentVariable("SystemRoot");
                 var env=new Dictionary<string,string>{{"SystemRoot",root},{"WINDIR",root},{"TEMP",a.Root},{"TMP",a.Root}};
-                var result=BoundedWorker.RunGuarded(a.Executable,Quote(a.Executable)+(cleanup?" cleanup-child ":" child ")+Quote(contract)+" "+a.ContractHash+" "+a.Origin+" "+a.Deadline,
+                ProtectedAttempt startPlan=null;NativeRpcStartRuntime startRuntime=null;
+                try{
+                if(start){startPlan=ProtectedAttempt.OpenNativeStartJournal(a.PermitPath,a.PermitHash,a);startRuntime=new NativeRpcStartRuntime(a,startPlan,delegate{a.CheckDeadline();BoundedWorker.VerifyObserverBeforeResume(observer.DangerousGetHandle(),pid,creation,a.Deadline);});var journal=new NativeRpcCleanupJournal(startPlan);NativeRpcStart.Prepare(startPlan.NativeDefinitionPlan,journal,new HyperVNativeRpcDefinition(startRuntime,journal),startRuntime);}
+                var result=BoundedWorker.RunGuarded(a.Executable,Quote(a.Executable)+(cleanup?" cleanup-child ":start?" start-child ":" child ")+Quote(contract)+" "+a.ContractHash+" "+a.Origin+" "+a.Deadline,
                     a.Root,env,a.Deadline,1000,128UL*1024*1024,delegate(SuspendedWorkerBinding child) {
                         if(cleanup)TransferCleanupHandles(a,child);
                         long remote=BoundedWorker.DuplicateChildToObserver(child,observer.DangerousGetHandle(),pid,creation);
                         a.WriteOnce("child.binding",remote+","+child.ProcessId+","+child.CreationFileTime+","+a.Token+","+a.Deadline);
+                        if(start)startPlan.WriteOnce("native-start.registration",StartRecords.Encode(new Dictionary<string,object>{{"plan",startPlan.ContractHash},{"contractPath",contract},{"contractHash",a.ContractHash}}));
                         while(!File.Exists(Path.Combine(a.Root,"release"))) {
                             BoundedWorker.VerifyObserverBeforeResume(observer.DangerousGetHandle(),pid,creation,a.Deadline);Thread.Sleep(5);
                         }
                         if(a.ReadOnce("release")!=a.Token)throw new InvalidOperationException("Child release differs");
+                        if(start){var j=new NativeRpcCleanupJournal(startPlan);while(j.Read("native-lifecycle.bound")==null){startRuntime.Check(startPlan.NativeDefinitionPlan,false);Thread.Sleep(5);}string workers=j.Read("native-start.workers");if(j.Read("native-lifecycle.bound")!=NativeRpcDefinitionPlan.Hash(workers))throw new InvalidOperationException("Independent lifecycle peer binding differs");startRuntime.Check(startPlan.NativeDefinitionPlan,true);}
                         BoundedWorker.VerifyObserverBeforeResume(observer.DangerousGetHandle(),pid,creation,a.Deadline);return true;
                     });
-                a.WriteOnce("owner.result",result.LocalSuccess?(cleanup?"native-cleanup-observed;provider-fenced=false;reservation-release=false":"native-definition-observed;rpc-ready=false;provider-fenced=false;reservation-release=false"):"native-operation-failed;reservation-release=false");
+                a.WriteOnce("owner.result",result.LocalSuccess?(cleanup?"native-cleanup-observed;provider-fenced=false;reservation-release=false":start?"native-start-observed;rpc-ready=false;provider-fenced=false;reservation-release=false":"native-definition-observed;rpc-ready=false;provider-fenced=false;reservation-release=false"):"native-operation-failed;reservation-release=false");
                 return result.LocalSuccess?0:1;
+                }finally{if(startRuntime!=null)startRuntime.Dispose();if(startPlan!=null)startPlan.Dispose();}
             }
         }
         static int Observer(ProtectedAttempt a) {
@@ -129,13 +136,14 @@ namespace Enclave.OwnedRpc {
             try {
                 if(args.Length!=5)return 64;
                 bool cleanup=args[0]=="cleanup-owner"||args[0]=="cleanup-observer"||args[0]=="cleanup-child";
-                string role=cleanup?args[0].Substring(8):args[0];if(role!="owner"&&role!="observer"&&role!="child")return 64;
+                bool start=args[0]=="start-owner"||args[0]=="start-observer"||args[0]=="start-child";
+                string role=cleanup?args[0].Substring(8):start?args[0].Substring(6):args[0];if(role!="owner"&&role!="observer"&&role!="child")return 64;
                 long origin=Number(args[3]),deadline=Number(args[4]);ArmOriginalDeadline(origin,deadline);
-                using(var a=cleanup?ProtectedAttempt.OpenNativeCleanupWorker(args[1],args[2]):ProtectedAttempt.OpenNativeDefinitionWorker(args[1],args[2])) {
+                using(var a=cleanup?ProtectedAttempt.OpenNativeCleanupWorker(args[1],args[2]):start?ProtectedAttempt.OpenNativeStartWorker(args[1],args[2]):ProtectedAttempt.OpenNativeDefinitionWorker(args[1],args[2])) {
                     if(a.Origin!=origin || a.Deadline!=deadline)throw new InvalidOperationException("CLI deadline differs from immutable contract");
                     using(var self=Process.GetCurrentProcess())
                         if(!String.Equals(self.MainModule.FileName,a.Executable,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Entry image path differs");
-                    if(role=="owner")return Owner(a,args[1],cleanup);
+                    if(role=="owner")return Owner(a,args[1],cleanup,start);
                     if(role=="observer")return Observer(a);
                     a.WriteOnce("child.consumed",Identity(a,"child"));
                     uint observerPid,ownerPid;long observerCreation,ownerCreation;
@@ -154,6 +162,12 @@ namespace Enclave.OwnedRpc {
                             BoundedWorker.VerifyObserverBeforeResume(observer.DangerousGetHandle(),observerPid,observerCreation,a.Deadline);
                             BoundedWorker.VerifyObserverBeforeResume(owner.DangerousGetHandle(),ownerPid,ownerCreation,a.Deadline);
                         };
+                        if(start){
+                            using(var plan=ProtectedAttempt.OpenNativeStartJournal(a.PermitPath,a.PermitHash,a))using(var runtime=new NativeRpcStartRuntime(a,plan,check)){
+                                var journal=new NativeRpcCleanupJournal(plan);string receipt=NativeRpcStart.Submit(plan.NativeDefinitionPlan,journal,new HyperVNativeRpcDefinition(runtime,journal),runtime);check();
+                                a.WriteOnce("child.result",StartRecords.Encode(new Dictionary<string,object>{{"schema","native-rpc-start-worker-result/1"},{"plan",plan.ContractHash},{"receipt",receipt??""},{"state",receipt==null?"held":"native-running-observed"},{"rpcReady",false},{"providerOperationFenced",false},{"reservationMayRelease",false}}));return receipt==null?2:0;
+                            }
+                        }
                         if(cleanup){
                             using(var plan=ProtectedAttempt.OpenNativeCleanupJournal(a.PermitPath,a.PermitHash,a))
                             using(var group=new NativeRpcStartGroup(plan,CleanupHandles(a,"cleanup.child-handles"))){
