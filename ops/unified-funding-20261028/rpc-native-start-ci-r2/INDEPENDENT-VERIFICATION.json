@@ -1,0 +1,113 @@
+{
+  "runtime": "a553e30e7b0f8dce517592fb12a4b46dd7fae578",
+  "suppliedPins": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/ProviderStart.cs",
+    "windows/rpc/OwnedVmPermit.cs",
+    "windows/rpc/HostPhysicalPool.cs",
+    "windows/rpc/WindowsStartAdmission.cs",
+    "windows/rpc/LegacyTemplateFence.cs",
+    "windows/rpc/LegacyLaunchCohort.cs",
+    "windows/rpc/LegacyHandoff.cs",
+    "windows/rpc/NativeRpcDefinition.cs",
+    "windows/rpc/NativeRpcWmi.cs",
+    "windows/rpc/NativeRpcStart.cs",
+    "windows/rpc/NativeRpcAuthority.cs",
+    "windows/rpc/NativeRpcWorkerEntry.cs",
+    "windows/rpc/NativeRpcController.cs",
+    "windows/rpc/NativeRpcManagerTransport.cs",
+    "test/rpc-windows-worker/NativeRpcStartHarness.cs"
+  ],
+  "compileClosuresForSuccessOnly": {
+    "harness": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcWmi.cs",
+      "windows/rpc/NativeRpcStart.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "test/rpc-windows-worker/NativeRpcStartHarness.cs"
+    ],
+    "controller": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "windows/rpc/NativeRpcController.cs",
+      "windows/rpc/NativeRpcManagerTransport.cs"
+    ],
+    "worker": [
+      "windows/rpc/BoundedWorker.cs",
+      "windows/rpc/OwnerObserver.cs",
+      "windows/rpc/ProtectedAttempt.cs",
+      "windows/rpc/ProviderStart.cs",
+      "windows/rpc/OwnedVmPermit.cs",
+      "windows/rpc/HostPhysicalPool.cs",
+      "windows/rpc/WindowsStartAdmission.cs",
+      "windows/rpc/LegacyTemplateFence.cs",
+      "windows/rpc/LegacyLaunchCohort.cs",
+      "windows/rpc/LegacyHandoff.cs",
+      "windows/rpc/NativeRpcDefinition.cs",
+      "windows/rpc/NativeRpcWmi.cs",
+      "windows/rpc/NativeRpcStart.cs",
+      "windows/rpc/NativeRpcAuthority.cs",
+      "windows/rpc/NativeRpcWorkerEntry.cs"
+    ]
+  },
+  "binaries": {
+    "system-worker.exe": {
+      "bytes": 240128,
+      "sha256": "564fec0eb295c6f9a5494c9891fb79419a2090803e0ff2967078e79482eb5cf8"
+    },
+    "native-worker.exe": {
+      "bytes": 256512,
+      "sha256": "f6b7ae75cac35e7d06822d445096d8152da78cff5f2656e28e3e4e754cd256d5"
+    },
+    "owned-entry.exe": {
+      "bytes": 257024,
+      "sha256": "0bbcaff6c91af4716cc4c465db5af64d61c64681a8e0e5b99cfec0302a4fd8c3"
+    }
+  },
+  "tests": [
+    "synchronous one-shot start requires fresh original configuration and separate authority",
+    "asynchronous exact receipt and incarnation precede every paced observation",
+    "read-only pending reconciliation settles saved job without renewed start authority",
+    "return zero and successful job do not prove VM running",
+    "lost response remains consumed held and cannot be submitted again",
+    "failed response persistence prevents all followup observation",
+    "unexpected response job or refused code cannot claim settlement",
+    "changed exact job incarnation refuses before completion",
+    "job error recurrence abnormal and unknown states never authorize running readback",
+    "different job InstanceID refuses despite same supplied reference",
+    "definition-only runtime and missing or zero lifecycle authority refuse before intent",
+    "authority loss or changed binding after consumption never reaches provider",
+    "fresh device observation rejects stale rollback and newly attached network",
+    "original deadline and admission refusal prevent native submission",
+    "missing prior owner security grant optical or device receipt cannot authorize start",
+    "running observation four second boundary expiry and rollback are enforced",
+    "tampered proof or lost running receipt cannot authenticate completion",
+    "completed proof authenticates historical evidence but fresh observation still refuses stopped VM",
+    "actual protected definition and reconcile leases reject every native start write"
+  ],
+  "productionEntrypointsCompiledOnly": true,
+  "providerLifecycleAuthorityClockAdmissionMocked": true,
+  "noStartEntrypointEnabled": true
+}

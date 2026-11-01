@@ -1574,3 +1574,10 @@ boot permission. TargetSYSTEM admission/current accepted image/storage-owner
 settlement and actual TPM/AF_HYPERV/NBD/readiness qualification remain required.
 Reference: https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/requeststatechange-msvm-computersystem
 (TimeoutPeriod is unused; repeated requests can overwrite earlier requests.)
+
+Start transaction qualification41336671277 passed19new cases (18mocked-provider/
+lifecycle/clock/admission,1actualadministratorprotectedjournal refusal). R1test
+syntax failure preserved. Both production entrypoints compile ONLY; controller
+256512B unchanged, worker240128B. No actual lifecycle authority, protected start
+lease, VMboot orRPCreadiness. See
+`../../ops/unified-funding-20261028/rpc-native-start-ci-r2/ROOT-RESULT.md`.
