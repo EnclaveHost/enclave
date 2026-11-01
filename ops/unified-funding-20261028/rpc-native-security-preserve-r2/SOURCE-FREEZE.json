@@ -1,0 +1,4 @@
+{
+  "test/rpc-windows-worker/NativeRpcSecurityHarness.cs": "6f4cbc21ff9694a5054155f050e8edb4287d425997c17073217c7cb21e9f687f",
+  "test/rpc-windows-worker/run-native-security-ci.ps1": "ff11a7ba97a721159b8c9695b99be80ff97245c3dcb0df7b00755bc4a10ba118"
+}

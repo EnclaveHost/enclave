@@ -59,9 +59,9 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
 }
 try{
     $production=@('BoundedWorker.cs','OwnerObserver.cs','ProtectedAttempt.cs','ProviderStart.cs','OwnedVmPermit.cs','HostPhysicalPool.cs','WindowsStartAdmission.cs','LegacyTemplateFence.cs','LegacyLaunchCohort.cs','LegacyHandoff.cs','NativeRpcDefinition.cs','NativeRpcAuthority.cs','NativeRpcWorkerEntry.cs','NativeRpcController.cs','NativeRpcManagerTransport.cs')|ForEach-Object{Join-Path $root ('windows\rpc\'+$_)}
-    $sources=$production+@(Join-Path $root 'test\rpc-windows-worker\NativeRpcSecurityHarness.cs')
+    $sources=@($production|Where-Object{[IO.Path]::GetFileName($_) -notin @('NativeRpcController.cs','NativeRpcManagerTransport.cs')})+@(Join-Path $root 'test\rpc-windows-worker\NativeRpcSecurityHarness.cs')
     Invoke-FiniteProcess $csc (@('/nologo','/optimize+','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll','/main:NativeRpcSecurityHarness',('/out:'+$entry))+$sources) 20000 'harness-compile'
-    Invoke-FiniteProcess $entry @() 20000 'worker-harness'
+    Invoke-FiniteProcess $entry @('--namespace-only') 20000 'worker-harness'
     $worker=Join-Path $work 'native-worker.exe'
     Invoke-FiniteProcess $csc (@('/nologo','/optimize+','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll','/main:Enclave.OwnedRpc.NativeRpcControllerEntry',('/out:'+$worker))+$production) 20000 'worker-compile'
     if((Get-Item -LiteralPath $worker).Length -gt 262144){throw 'Native worker image bound'}
@@ -69,7 +69,7 @@ try{
     [pscustomobject]@{compiled=$true;fixtureExecuted=$true;nativeProviderExecuted=$false;rpcReady=$false;sha256=(Get-FileHash -Algorithm SHA256 -LiteralPath $entry).Hash.ToLowerInvariant();bytes=(Get-Item -LiteralPath $entry).Length}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'artifact.json')
 }finally{
     $records|ConvertTo-Json -Depth 5|Set-Content -LiteralPath (Join-Path $work 'process-results.json')
-    Get-FileHash -Algorithm SHA256 -LiteralPath ($sources+@($csc))|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
+    Get-FileHash -Algorithm SHA256 -LiteralPath ($production+@(Join-Path $root 'test\rpc-windows-worker\NativeRpcSecurityHarness.cs')+@($csc))|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $work 'pins.json')
     $publish=Join-Path $env:RUNNER_TEMP ('rpc-native-security-results-'+[guid]::NewGuid().ToString('N'))
     $null=New-Item -ItemType Directory -Path $publish
     ('RPC_WORKER_RESULT='+$publish)|Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8

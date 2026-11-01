@@ -10,12 +10,12 @@ using System.Security.Principal;
 using System.Runtime.InteropServices;
 using Enclave.OwnedRpc;
 public static class NativeRpcSecurityHarness {
- static int count;
+ static int count;static bool namespaceOnly;
  [DllImport("kernel32.dll")]static extern IntPtr GetCurrentProcess();
  [DllImport("kernel32.dll")]static extern bool TerminateProcess(IntPtr p,uint code);
  static void Check(bool ok){if(!ok)throw new Exception("Assertion");}
  static void Refuse(Action f){bool refused=false;try{f();}catch{refused=true;}Check(refused);}
- static void Test(string name,Action f){f();count++;Console.WriteLine("PASS "+name);}
+ static void Test(string name,Action f){if(namespaceOnly&&!name.StartsWith("actual ",StringComparison.Ordinal))return;f();count++;Console.WriteLine("PASS "+name);}
  const string Id="12345678-1234-1234-1234-123456789012";
  static string SystemRef {get{return "Msvm_ComputerSystem.Name=\""+Id+"\"";}}
  static string JobRef {get{return HyperVStartProvider.ReferenceForId("definition-fixture");}}
@@ -74,7 +74,8 @@ public static class NativeRpcSecurityHarness {
   internal string Submit(){return NativeRpcSecurity.Submit(C.P,C.J,V,C.R);}
   internal string Read(){return NativeRpcSecurity.Reconcile(C.P,C.J,V,C.R);}
  }
- public static int Main(){try{
+ public static int Main(string[] args){try{
+  if(args.Length!=1||args[0]!="--namespace-only")throw new ArgumentException("Explicit unrun namespace case selection required");namespaceOnly=true;
   var timer=new Timer(delegate{TerminateProcess(GetCurrentProcess(),125);},null,20000,Timeout.Infinite);
   BoundedWorker.EnterSupervisorEnvelope(256UL*1024*1024);
   fixtureImage=File.ReadAllBytes(System.Reflection.Assembly.GetExecutingAssembly().Location);

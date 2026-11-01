@@ -1,0 +1,30 @@
+{
+  "harness-compile.out": {
+    "bytes": 1459,
+    "sha256": "a2f9e06c5352ee707edda39ce3d914ccd2c118595b14536d807a6d706cee13c6"
+  },
+  "process-results.json": {
+    "bytes": 541,
+    "sha256": "a964a8cb26356ef60526ca20f3d793d2a99b1d2703c1b03c5fbec52cf5032fbe"
+  },
+  "pins.json": {
+    "bytes": 3920,
+    "sha256": "36857b8224a05ebc14f0dea4a3babe32e6962f8d58ceaaa8bc8bd13bb8501122"
+  },
+  "worker-harness.out": {
+    "bytes": 999,
+    "sha256": "f0e8c5a68ba0bfca903085a41d4a57a60a3a1de4b34e795e27f9ca622757cd31"
+  },
+  "worker-harness.err": {
+    "bytes": 522,
+    "sha256": "f0d9389a6028fedbf39feabfbd7a03e64f65d557a823aa12c2ab5e1229ef1f5d"
+  },
+  "harness-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "artifact-bound-failure.json": {
+    "bytes": 105,
+    "sha256": "7f0b1fa57d9fb7795725c0866377eb1dab8daef5099dad564210432d11899c78"
+  }
+}

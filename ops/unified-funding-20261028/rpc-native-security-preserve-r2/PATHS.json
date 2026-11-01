@@ -1,0 +1,7 @@
+[
+  "test/rpc-windows-worker/NativeRpcSecurityHarness.cs",
+  "test/rpc-windows-worker/run-native-security-ci.ps1",
+  "ops/unified-funding-20261028/rpc-native-security-ci-r1",
+  "ops/unified-funding-20261028/rpc-native-security-preserve-r2",
+  "ops/unified-funding-20261028/rpc-native-security-ci-r2"
+]

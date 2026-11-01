@@ -1,0 +1,45 @@
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 13091754144,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5MTc1NDE0NA==",
+      "name": "rpc-native-security-results",
+      "size_in_bytes": 3291,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13091754144",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13091754144/zip",
+      "expired": false,
+      "digest": "sha256:e3b4340ed3c334e114cb7cf86389ab4c7a93c4f6a28ca2caad8a3dffab1aae61",
+      "created_at": "2026-11-01T17:00:19Z",
+      "updated_at": "2026-11-01T17:00:19Z",
+      "expires_at": "2026-11-08T17:00:18Z",
+      "workflow_run": {
+        "id": 41329154635,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "6538e900b915a33a47931330984039bd13c17cdc"
+      }
+    },
+    {
+      "id": 13091539669,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5MTUzOTY2OQ==",
+      "name": "rpc-native-security-exact-source",
+      "size_in_bytes": 101019,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13091539669",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13091539669/zip",
+      "expired": false,
+      "digest": "sha256:861afc4c8a9dded8570e4b8a0b4e862d489e67f3d81d6fcd4b09db794b14b02d",
+      "created_at": "2026-11-01T17:00:04Z",
+      "updated_at": "2026-11-01T17:00:04Z",
+      "expires_at": "2026-11-08T17:00:03Z",
+      "workflow_run": {
+        "id": 41329154635,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "6538e900b915a33a47931330984039bd13c17cdc"
+      }
+    }
+  ]
+}
