@@ -1264,3 +1264,9 @@ checked against both pinned owner keys. Success means acquisition was requested;
 RPC readiness, provider fencing and reservation release remain false. No native
 VM start, provider mutation, task registration, production installation or guest
 image rebuild is performed by loading or compiling this source.
+
+Candidate source `ac187c302cfbb7098b59919e1c27e4dd8fe78345` compiled in hosted
+Windows run41317386906 (1814ms,69632-byte executable). This was compile-only;
+no native bootstrap execution or target admission. Six separate Node framing/clock
+checks passed. Exact build receipts are preserved in
+`ops/rpc-production-final-20261025/rpc-native-bootstrap-build-r1/ROOT-RESULT.md`.

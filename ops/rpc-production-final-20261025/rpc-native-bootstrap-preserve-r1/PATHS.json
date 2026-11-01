@@ -1,0 +1,13 @@
+[
+  "windows/rpc/ProtectedAttempt.cs",
+  "windows/rpc/HostBootstrapEntry.cs",
+  "windows/rpc/HostBootstrapChannels.cs",
+  "windows/rpc/README.md",
+  "rpc/host/windows-entry.mjs",
+  "rpc/host/native-wire.mjs",
+  "rpc/README.md",
+  "test/rpc-server/native-wire.test.mjs",
+  "test/rpc-windows-worker/build-host-bootstrap-ci.ps1",
+  ".github/workflows/rpc-host-bootstrap-build.yml",
+  "ops/rpc-production-final-20261025/rpc-native-bootstrap-wire-tests-r1"
+]

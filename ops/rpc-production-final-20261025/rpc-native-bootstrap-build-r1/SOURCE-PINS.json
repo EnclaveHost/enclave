@@ -1,0 +1,9 @@
+{
+  "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+  "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+  "windows/rpc/ProtectedAttempt.cs": "bf5a3b983593615cfeb9ab4eb16450985c0918ed236d74ec84fbe6c5d67691a5",
+  "windows/rpc/HostBootstrapEntry.cs": "f5126895e1fcb6051b2224f6984a3aa057e5a6819506a27fb1beb03121f1a6c6",
+  "windows/rpc/HostBootstrapChannels.cs": "1c7f6dca887697154ec80e2fb3a901bb8f28547f320c35ea9d2235a48a107a86",
+  "test/rpc-windows-worker/build-host-bootstrap-ci.ps1": "296a704799694c9d27a1ca70fbab233c9b4c1cee94e28f0ad6a35901584e1d2b",
+  ".github/workflows/rpc-host-bootstrap-build.yml": "566af0a2430ccb2a29891a7a793625f6c16f53fa59f0cfccb523267250aec9f4"
+}

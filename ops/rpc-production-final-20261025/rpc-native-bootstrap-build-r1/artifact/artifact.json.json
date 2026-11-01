@@ -1,0 +1,4 @@
+{
+  "sha256": "418bdbccc306c5f38a41df7201312697f90c49479f6bc071272eed40cce8e005",
+  "utf8": "{\r\n    \"compiled\":  true,\r\n    \"executed\":  false,\r\n    \"rpcReady\":  false,\r\n    \"providerOperationFenced\":  false,\r\n    \"reservationMayRelease\":  false,\r\n    \"sha256\":  \"cce3e6cf71a03565848be466a3ae81b0fe33c80f33570bc50e9ac75497c41191\",\r\n    \"bytes\":  69632\r\n}\r\n"
+}

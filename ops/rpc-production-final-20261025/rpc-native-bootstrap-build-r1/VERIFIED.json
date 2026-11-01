@@ -1,0 +1,13 @@
+{
+  "runtimeCommit": "ac187c302cfbb7098b59919e1c27e4dd8fe78345",
+  "executableSha256": "cce3e6cf71a03565848be466a3ae81b0fe33c80f33570bc50e9ac75497c41191",
+  "executableBytes": 69632,
+  "actualCompiledSources": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/HostBootstrapEntry.cs",
+    "windows/rpc/HostBootstrapChannels.cs"
+  ],
+  "executed": false
+}

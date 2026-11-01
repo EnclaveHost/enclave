@@ -1,0 +1,1 @@
+Reviewed compile-only Windows-hosted exact source closure. No candidate execution, native TPM/VM/SYSTEM task or target import. Compiler20s and finite output/held process observation; runner3min. Original source pins required, dispatch intent once, unknown held/no retry. Results must distinguish compilation from native qualification. No floor/cap relaxation.

@@ -1,0 +1,4 @@
+{
+  "sha256": "a2238b5b42e3a93c859baf3c9b9cfbee71d0b1de04b6d182f7901730f2934f47",
+  "utf8": "{\r\n    \"label\":  \"bootstrap-compile\",\r\n    \"pid\":  8156,\r\n    \"exitCode\":  0,\r\n    \"elapsedMs\":  1814,\r\n    \"failure\":  null,\r\n    \"processExited\":  true,\r\n    \"maximumObservedWorkingSet\":  32432128,\r\n    \"outputBytes\":  984\r\n}\r\n"
+}
