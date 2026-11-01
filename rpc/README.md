@@ -31,6 +31,12 @@ exercise the shared contract, legacy vectors, forbidden combinations, app ID
 binding and real exclusive output. Their empty Wasm component is a wire-format
 fixture, not a functional RPC controller.
 
+`isolation/m3/rpcservice` now supplies a fixed native process-control adapter
+for the existing chain wrapper: EL/CL, bounded L1 observation, then one Base
+start, using creation-time cgroup placement and fixed unprivileged role IDs.
+It retains the original 900-second deadline and reports only clients-started,
+never RPC readiness. It is not connected to the monitor or a measured image yet.
+
 Required next integration is specific: a measured native RPC companion running
 the existing Reth/Lighthouse/Base service graph, portable controller, verified
 image/release selection, app-owned writable state mounts, and manager lifecycle.
@@ -39,7 +45,9 @@ Moonlight ports and excludes state volumes. Existing encrypted app volumes are
 RAM-backed with S3 synchronization and cannot hold these TB-scale databases.
 The retained NVMe/COW state needs an authenticated, exclusive writer binding to
 the RPC app. None of those runtime capabilities is claimed by the V9 producer.
-No catalog or payment transaction has been submitted for this candidate.
+No catalog or payment transaction has been submitted for this native V9 candidate.
+The separately requested ordinary WASI preview is published as `enclave-rpc`
+version `0.0.1-preview`; it explicitly says the RPC backend is not operational.
 
 # Direct local Linux startup status
 

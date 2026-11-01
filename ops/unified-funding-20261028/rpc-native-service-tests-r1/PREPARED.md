@@ -1,0 +1,1 @@
+NOT launched. Freeze source/pins and complete root review before one bounded inert Go test suite.512MiB hard/450RSS/CPU1/noSwap/27648pending-aware floor+640. No real chain client/cgroup mutation/provider/VM/export. No test execution while author allocation remains active.
