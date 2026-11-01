@@ -14,37 +14,6 @@ using System.Threading;
 using System.Web.Script.Serialization;
 
 namespace Enclave.OwnedRpc {
- public sealed partial class ProtectedAttempt {
-  void BootstrapParents(string path) {
-   LocalPath(path);string dir=Path.GetDirectoryName(path),current=Path.GetPathRoot(dir);
-   HoldDirectory(current,false);string[] parts=dir.Substring(3).Split('\\');
-   for(int i=0;i<parts.Length;i++){current=Path.Combine(current,parts[i]);HoldDirectory(current,i==parts.Length-1);}
-  }
-  internal void BootstrapPin(string path,int maximum,string digest) {
-   if(LeaseProfile!="host-bootstrap")throw new InvalidOperationException("Bootstrap profile required");
-   CheckDeadline();Hex(digest,64);BootstrapParents(path);
-   var stream=HoldRead(path,maximum);string actual;
-   using(var sha=SHA256.Create())actual=BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","").ToLowerInvariant();
-   if(actual!=digest)throw new InvalidOperationException("Bootstrap executable pin differs");CheckDeadline();
-  }
-  internal byte[] BootstrapRead(string path,int maximum,string digest) {
-   if(LeaseProfile!="host-bootstrap")throw new InvalidOperationException("Bootstrap profile required");
-   CheckDeadline();BootstrapParents(path);
-   byte[] raw=Bytes(HoldRead(path,maximum),maximum);
-   if(digest!=null){Hex(digest,64);if(Hash(raw)!=digest)throw new InvalidOperationException("Bootstrap pin differs");}
-   CheckDeadline();return raw;
-  }
-  internal void BootstrapPublish(string name,byte[] value) {
-   if(LeaseProfile!="host-bootstrap"||(name!="enrollment.json"&&name!="native-result.json")||value.Length==0||value.Length>131072)
-    throw new InvalidOperationException("Fixed public bootstrap record required");
-   CheckDeadline();string final=Path.Combine(Root,name),pending=final+".pending";
-   var security=new FileSecurity();security.SetSecurityDescriptorSddlForm("O:SYG:SYD:P(A;;FA;;;SY)(A;;FA;;;BA)");
-   using(var f=new FileStream(pending,FileMode.CreateNew,FileSystemRights.Write,FileShare.None,4096,FileOptions.WriteThrough,security)){
-    f.Write(value,0,value.Length);f.Flush(true);
-   }
-   File.Move(pending,final);BootstrapRead(final,131072,Hash(value));
-  }
- }
  public static class HostBootstrapChannels {
   static readonly UTF8Encoding Utf8=new UTF8Encoding(false,true);
   internal static readonly string[] SourceNames={
@@ -122,7 +91,13 @@ namespace Enclave.OwnedRpc {
    string[] f=Utf8.GetString(a.BootstrapRead(a.PermitPath,131072,a.PermitHash)).Split('\n');
    // Fixed line plan, no generic executable/command transport. Original startup
    // clock is distinct from this <=30s phase lease and is never refreshed here.
-   if(f.Length!=16||f[0]!="owned-rpc-host-plan-v1"||f[15]!="")throw new InvalidOperationException("Exact bootstrap plan required");
+   #if RPC_BOOTSTRAP_CI
+   if(f.Length!=16||f[0]!="owned-rpc-host-plan-v1"||f[15]!="")throw new InvalidOperationException("Exact fixture bootstrap plan required");
+#else
+   // The native process owns these handles until teardown; never dispose them
+   // while background pumps may be executing Check(). No PID reopen on loss.
+   NativeBootstrapBinding.Shape(f);var original=new NativeBootstrapContext(a,f,current);current=original.Check;
+#endif
    Guid vm;if(!Guid.TryParseExact(f[1],"D",out vm)||vm==Guid.Empty||vm.ToString("D")!=f[1])throw new ArgumentException("Canonical VM GUID required");
    long origin=Number(f[2]),deadline=Number(f[3]);
    if(origin<0||origin>Int64.MaxValue-900000||deadline-origin!=900000||a.Origin<origin||a.Deadline>deadline)throw new InvalidOperationException("Original startup clock differs");
@@ -138,8 +113,8 @@ namespace Enclave.OwnedRpc {
    }
    byte[] expected=Convert.FromBase64String(f[12]),chain=Convert.FromBase64String(f[13]);
    if(expected.Length>32768||chain.Length>65536||Convert.ToBase64String(expected)!=f[12]||Convert.ToBase64String(chain)!=f[13])throw new InvalidOperationException("Public configuration bound");
-   // Caller must bind this digest to the original accepted VM ownership record.
-   // This entry does not manufacture that authority or permit a replay of 5a.
+   // Production NativeBootstrapContext already verified this digest against
+   // the original owned/start journal; historical ambiguous attempts cannot pass.
    if(f[14].Length!=64||!System.Text.RegularExpressions.Regex.IsMatch(f[14],"\\A[0-9a-f]{64}\\z"))throw new InvalidOperationException("Original VM ownership receipt required");
    a.WriteOnce("bootstrap.native-intent",a.Token+","+f[1]+","+f[14]+","+origin+","+deadline);
 #if RPC_BOOTSTRAP_CI

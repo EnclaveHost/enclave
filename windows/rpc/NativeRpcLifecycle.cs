@@ -15,7 +15,7 @@ namespace Enclave.OwnedRpc {
  public sealed partial class ProtectedAttempt {
   internal string PinLifecycleEvidence(string path,string hash){return PinLifecycleEvidence(path,hash,false);}
   internal string PinLifecycleEvidence(string path,string hash,bool backup){
-   if(LeaseProfile!="native-start-journal"&&LeaseProfile!="native-lifecycle-journal")throw new InvalidOperationException("Original start custody required");CheckDeadline();LocalPath(path);Hex(hash,64);
+   if(LeaseProfile!="native-start-journal"&&LeaseProfile!="native-lifecycle-journal"&&LeaseProfile!="native-bootstrap-journal")throw new InvalidOperationException("Original start custody required");CheckDeadline();LocalPath(path);Hex(hash,64);
    if(Path.GetFileName(path)!="contract.txt")throw new InvalidOperationException("Fixed lifecycle contract");string root=Path.GetDirectoryName(path),current=Path.GetPathRoot(root);HoldDirectory(current,false);
    foreach(string part in root.Substring(3).Split('\\')){current=Path.Combine(current,part);HoldDirectory(current,current==root);}
    byte[] raw=Bytes(HoldRead(path,2048),2048);if(Hash(raw)!=hash)throw new InvalidOperationException("Lifecycle contract changed");var f=Utf8.GetString(raw).Split('\n');var p=NativeDefinitionPlan;
