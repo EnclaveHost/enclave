@@ -1,0 +1,63 @@
+{
+  "nonce": "4e954895bdfd47e2929172a983915874",
+  "failure": "Aggregate start observation exceeds two seconds; phase=pool-resources elapsedMs=3249",
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379749915020696",
+      "pid": "56480",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379749915020681",
+      "pid": "50272",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379749916751320",
+      "pid": "41256",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorStageDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379749546126758",
+      "pid": 35028,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379749738133160",
+      "pid": 56264,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379749819523555",
+      "pid": 44600,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "original8091Alive": true,
+  "originalVmStateAndMemoryUnchanged": true,
+  "thirdOriginalJournalBytesUnchanged": true,
+  "noExactTasksOrProcesses": true,
+  "stages": {
+    "admission.preparation-start": "4e954895bdfd47e2929172a9839158741a04e76600e411f1a395e342df676a8009da2e0a21e2f7b1ccb31a43d032503c06fc3a784af10f6a88e054dec33ca781\n757229931",
+    "admission.prepared": "4e954895bdfd47e2929172a9839158741a04e76600e411f1a395e342df676a8009da2e0a21e2f7b1ccb31a43d032503c06fc3a784af10f6a88e054dec33ca781\nd4d33c67622da9d0ccbd284cad5169274ddc02268605a75190a35662e2f1bb4c\n757231884",
+    "admission.live-start": "4e954895bdfd47e2929172a9839158741a04e76600e411f1a395e342df676a8009da2e0a21e2f7b1ccb31a43d032503c06fc3a784af10f6a88e054dec33ca781\n757234803"
+  },
+  "gateHash": "owned-rpc-observation-gate/1\n4e954895bdfd47e2929172a9839158741a04e76600e411f1a395e342df676a8009da2e0a21e2f7b1ccb31a43d032503c06fc3a784af10f6a88e054dec33ca781\na4257e5947567456a37269d321a22274267f4e7b9482074dfa5197a6c53f6973\n757231911\n757255944\nb13b2735ea8012714dd200b1338f0525fa1abfee4ff37571c939d7d0196bbf81\n",
+  "providerOperationFenced": false,
+  "reservationMayRelease": false,
+  "rpcReady": false
+}

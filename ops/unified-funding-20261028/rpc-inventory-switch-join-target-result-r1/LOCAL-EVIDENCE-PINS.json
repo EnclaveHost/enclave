@@ -1,0 +1,90 @@
+{
+  "rpc-inventory-switch-join-target-admission-r1/admit.py": {
+    "sha256": "7fcada90860fd1441c8e566c4e4fc90c0afda84ef4b64807149f807228e17ec0",
+    "bytes": 828
+  },
+  "rpc-inventory-switch-join-target-admission-r1/PINS.json": {
+    "sha256": "b8cb2f5709493c955f0390efb8a2bf4aaaaf3a3ed11da9a79bd408e1913e904a",
+    "bytes": 255
+  },
+  "rpc-inventory-switch-join-target-admission-r1/storage-RESULT.json": {
+    "sha256": "4d8429b48465471f98b93d042f9671c1d543dd100955e49bbdfeabc936b3edcc",
+    "bytes": 30255
+  },
+  "rpc-inventory-switch-join-target-admission-r1/storage-read.ps1": {
+    "sha256": "d7113704021fe1bdf3d0a317881c901d286747987c9eb2d41dd453e790f5e536",
+    "bytes": 10819
+  },
+  "rpc-inventory-switch-join-target-admission-r1/run.py": {
+    "sha256": "77482c724056f11583008cca6d60c9c2a4b054d1d966e4aae4bff15c08bec506",
+    "bytes": 2437
+  },
+  "rpc-inventory-switch-join-target-stage-r1/create-RESULT.json": {
+    "sha256": "ccb94749f86700b8198c01a07340371b893b367c03ddbe72769108c2a251bb36",
+    "bytes": 822
+  },
+  "rpc-inventory-switch-join-target-stage-r1/verify.ps1": {
+    "sha256": "0abcb6662473c5a7b2307792392195e0fda1fbc1d864c8451be786aeca1346fe",
+    "bytes": 5011
+  },
+  "rpc-inventory-switch-join-target-stage-r1/PINS.json": {
+    "sha256": "db2a30eb971ad6d65702a197220a1997d8d9a457432b2d16d554b1b97570598b",
+    "bytes": 596
+  },
+  "rpc-inventory-switch-join-target-stage-r1/create.ps1": {
+    "sha256": "011123198721a75f849ca9eb7aa5cbfd67c398791f0c094f1740f2ad09b290fb",
+    "bytes": 4394
+  },
+  "rpc-inventory-switch-join-target-stage-r1/verify-RESULT.json": {
+    "sha256": "51010d4e5af6fc37a3334f8d5b7e7f662c1aa38e26c4d934a74ab3fab94916fc",
+    "bytes": 1303
+  },
+  "rpc-inventory-switch-join-target-stage-r1/SPEC.json": {
+    "sha256": "2a9a612540caf82b80645652fc9104f8d8d78259c27bea38af4519390faa4e73",
+    "bytes": 153
+  },
+  "rpc-inventory-switch-join-target-stage-r1/run.py": {
+    "sha256": "cb98b7d0cc92dd12797b25ea77d0959e3f7ca406523ef90d0763efcf912bf81a",
+    "bytes": 3523
+  },
+  "rpc-inventory-switch-join-target-stage-r1/stage-RESULT.json": {
+    "sha256": "c39e701b9d0891e86867a5a4534d15a22313f6dcbd1e3126b32690331a8698b4",
+    "bytes": 501
+  },
+  "rpc-inventory-switch-join-target-execution-r1/PINS.json": {
+    "sha256": "06b005475ef0fc45da96aad42fe2729985aa5c8354de629bf01f2a6b346ad4ac",
+    "bytes": 251
+  },
+  "rpc-inventory-switch-join-target-execution-r1/RESULT.json": {
+    "sha256": "2099c590ca58699c4836bf1a9624f66d6151eec611e5e8abdc4539c29683b9c3",
+    "bytes": 139
+  },
+  "rpc-inventory-switch-join-target-execution-r1/SPEC.json": {
+    "sha256": "61fdca7207f9964f6e9e54cb932fe6df642b9030848b2be6dd79eb276dbac284",
+    "bytes": 1180
+  },
+  "rpc-inventory-switch-join-target-execution-r1/run.py": {
+    "sha256": "4e3ba8a9cfa448ef6195b44862ffc2db76df81a180c8ffb68da477fc11bf59de",
+    "bytes": 3733
+  },
+  "rpc-inventory-switch-join-result-read-r1/admit.py": {
+    "sha256": "7fcada90860fd1441c8e566c4e4fc90c0afda84ef4b64807149f807228e17ec0",
+    "bytes": 828
+  },
+  "rpc-inventory-switch-join-result-read-r1/PINS.json": {
+    "sha256": "43b57425ea56f9579efbf6a87042fa2dfc1e20799fccc6722886a944c8fa5bf6",
+    "bytes": 255
+  },
+  "rpc-inventory-switch-join-result-read-r1/storage-RESULT.json": {
+    "sha256": "7ed16c9331c6faf8e655d39b4bbf7ab7fb4f311cba86d53c88f2067555799f15",
+    "bytes": 10719
+  },
+  "rpc-inventory-switch-join-result-read-r1/storage-read.ps1": {
+    "sha256": "bda61138ee1627b35d96ec87800f99f66b0062336bea470b49636218c9e9a514",
+    "bytes": 4911
+  },
+  "rpc-inventory-switch-join-result-read-r1/run.py": {
+    "sha256": "77482c724056f11583008cca6d60c9c2a4b054d1d966e4aae4bff15c08bec506",
+    "bytes": 2437
+  }
+}

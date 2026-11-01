@@ -1,0 +1,8 @@
+{
+  "enclave-rpc-inventory-switch-join-target-admission-r1-20261101": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+  "enclave-rpc-inventory-switch-join-target-verify-r1-20261101": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+  "enclave-rpc-inventory-switch-join-target-create-r1-20261101": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+  "enclave-rpc-inventory-switch-join-target-stage-r1-20261101": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n",
+  "enclave-rpc-inventory-switch-join-target-execution-r1-20261101": "ActiveState=failed\nMainPID=0\nExecMainStatus=1\n",
+  "enclave-rpc-inventory-switch-join-result-read-r1-20261101": "ActiveState=inactive\nMainPID=0\nExecMainStatus=0\n"
+}
