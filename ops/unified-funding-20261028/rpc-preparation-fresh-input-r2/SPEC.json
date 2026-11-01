@@ -1,0 +1,23 @@
+{
+  "nonce": "dc85b6733087423dbc26c0af7697ed92",
+  "root": "C:\\EnclaveRpcTransition-69620e8a979d42c5959a07372f34b441\\69620e8a979d42c5959a07372f34b441",
+  "artifacts": {
+    "definition-controller.exe": {
+      "name": "definition-controller.exe",
+      "bytes": 260608,
+      "sha256": "676e659c55347f5a82fb5e1f85d7196824ad7104db0d342003ddb48c9b8c60ed"
+    },
+    "definition-entry.exe": {
+      "name": "definition-entry.exe",
+      "bytes": 260608,
+      "sha256": "154878ba18aaed8170d3c2c00a6a4be4692b84ee658834b82bb6d9c55b6b90a3"
+    }
+  },
+  "planPath": "C:\\EnclaveRpcVm-7a8586db00c64f6f8ab024ae134fe641\\7a8586db00c64f6f8ab024ae134fe641\\definition-plan.txt",
+  "planHash": "4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c",
+  "samplerPath": "C:\\EnclaveRpcClock-856c8213f2a149c3a24e27904e2093c6\\856c8213f2a149c3a24e27904e2093c6\\clock-sample.exe",
+  "samplerHash": "57c35df39b752694a9cd420b84eed6c1f800c0331c2442dbe8fb743eacaf03f6",
+  "boot": "1a04e76600e411f1a395e342df676a80",
+  "inputNonce": "e925a6e4f0ed49ce9af530ce2001fe9f",
+  "inputRoot": "C:\\EnclaveRpcTransition-e925a6e4f0ed49ce9af530ce2001fe9f\\e925a6e4f0ed49ce9af530ce2001fe9f"
+}

@@ -1,0 +1,46 @@
+[
+  {
+    "path": "COMMAND.json",
+    "sha256": "4a2c7e70c9412fdc53f984ce1036c3e6f68b65cfa4eaea0f21d6b2aeaacc7225"
+  },
+  {
+    "path": "SPEC.json",
+    "sha256": "0816df1798c3d4e85fdc78a4102839c8e1c36fd7dd08020def2f701131352b8d"
+  },
+  {
+    "path": "SOURCE.json",
+    "sha256": "636b032d28f032292a7f1c84774bc0c5c8d41f3c36d1a05e17d3519ede20dd22"
+  },
+  {
+    "path": "PINS.json",
+    "sha256": "7f681aa44577de1212c02a9f0a63dc9f4897c61a4c95f0e4e5d2bbf55fcc7ee8"
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "sha256": "69fe6a4af2ac30fb6711faf2340db8e02853b6875746d7ebf63d3274d254128d"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "sha256": "d12c6a4de0224438f8e245d087431d68d91b8fb330e0efe3267b791f5576c08a"
+  },
+  {
+    "path": "run.py",
+    "sha256": "a9e9cd72b5d84d1028c57cc82802db2d80f0c46604830ed1a67ef23018936d0d"
+  },
+  {
+    "path": "read.py",
+    "sha256": "77482c724056f11583008cca6d60c9c2a4b054d1d966e4aae4bff15c08bec506"
+  },
+  {
+    "path": "publish.ps1",
+    "sha256": "fb443036c502aefa217c024e8f98fa2fd1f7dca5e7311a8868cbcf3c85694d8a"
+  },
+  {
+    "path": "storage-read.ps1",
+    "sha256": "d7113704021fe1bdf3d0a317881c901d286747987c9eb2d41dd453e790f5e536"
+  },
+  {
+    "path": "KVM-REVIEW.json",
+    "sha256": "25efbeac3da54ed5f8cd2de2c97e4457847438d75082410c23d7ad64436fb210"
+  }
+]

@@ -1,0 +1,1 @@
+Exact consumed d8dd diagnostic owner/observer/child PIDcreation and fixedstage receipts, all three freshinput readers plus publisher exactidentity. Originalthirdplan/native/invoke read only, no providerlookup/settlement/cancellation. FouroriginalVM and8091 continuity. Rawpayload private.

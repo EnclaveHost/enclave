@@ -1,0 +1,88 @@
+{
+  "deaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379684168918584",
+      "pid": "54512",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379684168918694",
+      "pid": "14236",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379684170708568",
+      "pid": "58088",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorDeaths": [
+    {
+      "label": "read-r1",
+      "expectedCreation": "134379682877816054",
+      "pid": 50212,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "read-r2",
+      "expectedCreation": "134379683304849901",
+      "pid": 28280,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "read-r3",
+      "expectedCreation": "134379684023051581",
+      "pid": 57864,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "publish",
+      "expectedCreation": "134379684123791305",
+      "pid": 31188,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "traces": [],
+  "failure": {
+    "type": "System.InvalidOperationException",
+    "message": "Node commitments changed since review: rows=21/21 changed=7 first=\"0x38f368d67995676e0bbe48ebbc1d18a643bb314942374b44e1e52239a1cd215c\" mask=1 expected=[[\"fenced-unallocated-retry\"],true,128,false,false,false] actual=[\"stopped\",true,128,false,false,false]"
+  },
+  "controller": {
+    "schema": "owned-rpc-target-definition/1",
+    "passed": false,
+    "operation": "preparation-check",
+    "plan": "4657a2442176cac1e2461056c14c77053c288042840a553304ad76d2d87f667c",
+    "result": null,
+    "origin": 750651628,
+    "deadline": 750681628,
+    "elapsedMs": 7421,
+    "root": "C:\\EnclaveRpcDefinition-d8dd438f26664cd0ad3065b30a97f436\\d8dd438f26664cd0ad3065b30a97f436",
+    "freeBytes": 84837130240,
+    "requiredFreeBytes": 62709039104,
+    "failures": [
+      "InvalidOperationException: Exact role completion failed"
+    ],
+    "startAuthorized": false,
+    "reservationMayRelease": false
+  },
+  "nodeSnapshotToPublishIntentSeconds": 3.9289236068725586,
+  "nodeSnapshotToInspectIntentSeconds": 6.346962928771973,
+  "readResultToInspectIntentSeconds": 2.565913438796997,
+  "originalVmsUnchanged": true,
+  "thirdJournalUnchanged": true,
+  "original8091Alive": true,
+  "rawSha256": "444d178fb656bd37f85ba96f37763a99b9cd1650fbbe0153d8723669b0171257",
+  "providerOperationFenced": false,
+  "reservationMayRelease": false,
+  "rpcReady": false
+}

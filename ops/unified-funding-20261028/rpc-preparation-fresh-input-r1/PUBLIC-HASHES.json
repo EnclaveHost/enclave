@@ -1,0 +1,46 @@
+[
+  {
+    "path": "COMMAND.json",
+    "sha256": "21d962adb4bfc0cd66e188fd4d610a1d1645ce35212609904e032e897c858e53"
+  },
+  {
+    "path": "SPEC.json",
+    "sha256": "9d95ddcaa494a291504ceb25fcfa467dfe612e992e47eaf14880e766ceb4f7e1"
+  },
+  {
+    "path": "SOURCE.json",
+    "sha256": "636b032d28f032292a7f1c84774bc0c5c8d41f3c36d1a05e17d3519ede20dd22"
+  },
+  {
+    "path": "PINS.json",
+    "sha256": "795bf50c78272e5ee2e154187316bca1a5bee7abc67e78f1db680e1cb6a85178"
+  },
+  {
+    "path": "ROOT-REVIEW.md",
+    "sha256": "12b89e6b2f35b87bddb6577e2a08ca824909c1b7091e8bddba252699efe4a8c5"
+  },
+  {
+    "path": "ROOT-RESULT.md",
+    "sha256": "4231a257c245adaada9a986ba93d414fedf9afe543158c31fba1c6a92eca1d80"
+  },
+  {
+    "path": "run.py",
+    "sha256": "d9904736e5285b128d9c1eb93c613da8626641998c2f65e09297c343cba0d8fb"
+  },
+  {
+    "path": "read.py",
+    "sha256": "77482c724056f11583008cca6d60c9c2a4b054d1d966e4aae4bff15c08bec506"
+  },
+  {
+    "path": "publish.ps1",
+    "sha256": "9847ba3abe5f069611f1fa76a1b33b0cfadf7c6fb482a6829025f2d70f2351eb"
+  },
+  {
+    "path": "storage-read.ps1",
+    "sha256": "d7113704021fe1bdf3d0a317881c901d286747987c9eb2d41dd453e790f5e536"
+  },
+  {
+    "path": "KVM-REVIEW.json",
+    "sha256": "25efbeac3da54ed5f8cd2de2c97e4457847438d75082410c23d7ad64436fb210"
+  }
+]

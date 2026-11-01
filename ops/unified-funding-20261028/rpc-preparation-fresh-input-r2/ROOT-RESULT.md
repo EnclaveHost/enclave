@@ -1,0 +1,1 @@
+Terminal1/Main0 after fullread and local observation preparation. Deterministically reconstructed command38286chars exceeds unchanged30000 limit; no publish/sample/inspect intent. No remote diagnostic/staging occurred. Retain all failed evidence; distinct r3 compresses payload before embedding without changing limits.

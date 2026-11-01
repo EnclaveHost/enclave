@@ -1,0 +1,11 @@
+{
+  "at": 1793494696.635681,
+  "rc": 0,
+  "failure": null,
+  "freeBefore": 84784627712,
+  "freeAfter": 84792397824,
+  "vmCount": 4,
+  "readerPid": 50212,
+  "readerCreation": "134379682877816054",
+  "rawSha256": "e287410d1c2dacbc66158dde26e1cb7c04fb3d2c33aa2fe5ddd40cfb98176417"
+}
