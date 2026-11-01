@@ -1,0 +1,4 @@
+{
+  "sha256": "eabbb42c9604019c31fd7580c0b046cecbd07245e0822d6055926fcfe01e4920",
+  "utf8": "\u001b[90m7:14AM\u001b[0m \u001b[32mINF\u001b[0m \u001b[1mscanned ~1700 bytes (1.70 KB) in 11.5ms\u001b[0m\n\u001b[90m7:14AM\u001b[0m \u001b[33mWRN\u001b[0m \u001b[1mleaks found: 1\u001b[0m\n"
+}

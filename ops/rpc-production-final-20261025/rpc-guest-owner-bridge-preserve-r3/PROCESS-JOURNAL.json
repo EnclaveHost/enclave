@@ -1,0 +1,4 @@
+{
+  "invocation": "51e577ecf58740cf9c363ef85fa9b17f",
+  "text": "2026-11-01T07:14:51-07:00 warden-host taskset[912012]: [queue] START available=94597MiB required=16896MiB cap=256MiB floor=16384MiB concurrentSmall=0MiB\n2026-11-01T07:14:58-07:00 warden-host taskset[912012]: [queue] EXIT 0\n"
+}

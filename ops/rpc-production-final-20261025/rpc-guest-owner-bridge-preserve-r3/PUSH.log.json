@@ -1,0 +1,4 @@
+{
+  "sha256": "0d93813f704907007ca8a3fbeee290b7e1fbd0e781d4f2cafa0bfe2ff14d1e3e",
+  "utf8": "[fix/rpc-production-bootstrap-20261025 89863f47a] Classify exact public TPM ciphertext fixture for secret scanning\n 3 files changed, 48 insertions(+)\n create mode 100644 ops/rpc-production-final-20261025/rpc-guest-owner-bridge-preserve-r1/FAILURE.json\n create mode 100644 ops/rpc-production-final-20261025/rpc-guest-owner-bridge-preserve-r1/SCANNER-CHECK.json\npre-push: gitleaks config: the pushed commit's .gitleaks.toml (89863f47abe6)\nTo https://github.com/EnclaveHost/enclave.git\n   a487fb3c6..89863f47a  HEAD -> main\n"
+}

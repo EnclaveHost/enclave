@@ -70,3 +70,16 @@ and cold/new-user/storage failure/Enclave refusal proofs remain unachieved.
 
 Catalog publication was already confirmed; latest signed acknowledgment causes no
 new signing, payment, upload or publication. Preview is live, production RPC off.
+
+Preservation follow-up: source commit8c63af66dbfd was created successfully but
+first push1882c92c was refused by generic-api-key for two public TPM ciphertext
+values. Original relay/vbs-credential.mjs source proves RSA-OAEP seed encryption
+and AES-CFB credential plus integrity MAC; no plaintext credential or private key
+is present. Added condition-AND exact rule/file/value exception. R2 scanner
+fixture used absolute scan root; exact repository-relative path did not match,
+so it refused before commit (terminal1, dee0fc83). R3 changes only scanner working
+directory to reproduce actual Git paths, records output, and proves public PASS,
+changed ciphertext/other path/planted privateKey REFUSED. All normal hooks remain
+enabled. Source plus narrow scanner classification pushed89863f47abe665da9f877549ce865c4289e983ec
+exactremote; R3 invocation51e577ecf58740cf9c363ef85fa9b17f terminal0/Main0.
+No successful runtime test, build, native process or publication replay.
