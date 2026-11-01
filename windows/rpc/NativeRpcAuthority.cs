@@ -346,7 +346,7 @@ namespace Enclave.OwnedRpc {
     var m=new Dictionary<string,object>();foreach(string n in new[]{"SystemName","BlockSize","NumberOfBlocks"})m[n]=memory[n];
     var s=new Dictionary<string,object>();foreach(string n in new[]{"VirtualSystemIdentifier","VirtualSystemType","Notes"})s[n]=settings[n];
     long credit=Fields(p,guid,v,m,s);int count=0;
-    using(var rows=settings.GetRelated("Msvm_MemorySettingData"))foreach(ManagementObject row in rows)using(row){if(++count>1)throw new InvalidOperationException("Original memory ambiguity");var d=new Dictionary<string,object>();foreach(string n in new[]{"ResourceType","ResourceSubType","AllocationUnits","VirtualQuantityUnits","VirtualQuantity","Reservation","Limit","DynamicMemoryEnabled","AutomaticAllocation","SwapFilesInUse"})d[n]=row[n];HyperVStartProvider.RequireGuestMemory(d,credit);}
+    using(var rows=settings.GetRelated("Msvm_MemorySettingData"))foreach(System.Management.ManagementObject row in rows)using(row){if(++count>1)throw new InvalidOperationException("Original memory ambiguity");var d=new Dictionary<string,object>();foreach(string n in new[]{"ResourceType","ResourceSubType","AllocationUnits","VirtualQuantityUnits","VirtualQuantity","Reservation","Limit","DynamicMemoryEnabled","AutomaticAllocation","SwapFilesInUse"})d[n]=row[n];HyperVStartProvider.RequireGuestMemory(d,credit);}
     if(count!=1)throw new InvalidOperationException("Original fixed memory absent");guard();return credit;
    }
   }
