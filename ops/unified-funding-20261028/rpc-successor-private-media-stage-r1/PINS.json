@@ -1,0 +1,54 @@
+{
+  "format": "public-file-content-digest-records/1",
+  "originalBytesSha256": "2af0556273b61b026269f63402981ca4847e50bbf57fe50b21166e5ea3d07b70",
+  "records": [
+    {
+      "path": "PARSER-PROVENANCE.json",
+      "sha256": "237f8297852a1ccab732be8acc5794a4b669329b143377bdc142552e2734a841"
+    },
+    {
+      "path": "ROOT-REVIEW.md",
+      "sha256": "c07ac99b49dfbec001ca248c141c5079d314b60db0ca349a28b2194332401823"
+    },
+    {
+      "path": "SPEC.json",
+      "sha256": "66fc274c85843d25daeaf8c997d9e44b27b4d264fa8383f3122e69721dd003ed"
+    },
+    {
+      "path": "capture_local.py",
+      "sha256": "bc956d4e319cf12304ad1f9decc04de4e697445c881522ea128426bd6b274a4c"
+    },
+    {
+      "path": "copy-media-COMMAND.json",
+      "sha256": "c7d15fe9e79e780da3b0fd98d405829fb7ad837bb0eb17ff16f3af8c0f0d2a0d"
+    },
+    {
+      "path": "copy-probe-COMMAND.json",
+      "sha256": "ff2a5e4d507bb9be48ca1306eae4ad93102f716219df41514a250c02e0524551"
+    },
+    {
+      "path": "create-COMMAND.json",
+      "sha256": "c148a87e5b2d25470fdb937ae51bf41665857206014edfecab40b763282b6f82"
+    },
+    {
+      "path": "probe-COMMAND.json",
+      "sha256": "e9db997327520e18f421ff640b453ee7bedef94a0b52076ea6a72f5aa9cf6c5d"
+    },
+    {
+      "path": "run.py",
+      "sha256": "7765d4844d75171eba435ab40d7a84a802003b58ff3dc15df85bfec06680d629"
+    },
+    {
+      "path": "ssh-config",
+      "sha256": "10e5e26b8e9539c76b8b43e88348eeb07033f1b2476dad1aba528e3710654888"
+    },
+    {
+      "path": "stage-private-media.ps1",
+      "sha256": "96816dffdfe151bbaf4ced73d5ea4f66b1ea9ef19530b9c97c02a841b751490c"
+    },
+    {
+      "path": "verify-COMMAND.json",
+      "sha256": "6286d0152366244ade99ec292053bba30aa692512b2ba78a37e2383f82af9bcd"
+    }
+  ]
+}

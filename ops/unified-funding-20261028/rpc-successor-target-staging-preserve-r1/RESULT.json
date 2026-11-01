@@ -1,0 +1,7 @@
+{
+  "invocation": "643b6626ebb641708c8d7e6598a47606",
+  "exitStatus": 1,
+  "MainPID": 0,
+  "commitCreated": false,
+  "reason": "Normal scanner classified filename-keyed public SHA256 manifest entries as secret fields. All exact digests recomputed; public metadata converted to explicit path/sha256 records. No bypass or native replay."
+}

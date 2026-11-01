@@ -1,0 +1,14 @@
+{
+  "format": "public-file-content-digest-records/1",
+  "originalBytesSha256": "237f8297852a1ccab732be8acc5794a4b669329b143377bdc142552e2734a841",
+  "records": [
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-private-media-stage-r2/stage-private-media.ps1",
+      "sha256": "96816dffdfe151bbaf4ced73d5ea4f66b1ea9ef19530b9c97c02a841b751490c"
+    },
+    {
+      "path": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-private-media-stage-r2/parse-RESULT.json",
+      "sha256": "5811c1180a7631ab4641598db206762d07bdc23b9a51e2e9691a9eebae85aeae"
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 9.790002243826166,
+  "bytesObserved": {
+    "stdout": 829,
+    "stderr": 1281
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false,
+  "at": 1793491813.8299592,
+  "phase": "verify",
+  "success": true,
+  "noRetry": true,
+  "vmChanged": false,
+  "observation": {
+    "success": true,
+    "phase": "verify",
+    "root": "C:\\EnclaveRpcPrivateMedia-b258ca831dab411e94db9deab5cd758a\\b258ca831dab411e94db9deab5cd758a",
+    "files": [
+      {
+        "sha256": "a76940c926985b91590ab5916c7996c23d7812ccc2277fe8188bb21f11a0ae2c",
+        "name": "boot.vhdx",
+        "bytes": 2301624320,
+        "privateAcl": true
+      },
+      {
+        "sha256": "45ce37943c51446d88f0d5073b84859e2a533293df82ea88c8e9f0db3e6fc633",
+        "name": "seed.iso",
+        "bytes": 13236224,
+        "privateAcl": true
+      },
+      {
+        "sha256": "8856fb6b080a8b9d702e53643eae5e65c8381e7cff5e668b906222fd8c7fdc87",
+        "name": "custody-probe.bin",
+        "bytes": 35,
+        "privateAcl": true
+      }
+    ],
+    "vhd": {
+      "attached": false,
+      "virtualBytes": 3758096384,
+      "type": "Dynamic"
+    },
+    "before": {
+      "diskFreeBytes": 151758880768,
+      "freeBytes": 83693899776
+    },
+    "after": {
+      "diskFreeBytes": 151758782464,
+      "freeBytes": 84649398272
+    },
+    "aclRefusals": 4,
+    "privateContentsPrinted": false,
+    "vmChanged": false,
+    "startAdmitted": false
+  }
+}
