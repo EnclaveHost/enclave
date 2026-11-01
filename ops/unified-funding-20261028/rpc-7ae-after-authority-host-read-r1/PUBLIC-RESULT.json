@@ -1,0 +1,86 @@
+{
+  "at": 1793505734.383143,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "processId": 52624,
+    "creationFileTime": "134379793338977614",
+    "before": [
+      {
+        "pid": 38076,
+        "alive": true,
+        "creation": "134375086385617521"
+      },
+      {
+        "pid": 41272,
+        "alive": true,
+        "creation": "134375630850989593"
+      },
+      {
+        "pid": 40360,
+        "alive": true,
+        "creation": "134375630828500376"
+      },
+      {
+        "pid": 41308,
+        "alive": true,
+        "creation": "134375617394407059"
+      }
+    ],
+    "after": [
+      {
+        "pid": 38076,
+        "alive": true,
+        "creation": "134375086385617521"
+      },
+      {
+        "pid": 41272,
+        "alive": true,
+        "creation": "134375630850989593"
+      },
+      {
+        "pid": 40360,
+        "alive": true,
+        "creation": "134375630828500376"
+      },
+      {
+        "pid": 41308,
+        "alive": true,
+        "creation": "134375617394407059"
+      }
+    ],
+    "freeBytes": 88383709184,
+    "data": {
+      "readOnly": true,
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "at": "2026-11-01T04:02:14.229Z",
+      "host": [
+        {
+          "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+          "status": "failed",
+          "leaseUntil": 1793503943,
+          "reason": "claim failed: app-funded claim not sent: lease-gas RPC quorum cannot read the configured chain; this host's ETH is never used instead",
+          "updatedAt": "2026-11-01T03:57:47.371Z"
+        }
+      ],
+      "readiness": {
+        "sequence": 1887,
+        "startedAt": 1793505438425,
+        "completedAt": 0,
+        "inFlight": true,
+        "deployments": []
+      },
+      "manager": {
+        "epoch": "6ba9af9a243b9f4754d8091d3de2f415",
+        "matching": []
+      }
+    },
+    "readOnly": true,
+    "noRetry": true
+  }
+}

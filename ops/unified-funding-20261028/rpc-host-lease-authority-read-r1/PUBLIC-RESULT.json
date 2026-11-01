@@ -1,0 +1,328 @@
+{
+  "at": 1793505713.766426,
+  "readOnly": true,
+  "rc": 0,
+  "failure": null,
+  "stderrBytes": 614,
+  "capacityAdmitted": false,
+  "remoteDeathProven": false,
+  "observation": {
+    "success": true,
+    "processId": 46160,
+    "creationFileTime": "134379793121502452",
+    "before": [
+      {
+        "pid": 38076,
+        "alive": true,
+        "creation": "134375086385617521"
+      },
+      {
+        "pid": 41272,
+        "alive": true,
+        "creation": "134375630850989593"
+      },
+      {
+        "pid": 40360,
+        "alive": true,
+        "creation": "134375630828500376"
+      },
+      {
+        "pid": 41308,
+        "alive": true,
+        "creation": "134375617394407059"
+      }
+    ],
+    "after": [
+      {
+        "pid": 38076,
+        "alive": true,
+        "creation": "134375086385617521"
+      },
+      {
+        "pid": 41272,
+        "alive": true,
+        "creation": "134375630850989593"
+      },
+      {
+        "pid": 40360,
+        "alive": true,
+        "creation": "134375630828500376"
+      },
+      {
+        "pid": 41308,
+        "alive": true,
+        "creation": "134375617394407059"
+      }
+    ],
+    "freeBytes": 88366850048,
+    "data": {
+      "at": "2026-11-01T04:01:52.551Z",
+      "readOnly": true,
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "processEnvironmentRead": false,
+      "hostBindingProven": false,
+      "stage": "complete",
+      "requests": [
+        {
+          "origin": "https://base-rpc.publicnode.com",
+          "method": "eth_chainId",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 208
+        },
+        {
+          "origin": "https://mainnet.base.org",
+          "method": "eth_chainId",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 177
+        },
+        {
+          "origin": "https://base-mainnet.public.blastapi.io",
+          "method": "eth_chainId",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 183
+        },
+        {
+          "origin": "https://mainnet.base.org",
+          "method": "eth_blockNumber",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 177
+        },
+        {
+          "origin": "https://base-mainnet.public.blastapi.io",
+          "method": "eth_blockNumber",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 199
+        },
+        {
+          "origin": "https://base-rpc.publicnode.com",
+          "method": "eth_blockNumber",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 164
+        },
+        {
+          "origin": "https://base-rpc.publicnode.com",
+          "method": "eth_getBlockByNumber",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 125
+        },
+        {
+          "origin": "https://mainnet.base.org",
+          "method": "eth_getBlockByNumber",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 103
+        },
+        {
+          "origin": "https://base-mainnet.public.blastapi.io",
+          "method": "eth_getBlockByNumber",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 145
+        },
+        {
+          "origin": "https://base-rpc.publicnode.com",
+          "method": "eth_getCode",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 138
+        },
+        {
+          "origin": "https://base-rpc.publicnode.com",
+          "method": "eth_getCode",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 119
+        },
+        {
+          "origin": "https://base-rpc.publicnode.com",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 222
+        },
+        {
+          "origin": "https://base-rpc.publicnode.com",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 200
+        },
+        {
+          "origin": "https://base-rpc.publicnode.com",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 249
+        },
+        {
+          "origin": "https://base-rpc.publicnode.com",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 223
+        },
+        {
+          "origin": "https://base-rpc.publicnode.com",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 188
+        },
+        {
+          "origin": "https://mainnet.base.org",
+          "method": "eth_getCode",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 108
+        },
+        {
+          "origin": "https://mainnet.base.org",
+          "method": "eth_getCode",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 110
+        },
+        {
+          "origin": "https://mainnet.base.org",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 183
+        },
+        {
+          "origin": "https://mainnet.base.org",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 183
+        },
+        {
+          "origin": "https://mainnet.base.org",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 179
+        },
+        {
+          "origin": "https://mainnet.base.org",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 188
+        },
+        {
+          "origin": "https://mainnet.base.org",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 188
+        },
+        {
+          "origin": "https://base-mainnet.public.blastapi.io",
+          "method": "eth_getCode",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 136
+        },
+        {
+          "origin": "https://base-mainnet.public.blastapi.io",
+          "method": "eth_getCode",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 122
+        },
+        {
+          "origin": "https://base-mainnet.public.blastapi.io",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 197
+        },
+        {
+          "origin": "https://base-mainnet.public.blastapi.io",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 197
+        },
+        {
+          "origin": "https://base-mainnet.public.blastapi.io",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 197
+        },
+        {
+          "origin": "https://base-mainnet.public.blastapi.io",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 219
+        },
+        {
+          "origin": "https://base-mainnet.public.blastapi.io",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 219
+        },
+        {
+          "origin": "https://base-rpc.publicnode.com",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 135
+        },
+        {
+          "origin": "https://mainnet.base.org",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 98
+        },
+        {
+          "origin": "https://base-mainnet.public.blastapi.io",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 133
+        },
+        {
+          "origin": "https://base-rpc.publicnode.com",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 98
+        },
+        {
+          "origin": "https://mainnet.base.org",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 98
+        },
+        {
+          "origin": "https://base-mainnet.public.blastapi.io",
+          "method": "eth_call",
+          "status": 200,
+          "errorCode": null,
+          "elapsedMs": 106
+        }
+      ],
+      "signAttempts": 0,
+      "bundleHash": "159108d171e49cadf8a75dc8081df9e7213257e6f7930ac8b0f4f6e6e43b829d",
+      "recordDigest": "sha256:1665c2186e59bf0178387d43562f4982d6f2748230d4afa627f09705a19e6089",
+      "renewLeadMs": 285000,
+      "success": true
+    },
+    "readOnly": true,
+    "noRetry": true
+  }
+}
