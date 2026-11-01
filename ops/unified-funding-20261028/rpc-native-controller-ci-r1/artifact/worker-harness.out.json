@@ -1,0 +1,4 @@
+{
+  "sha256": "1bd5b95bdaecc43884cfe02515423c563130b8c04b13a5b317803c42d87d0503",
+  "text": "PASS native begin durably records original QPC and whole reservation\r\nPASS restart cannot begin again even under a different manager identity\r\nPASS empty torn intent and extra inventory remain consumed\r\nPASS exact ledger lock excludes competing writers\r\nPASS lost launch reply remains one shot across restart\r\nPASS changed epoch clock and reservation refuse before launch intent\r\nPASS changed config or attempt digest cannot rehydrate original\r\nPASS actual held immutable input blocks modification and replacement\r\nPASS exact native plan derives from original attempt and shared claim\r\nPASS private copy hash failure preserves pending and blocks replay\r\nTOTAL 10 PASS; actual administrator ledger/files; task producer compiled only; no SYSTEM tasks or WMI\r\n"
+}

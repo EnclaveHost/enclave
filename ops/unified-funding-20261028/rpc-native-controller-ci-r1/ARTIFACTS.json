@@ -1,0 +1,45 @@
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 13091150523,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5MTE1MDUyMw==",
+      "name": "rpc-native-controller-results",
+      "size_in_bytes": 189645,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13091150523",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13091150523/zip",
+      "expired": false,
+      "digest": "sha256:2cbe4bcf5e01e9175f7cad0927be83c692c363e8f31c2e7e435d3e0f057c5716",
+      "created_at": "2026-11-01T16:11:54Z",
+      "updated_at": "2026-11-01T16:11:54Z",
+      "expires_at": "2026-11-08T16:11:53Z",
+      "workflow_run": {
+        "id": 41325035548,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "11efbe6ba7ed9e0a63beff57dfeda3df6b68dbcc"
+      }
+    },
+    {
+      "id": 13090918111,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5MDkxODExMQ==",
+      "name": "rpc-native-controller-exact-source",
+      "size_in_bytes": 94518,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13090918111",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13090918111/zip",
+      "expired": false,
+      "digest": "sha256:6a0be893267aa1a92139edb8ab8c8a8ec7e946974a77ae29c542b2dfe8e8a727",
+      "created_at": "2026-11-01T16:11:40Z",
+      "updated_at": "2026-11-01T16:11:40Z",
+      "expires_at": "2026-11-08T16:11:39Z",
+      "workflow_run": {
+        "id": 41325035548,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "11efbe6ba7ed9e0a63beff57dfeda3df6b68dbcc"
+      }
+    }
+  ]
+}

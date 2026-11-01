@@ -1,0 +1,6 @@
+{
+  "localPreparationR1": "AssertionError before preservation or CI dispatch; inherited source pin manifest also included docs/workflow/old harness, making 20 entries instead of finite16",
+  "correction": "R2 selects only the13 unchanged production C# inputs then adds the new controller, new harness and runner; actual Git blobs checked",
+  "nativeOrTestExecution": false,
+  "completedHelperReplayed": false
+}

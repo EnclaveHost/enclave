@@ -1,0 +1,11 @@
+[
+  "windows/rpc/NativeRpcController.cs",
+  "test/rpc-windows-worker/NativeRpcControllerHarness.cs",
+  "test/rpc-windows-worker/run-native-controller-ci.ps1",
+  ".github/workflows/rpc-native-controller.yml",
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md",
+  "windows/vbslike/manager/RPC-CONTROLLER.md",
+  "ops/unified-funding-20261028/rpc-native-controller-ci-r1/SOURCE-PINS.json",
+  "ops/unified-funding-20261028/rpc-native-controller-ci-r1/BASE-VERIFIED.json",
+  "ops/unified-funding-20261028/rpc-native-controller-ci-r1/ROOT-REVIEW.md"
+]

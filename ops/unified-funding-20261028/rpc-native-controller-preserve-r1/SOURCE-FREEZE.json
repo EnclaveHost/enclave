@@ -1,0 +1,8 @@
+{
+  "windows/rpc/NativeRpcController.cs": "c1637f952a94557306cda19ecffe300a4de62698f57b3034d55f431f501e1cbe",
+  "test/rpc-windows-worker/NativeRpcControllerHarness.cs": "bf5a054f1d0644a40ee0e58fcfe29acf3813ec394af495a59c5d7d7868a81a3b",
+  "test/rpc-windows-worker/run-native-controller-ci.ps1": "5718b37109c6e8fc0704b0b582083430284ce564342ca480e6da050d45e94d39",
+  ".github/workflows/rpc-native-controller.yml": "905156690ded213ae9206480d36cde848205a5506488269bb18324ee6c2b0539",
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md": "5bfbdb45532fadda515c0d9e7c8ffb1a1dc0511a9f827b4c6415f474adf93a6c",
+  "windows/vbslike/manager/RPC-CONTROLLER.md": "353bb0903192a2db81c625ac2a23304c0e8e8ed5c1e61a11f945a4b91b7aecc2"
+}

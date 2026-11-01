@@ -1345,3 +1345,15 @@ and passed nine new admission/shared-pool/asset cases. The pool and asset tests
 used real protected administrator-owned Windows files; manager responses were
 fixtures. The production worker and WMI were not executed. This does not qualify
 target SYSTEM operation, the manager launch/recovery controller or production RPC.
+
+`NativeRpcController.cs` now implements a concrete native manager-side ledger
+and task producer, described in `NATIVE-MANAGER-CONTROLLER.md`. It captures the
+actual native origin before preparation, persists the original reservation intent,
+consumes launch/dispatch once, prepares protected assets, repeats full admission
+before exact SYSTEM tasks, and verifies owned-Off results against original
+journals. Hosted run41325035548 passed ten new administrator ledger/file cases
+and compiled the controller (242176 bytes, SHA256
+ae43decba8055944bbf784e9577aebf41ae239904b401a99b2882192b0b92f47).
+The task producer was not executed, and target SYSTEM/provider/manager composition
+remains unqualified. The JavaScript manager transport and durable restart inventory
+are still missing; default main is unchanged and production RPC remains offline.
