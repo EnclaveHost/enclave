@@ -1270,3 +1270,18 @@ Windows run41317386906 (1814ms,69632-byte executable). This was compile-only;
 no native bootstrap execution or target admission. Six separate Node framing/clock
 checks passed. Exact build receipts are preserved in
 `ops/rpc-production-final-20261025/rpc-native-bootstrap-build-r1/ROOT-RESULT.md`.
+
+Hosted native composition qualification now covers seven aggregate cases across
+runs41318351499 and41318703091: normal exchange, wrong source/key pins, malformed
+pipe, observer loss, blocked TPM and blocked monitor write. The corrected fixture
+observed all five preheld processes dead20ms after observer kill, and28/32ms after
+the original3500ms blocked-call deadline. The first observer-loss failure and its
+missing-detail artifact defect are preserved; only the failed/unrun cases resumed
+after atomic fixture marker/diagnostic fixes. Unchanged production/controller
+binaries were reused by exact source and artifact hashes.
+
+These execute real SYSTEM tasks, protected namespace, native pipes and job topology
+with compile-time fake monitor I/O and finite C# Node/TPM stand-ins. They do **not**
+execute the maintained Node JS entry, real TPM or AF_HYPERV peer channel, or prove
+Node memory fit and original VM ownership. The release binary remains uninstalled.
+Details: `ops/rpc-production-final-20261025/rpc-native-bootstrap-composition-r2/ROOT-RESULT.md`.

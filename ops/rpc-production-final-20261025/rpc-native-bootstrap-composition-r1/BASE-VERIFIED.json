@@ -1,0 +1,29 @@
+{
+  "base": "03f37bf7e8422aa285c70d778c868b84aafee73c",
+  "matched": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/HostBootstrapEntry.cs",
+    "rpc/host/windows-entry.mjs",
+    "rpc/host/native-wire.mjs",
+    "rpc/host/bootstrap.mjs",
+    "rpc/server/owner_bootstrap_offer.mjs",
+    "isolation/contract/rpc-bootstrap.mjs",
+    "isolation/contract/runtime.mjs",
+    "windows/node/hvnode-evidence.mjs",
+    "relay/vbs-verify.mjs",
+    "relay/vbs-tcglog.mjs",
+    "relay/vbs-tpm.mjs",
+    "relay/avf-verify.mjs",
+    "relay/vbs-tcglog-core.mjs"
+  ],
+  "changedFrozen": [
+    "windows/rpc/HostBootstrapChannels.cs",
+    "test/rpc-windows-worker/HostBootstrapFixture.cs",
+    "test/rpc-windows-worker/HostBootstrapActor.cs",
+    "test/rpc-windows-worker/HostBootstrapQualification.cs",
+    "test/rpc-windows-worker/run-host-bootstrap-ci.ps1",
+    ".github/workflows/rpc-host-bootstrap-composition.yml"
+  ]
+}

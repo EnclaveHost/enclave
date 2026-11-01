@@ -1,0 +1,121 @@
+{
+  "runtimeCommit": "c61e68d0ac08279238c6e694b9eda3e8e71c897c",
+  "binaries": {
+    "production-entry.exe": {
+      "sha256": "ddadd678d65dff7c7f779831d212f2b10d341f181bd1dc748956932b4782f4cb",
+      "bytes": 69632
+    },
+    "owned-entry.exe": {
+      "sha256": "18b32be833b3962533d1b2cb4d5f35aaf9dbbe30eff399184b999e307cc076c7",
+      "bytes": 71168
+    },
+    "fixture-actor.exe": {
+      "sha256": "4905564fa34a0e7021bb85fc1d45e62c9bcdc0af14d3cfbf4612f1241856dfb5",
+      "bytes": 7168
+    },
+    "qualification-controller.exe": {
+      "sha256": "edb2493f82d4f31294189b720e8cbdd9a268cf31d87a4fec8b141b0ed1408241",
+      "bytes": 96256
+    }
+  },
+  "compiledSources": {
+    "windows/rpc/BoundedWorker.cs": "309a68ab3a4326c3819997c3abae4e4fe38307e98bb54b31b246ce61a9a63a99",
+    "windows/rpc/OwnerObserver.cs": "59d15dc8ba06cd739d7bf920fda4cca86d235b962cccef1bae27c0173fbedc80",
+    "windows/rpc/ProtectedAttempt.cs": "bf5a3b983593615cfeb9ab4eb16450985c0918ed236d74ec84fbe6c5d67691a5",
+    "windows/rpc/HostBootstrapEntry.cs": "f5126895e1fcb6051b2224f6984a3aa057e5a6819506a27fb1beb03121f1a6c6",
+    "windows/rpc/HostBootstrapChannels.cs": "cd1a43592ddb43f1962db49bc64d7feff23fb4d3146d8c1eee4fe7ccc82b9365",
+    "test/rpc-windows-worker/HostBootstrapFixture.cs": "2a16ea26696388bed7902250458599883f40ac452956a926b646b403a74b64dc",
+    "test/rpc-windows-worker/HostBootstrapActor.cs": "b545aab8b5a9d7e21434eee411c8b281f9453fe9c2cef841b46c1b1b29dd2a3f",
+    "test/rpc-windows-worker/HostBootstrapQualification.cs": "6266bf6b5c0c95f6f39b63e9058785ffbbed787ec30aa34d1da376297874ef06"
+  },
+  "reused": [
+    {
+      "label": "production-compile",
+      "reused": true,
+      "runId": "41318351499",
+      "sourceCommit": "c48a3277a390530c0e3d28d2bc83d39aa7ec8e3f",
+      "sha256": "ddadd678d65dff7c7f779831d212f2b10d341f181bd1dc748956932b4782f4cb",
+      "sources": [
+        "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\BoundedWorker.cs",
+        "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\OwnerObserver.cs",
+        "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProtectedAttempt.cs",
+        "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\HostBootstrapEntry.cs",
+        "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\HostBootstrapChannels.cs"
+      ]
+    },
+    {
+      "label": "controller-compile",
+      "reused": true,
+      "runId": "41318351499",
+      "sourceCommit": "c48a3277a390530c0e3d28d2bc83d39aa7ec8e3f",
+      "sha256": "edb2493f82d4f31294189b720e8cbdd9a268cf31d87a4fec8b141b0ed1408241",
+      "sources": [
+        "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\BoundedWorker.cs",
+        "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\OwnerObserver.cs",
+        "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\ProtectedAttempt.cs",
+        "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\HostBootstrapEntry.cs",
+        "D:\\a\\enclave\\enclave\\source-closure\\windows\\rpc\\HostBootstrapChannels.cs",
+        "D:\\a\\enclave\\enclave\\source-closure\\test\\rpc-windows-worker\\HostBootstrapQualification.cs"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "mode": "observer-loss",
+      "passed": true,
+      "origin": 156779,
+      "deadline": 164779,
+      "phaseDeadline": 162779,
+      "elapsedMs": 1681,
+      "preheldProcesses": 5,
+      "killedAt": 158297,
+      "allDeadAt": 158317,
+      "nativeBridgeExecuted": true,
+      "hardwareSynthetic": true,
+      "nodeActorSynthetic": true,
+      "root": "C:\\EnclaveRpcBootstrapCI-a132d12d822e48779dc7a4e32fc01585\\a132d12d822e48779dc7a4e32fc01585",
+      "failures": [],
+      "rpcReady": false,
+      "providerOperationFenced": false,
+      "reservationMayRelease": false
+    },
+    {
+      "mode": "blocked-tpm",
+      "passed": true,
+      "origin": 158495,
+      "deadline": 166495,
+      "phaseDeadline": 161995,
+      "elapsedMs": 3633,
+      "preheldProcesses": 5,
+      "killedAt": 0,
+      "allDeadAt": 162023,
+      "nativeBridgeExecuted": true,
+      "hardwareSynthetic": true,
+      "nodeActorSynthetic": true,
+      "root": "C:\\EnclaveRpcBootstrapCI-821c41852d9444d2b4c4a40604ea7c1c\\821c41852d9444d2b4c4a40604ea7c1c",
+      "failures": [],
+      "rpcReady": false,
+      "providerOperationFenced": false,
+      "reservationMayRelease": false
+    },
+    {
+      "mode": "blocked-monitor",
+      "passed": true,
+      "origin": 162151,
+      "deadline": 170151,
+      "phaseDeadline": 165651,
+      "elapsedMs": 3657,
+      "preheldProcesses": 5,
+      "killedAt": 0,
+      "allDeadAt": 165683,
+      "nativeBridgeExecuted": true,
+      "hardwareSynthetic": true,
+      "nodeActorSynthetic": true,
+      "root": "C:\\EnclaveRpcBootstrapCI-27a25fe243b5490291569a620698b313\\27a25fe243b5490291569a620698b313",
+      "failures": [],
+      "rpcReady": false,
+      "providerOperationFenced": false,
+      "reservationMayRelease": false
+    }
+  ]
+}

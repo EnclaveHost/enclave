@@ -1,0 +1,30 @@
+{
+  "base": "c48a3277a390530c0e3d28d2bc83d39aa7ec8e3f",
+  "matched": [
+    "windows/rpc/BoundedWorker.cs",
+    "windows/rpc/OwnerObserver.cs",
+    "windows/rpc/ProtectedAttempt.cs",
+    "windows/rpc/HostBootstrapEntry.cs",
+    "windows/rpc/HostBootstrapChannels.cs",
+    "test/rpc-windows-worker/HostBootstrapQualification.cs",
+    "rpc/host/windows-entry.mjs",
+    "rpc/host/native-wire.mjs",
+    "rpc/host/bootstrap.mjs",
+    "rpc/server/owner_bootstrap_offer.mjs",
+    "isolation/contract/rpc-bootstrap.mjs",
+    "isolation/contract/runtime.mjs",
+    "windows/node/hvnode-evidence.mjs",
+    "relay/vbs-verify.mjs",
+    "relay/vbs-tcglog.mjs",
+    "relay/vbs-tpm.mjs",
+    "relay/avf-verify.mjs",
+    "relay/vbs-tcglog-core.mjs"
+  ],
+  "changedFrozen": [
+    "test/rpc-windows-worker/HostBootstrapFixture.cs",
+    "test/rpc-windows-worker/HostBootstrapActor.cs",
+    "test/rpc-windows-worker/run-host-bootstrap-ci.ps1",
+    "test/rpc-windows-worker/host-bootstrap-reuse.json",
+    ".github/workflows/rpc-host-bootstrap-composition.yml"
+  ]
+}

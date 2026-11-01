@@ -1,0 +1,45 @@
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 13088760504,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA4ODc2MDUwNA==",
+      "name": "rpc-host-bootstrap-composition-results",
+      "size_in_bytes": 106742,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13088760504",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13088760504/zip",
+      "expired": false,
+      "digest": "sha256:5350a6ee10753c3f375c249d1716949818377eb4c8c17ce40975040baa14ad0e",
+      "created_at": "2026-11-01T14:57:36Z",
+      "updated_at": "2026-11-01T14:57:36Z",
+      "expires_at": "2026-11-08T14:57:35Z",
+      "workflow_run": {
+        "id": 41318703091,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "c61e68d0ac08279238c6e694b9eda3e8e71c897c"
+      }
+    },
+    {
+      "id": 13088516541,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA4ODUxNjU0MQ==",
+      "name": "rpc-worker-exact-source",
+      "size_in_bytes": 87992,
+      "url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13088516541",
+      "archive_download_url": "https://api.github.com/repos/EnclaveHost/enclave/actions/artifacts/13088516541/zip",
+      "expired": false,
+      "digest": "sha256:0e5df58c4085d0869557779979001f60f69ed0e3175235e2cdcf43bbaa2661bf",
+      "created_at": "2026-11-01T14:57:11Z",
+      "updated_at": "2026-11-01T14:57:11Z",
+      "expires_at": "2026-11-08T14:57:11Z",
+      "workflow_run": {
+        "id": 41318703091,
+        "repository_id": 1428203917,
+        "head_repository_id": 1428203917,
+        "head_branch": "main",
+        "head_sha": "c61e68d0ac08279238c6e694b9eda3e8e71c897c"
+      }
+    }
+  ]
+}

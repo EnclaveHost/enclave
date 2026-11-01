@@ -1,0 +1,9 @@
+[
+  "windows/rpc/HostBootstrapChannels.cs",
+  ".github/workflows/rpc-host-bootstrap-composition.yml",
+  "test/rpc-windows-worker/HostBootstrapActor.cs",
+  "test/rpc-windows-worker/HostBootstrapFixture.cs",
+  "test/rpc-windows-worker/HostBootstrapQualification.cs",
+  "test/rpc-windows-worker/run-host-bootstrap-ci.ps1",
+  "ops/rpc-production-final-20261025/rpc-native-bootstrap-composition-r1"
+]

@@ -1,0 +1,4 @@
+{
+  "sha256": "6bbb8c84eb4873b4166d12c572f9d288d19a05ec1ae75971392addd4e73c18f7",
+  "utf8": "{\"mode\":\"observer-loss\",\"passed\":true,\"origin\":156779,\"deadline\":164779,\"phaseDeadline\":162779,\"elapsedMs\":1681,\"preheldProcesses\":5,\"killedAt\":158297,\"allDeadAt\":158317,\"nativeBridgeExecuted\":true,\"hardwareSynthetic\":true,\"nodeActorSynthetic\":true,\"root\":\"C:\\\\EnclaveRpcBootstrapCI-a132d12d822e48779dc7a4e32fc01585\\\\a132d12d822e48779dc7a4e32fc01585\",\"failures\":[],\"rpcReady\":false,\"providerOperationFenced\":false,\"reservationMayRelease\":false}\r\n"
+}
