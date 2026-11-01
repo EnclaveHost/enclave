@@ -13,10 +13,11 @@ import (
 )
 
 type rpcStartApproval struct {
-	writer *os.File
-	fd     int
-	frame  []byte
-	used   atomic.Bool
+	writer    *os.File
+	fd        int
+	frame     []byte
+	used      atomic.Bool
+	succeeded atomic.Bool
 }
 
 // The dedicated supervisor supplies FD3 (only this front owns the write end)
@@ -67,5 +68,6 @@ func (a *rpcStartApproval) approve() error {
 	if err != nil || n != len(a.frame) {
 		return errors.New("RPC approval delivery failed; no retry")
 	}
+	a.succeeded.Store(true)
 	return nil
 }

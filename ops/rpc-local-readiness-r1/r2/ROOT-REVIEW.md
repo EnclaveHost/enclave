@@ -1,0 +1,5 @@
+# Reviewed correction of fixture namespace capabilities
+
+R1 actual source compiled and new readiness lifecycle/pipe tests passed. Its existing root-switch and composition tests failed before fixture execution with fork/exec operation not permitted. Exact source requires CLONE_NEWNS/NEWPID plus chroot; R1 mistakenly reused pre-namespace front-gate runner with NET_ADMIN only. Corrected runner matches maintained prior namespace/monitor qualification: SYS_ADMIN and SYS_CHROOT ONLY inside a newly created unprivileged user namespace, host UID unchanged. Bwrap makes mount namespace private; tests create further private namespaces and dummy roots under tmp. No production mounts/cgroups/VM/provider/client execution. Source frozen282 pins unchanged.
+
+R2 runs ONLY the two previously blocked top-level namespace tests, plus not-yet-run contract/front checks and entry/front builds. No successful R1 native/service/domain/platform test replay. Same512hard450RSSCPU1/noSwap/27648pending-awarefloor+640/120child150outer. Fresh admission required. This is a corrected fixture setup, not a runtime cap/floor/deadline relaxation. No actual target namespace proof inferred.

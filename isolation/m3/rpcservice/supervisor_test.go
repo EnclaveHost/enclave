@@ -33,6 +33,7 @@ type fakeBackend struct {
 	hook     func(r role) // runs at Start entry, outside the lock; may block
 	startErr [roleCount]error
 	approval func(context.Context) error
+	ready    func(context.Context) (time.Time, error)
 	probe    func(attempt int) (exits bool, err error) // nil: every probe hangs
 	stuck    [roleCount]bool                           // cgroup.kill leaves members
 	killErr  [roleCount]error
@@ -43,6 +44,14 @@ func (f *fakeBackend) ownerApproval(ctx context.Context) error {
 		return f.approval(ctx)
 	}
 	return ctx.Err()
+}
+
+func (f *fakeBackend) localReady(ctx context.Context) (time.Time, error) {
+	if f.ready != nil {
+		return f.ready(ctx)
+	}
+	<-ctx.Done()
+	return time.Time{}, ctx.Err()
 }
 
 func (f *fakeBackend) start(r role) (process, error) {

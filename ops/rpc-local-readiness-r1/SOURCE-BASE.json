@@ -1,0 +1,19 @@
+{
+  "base": "fa68c8b2ae7e641d4ce917b6b56c90e9ba7e949f",
+  "changed": [
+    "isolation/contract/rpc_ready.go",
+    "isolation/contract/rpc_ready_test.go",
+    "isolation/m2/front/main.go",
+    "isolation/m2/front/rpc_start_linux.go",
+    "isolation/m2/front/rpc_ready_linux.go",
+    "isolation/m2/front/rpc_ready_other.go",
+    "isolation/m2/front/rpc_ready_test.go",
+    "isolation/m3/rpcservice/backend_linux_amd64.go",
+    "isolation/m3/rpcservice/ready_linux_amd64.go",
+    "isolation/m3/rpcservice/ready_test.go",
+    "isolation/m3/rpcservice/supervisor.go",
+    "isolation/m3/rpcservice/supervisor_test.go",
+    "isolation/m3/rpcservice/README.md"
+  ],
+  "notDeployed": true
+}

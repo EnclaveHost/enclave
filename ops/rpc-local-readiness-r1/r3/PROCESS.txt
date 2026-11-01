@@ -1,0 +1,6 @@
+ActiveState=inactive
+SubState=dead
+InvocationID=
+MainPID=0
+ExecMainStatus=0
+ControlGroup=

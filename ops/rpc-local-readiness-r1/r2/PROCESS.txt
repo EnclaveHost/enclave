@@ -1,0 +1,6 @@
+ActiveState=failed
+SubState=failed
+InvocationID=80be1236db0342b1bf9a5c2ff59cf5d1
+MainPID=0
+ExecMainStatus=1
+ControlGroup=

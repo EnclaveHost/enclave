@@ -1,0 +1,1 @@
+{"exit": 1, "sourcePins": 282, "pinsUnchanged": true, "passedPhases": ["namespace-correction", "wire"], "failure": "front compile: frozen inventory omitted existing bootstrap/rpc_storage.go required by current manifest.go; no front test executed", "deployed": false}

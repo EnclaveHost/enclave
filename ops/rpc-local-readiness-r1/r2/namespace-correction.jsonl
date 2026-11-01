@@ -1,0 +1,32 @@
+{"Time":"2026-11-01T14:36:02.03600762-07:00","Action":"start","Package":"enclave.host/isolation/m3/rpcservice"}
+{"Time":"2026-11-01T14:36:02.037703664-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch"}
+{"Time":"2026-11-01T14:36:02.037764233-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch","Output":"=== RUN   TestActualRPCNamespaceRootSwitch\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.037781953-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/success"}
+{"Time":"2026-11-01T14:36:02.037785603-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/success","Output":"=== RUN   TestActualRPCNamespaceRootSwitch/success\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.040220409-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/success","Output":"--- PASS: TestActualRPCNamespaceRootSwitch/success (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.040258638-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/success","Elapsed":0}
+{"Time":"2026-11-01T14:36:02.040292888-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/writable"}
+{"Time":"2026-11-01T14:36:02.040296978-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/writable","Output":"=== RUN   TestActualRPCNamespaceRootSwitch/writable\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.04308385-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/writable","Output":"--- PASS: TestActualRPCNamespaceRootSwitch/writable (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.0431075-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/writable","Elapsed":0}
+{"Time":"2026-11-01T14:36:02.04311746-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/populated"}
+{"Time":"2026-11-01T14:36:02.04312008-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/populated","Output":"=== RUN   TestActualRPCNamespaceRootSwitch/populated\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.043783923-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/populated","Output":"--- PASS: TestActualRPCNamespaceRootSwitch/populated (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.043868233-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/populated","Elapsed":0}
+{"Time":"2026-11-01T14:36:02.043873623-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/symlink"}
+{"Time":"2026-11-01T14:36:02.043876333-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/symlink","Output":"=== RUN   TestActualRPCNamespaceRootSwitch/symlink\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.045544506-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/symlink","Output":"--- PASS: TestActualRPCNamespaceRootSwitch/symlink (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.045562116-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch/symlink","Elapsed":0}
+{"Time":"2026-11-01T14:36:02.045568286-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch","Output":"--- PASS: TestActualRPCNamespaceRootSwitch (0.01s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.045583286-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcservice","Test":"TestActualRPCNamespaceRootSwitch","Elapsed":0.01}
+{"Time":"2026-11-01T14:36:02.045594236-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.045640835-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcservice","Output":"ok  \tenclave.host/isolation/m3/rpcservice\t0.009s\n"}
+{"Time":"2026-11-01T14:36:02.045650525-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcservice","Elapsed":0.01}
+{"Time":"2026-11-01T14:36:02.390545773-07:00","Action":"start","Package":"enclave.host/isolation/m3/rpcdomain"}
+{"Time":"2026-11-01T14:36:02.391752941-07:00","Action":"run","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestActualCompositionBindings"}
+{"Time":"2026-11-01T14:36:02.391783491-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestActualCompositionBindings","Output":"=== RUN   TestActualCompositionBindings\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.393424815-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestActualCompositionBindings","Output":"--- PASS: TestActualCompositionBindings (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.393442734-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcdomain","Test":"TestActualCompositionBindings","Elapsed":0}
+{"Time":"2026-11-01T14:36:02.393448624-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.393600833-07:00","Action":"output","Package":"enclave.host/isolation/m3/rpcdomain","Output":"ok  \tenclave.host/isolation/m3/rpcdomain\t0.003s\n"}
+{"Time":"2026-11-01T14:36:02.393608743-07:00","Action":"pass","Package":"enclave.host/isolation/m3/rpcdomain","Elapsed":0.003}

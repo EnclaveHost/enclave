@@ -1,0 +1,12 @@
+{"Time":"2026-11-01T14:36:02.9768376-07:00","Action":"start","Package":"enclave.host/isolation/contract"}
+{"Time":"2026-11-01T14:36:02.981420774-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestRPCLocalReadyBindingClockAndPurpose"}
+{"Time":"2026-11-01T14:36:02.981476214-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestRPCLocalReadyBindingClockAndPurpose","Output":"=== RUN   TestRPCLocalReadyBindingClockAndPurpose\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.981495654-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestRPCLocalReadyBindingClockAndPurpose","Output":"--- PASS: TestRPCLocalReadyBindingClockAndPurpose (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.981499234-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestRPCLocalReadyBindingClockAndPurpose","Elapsed":0}
+{"Time":"2026-11-01T14:36:02.981505914-07:00","Action":"run","Package":"enclave.host/isolation/contract","Test":"TestRPCStartBindingWire"}
+{"Time":"2026-11-01T14:36:02.981507794-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestRPCStartBindingWire","Output":"=== RUN   TestRPCStartBindingWire\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.981510934-07:00","Action":"output","Package":"enclave.host/isolation/contract","Test":"TestRPCStartBindingWire","Output":"--- PASS: TestRPCStartBindingWire (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.981513003-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Test":"TestRPCStartBindingWire","Elapsed":0}
+{"Time":"2026-11-01T14:36:02.981514683-07:00","Action":"output","Package":"enclave.host/isolation/contract","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:02.981562523-07:00","Action":"output","Package":"enclave.host/isolation/contract","Output":"ok  \tenclave.host/isolation/contract\t0.005s\n"}
+{"Time":"2026-11-01T14:36:02.981568073-07:00","Action":"pass","Package":"enclave.host/isolation/contract","Elapsed":0.005}

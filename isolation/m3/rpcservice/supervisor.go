@@ -4,10 +4,10 @@
 // an attested deployment. Nothing runs on import; New only validates borrowed
 // capabilities and Run launches at most once.
 //
-// The supervisor classifies startup qualification only. It emits
-// PhaseClientsStarted (all three wrapper processes launched, the Base launch
-// preceded by a successful local l1-ready probe) and never claims serving
-// readiness. Whole-stack readiness belongs to the portable controller. No
+// The supervisor classifies startup qualification only. PhaseClientsStarted
+// records process launch; PhaseLocalReady additionally records a fresh private
+// front observation of the portable controller's whole-stack health. Neither
+// supplies attestation, storage authority or persistent serving permission. No
 // deadline handoff exists: every launched process is terminated at the
 // original origin+900s deadline.
 package rpcservice
@@ -20,6 +20,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"enclave.host/isolation/contract"
 )
 
 // StartupWindow is the contract's original startup policy. The deadline is
@@ -132,6 +134,7 @@ const (
 	PhaseProbingL1          Phase = "probing-l1"
 	PhaseStartingBase       Phase = "starting-base"
 	PhaseClientsStarted     Phase = "clients-started" // processes launched; not serving readiness
+	PhaseLocalReady         Phase = "local-ready"     // initial controller observation; not persistent adoption
 	PhaseTerminated         Phase = "terminated"
 )
 
@@ -155,6 +158,7 @@ const (
 type State struct {
 	Phase          Phase
 	ClientsStarted bool
+	LocalReadyAt   time.Time // historical monotonic request-start time; consumers must check freshness
 	Outcome        Outcome
 	Cleanup        Cleanup
 	Reason         string
@@ -169,6 +173,7 @@ var errPopulated = errors.New("cgroup still populated")
 type backend interface {
 	start(r role) (process, error)
 	ownerApproval(context.Context) error
+	localReady(context.Context) (time.Time, error)
 	kill(r role) error
 	empty(r role) (bool, error)
 }
@@ -279,7 +284,7 @@ func (s *Supervisor) run(parent context.Context) State {
 		case err := <-driven:
 			driven = nil
 			if err == nil {
-				continue // clients started; supervise until the original deadline
+				continue // local health observed; supervise until the original deadline
 			}
 			outcome, reason = OutcomeFailed, err.Error()
 			if s.isStopped() {
@@ -376,6 +381,20 @@ func (s *Supervisor) drive(ctx context.Context, exits chan<- role) error {
 		s.state.ClientsStarted = true
 	}
 	s.mu.Unlock()
+	observed, err := s.be.localReady(ctx)
+	if err != nil {
+		return fmt.Errorf("local RPC readiness: %w", err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Reject late callbacks, future/wall-clock timestamps, and observations that
+	// aged while waiting for the driver/lock. No health response can revive a stop.
+	now := time.Now()
+	if s.closing || s.stopped || ctx.Err() != nil || !now.Before(s.deadline) || observed.IsZero() || observed == observed.Round(0) || now.Before(observed) || now.Sub(observed) >= time.Duration(contract.RPCLocalReadyFreshnessNS) {
+		return errors.New("local RPC readiness expired or supervisor stopping")
+	}
+	s.state.Phase = PhaseLocalReady
+	s.state.LocalReadyAt = observed
 	return nil
 }
 

@@ -198,6 +198,7 @@ func main() {
 	}
 	var rpcDeployment [32]byte
 	var rpcApproval *rpcStartApproval
+	var rpcReady *rpcReadyDelivery
 	if nativeRPCFront {
 		if !directBootstrap || *snp || *initFD != 0 || *shieldSecretsFD != 0 || *appid != "" || *reportUnix == "" || rt == nil || *appMode != "run" || *upstream != "127.0.0.1:8000" {
 			die("RPC front requires its owner-direct monitor runtime and fixed controller")
@@ -205,6 +206,8 @@ func main() {
 		rpcDeployment, err = loadedRPCDeployment(*appBundlePath, appSha)
 		must(err)
 		rpcApproval, err = readRPCStartApproval(appSha, rt.RID, rpcDeployment)
+		must(err)
+		rpcReady, err = readRPCReadyDelivery(rpcApproval)
 		must(err)
 	}
 	cert, spki, err := domtls.Mint("enclave-domain")
@@ -381,9 +384,18 @@ func main() {
 		}
 		for deadline := time.Now().Add(wait); ; time.Sleep(poll) {
 			ctx, cancel := context.WithDeadline(context.Background(), deadline)
-			err := f.ready.check(ctx)
+			var observed uint64
+			var err error
+			if nativeRPCFront {
+				observed, err = rpcReady.sample(ctx, f.ready.check)
+			} else {
+				err = f.ready.check(ctx)
+			}
 			cancel()
 			if err == nil {
+				if nativeRPCFront {
+					must(rpcReady.publish(observed))
+				}
 				break
 			}
 			if time.Now().After(deadline) {

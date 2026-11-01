@@ -27,6 +27,8 @@ type osBackend struct {
 	approvalReader, approvalWriter, approvalBinding *os.File
 	approvalFrame                                   []byte
 	approvalUsed                                    atomic.Bool
+	readyReader, readyWriter                        *os.File
+	readyUsed                                       atomic.Bool
 }
 
 func openBackend(g Groups) (backend, error) {
@@ -99,6 +101,12 @@ func openBackend(g Groups) (backend, error) {
 	}
 	b := &osBackend{parent: g.Parent, groups: groups}
 	if err := b.prepareApproval(); err != nil {
+		return nil, err
+	}
+	if err := b.prepareReady(); err != nil {
+		b.approvalReader.Close()
+		b.approvalWriter.Close()
+		b.approvalBinding.Close()
 		return nil, err
 	}
 	return b, nil
@@ -233,13 +241,14 @@ func (b *osBackend) start(r role) (process, error) {
 		defer runtime.UnlockOSThread()
 		cmd := roleCommand(r, int(f.Fd()))
 		if r == roleFront {
-			cmd.ExtraFiles = []*os.File{b.approvalWriter, b.approvalBinding}
+			cmd.ExtraFiles = []*os.File{b.approvalWriter, b.approvalBinding, b.readyWriter}
 		}
 		err := cmd.Start()
 		if r == roleFront {
 			// Only the exact front child retains the writer after Start settles.
 			b.approvalWriter.Close()
 			b.approvalBinding.Close()
+			b.readyWriter.Close()
 		}
 		runtime.KeepAlive(f)
 		if err != nil {

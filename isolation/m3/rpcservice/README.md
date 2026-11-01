@@ -4,8 +4,9 @@ Package `enclave.host/isolation/m3/rpcservice`: a fixed supervisor for the RPC
 companion's portable controller and native chain wrappers. It runs **inside** the attested dedicated
 CPU app domain. It is never a host launcher or an external provider proxy. It
 is a real, callable process-control adapter. It is **not** a complete attested
-deployment. The explicit `cmd/rpc-native-init` namespace entry calls it; no
-monitor launch path or default enables it yet. It refuses ordinary host execution.
+deployment. The dedicated monitor composes the explicit `cmd/rpc-native-init`
+namespace entry; actual target boot and persistent serving remain unqualified.
+It refuses ordinary host execution.
 
 The author supplied source without execution. Root review corrected cleanup
 quiescence, bounded caller waits for stalled kernel controls, and privilege
@@ -36,9 +37,10 @@ reduction. Actual qualification results are recorded separately.
   the window. Nothing resets the deadline. At the deadline everything is
   killed, because no handoff is implemented.
 - Reported states: `new`, `authorizing-owner`, `starting-controller`, `starting-l1`, `probing-l1`, `starting-base`,
-  `clients-started`, `terminated`. `ClientsStarted` means the three wrapper
+  `clients-started`, `local-ready`, `terminated`. `ClientsStarted` means the three wrapper
   processes were launched before the deadline. It does not mean Base passed
-  its checks, and it is not serving readiness. Outcomes: `deadline`,
+  its checks, and it is not serving readiness. `local-ready` additionally requires
+  the private front observation described below. Outcomes: `deadline`,
   `stopped`, `failed`.
 - If the front, controller, EL, CL or Base exits on its own, all groups are killed (`failed`).
   `Stop`, or cancelling the `Run` context, also kills all groups.
@@ -119,9 +121,10 @@ permanently poison the domain, as `poisonNative` does.
 
 ## Missing production integration (exact)
 
-1. No monitor call site. The monitor must create the cgroups and hold their
-   FDs, carry the original admission clock in the sealed entry contract, and
-   invoke the measured namespace entry. Nothing is enabled by default.
+1. The dedicated monitor call site now exists. Actual target qualification must
+   establish cgroups, held FDs, the original sealed admission clock, authenticated
+   state attachments and measured namespace entry. Source integration is not a
+   successful native boot.
 2. The image must create role UIDs/GIDs 2101 (EL), 2102 (CL), 2103 (Base),
    2104 (probe), 2105 (controller), 1053577 (front), and bind only the matching writable data subtrees. The backend
    drops supplementary groups and selects these fixed unprivileged credentials.
@@ -131,8 +134,9 @@ permanently poison the domain, as `poisonNative` does.
    access depend on the domain's network setup.
 4. No log capture. Stdout/stderr are discarded. Reth logs to its datadir;
    Lighthouse and wrapper messages are lost.
-5. No deadline handoff or long-running service mode. The portable
-   controller's whole-stack readiness is not integrated. Because of this, the
+5. No deadline handoff or long-running service mode. The portable controller's
+   local health observation is integrated through the exact front, but does not
+   establish continued owner/storage authority or a whole-stack adoption. The
    supervisor always ends at `origin+900s`. It is a startup-qualification
    adapter only.
 6. Budgets and the 150 s probe timeout are unmeasured proposals. Neither the
@@ -257,3 +261,44 @@ operation). Namespace creation and clone-time control placement are supplied by
 `rpcdomain.Prepared.Command`. The actual monitor load/root assembly/state
 authority path remains incomplete; neither command construction nor this root
 switch is an attestation or a writer-fence proof. No target activation is enabled.
+
+## Private initial local-readiness observation
+
+The maintained front/supervisor now use an additional private pipe. **Front
+FD5** is its sole write end, distinct from the owner-approval FD3 pipe. Only
+the exact front inherits it, alongside its sealed FD4 startup binding. The
+parent closes its writer after front Start settles. Native clients and the
+controller inherit none of these front capabilities. Existing compiled images
+without FD5 are incompatible with this source increment; rebuild and qualify
+the full composition together before use.
+
+After owner approval succeeds, front main samples the kernel monotonic clock
+before its real controller `/health` request. The controller must report
+`localReady:true` for exactly chains 1 and 8453, using the existing bounded
+health parser and loopback transport. Front sends one `ERPCRD01` frame containing
+the complete startup identity/nonce and the request-start timestamp, then
+closes the writer. A failed or ambiguous delivery is consumed, never retried.
+Ordinary not-ready health observations may repeat inside the existing startup
+bound; they cannot publish an observation.
+
+The supervisor receives only after Base process launch. It requires the exact
+frame **and EOF**, identical AppID/runtime/deployment/nonce, and less than four
+seconds since request start. Health-request time and IPC queue time count;
+reading a delayed message cannot refresh it. The returned Go timestamp retains
+monotonic time conservatively. Publication rechecks freshness, original
+deadline, stop and cancellation under the same state lock as cleanup.
+
+`PhaseLocalReady` and `State.LocalReadyAt` record an **initial local observation**.
+The timestamp remains historical after termination and is not a cached liveness
+boolean. It does not prove hardware identity, authenticated storage, exclusive
+writer ownership, ledger Running or persistent serving adoption. Client/front
+exit, stop, and the original deadline still terminate the graph. A blocked
+readiness callback participates in cleanup uncertainty and cannot revive a
+terminal supervisor.
+
+The coherent serving transition remains incomplete. Required participants
+include the guest C guardian, namespace-entry watcher, service supervisor,
+storage broker and owner authorization, Windows lifecycle watchers and keeper
+process deadlines. The front also retains its existing bounded readiness loop.
+No timer is disabled by a health response. The already assembled firmware is
+preserved as its exact earlier source revision; it does not contain this change.

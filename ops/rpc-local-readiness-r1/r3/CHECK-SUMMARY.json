@@ -1,0 +1,44 @@
+{
+  "distinctPassed": 160,
+  "topLevelPassed": 94,
+  "priorFailuresResolved": true,
+  "byRun": {
+    "r1": {
+      "passed": 111,
+      "topLevelPassed": 74,
+      "failed": 6,
+      "skippedHelpers": 3
+    },
+    "r2": {
+      "passed": 8,
+      "topLevelPassed": 4,
+      "failed": 0,
+      "skippedHelpers": 0
+    },
+    "r3": {
+      "passed": 41,
+      "topLevelPassed": 16,
+      "failed": 0,
+      "skippedHelpers": 0
+    }
+  },
+  "skipped": [
+    [
+      "enclave.host/isolation/m3/rpcdomain",
+      "TestCompositionMountFixture"
+    ],
+    [
+      "enclave.host/isolation/m3/rpcservice",
+      "TestBootClockCInterop"
+    ],
+    [
+      "enclave.host/isolation/m3/rpcservice",
+      "TestRPCNamespaceFixtureChild"
+    ]
+  ],
+  "skipReasons": {
+    "TestRPCNamespaceFixtureChild": "subprocess helper; parent test passed",
+    "TestCompositionMountFixture": "subprocess helper; parent test passed",
+    "TestBootClockCInterop": "requires separately compiled C fixture, not part of this unchanged-clock qualification"
+  }
+}

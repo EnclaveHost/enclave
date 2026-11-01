@@ -1,0 +1,7 @@
+{"ImportPath":"enclave.host/isolation/m2/bootstrap","Action":"build-output","Output":"# enclave.host/isolation/m2/bootstrap\n"}
+{"ImportPath":"enclave.host/isolation/m2/bootstrap","Action":"build-output","Output":"bootstrap/manifest.go:39:14: undefined: RPCStorage\n"}
+{"ImportPath":"enclave.host/isolation/m2/bootstrap","Action":"build-output","Output":"bootstrap/manifest.go:222:10: undefined: rpcStorageField\n"}
+{"ImportPath":"enclave.host/isolation/m2/bootstrap","Action":"build-fail"}
+{"Time":"2026-11-01T14:36:04.36415234-07:00","Action":"start","Package":"enclave.host/isolation/m2/front"}
+{"Time":"2026-11-01T14:36:04.364232199-07:00","Action":"output","Package":"enclave.host/isolation/m2/front","Output":"FAIL\tenclave.host/isolation/m2/front [build failed]\n","OutputType":"frame"}
+{"Time":"2026-11-01T14:36:04.364255699-07:00","Action":"fail","Package":"enclave.host/isolation/m2/front","Elapsed":0,"FailedBuild":"enclave.host/isolation/m2/bootstrap"}
