@@ -196,3 +196,16 @@ relay path is still required.
 No live wiring, new contract address, migration transaction or wallet grant is
 provided by this document. Those follow provider qualification, end-to-end
 boundary testing, paid settlement/fee bounds and conservation-checked migration.
+
+
+Maintained opt-in host composition (2026-11-01):
+`network/lifecycle-owned-dispatch.mjs` exports `ownIndependentLifecycleDispatch`.
+Inputs are an authenticated adapter with exact reviewed `adapterPins`, host callbacks
+bound to that host, runtime adapters, fixed routes, explicit platform wallets,
+capacity headroom and a verified legacy-quiescence reader. It returns the attached
+`dispatch`, runtime/gate/journal, ownership `close`/`verification`, and adapter
+independence gaps. The caller separately activates routes and schedules local
+reconciliation only after qualification. `close` waits for the driver's actual
+in-flight effects and resource withdrawal; it does not settle an ambiguous intent.
+No production host selects this API by default. A claimed snapshot `verified`
+flag is an adapter contract, not authentication implemented by this factory.

@@ -1,0 +1,9 @@
+# Owned dispatcher main integration review before execution
+
+Three Claude-authored authority/dispatch/independent-admission modules match operator repaired and later shared-allocation repaired261 byte-for-byte before root integration. New factory composes the maintained owned host runtime and immutable reviewed route pins, sharing exact manager client for capacity inventory. Runtime sidecar/parent recovery is unchanged. No production host defaults changed and no generated older journal/runner/migration preflight copied.
+
+Root integration adds terminal driver close with actual in-flight operation tracking, before/after-await effect gates and waiting for raw submissions/reads/preparation. Parent release waits for driver and gate withdrawal; closed parent is never granted cleanup-write access. Online denials do not block authenticated queued/stopped preparation while ownership is live. Final Running submission also verifies the full exact v2 host wallet/policy binding, not just host incarnation. A changed owner holds the already-persisted intent without broadcasting or retrying.
+
+New tests run real maintained owners, journal/runner/dispatch/runtime/gate and ephemeral EIP-712 witness signers with inert chain/manager/health/host-policy adapters. They cover platform refusal scope, elected moderation vs integrity, hash-checked policy, durable local hold, uncertain capacity, owner change during preparation, close during proof/preparation/raw sender, and cold pending recovery. Prior66 serving/storage cases plus generation-local-refusal and accepted-owner migration regressions included. No native RPC/payment/VM test, no signature with user credentials.
+
+Frozen static import closure, dependency read-only bind, private loopback-only network/user namespace;512MiB/noSwap/CPU1/RSS450; authenticated floor27648+pending+640;30s suite/15s native fixture/150s unit; exclusive one-shot intent and before/after source hashes. No automatic retry, result pending.

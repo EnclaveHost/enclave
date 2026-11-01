@@ -350,3 +350,51 @@ before additional review found staged/pending-start authority gaps, fixed in R3.
 No live VM, RPC, provider settlement, funding, production resource enforcement or
 independent hosting is proven by these tests. Dispatcher/authority integration and
 qualified production boundaries remain required before activation.
+
+
+### Maintained owned independent dispatcher (2026-11-01, opt-in source)
+
+`ownIndependentLifecycleDispatch` in `network/lifecycle-owned-dispatch.mjs`
+composes the current Linux host-journal owners, v2 runtime/gate and maintained
+lifecycle runner with an explicitly pinned independent host registry adapter.
+It shares the runtime's manager client for inventory. It attaches the supplied
+host callbacks but does not activate routes, start a cadence, enroll a host,
+submit funds or replace the production host loop.
+
+The host authority reader hash-checks the wallet's policy and rejects revision
+rollback/equivocation. Snapshot-derived decisions use the original authenticated
+block timestamp; reading cached evidence cannot renew the admission window.
+Content commitments and wallet deny lists are mandatory. Publisher listing and
+catalog moderation apply only if the host wallet elected them. Platform service
+and new-work policy apply only when the accepted owner is one of the explicitly
+pinned platform wallets. This source path removes that platform veto for foreign
+wallet-owned hosts without changing the serving legacy path.
+
+Routes bind exact old/new ledgers, controller/code/profile identities and a
+finalized legacy-quiescence digest. They remain held until verified handoff and
+never fall back to legacy inside this dispatcher. The production host still
+requires integration that excludes every legacy path for an activated route.
+Capacity remains reserved for unknown inventory and pending/mined starts, using
+host accounting and authenticated resource shares; CPU/RAM accounting is not
+physical/GPU exclusivity or attestation proof.
+
+Closing ownership immediately prevents new driver work and awaits actual
+in-flight preparation, reads, activation proofs and submissions alongside gate
+withdrawal. Prepared starts recheck both host incarnation and the complete v2
+wallet/policy authority before submission. An authority change leaves the exact
+intent held. No closed-parent cleanup-write exception is introduced. Authenticated
+queued/stopped transitions remain reachable despite live-owner Online/new-work
+restrictions; this is not an independent crashed-host reporter or protected gas
+implementation.
+
+Final qualification: 115 tests (12 new composition cases plus 103 regressions),
+57 unchanged source pins, and the five-check native journal fixture. The new
+cases use real maintained journal ownership, dispatcher/runner/runtime/gate and
+ephemeral EIP-712 witnesses; chain, manager, policy, readiness and external
+boundary adapters are test doubles. R1 preserved 103 passes plus an import failure
+caused by freezing a symlink under its target path; R2 corrected the package and
+passed 114; R3 adds cached/future admission refusal and passed 115. These results
+do not prove production activation, actual hosting under refusal, physical
+capacity/attestation, automatic gas funding, cold recovery or storage failure.
+The actual authenticated chain adapter and production boundary/host integration
+remain required; all broader rollout gates still apply.

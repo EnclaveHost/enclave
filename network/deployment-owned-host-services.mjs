@@ -24,7 +24,7 @@ export async function ownHostLifecycleRuntime(file, { pins, host, ownerOptions =
     owner.onRelease(reason => gate.close(reason));
     const runtime = createIsolationLifecycleRuntime({ ...adapters, host, now, gate, journal: owner.journal });
     return Object.freeze({ runtime, gate, journal: owner.journal,
-      close: owner.close, verification: owner.verification });
+      onRelease: owner.onRelease, close: owner.close, verification: owner.verification });
   } catch (error) { await owner.close('runtime construction refused'); throw error; }
 }
 

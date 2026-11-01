@@ -144,6 +144,13 @@ export class DeploymentPermitGate {
     this.hold(id, 'handoff revoked');
     return this.hostAuthority.unbind(hostId, id);
   }
+  assertHostAuthorityBinding(id, context) {
+    if (!this.ownerLive()) throw Error('permit gate closed: no current host authority');
+    const c = validateHostAuthorityContext(context), e = this.hostAuthority.read(c.hostId);
+    if (e?.floor?.offline || e?.floor?.digest !== c.digest || e?.bound?.[id]?.digest !== c.digest)
+      throw Error('app start is not bound to the exact current host authority');
+    return c.digest;
+  }
   // ---- async r4 + completion r5: owner liveness on every use + awaited, never-forgotten withdrawals ------------------------------
   /** the per-app revocation epoch (bumped by every hold/handoff); runtime operations pin it after their handoff */
   epochOf(id) { return this.epochs.get(id) || 0; }

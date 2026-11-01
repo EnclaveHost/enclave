@@ -158,6 +158,13 @@ export function createIsolationLifecycleRuntime({ client, gate, journal, plans, 
   return {
     hostAuthorityPermit: V2,   // completion r2: the dispatch requires exactly this for independent-host-registry-r1 serving and handoff
     fence, stop,
+    checkHostAuthority(id, snapshot) {
+      if (!V2) throw Error('exact host authority requires v2 permits');
+      gate.observeHostEvidence(snapshot?.hostAuthorityEvidence);
+      const context = permitHostAuthorityOf(snapshot);
+      gate.observeHostAuthority(context);
+      return gate.assertHostAuthorityBinding(id, context);
+    },
     async health(id, generation) {
       const view = await client.findByName(id);
       if (!view) {
