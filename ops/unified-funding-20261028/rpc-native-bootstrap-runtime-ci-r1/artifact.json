@@ -1,0 +1,42 @@
+[
+    {
+        "entry":  "keeper",
+        "sourceCount":  19,
+        "bytes":  251904,
+        "sha256":  "438f56e2d0f041b88920a3f42abf31b9e7d3bf3e22496c7128218d6bab15dbf7",
+        "executed":  false,
+        "binaryExported":  false
+    },
+    {
+        "entry":  "system",
+        "sourceCount":  20,
+        "bytes":  261632,
+        "sha256":  "566ef582da4041db0f1c91c0172f1d6c5ac96146abaf3396a95d78b6d0de2a58",
+        "executed":  false,
+        "binaryExported":  true
+    },
+    {
+        "entry":  "start",
+        "sourceCount":  19,
+        "bytes":  261632,
+        "sha256":  "cc6efc186571156b71d86b27f44c0e937910a3bc95ec16005093823eed4064a2",
+        "executed":  false,
+        "binaryExported":  false
+    },
+    {
+        "entry":  "bootstrap",
+        "sourceCount":  19,
+        "bytes":  251904,
+        "sha256":  "8a2d9076507910ad7fe857bdf3e1ffe9ad7c211f6b578327a05c145ef95a8f87",
+        "executed":  false,
+        "binaryExported":  true
+    },
+    {
+        "entry":  "controller",
+        "sourceCount":  20,
+        "bytes":  260096,
+        "sha256":  "7523cc04d90ed4c463f2c5e3bedd80da8edc87542812e4a46212fb3c60f9e3ba",
+        "executed":  false,
+        "binaryExported":  true
+    }
+]

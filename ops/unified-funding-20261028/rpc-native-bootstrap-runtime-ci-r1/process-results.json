@@ -1,0 +1,57 @@
+[
+    {
+        "label":  "keeper-compile",
+        "pid":  8904,
+        "exitCode":  0,
+        "elapsedMs":  6888,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  124518400,
+        "cpuMs":  2062.5,
+        "outputBytes":  899
+    },
+    {
+        "label":  "system-compile",
+        "pid":  9820,
+        "exitCode":  0,
+        "elapsedMs":  951,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  123146240,
+        "cpuMs":  906.25,
+        "outputBytes":  899
+    },
+    {
+        "label":  "start-compile",
+        "pid":  5852,
+        "exitCode":  0,
+        "elapsedMs":  1046,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  121450496,
+        "cpuMs":  906.25,
+        "outputBytes":  1443
+    },
+    {
+        "label":  "bootstrap-compile",
+        "pid":  9496,
+        "exitCode":  0,
+        "elapsedMs":  940,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  122998784,
+        "cpuMs":  843.75,
+        "outputBytes":  899
+    },
+    {
+        "label":  "controller-compile",
+        "pid":  1924,
+        "exitCode":  0,
+        "elapsedMs":  892,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  121376768,
+        "cpuMs":  859.375,
+        "outputBytes":  1934
+    }
+]
