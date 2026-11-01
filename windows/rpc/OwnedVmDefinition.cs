@@ -256,7 +256,7 @@ namespace Enclave.OwnedRpc {
     DefinitionPlan=OwnedVmDefinitionPlan.Parse(Utf8.GetString(raw));var p=DefinitionPlan;
     Nonce=p.Attempt;Boot=p.Boot;Origin=p.Origin;Deadline=p.Deadline;ExecutableHash=p.ProviderImageHash;
     if(p.Root!=Root||Path.GetFileName(Root)!=Nonce||Boot!=reader.Boot||Boot!=CurrentBoot()||Origin>reader.Origin)throw new InvalidOperationException("Definition namespace/boot/origin differs");
-    p.ValidateWorkerWindow(reader.Origin,reader.Deadline,BoundedWorker.MonotonicMilliseconds(),reader.Operation=="definition-reconcile"||reader.Operation=="boot-reconcile"||reader.Operation=="admission-check"||reader.Operation=="preparation-check");
+    p.ValidateWorkerWindow(reader.Origin,reader.Deadline,BoundedWorker.MonotonicMilliseconds(),reader.Operation=="definition-reconcile"||reader.Operation=="boot-reconcile"||reader.Operation=="admission-check"||reader.Operation=="preparation-check"||reader.Operation=="preparation-gated");
     CheckDeadline();
    }catch{Dispose();throw;}
   }
@@ -279,13 +279,14 @@ namespace Enclave.OwnedRpc {
     // Fresh read-only evidence belongs to the short diagnostic lease, never
     // replaces the consumed plan's observation or renews its startup authority.
     internal static void InspectDefinitionAdmission(ProtectedAttempt plan,ProtectedAttempt reader){
-        if(plan==null||plan.DefinitionPlan==null||reader==null||reader.LeaseProfile!="definition"||(reader.Operation!="admission-check"&&reader.Operation!="preparation-check")||
+        if(plan==null||plan.DefinitionPlan==null||reader==null||reader.LeaseProfile!="definition"||(reader.Operation!="admission-check"&&reader.Operation!="preparation-check"&&reader.Operation!="preparation-gated")||
            reader.PermitHash!=plan.ContractHash||reader.PermitPath!=Path.Combine(plan.Root,"definition-plan.txt")||reader.AdmissionObservationHash==null)
             throw new ArgumentException("Bound read-only definition admission required");
         plan.CheckDeadline();reader.CheckDeadline();
-        var reviewed=Obj(new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32}.DeserializeObject(new UTF8Encoding(false,true).GetString(reader.ReadAdmission(reader.AdmissionObservationHash))));
+        string observationHash=reader.Operation=="preparation-gated"?reader.GateObservationHash:reader.AdmissionObservationHash;
+        var reviewed=Obj(new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32}.DeserializeObject(new UTF8Encoding(false,true).GetString(reader.ReadAdmission(observationHash))));
         using(var completed=new LegacyHandoff.Completion(Obj(reviewed["legacyCutSeed"]),Obj(reviewed["sharedPhysicalPool"]),reader))
-            new WindowsStartAdmission(reader,reader.AdmissionObservationHash,completed).Read();
+            new WindowsStartAdmission(reader,observationHash,completed).Read();
         plan.CheckDeadline();reader.CheckDeadline();
     }
  }
@@ -396,6 +397,55 @@ namespace Enclave.OwnedRpc {
      VerifyChain(ancestor as Dictionary<string,object>,prior,reader,chain);
     reader.CheckDeadline();successor.CheckDeadline();
    }
+  }
+ }
+}
+
+namespace Enclave.OwnedRpc {
+ // A diagnostic-only handoff. The child has opened its original lease and exact
+ // peer handles, but cannot enter admission/WMI preparation until this gate.
+ internal static class DefinitionObservationGate {
+  static void Require(ProtectedAttempt a){if(a==null||a.LeaseProfile!="definition"||a.Operation!="preparation-gated")throw new InvalidOperationException("Gated diagnostic required");}
+  static string Roles(ProtectedAttempt a){return ProtectedAttempt.Hash(Encoding.UTF8.GetBytes(a.ReadOnce("owner.consumed")+"\n"+a.ReadOnce("observer.consumed")+"\n"+a.ReadOnce("child.consumed")+"\n"+a.ReadOnce("child.binding")));}
+  internal static string Ready(ProtectedAttempt a,long now){Require(a);a.CheckDeadline();if(now<a.Origin||now>=a.Deadline)throw new InvalidOperationException("Gate time");return "owned-rpc-observation-gate/1\n"+a.Token+"\n"+Roles(a)+"\n"+now.ToString(CultureInfo.InvariantCulture)+"\n"+a.Deadline.ToString(CultureInfo.InvariantCulture)+"\n";}
+  internal static long ValidateReady(ProtectedAttempt a,string ready,long now){
+   Require(a);string[] f=(ready??"").Split('\n');long tick;
+   if(f.Length!=6||f[0]!="owned-rpc-observation-gate/1"||f[1]!=a.Token||f[2]!=Roles(a)||f[4]!=a.Deadline.ToString(CultureInfo.InvariantCulture)||f[5]!=""||!Int64.TryParse(f[3],NumberStyles.None,CultureInfo.InvariantCulture,out tick)||tick<a.Origin||tick>now||now>=a.Deadline)throw new InvalidOperationException("Fresh observation gate binding differs");
+   return tick;
+  }
+  internal static string Digest(ProtectedAttempt a,string ready,string commit,long now){
+   ValidateReady(a,ready,now);
+   if(commit==null||commit.Length!=ready.Length+65||!commit.StartsWith(ready,StringComparison.Ordinal)||!commit.EndsWith("\n",StringComparison.Ordinal))throw new InvalidOperationException("Fresh observation commit differs");
+   string hash=commit.Substring(ready.Length,64);StartIdentity.Hex(hash,64);return hash;
+  }
+ }
+ public sealed partial class ProtectedAttempt {
+  internal string GateObservationHash {get{
+   CheckDeadline();string ready=ReadOnce("observation.ready"),commit=ReadOnce("observation.commit");
+   if(ReadOnce("observation.request")!=ready||ReadOnce("observation.release")!=commit)throw new InvalidOperationException("Fresh observation gate closed");
+   return DefinitionObservationGate.Digest(this,ready,commit,BoundedWorker.MonotonicMilliseconds());
+  }}
+  internal byte[] ValidateGatePayload(string ready,string commit){
+   CheckDeadline();long now=BoundedWorker.MonotonicMilliseconds();long tick=DefinitionObservationGate.ValidateReady(this,ready,now);
+   if(ReadOnce("observation.ready")!=ready||ReadOnce("observation.request")!=ready)throw new InvalidOperationException("Fresh observation request differs");
+   string hash=DefinitionObservationGate.Digest(this,ready,commit,now);
+   byte[] bytes=Bytes(HoldRead(Path.Combine(Root,"admission.fresh.json"),262144),262144);
+   if(Hash(bytes)!=hash)throw new InvalidOperationException("Fresh observation bytes differ");
+   byte[] initial=Bytes(HoldRead(Path.Combine(Root,"admission.json"),262144),262144);
+   if(Hash(initial)!=AdmissionObservationHash)throw new InvalidOperationException("Initial resource binding changed");
+   var json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
+   var fresh=GateObject(json.DeserializeObject(Utf8.GetString(bytes)));var prior=GateObject(json.DeserializeObject(Utf8.GetString(initial)));
+   foreach(string key in new[]{"legacyCutSeed","sharedPhysicalPool"})if(json.Serialize(fresh[key])!=json.Serialize(prior[key]))throw new InvalidOperationException("Original resource authority changed");
+   var obs=GateObject(fresh["observation"]);var before=GateObject(obs["physicalBefore"]);var after=GateObject(obs["physicalAfter"]);
+   long first=GateNumber(before["monotonicMilliseconds"]),last=GateNumber(after["monotonicMilliseconds"]);
+   if(first<tick||last<first||last>now||(obs["bootNative"] as string)!=Boot)throw new InvalidOperationException("Observation must follow exact work gate");
+   CheckDeadline();return bytes;
+  }
+  static Dictionary<string,object> GateObject(object value){var v=value as Dictionary<string,object>;if(v==null)throw new InvalidOperationException("Gate object required");return v;}
+  static long GateNumber(object value){if(!(value is int)&&!(value is long))throw new InvalidOperationException("Gate integer required");return Convert.ToInt64(value,CultureInfo.InvariantCulture);}
+  byte[] ReadGateObservation(string expectedHash){
+   if(expectedHash!=GateObservationHash)throw new InvalidOperationException("Gate digest mismatch");
+   return ValidateGatePayload(ReadOnce("observation.ready"),ReadOnce("observation.release"));
   }
  }
 }

@@ -139,7 +139,7 @@ public static class DefinitionWorkerController {
         Origin=BoundedWorker.MonotonicMilliseconds();Deadline=Origin+30000;bool passed=false;long free=0;
         try{
             if(args.Length!=11||args[0]!="--target")throw new ArgumentException("Explicit target definition arguments required");
-            Operation=args[4];if(Operation!="define"&&Operation!="definition-reconcile"&&Operation!="boot"&&Operation!="boot-reconcile"&&Operation!="admission-check"&&Operation!="preparation-check")throw new ArgumentException("Explicit definition operation required");
+            Operation=args[4];if(Operation!="define"&&Operation!="definition-reconcile"&&Operation!="boot"&&Operation!="boot-reconcile"&&Operation!="admission-check"&&Operation!="preparation-check"&&Operation!="preparation-gated")throw new ArgumentException("Explicit definition operation required");
             Origin=Int64.Parse(args[9],NumberStyles.None,CultureInfo.InvariantCulture);Deadline=Int64.Parse(args[10],NumberStyles.None,CultureInfo.InvariantCulture);
             Hex(args[2],64);Hex(args[3],32);Hex(args[8],64);ManifestHash=args[8];
             BoundedWorker.EnterSupervisorEnvelope(128UL*1024*1024);Watchdog=BoundedWorker.ArmOwnerObserver(Origin,Deadline,args[3]+args[3]+args[3]+args[3]);
@@ -157,7 +157,7 @@ public static class DefinitionWorkerController {
                 Publish(planPath,planBytes);Publish(Path.Combine(plan.Root,"admission.json"),Read(args[5],262144));
             }else {DefinitionRoot(plan);if(args[7]!=planPath)throw new InvalidOperationException("Reconcile only exact existing plan");}
             string contract=Path.Combine(Root,"contract.txt");
-            bool admissionOnly=Operation=="admission-check"||Operation=="preparation-check";
+            bool admissionOnly=Operation=="admission-check"||Operation=="preparation-check"||Operation=="preparation-gated";
             if(admissionOnly)Publish(Path.Combine(Root,"admission.json"),Read(args[5],262144));
             byte[] bytes=Encoding.UTF8.GetBytes((admissionOnly?"owned-rpc-definition-admission-v1":"owned-rpc-definition-worker-v1")+"\n"+args[3]+"\n"+boot+"\n"+Origin+"\n"+Deadline+"\n"+args[2]+"\n"+Operation+"\n"+planPath+"\n"+ManifestHash+"\n"+(admissionOnly?args[6]+"\n":""));
             string hash=ProtectedAttempt.Hash(bytes);Publish(contract,bytes);NamespacePin=ProtectedAttempt.PinDefinitionController(contract,hash);
@@ -165,6 +165,19 @@ public static class DefinitionWorkerController {
                 Admitted=true;string token=args[3]+boot+hash;
                 string arguments=Quote(contract)+" "+hash+" "+Origin+" "+Deadline;Schedule("owner","owner "+arguments);Schedule("observer","observer "+arguments);
                 Process owner=Identity("owner",token),observer=Identity("observer",token);Publish(Path.Combine(Root,"admit"),Encoding.UTF8.GetBytes(token));
+                if(Operation=="preparation-gated"){
+                    string readyPath=Path.Combine(Root,"observation.ready");
+                    while(!File.Exists(readyPath)){CheckTime();if(owner.HasExited||observer.HasExited)throw new InvalidOperationException("Gate role lost");Thread.Sleep(5);}
+                    Process child=Identity("child",token);
+                    string ready=NamespacePin.ReadOnce("observation.ready");
+                    DefinitionObservationGate.ValidateReady(NamespacePin,ready,BoundedWorker.MonotonicMilliseconds());
+                    NamespacePin.WriteOnce("observation.request",ready);
+                    while(!File.Exists(Path.Combine(Root,"observation.commit"))){CheckTime();if(owner.HasExited||observer.HasExited||child.HasExited)throw new InvalidOperationException("Gate role lost");Thread.Sleep(5);}
+                    string commit=NamespacePin.ReadOnce("observation.commit");
+                    NamespacePin.ValidateGatePayload(ready,commit);
+                    if(owner.HasExited||observer.HasExited||child.HasExited)throw new InvalidOperationException("Gate role lost");
+                    CheckTime();NamespacePin.WriteOnce("observation.release",commit);
+                }
                 foreach(var process in new[]{owner,observer})if(!process.WaitForExit((int)Math.Max(0,Deadline-BoundedWorker.MonotonicMilliseconds()))||process.ExitCode!=0)throw new InvalidOperationException("Exact role completion failed");
                 if(Encoding.UTF8.GetString(Read(Path.Combine(Root,"owner.result"),4096))!="definition-worker-complete;provider-fenced=false;reservation-release=false"||Encoding.UTF8.GetString(Read(Path.Combine(Root,"observer.result"),4096))!="exact-owner-death;job-empty;provider-fenced=false;reservation-release=false")throw new InvalidOperationException("Exact role receipts required");
                 string result=Encoding.UTF8.GetString(Read(Path.Combine(Root,"child.result"),4096));
@@ -176,7 +189,7 @@ public static class DefinitionWorkerController {
         return passed&&Failures.Count==0?0:1;
     }
     static object VerifyResult(ProtectedAttempt pin,string raw){
-        if(Operation=="preparation-check") {
+        if(Operation=="preparation-check"||Operation=="preparation-gated") {
             if(raw!="preparation-observed;definition-authorized=false;start-authorized=false;reservation-release=false")throw new InvalidOperationException("Read-only preparation result required");
             return new{state="preparation-observed",definitionAuthorized=false,startAuthorized=false,reservationMayRelease=false};
         }

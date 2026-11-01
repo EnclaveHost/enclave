@@ -1070,3 +1070,26 @@ The explicit `preparation-check` definition worker operation is a read-only diag
 Actual qualification: definition CI41258640395 passed117 cases at d010a044; unchanged startup compiled closure passed68 at64c8fe89. Target preparation-check was attempted once and refused before WMI because KVM9a changed from reviewed stopped to the normalized unallocated-retry category. No preparation-stage trace was reached, so this does not diagnose the earlier SYSTEM-context error. Exact role deaths and unchanged original VMs/journals were observed. See ops/unified-funding-20261028/rpc-preparation-diagnostic-result-preserve-r1/ROOT-RESULT.md.
 
 A second target diagnostic used a fresh observation and reused verified binaries. It still refused before WMI: seven status-only changes occurred across snapshot/role startup. Snapshot-to-controller submission was6.347s, including2.566s after fullread returned. Exact roles/readers/publisher deaths and unchanged original VMs/journal were verified. No further unchanged diagnostic is qualified; next work is a protected fresh-observation binding at the final work gate under the original deadline. This is not implemented. Details: ops/unified-funding-20261028/rpc-preparation-fresh-results-preserve-r1/ROOT-RESULT.md.
+
+
+`preparation-gated` adds a diagnostic-only final observation handoff. The child
+opens its immutable lease within the existing five-second bootstrap window,
+checks its held owner/observer/child binding, and waits behind a closed work gate.
+It performs no admission query or WMI preparation while waiting. The controller
+holds exact live role handles, publishes `observation.request` bound to the boot,
+contract, all role receipts, child binding and original deadline, then waits for
+one `admission.fresh.json` plus `observation.commit` in that protected namespace.
+The fresh observation must begin after readiness; original completed-cut and pool
+authority must match the initial immutable observation. The controller holds the
+fresh payload, checks its digest and live roles, and publishes one release. The
+child independently verifies the same binding and its live peer handles before
+unchanged native admission. Duplicate, mismatched, pre-gate, future, different
+boot, changed authority and expired inputs refuse. The observer watchdog still
+owns the original 30-second deadline, including collection. No old VM journal
+writes, provider invocation or reservation release is authorized.
+
+This handoff is source-only pending separate qualification. The external collector
+must wait for the exact request, collect actual fresh host data, and atomically
+publish the bound payload/commit; it must never overwrite the initial observation.
+The definition and startup CI recipes now explicitly compile with `/optimize+`
+and retain the 262144-byte executable cap and all resource/test limits.

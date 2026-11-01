@@ -59,7 +59,7 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
 }
 try{
     $sources=@((Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\ProviderStart.cs'),(Join-Path $root 'windows\rpc\OwnedVmPermit.cs'),(Join-Path $root 'windows\rpc\OwnedVmDefinition.cs'),(Join-Path $root 'windows\rpc\OwnedVmBoot.cs'),(Join-Path $root 'windows\rpc\BootStartBinding.cs'),(Join-Path $root 'windows\rpc\HostPhysicalPool.cs'),(Join-Path $root 'windows\rpc\WindowsStartAdmission.cs'),(Join-Path $root 'windows\rpc\LegacyTemplateFence.cs'),(Join-Path $root 'windows\rpc\LegacyLaunchCohort.cs'),(Join-Path $root 'windows\rpc\LegacyHandoff.cs'),(Join-Path $root 'windows\rpc\DefinitionWorkerEntry.cs'),(Join-Path $root 'windows\rpc\DefinitionWorkerController.cs'),(Join-Path $root 'test\rpc-windows-worker\OwnedVmDefinitionHarness.cs'),(Join-Path $root 'test\rpc-windows-worker\OwnedVmBootHarness.cs'))
-    $base=@('/nologo','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll')
+    $base=@('/nologo','/optimize+','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll')
     $production=@($sources|Where-Object{$_ -notlike '*\OwnedVmDefinitionHarness.cs' -and $_ -notlike '*\OwnedVmBootHarness.cs'})
     if($production.Count -ne 15){throw 'Unexpected target definition closure'}
     Invoke-FiniteProcess $csc ($base+@('/main:OwnedVmDefinitionHarness',('/out:'+$controller))+$sources) 20000 'controller-compile'
@@ -68,7 +68,7 @@ try{
     if((Get-Item $entry).Length -gt 262144 -or (Get-Item $target).Length -gt 262144){throw 'Native definition image bound'}
     Invoke-FiniteProcess $controller @($entry) 20000 'inert'
     $lines=@(Get-Content -LiteralPath (Join-Path $work 'inert.out'))
-    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 117 -or $lines[-1] -cne 'RESULT tests=117 providerCallsAreFakes=true vmChanged=false'){throw 'Incomplete provider transaction tests'}
+    if(@($lines|Where-Object{$_ -like 'PASS *'}).Count -ne 129 -or $lines[-1] -cne 'RESULT tests=129 providerCallsAreFakes=true vmChanged=false'){throw 'Incomplete provider transaction tests'}
     $lines
 }finally{
     # Helpers have no unbounded loop: sleeps <=5s, allocation <=192MiB. These

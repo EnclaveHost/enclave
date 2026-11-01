@@ -60,7 +60,7 @@ function Invoke-FiniteProcess([string]$Executable,[string[]]$Arguments,[int]$Dea
 }
 try{
     $sources=@((Join-Path $root 'windows\rpc\BoundedWorker.cs'),(Join-Path $root 'windows\rpc\OwnerObserver.cs'),(Join-Path $root 'windows\rpc\VmStartGuardian.cs'),(Join-Path $root 'windows\rpc\ProtectedAttempt.cs'),(Join-Path $root 'windows\rpc\ProviderStart.cs'),(Join-Path $root 'windows\rpc\ProviderStop.cs'),(Join-Path $root 'windows\rpc\OwnedVmPermit.cs'),(Join-Path $root 'windows\rpc\HostPhysicalPool.cs'),(Join-Path $root 'windows\rpc\WindowsStartAdmission.cs'),(Join-Path $root 'windows\rpc\LegacyTemplateFence.cs'),(Join-Path $root 'windows\rpc\LegacyLaunchCohort.cs'),(Join-Path $root 'windows\rpc\LegacyHandoff.cs'),(Join-Path $root 'windows\rpc\ProviderWorkerEntry.cs'),(Join-Path $root 'windows\rpc\BootStartBinding.cs'),(Join-Path $root 'windows\rpc\StartupCleanup.cs'),(Join-Path $root 'windows\rpc\StartupCleanupController.cs'),(Join-Path $root 'windows\rpc\StartupController.cs'),(Join-Path $root 'windows\rpc\OwnedVmDefinition.cs'),(Join-Path $root 'test\rpc-windows-worker\StartupControllerHarness.cs'))
-    $base=@('/nologo','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll')
+    $base=@('/nologo','/optimize+','/target:exe','/platform:x64','/r:System.Management.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll')
     $production=@($sources|Where-Object{$_ -notlike '*\StartupControllerHarness.cs' -and $_ -notlike '*\OwnedVmDefinition.cs'})
     if($production.Count -ne 17){throw 'Unexpected target cleanup closure'}
     Invoke-FiniteProcess $csc ($base+@('/main:StartupControllerHarness',('/out:'+$controller))+$sources) 20000 'controller-compile'

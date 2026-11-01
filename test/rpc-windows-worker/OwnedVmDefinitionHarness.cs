@@ -52,7 +52,7 @@ public static class OwnedVmDefinitionHarness {
    long now=BoundedWorker.MonotonicMilliseconds(),origin=now;
    P=new OwnedVmDefinitionPlan(id,wrongBoot?new string('b',32):b,new string('c',64),ProtectedAttempt.Hash(fixtureImage),vr,origin,origin+900000,new string('e',64),new string('f',64));
    PlanPath=Path.Combine(vr,"definition-plan.txt");byte[] plan=Encoding.UTF8.GetBytes(P.Encode());PlanHash=wrongHash?new string('0',64):ProtectedAttempt.Hash(plan);Put(PlanPath,plan);
-   bool probe=op=="admission-check"||op=="preparation-check";byte[] observation=Encoding.UTF8.GetBytes("{}");ObservationHash=ProtectedAttempt.Hash(observation);
+   bool probe=op=="admission-check"||op=="preparation-check"||op=="preparation-gated";byte[] observation=Encoding.UTF8.GetBytes(op=="preparation-gated"?"{\"legacyCutSeed\":{\"fixture\":1},\"sharedPhysicalPool\":{\"fixture\":2}}":"{}");ObservationHash=ProtectedAttempt.Hash(observation);
    if(probe)Put(Path.Combine(root,"admission.json"),observation);
    byte[] c=Encoding.UTF8.GetBytes((probe?"owned-rpc-definition-admission-v1":"owned-rpc-definition-worker-v1")+"\n"+n+"\n"+b+"\n"+now+"\n"+(now+20000)+"\n"+ProtectedAttempt.Hash(fixtureImage)+"\n"+op+"\n"+PlanPath+"\n"+PlanHash+"\n"+(probe?ObservationHash+"\n":""));
    Contract=Path.Combine(root,"contract.txt");Hash=ProtectedAttempt.Hash(c);Put(Contract,c);
@@ -104,7 +104,46 @@ public static class OwnedVmDefinitionHarness {
   Test("actual-prior-dead-roles-bound-to-held-contract",()=>{using(var old=new PriorCase()){var c=new ProtectedCase();using(var a=c.Lease())using(var w=ProtectedAttempt.OpenPriorDefinitionWorker(old.Contract,old.Hash,a))foreach(string role in new[]{"owner","observer","child"})UnsubmittedDefinition.RequireExactDeath(w.ReadOnce(role+".consumed"),w.Token,role);}});
 
  }
+ static string GateReady(ProtectedAttempt a){
+  foreach(string role in new[]{"owner","observer","child"})a.WriteOnce(role+".consumed","123,456,"+a.Token+","+role);
+  a.WriteOnce("child.binding","789,123,456,"+a.Token+","+a.Deadline);
+  string r=DefinitionObservationGate.Ready(a,BoundedWorker.MonotonicMilliseconds());a.WriteOnce("observation.ready",r);a.WriteOnce("observation.request",r);return r;
+ }
+ static string GatePayload(ProtectedAttempt a,string ready,long shift=0,string boot=null,int authority=1,bool wrongHash=false){
+  long tick=Int64.Parse(ready.Split('\n')[3]);
+  string text="{\"legacyCutSeed\":{\"fixture\":"+authority+"},\"sharedPhysicalPool\":{\"fixture\":2},\"observation\":{\"bootNative\":\""+(boot??a.Boot)+"\",\"physicalBefore\":{\"monotonicMilliseconds\":"+(tick+shift)+"},\"physicalAfter\":{\"monotonicMilliseconds\":"+(tick+shift)+"}}}";
+  byte[] bytes=Encoding.UTF8.GetBytes(text);Put(Path.Combine(a.Root,"admission.fresh.json"),bytes);
+  string commit=ready+(wrongHash?new string('0',64):ProtectedAttempt.Hash(bytes))+"\n";a.WriteOnce("observation.commit",commit);return commit;
+ }
  static void ProtectedTests(){
+  Test("gated-contract-cannot-read-initial-observation-as-fresh",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease())Refuse(()=>a.ReadAdmission(c.ObservationHash));});
+  Test("gate-ready-binds-token-and-exact-role-records",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease()){
+   string r=GateReady(a);long now=BoundedWorker.MonotonicMilliseconds();DefinitionObservationGate.ValidateReady(a,r,now);
+   Refuse(()=>DefinitionObservationGate.ValidateReady(a,r.Replace(a.Token,new string('0',a.Token.Length)),now));
+   string[] f=r.Split('\n');f[2]=new string('0',64);Refuse(()=>DefinitionObservationGate.ValidateReady(a,String.Join("\n",f),now));
+  }});
+  Test("gate-original-deadline-future-and-overflow-refused",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease()){
+   string r=GateReady(a);Refuse(()=>DefinitionObservationGate.ValidateReady(a,r,a.Deadline));Refuse(()=>DefinitionObservationGate.ValidateReady(a,r,a.Origin-1));
+   string[] f=r.Split('\n');f[3]=Int64.MaxValue.ToString();Refuse(()=>DefinitionObservationGate.ValidateReady(a,String.Join("\n",f),BoundedWorker.MonotonicMilliseconds()));
+  }});
+  Test("gate-commit-rejects-foreign-truncated-and-malformed-digest",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease()){
+   string r=GateReady(a);long now=BoundedWorker.MonotonicMilliseconds();foreach(string x in new[]{r+new string('g',64)+"\n",r+new string('a',63)+"\n","foreign"+r+new string('a',64)+"\n"})Refuse(()=>DefinitionObservationGate.Digest(a,r,x,now));
+  }});
+  Test("gate-complete-binding-reads-exact-held-payload",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease()){
+   string r=GateReady(a),commit=GatePayload(a,r);byte[] bytes=a.ValidateGatePayload(r,commit);a.WriteOnce("observation.release",commit);
+   Check(ProtectedAttempt.Hash(a.ReadAdmission(a.GateObservationHash))==ProtectedAttempt.Hash(bytes));
+   Refuse(()=>File.WriteAllText(Path.Combine(a.Root,"admission.fresh.json"),"changed"));Refuse(()=>a.WriteOnce("observation.release",commit));Refuse(()=>a.WriteOnce("observation.commit",commit));
+  }});
+  Test("gate-missing-release-never-opens",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease()){string r=GateReady(a);GatePayload(a,r);Refuse(()=>{string h=a.GateObservationHash;});}});
+  Test("gate-pre-ready-snapshot-refused",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease()){string r=GateReady(a),commit=GatePayload(a,r,-1);Refuse(()=>a.ValidateGatePayload(r,commit));}});
+  Test("gate-future-snapshot-refused",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease()){string r=GateReady(a),commit=GatePayload(a,r,30000);Refuse(()=>a.ValidateGatePayload(r,commit));}});
+  Test("gate-different-boot-refused",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease()){string r=GateReady(a),commit=GatePayload(a,r,0,new string('0',32));Refuse(()=>a.ValidateGatePayload(r,commit));}});
+  Test("gate-cannot-change-original-resource-authority",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease()){string r=GateReady(a),commit=GatePayload(a,r,0,null,2);Refuse(()=>a.ValidateGatePayload(r,commit));}});
+  Test("gate-payload-digest-mismatch-refused",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease()){string r=GateReady(a),commit=GatePayload(a,r,0,null,1,true);Refuse(()=>a.ValidateGatePayload(r,commit));}});
+  Test("gated-diagnostic-still-cannot-mutate-consumed-plan",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease())using(var p=ProtectedAttempt.PinDefinitionJournalController(c.PlanPath,c.PlanHash,a)){
+   foreach(string n in new[]{"definition.intent","definition.native","definition.invoke","definition.receipt","boot.ready","start.native"})Refuse(()=>p.WriteOnce(n,"x"));LegacyHandoff.Completion done=null;Refuse(()=>WindowsStartAdmission.VerifyDefinition(p,c.P.AdmissionHash,a,ref done));Check(done==null);
+  }});
+
   Test("preparation-contract-binds-private-observation",()=>{var c=new ProtectedCase("preparation-check");using(var a=c.Lease()){
    Check(a.Operation=="preparation-check"&&a.AdmissionObservationHash==c.ObservationHash);
    Refuse(()=>a.ReadAdmission(new string('0',64)));

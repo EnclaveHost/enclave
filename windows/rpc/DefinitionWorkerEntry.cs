@@ -209,7 +209,12 @@ namespace Enclave.OwnedRpc {
                     using(var guard=HoldChildAuthority(a)) {
                         using(var plan=ProtectedAttempt.OpenDefinitionJournal(a.PermitPath,a.PermitHash,a))
                         {
-                          if(a.Operation=="preparation-check") {
+                          if(a.Operation=="preparation-check"||a.Operation=="preparation-gated") {
+                            if(a.Operation=="preparation-gated"){
+                                guard.Check();a.WriteOnce("observation.ready",DefinitionObservationGate.Ready(a,BoundedWorker.MonotonicMilliseconds()));
+                                while(!File.Exists(Path.Combine(a.Root,"observation.release"))){guard.Check();Thread.Sleep(5);}
+                                guard.Check();string freshHash=a.GateObservationHash;a.ReadAdmission(freshHash);guard.Check();
+                            }
                             guard.Check();WindowsStartAdmission.InspectDefinitionAdmission(plan,a);guard.Check();
                             Action<string> trace=delegate(string stage) {
                                 guard.Check();
