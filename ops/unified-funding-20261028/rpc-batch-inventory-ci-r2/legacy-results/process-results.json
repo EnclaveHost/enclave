@@ -1,0 +1,42 @@
+[
+    {
+        "label":  "compile",
+        "pid":  3428,
+        "exitCode":  0,
+        "elapsedMs":  1947,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  39587840,
+        "outputBytes":  199
+    },
+    {
+        "label":  "compile-entry",
+        "pid":  6356,
+        "exitCode":  0,
+        "elapsedMs":  299,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  36577280,
+        "outputBytes":  199
+    },
+    {
+        "label":  "compile-controller",
+        "pid":  7424,
+        "exitCode":  0,
+        "elapsedMs":  427,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  38477824,
+        "outputBytes":  199
+    },
+    {
+        "label":  "handoff",
+        "pid":  1196,
+        "exitCode":  0,
+        "elapsedMs":  2597,
+        "failure":  null,
+        "processExited":  true,
+        "maximumObservedWorkingSet":  37036032,
+        "outputBytes":  3231
+    }
+]

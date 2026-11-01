@@ -1,0 +1,1 @@
+Fresh admission and exact qualified507d59c source; corrected realized-settings query projection, fixed four-query batch correspondence. Same limits/source lineage/immutable authority. New protected namespace and nonce required. No earlier attempt replay.

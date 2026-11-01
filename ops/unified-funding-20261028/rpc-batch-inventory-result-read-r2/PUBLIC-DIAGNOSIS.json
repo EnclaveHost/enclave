@@ -1,0 +1,61 @@
+{
+  "worker": "061f0523b96042d49a17385d269637f1",
+  "readSha256": "fe153626c3bca060e144415e2ad8da99fc023316dab9aec9ff36bba98db133b0",
+  "failure": {
+    "type": "System.InvalidOperationException",
+    "message": "VM memory association ambiguity"
+  },
+  "exactDeaths": [
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379712873770981",
+      "pid": "10676",
+      "absent": true,
+      "role": "owner"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379712873770666",
+      "pid": "56476",
+      "absent": true,
+      "role": "observer"
+    },
+    {
+      "sameIncarnationAlive": false,
+      "expectedCreation": "134379712875432206",
+      "pid": "57160",
+      "absent": true,
+      "role": "child"
+    }
+  ],
+  "priorStageDeaths": [
+    {
+      "label": "admission",
+      "expectedCreation": "134379712445528485",
+      "pid": 37572,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "create",
+      "expectedCreation": "134379712695108578",
+      "pid": 52136,
+      "sameIncarnationAlive": false,
+      "absent": true
+    },
+    {
+      "label": "verify",
+      "expectedCreation": "134379712759795683",
+      "pid": 44044,
+      "sameIncarnationAlive": false,
+      "absent": true
+    }
+  ],
+  "original8091Alive": true,
+  "originalVmsUnchanged": true,
+  "thirdPlanJournalsByteEqual": true,
+  "ready": false,
+  "wmiPreparationTraces": 0,
+  "providerSettled": false,
+  "rpcReady": false
+}

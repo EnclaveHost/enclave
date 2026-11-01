@@ -179,7 +179,8 @@ namespace Enclave.OwnedRpc {
    var used=new HashSet<string>(StringComparer.OrdinalIgnoreCase);var result=new SortedDictionary<string,MemoryRecord>(StringComparer.Ordinal);
    foreach(var row in links){string group=InventoryPath(row["GroupComponent"],"Msvm_VirtualSystemSettingData"),part=InventoryPath(row["PartComponent"],null),id;
     if(!groups.TryGetValue(group,out id)||!String.Equals(new ManagementPath(part).ClassName,"Msvm_MemorySettingData",StringComparison.OrdinalIgnoreCase))continue;
-    Dictionary<string,object> d;if(!records.TryGetValue(part,out d)||!used.Add(part)||result.ContainsKey(id))throw new InvalidOperationException("VM memory association ambiguity");
+    Dictionary<string,object> d;if(!records.TryGetValue(part,out d))throw new InvalidOperationException("Associated memory row missing: rows="+records.Count);
+    if(!used.Add(part)||result.ContainsKey(id))throw new InvalidOperationException("VM memory association ambiguity");
     result.Add(id,new MemoryRecord{Bytes=MaximumMemory(d),VirtualQuantityMiB=(ulong)d["VirtualQuantity"],ReservationMiB=(ulong)d["Reservation"],LimitMiB=(ulong)d["Limit"],DynamicMemoryEnabled=(bool)d["DynamicMemoryEnabled"]});
    }
    if(result.Count!=expected.Count)throw new InvalidOperationException("Missing VM memory association");return result;
@@ -190,7 +191,7 @@ namespace Enclave.OwnedRpc {
    var settings=Query(ns,"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemType='Microsoft:Hyper-V:System:Realized'",new[]{"__PATH","VirtualSystemIdentifier"},32);
    var links=Query(ns,"SELECT GroupComponent,PartComponent FROM Msvm_VirtualSystemSettingDataComponent",new[]{"GroupComponent","PartComponent"},2048);
    var fields=new List<string>(MemoryFields);fields.Add("__PATH");
-   var memory=Query(ns,"SELECT "+String.Join(",",fields)+" FROM Msvm_MemorySettingData",fields.ToArray(),256);
+   var memory=Query(ns,"SELECT * FROM Msvm_MemorySettingData",fields.ToArray(),256);
    var result=InventoryRows(systems,settings,links,memory);Check();return result;
   }
   internal static SortedDictionary<string,long> AssignedRows(SortedDictionary<string,MemoryRecord> inventory,IEnumerable<Dictionary<string,object>> rows){

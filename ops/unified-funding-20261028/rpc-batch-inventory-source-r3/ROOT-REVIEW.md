@@ -1,0 +1,1 @@
+Full realized query now covered allVMs on actualtarget; projectedmemory correspondence failed beforeworkgate. Restore fullmemory enumeration while projecting bounded requiredfields locally and preserving exactassociation checks. Distinguish missingrecords fromduplicateassociations. Originalclocks/floors/pending/caps/strictinventory unchanged. No actual speed qualification yet.

@@ -1,0 +1,46 @@
+[
+  {
+    "path": "compile-controller.out",
+    "sha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063"
+  },
+  {
+    "path": "compile.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "process-results.json",
+    "sha256": "8118339b34ebb0088ef2bd16d8dcf7a9f60f2e5243153ca203c31876db3db74c"
+  },
+  {
+    "path": "compile.out",
+    "sha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063"
+  },
+  {
+    "path": "pins.json",
+    "sha256": "e9ce29f449411a95ac69c627f6719e3fb6c9b7b1d40ff41fcc1d1ba8feb3addd"
+  },
+  {
+    "path": "handoff.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "compile-controller.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "controller-artifact.json",
+    "sha256": "c4427e76f91b9e221967aa58c759aa8d0a77cb0fd2c0f6e8f4ac78eb38c7c0c9"
+  },
+  {
+    "path": "handoff.out",
+    "sha256": "285c32bd574aa09907861c4483c11f83bde639fedcd1ab9a5f587b674b4de8de"
+  },
+  {
+    "path": "compile-entry.out",
+    "sha256": "b93f53b25e654b42795791c58cac9da9b95b82fd353b49859d16eee02f2fc063"
+  },
+  {
+    "path": "compile-entry.err",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]
