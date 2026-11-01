@@ -84,6 +84,12 @@ public static class OwnedVmDefinitionHarness {
   public void Dispose(){foreach(var q in dead)q.Dispose();}
  }
  static void PredecessorTests(){
+  Test("predecessor-chain-eight-distinct-nodes",()=>{var c=new UnsubmittedDefinition.ChainState("successor");for(int i=0;i<8;i++)c.Enter("w"+i,"p"+i,"r"+i,100-i,101-i);});
+  Test("predecessor-chain-ninth-refused",()=>{var c=new UnsubmittedDefinition.ChainState("s");for(int i=0;i<8;i++)c.Enter("w"+i,"p"+i,"r"+i,1,2);Refuse(()=>c.Enter("w9","p9","r9",1,2));});
+  Test("predecessor-chain-successor-cycle-refused",()=>{var c=new UnsubmittedDefinition.ChainState("s");Refuse(()=>c.Enter("w","s","r",1,2));});
+  Test("predecessor-chain-cross-role-reuse-refused",()=>{var c=new UnsubmittedDefinition.ChainState("s");c.Enter("w","p","r",1,2);Refuse(()=>c.Enter("p","p2","r2",1,2));});
+  Test("predecessor-chain-root-reuse-refused",()=>{var c=new UnsubmittedDefinition.ChainState("s");c.Enter("w","p","r",1,2);Refuse(()=>c.Enter("w2","p2","r",1,2));});
+  Test("predecessor-chain-overlap-refused",()=>{var c=new UnsubmittedDefinition.ChainState("s");Refuse(()=>c.Enter("w","p","r",3,2));});
   Test("predecessor-exact-consumed-records-accepted",()=>{var d=new Dictionary<string,string>{{"definition.intent","plan"},{"definition.submit","hash"}};UnsubmittedDefinition.RequireUnsubmitted(n=>d.ContainsKey(n)?d[n]:null,"plan","hash");});
   Test("predecessor-all-native-or-pending-markers-refused",()=>{foreach(string name in new[]{"definition.native","definition.invoke","definition.receipt","definition.job","definition.terminal","definition.system","definition.off","boot.media","boot.ready"})foreach(string suffix in new[]{"",".pending"}){string target=name+suffix;Refuse(()=>UnsubmittedDefinition.RequireUnsubmitted(n=>n=="definition.intent"?"plan":n=="definition.submit"?"hash":n==target?"held":null,"plan","hash"));}});
   Test("predecessor-partial-pre-native-publication-refused",()=>{foreach(string name in new[]{"definition.intent.pending","definition.submit.pending"})Refuse(()=>UnsubmittedDefinition.RequireUnsubmitted(n=>n=="definition.intent"?"plan":n=="definition.submit"?"hash":n==name?"partial":null,"plan","hash"));});

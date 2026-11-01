@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 1.8388256269972771,
+  "stdout": "",
+  "stderr": "test_begin_cannot_replace_original (__main__.Composition.test_begin_cannot_replace_original) ... ok\ntest_clock_jump_refused (__main__.Composition.test_clock_jump_refused) ... ok\ntest_consumed_export_path_refused (__main__.Composition.test_consumed_export_path_refused) ... ok\ntest_consumer_does_not_gain_allowed_wall_clock_offset (__main__.Composition.test_consumer_does_not_gain_allowed_wall_clock_offset) ... ok\ntest_consumer_refuses_changed_window_or_clock_pin (__main__.Composition.test_consumer_refuses_changed_window_or_clock_pin) ... ok\ntest_consumer_refuses_unbound_legacy_contract (__main__.Composition.test_consumer_refuses_unbound_legacy_contract) ... ok\ntest_delay_is_consumed_and_windows_origin_is_conservative (__main__.Composition.test_delay_is_consumed_and_windows_origin_is_conservative) ... ok\ntest_duplicate_json_field_refused (__main__.Composition.test_duplicate_json_field_refused) ... ok\ntest_duplicate_port_refused (__main__.Composition.test_duplicate_port_refused) ... ok\ntest_export_credential_mismatch (__main__.Composition.test_export_credential_mismatch) ... ok\ntest_export_preparation_refuses_replay (__main__.Composition.test_export_preparation_refuses_replay) ... ok\ntest_export_source_pin_refusal (__main__.Composition.test_export_source_pin_refusal) ... ok\ntest_finish_is_one_shot (__main__.Composition.test_finish_is_one_shot) ... ok\ntest_floor_and_reserve_cannot_weaken (__main__.Composition.test_floor_and_reserve_cannot_weaken) ... ok\ntest_invalid_integer_types_and_bounds (__main__.Composition.test_invalid_integer_types_and_bounds) ... ok\ntest_invalid_sample_consumes_finish_without_clock (__main__.Composition.test_invalid_sample_consumes_finish_without_clock) ... ok\ntest_late_handshake_refused (__main__.Composition.test_late_handshake_refused) ... ok\ntest_monotonic_expiry_cannot_be_extended_by_wall_offset (__main__.Composition.test_monotonic_expiry_cannot_be_extended_by_wall_offset) ... ok\ntest_no_private_keys_opened_or_services_spawned (__main__.Composition.test_no_private_keys_opened_or_services_spawned) ... ok\ntest_original_changed (__main__.Composition.test_original_changed) ... ok\ntest_private_key_symlink_refused_without_read (__main__.Composition.test_private_key_symlink_refused_without_read) ... ok\ntest_publicly_readable_input_refused (__main__.Composition.test_publicly_readable_input_refused) ... ok\ntest_real_preparer_protocol_and_consumer_bind_same_original_clock (__main__.Composition.test_real_preparer_protocol_and_consumer_bind_same_original_clock) ... ok\ntest_symlink_and_hardlink_refused (__main__.Composition.test_symlink_and_hardlink_refused) ... ok\ntest_tampered_completed_clock_refused_even_with_new_outer_digest (__main__.Composition.test_tampered_completed_clock_refused_even_with_new_outer_digest) ... ok\ntest_wrong_local_boot_refused (__main__.Composition.test_wrong_local_boot_refused) ... ok\n\n----------------------------------------------------------------------\nRan 26 tests in 1.638s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 2971
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

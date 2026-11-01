@@ -329,22 +329,42 @@ namespace Enclave.OwnedRpc {
    foreach(string name in new[]{"definition.native","definition.invoke","definition.receipt","definition.job","definition.terminal","definition.system","definition.off","boot.media","boot.ready"})
     if(read(name)!=null||read(name+".pending")!=null)throw new InvalidOperationException("Prior provider invocation or outcome remains held");
   }
-  internal static void VerifyAdmission(ProtectedAttempt plan,ProtectedAttempt reader){
+  internal sealed class ChainState {
+   readonly HashSet<string> identities=new HashSet<string>(StringComparer.Ordinal);int count;
+   internal ChainState(string successor){identities.Add(successor);}
+   internal void Enter(string worker,string plan,string root,long deadline,long successorOrigin){
+    if(++count>8||String.IsNullOrEmpty(worker)||String.IsNullOrEmpty(plan)||String.IsNullOrEmpty(root)||deadline>successorOrigin||
+       !identities.Add(worker)||!identities.Add(plan)||!identities.Add(root))throw new InvalidOperationException("Prior chain cycle, reused identity, overlap or bound");
+   }
+  }
+  static Dictionary<string,object> Observation(ProtectedAttempt plan){
    var json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
    var reviewed=json.DeserializeObject(new UTF8Encoding(false,true).GetString(plan.ReadAdmission(plan.DefinitionPlan.AdmissionHash))) as Dictionary<string,object>;
    if(reviewed==null)throw new InvalidOperationException("Definition observation object required");
-   object binding;if(reviewed.TryGetValue("unsubmittedPredecessor",out binding))Verify(binding as Dictionary<string,object>,plan,reader);
+   return reviewed;
+  }
+  internal static void VerifyAdmission(ProtectedAttempt plan,ProtectedAttempt reader){
+   object binding;if(Observation(plan).TryGetValue("unsubmittedPredecessor",out binding))Verify(binding as Dictionary<string,object>,plan,reader);
   }
   internal static void Verify(Dictionary<string,object> binding,ProtectedAttempt successor,ProtectedAttempt reader){
+   if(successor==null)throw new ArgumentException("Successor required");
+   VerifyChain(binding,successor,reader,new ChainState(successor.Nonce));
+  }
+  static void VerifyChain(Dictionary<string,object> binding,ProtectedAttempt successor,ProtectedAttempt reader,ChainState chain){
    if(binding==null||binding.Count!=4||!binding.ContainsKey("schema")||!binding.ContainsKey("contractPath")||!binding.ContainsKey("contractHash")||!binding.ContainsKey("producerHash")||
       (string)binding["schema"]!="owned-rpc-unsubmitted-predecessor/1"||successor==null||successor.DefinitionPlan==null||reader==null||reader.Operation!="define")throw new ArgumentException("Explicit predecessor and successor definition required");
    reader.CheckDeadline();successor.CheckDeadline();
    using(var worker=ProtectedAttempt.OpenPriorDefinitionWorker((string)binding["contractPath"],(string)binding["contractHash"],reader))
    using(var prior=ProtectedAttempt.OpenPriorDefinitionPlan(worker,reader)){
     if(worker.ExecutableHash!=(string)binding["producerHash"]||prior.Nonce==successor.Nonce||prior.Root==successor.Root||prior.Deadline>successor.Origin||prior.Boot!=successor.Boot)throw new InvalidOperationException("Distinct reviewed successor after expired predecessor required");
+    chain.Enter(worker.Nonce,prior.Nonce,prior.Root,prior.Deadline,successor.Origin);
     var identities=new HashSet<string>(StringComparer.Ordinal);
     foreach(string role in new[]{"owner","observer","child"}){reader.CheckDeadline();string record=worker.ReadOnce(role+".consumed");RequireExactDeath(record,worker.Token,role);string[] parts=record.Split(',');if(!identities.Add(parts[0]+","+parts[1]))throw new InvalidOperationException("Prior roles share an incarnation");}
     RequireUnsubmitted(prior.ReadOptionalOnce,prior.DefinitionPlan.Encode(),prior.ContractHash);
+    // Follow the immutable prior plan's own admission hash. Every ancestor is
+    // opened read-only under the current reader lease, never its expired clock.
+    object ancestor;if(Observation(prior).TryGetValue("unsubmittedPredecessor",out ancestor))
+     VerifyChain(ancestor as Dictionary<string,object>,prior,reader,chain);
     reader.CheckDeadline();successor.CheckDeadline();
    }
   }

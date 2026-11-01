@@ -205,7 +205,7 @@ def preflight(config):
         raise ValueError('Original bare observation required before any work')
     if cut_field == 'retainedCut':
         prior = w.retained_source(config['retainedCut'], config['clock'], win['transport'])
-        if any(n in (prior['priorCutNonce'],prior['priorWorkerNonce']) for n in nonces):
+        if any(n in w.retained_nonces(prior) for n in nonces):
             raise ValueError('Original cut/definition worker nonce must not be reused')
     else:
         manifest = p.decode(w.staged(config['handoff'],'handoff.json'))

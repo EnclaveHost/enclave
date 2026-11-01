@@ -496,14 +496,20 @@ separate evidence-adoption record, not a new native cut result. `stage-cut`,
 `cut-seed` and `collect` are skipped. Original source records are rechecked
 between phases, including endpoint lineage verification. Changed evidence,
 boot, channel, overlapping clocks, reused identities/nonces or later original
-boot/definition state remain held. This initial implementation supports one
-original pre-native definition; it does not automatically traverse failed
-successor attempts.
+boot/definition state remain held. Optional `successors` is a chronological,
+nonempty list of pinned consumed successor clocks, with at most seven entries
+after the original attempt. Every intermediate adoption request, intent, receipt
+and consumed definition is verified against its exact preceding ancestry.
+Missing ancestry, duplicate identities, changed commands or later phases refuse
+before export. The newest guard replaces the previous guard only after these
+checks; every prior worker nonce remains excluded from the new attempt.
 
 The newly prepared admission must include the derived
 `unsubmittedPredecessor` worker contract path/hash and producer hash. The
-Windows definition worker independently verifies old exact process deaths and
-protected journals before provider invocation, alongside its fresh completed-cut,
+Windows definition worker recursively follows each prior plan’s hash-pinned
+admission observation, holding its protected files read-only under the current
+short reader deadline. It checks exact process deaths and absence of native
+provider markers at every node before provider invocation, alongside its fresh completed-cut,
 capacity and namespace checks. Local receipt absence does not establish remote
 settlement. Adoption claims neither native predecessor verification nor capacity,
 provider settlement, readiness or reservation release. Lost successor replies
@@ -512,8 +518,12 @@ remain consumed with no automatic retry.
 The owner integration is tested with actual local journals, two immutable clocks,
 producers and endpoint lineage. SSH/native, export, PID1 and guest boundaries are
 mocked. See `ops/unified-funding-20261028/rpc-retained-cut-tests-r2/ROOT-RESULT.md`;
-the first failed endpoint-integration run is also preserved. No successor
-production clock or target action has been performed. Before that attempt,
+the first failed endpoint-integration run is also preserved. The later actual
+successor 25eecdee was consumed at admission freshness, with no native definition
+marker; its exact roles were observed dead and exporter cleaned. The changed
+native reader subsequently passed read-only SYSTEM admission. Multiple-predecessor
+composition has 116 local passing cases (native boundaries mocked), pending
+hosted native compilation/qualification. Before another production attempt,
 prepare new instance-bound seed/media and owner profile/source closure, stage
 qualified current binaries, and obtain fresh full admission. The old seed and
 profile are tied to the consumed attempt and cannot be silently reused.

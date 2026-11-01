@@ -29,19 +29,19 @@ class RetainedCut(unittest.TestCase):
 
     def pin(self,path):return {'path':str(path),'sha256':c.protocol.sha(c.read(path))}
 
-    def new_clock(self, vm='e'*32, boot='c'*32):
-        begin = c.begin(self.x.root,'d'*32,'rpc-owned-'+'d'*32,vm)
+    def new_clock(self, vm='e'*32, boot='c'*32, attempt='d'*32, stamp=2000000, serial=100):
+        begin = c.begin(self.x.root,attempt,'rpc-owned-'+attempt,vm)
         self.x.clock = c.finish(begin,self.x.bound('new-sample',c.encode({'schema':'owned-rpc-windows-clock/1',
-            'attempt':'d'*32,'vmAttempt':vm,'windowsBoot':boot,'monotonicMilliseconds':2000000})))
+            'attempt':attempt,'vmAttempt':vm,'windowsBoot':boot,'monotonicMilliseconds':stamp})))
         self.x.journal = Path(self.x.clock['path']).parent;self.x.original = c.validate(self.x.clock)
         self.x.vmroot = 'C:\\EnclaveRpcVm-'+vm+'\\'+vm
         self.s.e.origin = self.x.original['windowsDeadlineMilliseconds']-15000
-        cfg=self.s.cfg;cfg['clock']=self.x.clock;cfg.pop('handoff');cfg['retainedCut']=self.retained
-        cfg['nonces']={name:format(100+i,'032x') for i,name in enumerate(r.NONCES)}
+        cfg=self.s.cfg;cfg['clock']=self.x.clock;cfg.pop('handoff',None);cfg['retainedCut']=self.retained
+        cfg['nonces']={name:format(serial+i,'032x') for i,name in enumerate(r.NONCES)}
         media=c.protocol.decode(c.read_pinned(cfg['media']));media['instance']=self.x.original['instance']
         media['files'][1]['sha256']='8'*64
         cfg['media']=self.x.bound('new-media',c.encode(media));self.s.f.media=media
-        self.s.contract=self.x.bound('new-export-contract',c.encode({'startupClock':self.x.clock,'attempt':'d'*32,'stateParent':str(self.x.root/'state')}))
+        self.s.contract=self.x.bound('new-export-contract',c.encode({'startupClock':self.x.clock,'attempt':attempt,'stateParent':str(self.x.root/'state')}))
         self.s.prepare.return_value={'contract':self.s.contract}
 
     def adopt(self):return w.adopt_retained_cut({'clock':self.x.clock,'transport':self.x.transport,'retained':self.retained})
@@ -146,6 +146,73 @@ class RetainedCut(unittest.TestCase):
     def test_adoption_mutation_after_receipt_refused(self):
         receipt=self.adopt();path=self.old_journal/'windows-files-collect-cut/pool.complete';path.write_bytes(b'0'*64)
         with self.assertRaises(ValueError):w.validate_retained_cut(receipt,self.x.clock,self.x.transport,'f'*32)
+        self.x.call.assert_not_called()
+
+    def consume_second(self):
+        self.s.fail='define'
+        with self.assertRaises(TimeoutError):r.run(self.s.cfg)
+        second=self.x.clock;journal=self.x.journal
+        self.x.wall+=901_000_000_000;self.x.mono+=901_000_000_000
+        self.retained={**self.retained,'successors':[second]}
+        self.new_clock(vm='1'*32,attempt='2'*32,stamp=3000000,serial=200)
+        self.s.fail=None;self.s.native_calls.clear();self.x.call.reset_mock();self.s.start.reset_mock()
+        return second,journal
+
+    def test_third_attempt_checks_both_consumed_definitions(self):
+        second,journal=self.consume_second()
+        row=c.protocol.decode(c.read_pinned(r.run(self.s.cfg)))
+        self.assertTrue(row['clientProcessesObserved']);self.assertFalse(row['rpcReady'])
+        adoption=c.protocol.decode(c.read(self.x.journal/'retained-cut/RESULT.json'))
+        self.assertEqual(len(adoption['priorWorkerNonces']),2)
+        prior=c.protocol.decode(c.read(journal/'windows-define/request.json'))
+        self.assertIn(prior['nonce'],adoption['unsubmittedPredecessor']['contractPath'])
+        self.assertEqual(self.s.native_calls,['stage-definition','define','copy','boot','start-once','endpoint'])
+        self.assertEqual(self.old_bytes,{p:p.read_bytes() for p in self.old_journal.rglob('*') if p.is_file()})
+
+    def test_fourth_attempt_verifies_transitive_adoption(self):
+        self.consume_second();self.s.fail='define'
+        with self.assertRaises(TimeoutError):r.run(self.s.cfg)
+        third=self.x.clock
+        self.x.wall+=901_000_000_000;self.x.mono+=901_000_000_000
+        self.retained={**self.retained,'successors':self.retained['successors']+[third]}
+        self.new_clock(vm='3'*32,attempt='4'*32,stamp=4000000,serial=300)
+        receipt=c.protocol.decode(c.read_pinned(self.adopt()))
+        self.assertEqual(len(receipt['priorWorkerNonces']),3)
+        self.assertEqual(len(set(receipt['priorWorkerNonces'])),3)
+
+    def test_middle_definition_command_tamper_refused_before_export(self):
+        _,journal=self.consume_second();path=journal/'windows-define/submit.intent'
+        row=c.protocol.decode(c.read(path));row['command']+=' changed';path.write_bytes(c.encode(row))
+        with self.assertRaisesRegex(ValueError,'command'):r.run(self.s.cfg)
+        self.s.start.assert_not_called();self.x.call.assert_not_called()
+
+    def test_middle_adoption_tamper_refused(self):
+        _,journal=self.consume_second();path=journal/'retained-cut/RESULT.json'
+        row=c.protocol.decode(c.read(path));row['nativePredecessorVerified']=True;path.write_bytes(c.encode(row))
+        with self.assertRaisesRegex(ValueError,'adoption receipt'):self.adopt()
+        self.x.call.assert_not_called()
+
+    def test_chain_empty_duplicate_and_overflow_refused(self):
+        second,_=self.consume_second()
+        for chain in ([],[second,second],[second]*8):
+            with self.assertRaises(ValueError):w.retained_source({**self.retained,'successors':chain},self.x.clock,self.x.transport)
+        self.x.call.assert_not_called()
+
+    def test_middle_later_phase_held(self):
+        _,journal=self.consume_second();(journal/'windows-boot').mkdir(mode=0o700)
+        with self.assertRaisesRegex(ValueError,'Later original'):self.adopt()
+        self.x.call.assert_not_called()
+
+    def test_middle_worker_nonce_reuse_refused(self):
+        _,journal=self.consume_second();prior=c.protocol.decode(c.read(journal/'windows-define/request.json'))
+        self.s.cfg['nonces']['define']=prior['nonce']
+        with self.assertRaisesRegex(ValueError,'nonce'):r.run(self.s.cfg)
+        self.s.start.assert_not_called();self.x.call.assert_not_called()
+
+    def test_middle_skipped_ancestry_refused(self):
+        _,journal=self.consume_second();path=journal/'retained-cut/request.json'
+        row=c.protocol.decode(c.read(path));row['retained']['clock']=self.x.clock;path.write_bytes(c.encode(row))
+        with self.assertRaisesRegex(ValueError,'ancestry'):self.adopt()
         self.x.call.assert_not_called()
 
 

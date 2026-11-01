@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 2.434875979088247,
+  "stdout": "",
+  "stderr": "test_real_pidfd_observation_does_not_terminate_or_adopt_owner (__main__.ProcessEnvelope.test_real_pidfd_observation_does_not_terminate_or_adopt_owner) ... ok\ntest_replacement_stale_watchdog_and_limit_drift_refused (__main__.ProcessEnvelope.test_replacement_stale_watchdog_and_limit_drift_refused) ... ok\ntest_signaled_pidfd_is_refused_even_matching_systemd (__main__.ProcessEnvelope.test_signaled_pidfd_is_refused_even_matching_systemd) ... ok\ntest_startup_deadline_cannot_be_extended_by_unit (__main__.ProcessEnvelope.test_startup_deadline_cannot_be_extended_by_unit) ... ok\ntest_authenticated_pending_floor_is_not_replaced_by_free_ram (__main__.Startup.test_authenticated_pending_floor_is_not_replaced_by_free_ram) ... ok\ntest_complete_actual_windows_chain_feeds_public_handoff (__main__.Startup.test_complete_actual_windows_chain_feeds_public_handoff) ... ok\ntest_consumed_whole_attempt_prevents_even_changed_nonce_retry (__main__.Startup.test_consumed_whole_attempt_prevents_even_changed_nonce_retry) ... ok\ntest_expiry_after_preparation_never_starts_export (__main__.Startup.test_expiry_after_preparation_never_starts_export) ... ok\ntest_export_submission_has_independent_watchdog_and_original_contract (__main__.Startup.test_export_submission_has_independent_watchdog_and_original_contract) ... ok\ntest_exporter_loss_after_cut_stops_before_collect (__main__.Startup.test_exporter_loss_after_cut_stops_before_collect) ... ok\ntest_local_key_owner_composition_uses_no_control_submission (__main__.Startup.test_local_key_owner_composition_uses_no_control_submission) ... ok\ntest_local_profile_wrong_boot_refused_before_export (__main__.Startup.test_local_profile_wrong_boot_refused_before_export) ... ok\ntest_lost_control_reply_is_held_after_one_submission (__main__.Startup.test_lost_control_reply_is_held_after_one_submission) ... ok\ntest_lost_definition_never_copies_boots_or_submits_guest (__main__.Startup.test_lost_definition_never_copies_boots_or_submits_guest) ... ok\ntest_lost_export_registration_never_cuts_or_retries (__main__.Startup.test_lost_export_registration_never_cuts_or_retries) ... ok\ntest_mutated_static_media_cannot_advance_after_copy (__main__.Startup.test_mutated_static_media_cannot_advance_after_copy) ... ok\ntest_original_handoff_change_after_admission_stops_preparation (__main__.Startup.test_original_handoff_change_after_admission_stops_preparation) ... ok\ntest_pending_endpoint_does_not_contact_control (__main__.Startup.test_pending_endpoint_does_not_contact_control) ... ok\ntest_preflight_rejects_bad_media_network_and_recipient_before_work (__main__.Startup.test_preflight_rejects_bad_media_network_and_recipient_before_work) ... ok\n\n----------------------------------------------------------------------\nRan 19 tests in 2.056s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 2769
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

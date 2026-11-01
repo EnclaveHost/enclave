@@ -346,14 +346,74 @@ def cut_evidence(native, request, original, bindings):
     return evidence
 
 
+def retained_nonces(source):
+    return [source['priorCutNonce'], *source.get('priorWorkerNonces', [source['priorWorkerNonce']])]
+
+
+def _after(old, new):
+    if (old['bootId'] != new['bootId'] or old['windowsBoot'] != new['windowsBoot']
+            or any(old[k] == new[k] for k in ('attempt', 'vmAttempt', 'instance'))
+            or old['deadlineMonotonicNs'] > new['originMonotonicNs'] or old['deadlineUtcNs'] > new['createdUtcNs']
+            or old['windowsDeadlineMilliseconds'] > new['windowsOriginMilliseconds']):
+        raise ValueError('Distinct successor after expired predecessor on original boots required')
+
+
 def retained_source(retained, successor_binding, channel):
+    """Verify up to eight consumed definitions in chronological order.
+
+    Local evidence never proves remote death or provider settlement. The newest
+    native guard traverses every hash-pinned predecessor observation on Windows.
+    Historical clocks are inspected without renewing their execution authority.
+    """
+    has_chain = 'successors' in retained
+    exact(retained, ('clock', 'cutResult', 'collectedCut', 'successors') if has_chain else ('clock', 'cutResult', 'collectedCut'))
+    chain = retained.get('successors', [])
+    if type(chain) is not list or (has_chain and not chain) or len(chain) > 7:
+        raise ValueError('Bounded nonempty consumed successor chain required')
+    base = {k: retained[k] for k in ('clock', 'cutResult', 'collectedCut')}
+    new = c.validate(successor_binding)
+    source = _first_retained_source(base, new, channel)
+    old = c.inspect_historical(base['clock'])
+    seen = {old['attempt'], old['vmAttempt'], new['attempt'], new['vmAttempt'], *retained_nonces(source)}
+    instances = {old['instance'], new['instance']}
+    clocks = []
+    for binding in chain:
+        prior = c.inspect_historical(binding);_after(old, prior);_after(prior, new)
+        if prior['attempt'] in seen or prior['vmAttempt'] in seen or prior['instance'] in instances:
+            raise ValueError('Consumed identity repeated in predecessor chain')
+        seen.update((prior['attempt'], prior['vmAttempt']));instances.add(prior['instance'])
+        folder = c.directory(Path(binding['path']).parent) / 'retained-cut'
+        request_raw = c.read(folder / 'request.json');request = c.protocol.decode(request_raw)
+        expected_retained = dict(base, successors=list(clocks)) if clocks else base
+        if request != {'clock': binding, 'transport': channel, 'retained': expected_retained}:
+            raise ValueError('Consumed successor skipped or changed retained ancestry')
+        if c.protocol.decode(c.read(folder / 'adopt.intent')) != {'requestSha256': c.protocol.sha(request_raw)}:
+            raise ValueError('Consumed successor adoption intent differs')
+        raw = c.read(folder / 'RESULT.json')
+        expected = {'schema': 'owned-rpc-retained-cut/1', 'clock': binding, 'attempt': prior['attempt'],
+            'vmAttempt': prior['vmAttempt'], 'requestSha256': c.protocol.sha(request_raw), **source,
+            'nativeCutSubmitted': False, 'nativePredecessorVerified': False, 'capacityAdmitted': False,
+            'rpcReady': False, 'reservationMayRelease': False}
+        if c.protocol.decode(raw) != expected:raise ValueError('Consumed successor adoption receipt differs')
+        previous = {'path': str(folder / 'RESULT.json'), 'sha256': c.protocol.sha(raw)}
+        evidence = source['cutEvidence']
+        guard = _definition_guard(binding, prior, channel, previous, source['retainedNative'],
+            (evidence['contract']['sha256'], evidence['activation']['sha256']), source['unsubmittedPredecessor'], seen)
+        nonces = source.get('priorWorkerNonces', [source['priorWorkerNonce']]) + [guard['priorWorkerNonce']]
+        source = {**source, **guard, 'priorWorkerNonces': nonces}
+        seen.add(guard['priorWorkerNonce']);clocks.append(binding);old = prior
+    c.validate(successor_binding)
+    return source
+
+
+def _first_retained_source(retained, new, channel):
     """Historical evidence only: Windows must still prove no provider call.
 
     Only a first expired definition is supported. No local reply, exit status or
     absence of a file on this host establishes remote settlement or exact death.
     """
     exact(retained, ('clock', 'cutResult', 'collectedCut'))
-    old = c.inspect_historical(retained['clock']);new = c.validate(successor_binding)
+    old = c.inspect_historical(retained['clock'])
     if (old['bootId'] != new['bootId'] or old['windowsBoot'] != new['windowsBoot']
             or old['attempt'] == new['attempt'] or old['vmAttempt'] == new['vmAttempt'] or old['instance'] == new['instance']
             or old['deadlineMonotonicNs'] > new['originMonotonicNs'] or old['deadlineUtcNs'] > new['createdUtcNs']
@@ -410,19 +470,27 @@ def retained_source(retained, successor_binding, channel):
     if actual != dict(zip(names, (evidence[k] for k in keys))):raise ValueError('Original collected evidence differs')
     for key, name in zip(keys, names):
         if bindings[key]['path'] != str(folder / name):raise ValueError('Original collected file location differs')
-    # Bind the consumed definition command to its exact native worker contract.
+    guard = _definition_guard(retained['clock'], old, channel, retained['cutResult'], native,
+        (c.protocol.sha(evidence['contract']), c.protocol.sha(evidence['activation'])), None,
+        (request['nonce'], new['attempt'], new['vmAttempt']))
+    return {'retainedNative': native, 'cutEvidence': bindings, **guard, 'priorCutNonce': request['nonce']}
+
+
+def _definition_guard(clock, old, channel, previous, native, hashes, expected_guard, forbidden):
+    journal = c.directory(Path(clock['path']).parent)
     prior_folder = journal / 'windows-define';prior_raw = c.read(prior_folder / 'request.json');prior = c.protocol.decode(prior_raw)
     exact(prior, ('clock', 'transport', 'phase', 'nonce', 'binaries', 'observation', 'input', 'previous'))
-    if (prior['clock'] != retained['clock'] or prior['transport'] != channel or prior['phase'] != 'define'
-            or prior['previous'] != retained['cutResult'] or prior['nonce'] in (request['nonce'], new['attempt'], new['vmAttempt'])):
+    if (prior['clock'] != clock or prior['transport'] != channel or prior['phase'] != 'define'
+            or prior['previous'] != previous or prior['nonce'] in forbidden):
         raise ValueError('Original definition request differs')
     c.hex32(prior['nonce']);exact(prior['binaries'], ('controller', 'entry'))
     for key, filename in zip(('controller', 'entry'), IMAGES['define']):image(prior['binaries'][key], filename)
     plan_raw = staged(prior['input'], 'definition-plan.txt');plan = definition(plan_raw, old)
     observed_raw = staged(prior['observation'], 'observation.json');observed = observation(observed_raw, old)
-    if (plan[3] != c.protocol.sha(observed_raw) or 'unsubmittedPredecessor' in observed
-            or observed['legacyCutSeed']['contractHash'] != c.protocol.sha(evidence['contract'])
-            or observed['legacyCutSeed']['activationHash'] != c.protocol.sha(evidence['activation'])
+    if (plan[3] != c.protocol.sha(observed_raw) or observed.get('unsubmittedPredecessor') != expected_guard
+            or (expected_guard is None and 'unsubmittedPredecessor' in observed)
+            or observed['legacyCutSeed']['contractHash'] != hashes[0]
+            or observed['legacyCutSeed']['activationHash'] != hashes[1]
             or observed['sharedPhysicalPool']['configHash'] != native['inventory']['seed']['poolHash']):
         raise ValueError('Original definition does not bind original cut')
     sent = c.protocol.decode(c.read(prior_folder / 'submit.intent'));origin, deadline = c.integer(sent['origin']), c.integer(sent['deadline'])
@@ -440,9 +508,7 @@ def retained_source(retained, successor_binding, channel):
     guard = {'schema': 'owned-rpc-unsubmitted-predecessor/1',
              'contractPath': 'C:\\EnclaveRpcDefinition-' + prior['nonce'] + '\\' + prior['nonce'] + '\\contract.txt',
              'contractHash': c.protocol.sha(worker), 'producerHash': prior['binaries']['entry']['sha256']}
-    c.validate(successor_binding)
-    return {'retainedNative': native, 'cutEvidence': bindings, 'unsubmittedPredecessor': guard,
-            'priorDefinitionRequestSha256': c.protocol.sha(prior_raw), 'priorWorkerNonce': prior['nonce'], 'priorCutNonce': request['nonce']}
+    return {'unsubmittedPredecessor': guard, 'priorDefinitionRequestSha256': c.protocol.sha(prior_raw), 'priorWorkerNonce': prior['nonce']}
 
 
 def adopt_retained_cut(config):
@@ -467,7 +533,7 @@ def validate_retained_cut(binding, clock, channel, nonce):
     if c.protocol.decode(c.read(folder / 'adopt.intent')) != {'requestSha256': c.protocol.sha(request_raw)}:
         raise ValueError('Consumed retained cut intent differs')
     source = retained_source(request['retained'], clock, channel)
-    if nonce in (source['priorWorkerNonce'], source['priorCutNonce']):raise ValueError('Original worker nonce must not be reused')
+    if nonce in retained_nonces(source):raise ValueError('Original worker nonce must not be reused')
     expected = {'schema': 'owned-rpc-retained-cut/1', 'clock': clock, 'attempt': original['attempt'], 'vmAttempt': original['vmAttempt'],
         'requestSha256': c.protocol.sha(request_raw), **source, 'nativeCutSubmitted': False, 'nativePredecessorVerified': False,
         'capacityAdmitted': False, 'rpcReady': False, 'reservationMayRelease': False}

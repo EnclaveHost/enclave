@@ -1,0 +1,10 @@
+{
+  "rpc/windows_transition.py": "0f0f68313124f0bb3dcb59fdcdab221ab478dee30cf9735187ee4a6190792037",
+  "rpc/run_startup.py": "14eae53d05a4b9eb922992a2f71b1b64d887c16817509945054aea514fbdfa2d",
+  "rpc/README.md": "d324d5795dd98c1383e6f78bbf7a7fc44a31a945e76812406ee7990643113d82",
+  "windows/rpc/OwnedVmDefinition.cs": "c399af33f9814014b9b4c60968c19547781679bf5aafd06a9006c19d3263b545",
+  "windows/rpc/README.md": "329ad0cd42cd4a852b0f45149b89e660779af4b498effb0aef53d498eacbe7a8",
+  "test/rpc-server/test_retained_cut.py": "b48a1d31f48ab1e08ba7d16cf9dd12f10f2ce00dd4e5de321200bb63cf7b72e6",
+  "test/rpc-windows-worker/OwnedVmDefinitionHarness.cs": "94da769d338dcf59b8d9eadc461743c40e93c8603e02856d0cfd3d04b387e43b",
+  "test/rpc-windows-worker/run-definition-ci.ps1": "79a49e27638e58939fc2906cb8051573dafd2d4d3bfe1c5d93c9a859592b39fb"
+}

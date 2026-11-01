@@ -1,0 +1,1 @@
+Actual116PASS:21retained-cut (8new),19startup,22transition,13files,15endpoint,26clock/export. Invocationf5e8400364bd485eb3fb1c2686e005fc terminal0/Main0. All49frozenpins unchanged and compared maintained. Actual owner journal/producers exercised across up to four clocks; native/SSH/export/guest mocked. No production authority from these tests.

@@ -1,0 +1,20 @@
+{
+  "rc": 0,
+  "reason": null,
+  "elapsedSeconds": 6.56987273087725,
+  "stdout": "",
+  "stderr": "test_adoption_is_one_shot_and_no_transport (__main__.RetainedCut.test_adoption_is_one_shot_and_no_transport) ... ok\ntest_adoption_mutation_after_receipt_refused (__main__.RetainedCut.test_adoption_mutation_after_receipt_refused) ... ok\ntest_boot_overlap_and_vm_reuse_are_refused (__main__.RetainedCut.test_boot_overlap_and_vm_reuse_are_refused) ... ok\ntest_chain_empty_duplicate_and_overflow_refused (__main__.RetainedCut.test_chain_empty_duplicate_and_overflow_refused) ... ok\ntest_changed_channel_refused_before_work (__main__.RetainedCut.test_changed_channel_refused_before_work) ... ok\ntest_changed_original_definition_submit_refused (__main__.RetainedCut.test_changed_original_definition_submit_refused) ... ok\ntest_collection_rebinding_refused_before_adoption (__main__.RetainedCut.test_collection_rebinding_refused_before_adoption) ... ok\ntest_corrupt_original_response_refused_before_export (__main__.RetainedCut.test_corrupt_original_response_refused_before_export) ... ok\ntest_fourth_attempt_verifies_transitive_adoption (__main__.RetainedCut.test_fourth_attempt_verifies_transitive_adoption) ... ok\ntest_historical_inspection_never_renews_active_deadline (__main__.RetainedCut.test_historical_inspection_never_renews_active_deadline) ... ok\ntest_later_original_phase_refused (__main__.RetainedCut.test_later_original_phase_refused) ... ok\ntest_lost_successor_definition_remains_held_without_cut_replay (__main__.RetainedCut.test_lost_successor_definition_remains_held_without_cut_replay) ... ok\ntest_middle_adoption_tamper_refused (__main__.RetainedCut.test_middle_adoption_tamper_refused) ... ok\ntest_middle_definition_command_tamper_refused_before_export (__main__.RetainedCut.test_middle_definition_command_tamper_refused_before_export) ... ok\ntest_middle_later_phase_held (__main__.RetainedCut.test_middle_later_phase_held) ... ok\ntest_middle_skipped_ancestry_refused (__main__.RetainedCut.test_middle_skipped_ancestry_refused) ... ok\ntest_middle_worker_nonce_reuse_refused (__main__.RetainedCut.test_middle_worker_nonce_reuse_refused) ... ok\ntest_omitted_native_predecessor_binding_refused_before_submit (__main__.RetainedCut.test_omitted_native_predecessor_binding_refused_before_submit) ... ok\ntest_original_nonce_reuse_refused_before_work (__main__.RetainedCut.test_original_nonce_reuse_refused_before_work) ... ok\ntest_successor_composition_skips_cut_and_collect_preserves_history (__main__.RetainedCut.test_successor_composition_skips_cut_and_collect_preserves_history) ... ok\ntest_third_attempt_checks_both_consumed_definitions (__main__.RetainedCut.test_third_attempt_checks_both_consumed_definitions) ... ok\n\n----------------------------------------------------------------------\nRan 21 tests in 6.196s\n\nOK\n",
+  "bytesObserved": {
+    "stdout": 0,
+    "stderr": 2731
+  },
+  "stdinBytesWritten": 0,
+  "stdinBytesRequested": 0,
+  "truncated": false,
+  "localChildReaped": true,
+  "ownedGroupKillAttempted": true,
+  "cleanupErrors": [],
+  "deadlineExceeded": false,
+  "localProcessGroupDeathProven": false,
+  "remoteDeathProven": false
+}

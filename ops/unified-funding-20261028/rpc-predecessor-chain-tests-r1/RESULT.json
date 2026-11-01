@@ -1,0 +1,35 @@
+{
+  "tests": [
+    {
+      "name": "test_retained_cut.py",
+      "rc": 0,
+      "seconds": 6.56987273087725
+    },
+    {
+      "name": "test_run_startup.py",
+      "rc": 0,
+      "seconds": 2.434875979088247
+    },
+    {
+      "name": "test_windows_transition.py",
+      "rc": 0,
+      "seconds": 2.0864274899940938
+    },
+    {
+      "name": "test_windows_files.py",
+      "rc": 0,
+      "seconds": 2.6321377689018846
+    },
+    {
+      "name": "test_windows_endpoint.py",
+      "rc": 0,
+      "seconds": 2.9630694568622857
+    },
+    {
+      "name": "test_startup_export.py",
+      "rc": 0,
+      "seconds": 1.8388256269972771
+    }
+  ],
+  "drift": []
+}
