@@ -47,6 +47,8 @@ type OwnerContinuation struct {
 	sequence              uint64
 	previous, requestHash string
 	done                  chan struct{}
+	prepareUsed           bool
+	prepared              *servingPrepared
 }
 
 // BeginStartupContinuations can attach ONCE to this same successful live actor,
@@ -244,6 +246,22 @@ func (c *OwnerContinuation) ServeStartupContinuations(r io.Reader, w io.Writer) 
 		raw, e := readOwnerFrame(r, 1024)
 		if e != nil {
 			return e
+		}
+		var kind struct {
+			Schema string `json:"schema"`
+		}
+		if json.Unmarshal(raw, &kind) != nil {
+			return errors.New("invalid owner stream request")
+		}
+		if kind.Schema == servingPrepareSchema {
+			proof, e := c.PrepareServing(raw)
+			if e != nil {
+				return e
+			}
+			if e = writeOwnerFrame(w, proof); e != nil {
+				return e
+			}
+			continue
 		}
 		var p bootstrap.RPCContinuation
 		d := json.NewDecoder(bytes.NewReader(raw))

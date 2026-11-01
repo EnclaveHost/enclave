@@ -227,30 +227,45 @@ def forward_continuations(live,stream_io,cfg,original,journal,request_sha,proof_
     At most 90 responses in the original 900s startup window bounds durable
     growth. A lost response, exhausted count or EOF never reacquires writers.
     """
-    previous=hashlib.sha256(proof_raw).hexdigest()
-    for sequence in range(1,91):
+    previous=hashlib.sha256(proof_raw).hexdigest();sequence=0;prepared=False
+    for _ in range(90):
         c.validate(cfg['clock']);lease.check()
         raw=live.read_peer(stream_io[0],1024,min(time.monotonic()+30,live.deadline))
         until=min(time.monotonic()+3,live.deadline)
         p=c.protocol.decode(raw)
-        if (set(p)!={'schema','phase','sequence','previousSha256','readinessSha256','issuedAt','notAfter'} or
-                p['schema']!='enclave-rpc-continuation/1' or p['phase']!='startup' or p['readinessSha256']!='' or
-                type(p['sequence']) is not int or p['sequence']!=sequence or p['previousSha256']!=previous):
-            raise ValueError('Exact next startup continuation required')
-        c.write_new(output/('continuation-%016x-submit'%sequence),raw)
+        preparing=p.get('schema')=='enclave-rpc-serving-prepare/1'
+        if preparing:
+            if (prepared or sequence==0 or set(p)!={'schema','sequence','previousSha256','observation'} or
+                    type(p['sequence']) is not int or p['sequence']!=sequence or p['previousSha256']!=previous or
+                    not isinstance(p['observation'],str)):
+                raise ValueError('Original one-shot serving preparation required')
+            observation=base64.b64decode(p['observation'],validate=True)
+            if len(observation)!=152 or observation[:8]!=b'ERPCRD01' or base64.b64encode(observation).decode()!=p['observation']:
+                raise ValueError('Exact private readiness frame required')
+            # Actual identity/clock/authorization/signatures remain in Go. This
+            # relay cannot create a serving permit or alter the startup chain.
+            prepared=True;stem='serving-prepare';owner_stem='serving-prepare-'+request_sha
+        else:
+            if (set(p)!={'schema','phase','sequence','previousSha256','readinessSha256','issuedAt','notAfter'} or
+                    p['schema']!='enclave-rpc-continuation/1' or p['phase']!='startup' or p['readinessSha256']!='' or
+                    type(p['sequence']) is not int or p['sequence']!=sequence+1 or p['previousSha256']!=previous):
+                raise ValueError('Exact next startup continuation required')
+            sequence+=1;stem='continuation-%016x'%sequence;owner_stem='continuation-%s-%016x'%(request_sha,sequence)
+        c.write_new(output/(stem+'-submit'),raw)
         c.validate(cfg['clock']);lease.check()
         reply=live.exchange(raw,2048,until)
         value=c.protocol.decode(reply)
-        if set(value)!={'permit','l1','base'} or value['permit']!=p:raise ValueError('Signer continuation binding differs')
-        # No reconstructed proof: the live actor must have persisted these exact
-        # bytes before the dispatcher acknowledges any continuation.
+        if preparing:
+            if (set(value)!={'schema','requestSha256','l1','base'} or value['schema']!='enclave-rpc-serving-prepared/1' or
+                    value['requestSha256']!=hashlib.sha256(raw).hexdigest()):raise ValueError('Signer preparation binding differs')
+        elif set(value)!={'permit','l1','base'} or value['permit']!=p:raise ValueError('Signer continuation binding differs')
         digest=hashlib.sha256(reply).hexdigest()
-        fd=entry.held(str(journal/('continuation-%s-%016x-proof'%(request_sha,sequence))),2048,0o400,wanted=digest)
+        fd=entry.held(str(journal/(owner_stem+'-proof')),2048,0o400,wanted=digest)
         os.close(fd)
-        c.write_new(output/('continuation-%016x-proof'%sequence),reply)
+        c.write_new(output/(stem+'-proof'),reply)
         c.validate(cfg['clock']);lease.check()
         live.send_peer(stream_io[1],reply,until)
-        previous=digest
+        if not preparing:previous=digest
     raise ValueError('Original startup continuation count exhausted; held')
 
 

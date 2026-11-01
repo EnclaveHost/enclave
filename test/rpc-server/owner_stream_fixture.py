@@ -31,7 +31,14 @@ p=root/('proof-'+cfg['requestSha']);p.write_bytes(proof);p.chmod(0o400)
 (out/'signer-started.json').write_text(json.dumps(cfg['started']));(out/'signer-started.json').chmod(0o600)
 write(proof)
 while True:
-    permit=json.loads(read());reply=json.dumps({'permit':permit,'l1':'a'*128,'base':'b'*128}).encode()
+    raw=read();permit=json.loads(raw)
+    if permit.get('schema')=='enclave-rpc-serving-prepare/1':
+        reply=json.dumps({'schema':'enclave-rpc-serving-prepared/1','requestSha256':hashlib.sha256(raw).hexdigest(),'l1':'a'*128,'base':'b'*128}).encode()
+        if mode=='bad-prepare-response':reply=reply.replace(hashlib.sha256(raw).hexdigest().encode(),b'0'*64)
+        if mode!='missing-prepare-journal':
+            p=root/('serving-prepare-'+cfg['requestSha']+'-proof');p.write_bytes(reply);p.chmod(0o400)
+        write(reply);continue
+    reply=json.dumps({'permit':permit,'l1':'a'*128,'base':'b'*128}).encode()
     if mode!='missing-journal':
         p=root/('continuation-%s-%016x-proof'%(cfg['requestSha'],permit['sequence']));p.write_bytes(reply);p.chmod(0o400)
     write(reply)

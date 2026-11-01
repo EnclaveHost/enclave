@@ -63,6 +63,9 @@ type BrokerSession struct {
 	continuationSequence uint64
 	localReadyUsed       atomic.Bool
 	localReady           *brokerLocalReady
+	localReadySignal     chan struct{}
+	prepareUsed          bool
+	prepared             *servingPrepared
 }
 
 func (s *BrokerSession) Request() Request         { return s.request }

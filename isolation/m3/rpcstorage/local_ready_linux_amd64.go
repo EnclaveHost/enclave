@@ -129,5 +129,9 @@ func (s *BrokerSession) ReceiveLocalReady(r *os.File, bundle []byte, receipts *o
 		return e
 	}
 	s.localReady = &brokerLocalReady{record: record, raw: append([]byte(nil), raw...), digest: digest}
+	if s.localReadySignal == nil {
+		s.localReadySignal = make(chan struct{})
+	}
+	close(s.localReadySignal)
 	return nil
 }

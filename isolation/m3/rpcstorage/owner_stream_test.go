@@ -3,6 +3,7 @@
 package rpcstorage
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
@@ -17,11 +18,13 @@ import (
 	"testing"
 	"time"
 
+	"enclave.host/isolation/contract"
 	"enclave.host/isolation/m2/bootstrap"
+	"enclave.host/isolation/m3/rpcservice"
 )
 
 func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
-	for _, mode := range []string{"normal", "idle-partial", "downgrade-ack", "idle-loss", "bad-signature", "unsolicited", "monitor-loss", "original-deadline"} {
+	for _, mode := range []string{"prepare", "prepare-tamper", "prepare-stale", "normal", "idle-partial", "downgrade-ack", "idle-loss", "bad-signature", "unsolicited", "monitor-loss", "original-deadline"} {
 		t.Run(mode, func(t *testing.T) {
 			left := time.Duration(0)
 			if mode == "original-deadline" {
@@ -134,6 +137,50 @@ func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
 					done <- nil
 					return
 				}
+				if strings.HasPrefix(mode, "prepare") {
+					if mode == "prepare-tamper" {
+						// Real startup signature, then an intentionally invalid
+						// preparation reply from the authenticated owner socket.
+						raw, e := readOwnerFrame(conn, 1024)
+						if e != nil {
+							done <- e
+							return
+						}
+						var p bootstrap.RPCContinuation
+						json.Unmarshal(raw, &p)
+						reply, e := owner.IssueStartup(p)
+						if e != nil {
+							done <- e
+							return
+						}
+						if e = writeOwnerFrame(conn, reply); e != nil {
+							done <- e
+							return
+						}
+						raw, e = readOwnerFrame(conn, 1024)
+						if e != nil {
+							done <- e
+							return
+						}
+						reply, e = owner.PrepareServing(raw)
+						if e != nil {
+							done <- e
+							return
+						}
+						var bad servingPreparedProof
+						json.Unmarshal(reply, &bad)
+						bad.Base = bad.L1
+						reply, _ = json.Marshal(bad)
+						writeOwnerFrame(conn, reply)
+						var b [1]byte
+						conn.Read(b[:])
+						done <- nil
+						return
+					}
+					_ = owner.ServeStartupContinuations(conn, conn)
+					done <- nil
+					return
+				}
 				for i := 0; i < 2; i++ {
 					raw, e := readOwnerFrame(conn, 1024)
 					if e != nil {
@@ -228,6 +275,86 @@ func TestGuestOwnerContinuousTLSAndLoss(t *testing.T) {
 				case <-time.After(time.Second):
 					t.Fatal("original deadline reset")
 				}
+				<-done
+				return
+			}
+			if strings.HasPrefix(mode, "prepare") {
+				s.mu.Lock()
+				s.exportBound = true
+				s.mu.Unlock() // actual export is not this TLS fixture
+				original := s.request
+				runDone := make(chan error, 1)
+				go func() { runDone <- s.RunOwnerContinuations(a, rpcBundle(t), receipts) }()
+				// Publish actual private pipe evidence while the loop is waiting
+				// for its ten-second timer. The one-shot signal must wake it now.
+				limit := time.Now().Add(time.Second)
+				for {
+					s.continuationMu.Lock()
+					seq := s.continuationSequence
+					s.continuationMu.Unlock()
+					if seq == 1 {
+						break
+					}
+					if time.Now().After(limit) {
+						t.Fatal("first startup not received")
+					}
+					time.Sleep(time.Millisecond)
+				}
+				now, _ := rpcservice.MonotonicNow()
+				rb := contract.RPCStartBinding{AppID: contract.AppID(rpcBundle(t)), Nonce: [32]byte{9}}
+				rt, _ := hex.DecodeString(s.consent.RuntimeID())
+				copy(rb.RuntimeID[:], rt)
+				dep, _ := hex.DecodeString(strings.TrimPrefix(s.request.Deployment, "0x"))
+				copy(rb.Deployment[:], dep)
+				if mode == "prepare-stale" {
+					now -= contract.RPCLocalReadyFreshnessNS
+				}
+				observation, _ := (contract.RPCLocalReady{Binding: rb, ObservedMono: now}).Frame()
+				reader, writer, e := os.Pipe()
+				if e != nil {
+					t.Fatal(e)
+				}
+				defer reader.Close()
+				writer.Write(observation)
+				writer.Close()
+				start := time.Now()
+				e = s.ReceiveLocalReady(reader, rpcBundle(t), receipts)
+				if mode == "prepare-stale" {
+					if e == nil {
+						t.Fatal("stale accepted")
+					}
+				} else if e != nil {
+					t.Fatal(e)
+				}
+				for {
+					s.mu.Lock()
+					prepared := s.prepared
+					s.mu.Unlock()
+					if prepared != nil || s.ctx.Err() != nil {
+						break
+					}
+					if time.Since(start) > time.Second {
+						t.Fatal("readiness waited for ten-second interval")
+					}
+					time.Sleep(time.Millisecond)
+				}
+				s.mu.Lock()
+				prepared := s.prepared
+				s.mu.Unlock()
+				if (prepared != nil) != (mode == "prepare") {
+					t.Fatal("unexpected preparation result", s.ctx.Err())
+				}
+				if prepared != nil {
+					if s.request != original || !bytes.Equal(prepared.request.Observation, observation) {
+						t.Fatal("attempt/frame changed")
+					}
+					disk, e := os.ReadFile(filepath.Join(receipts.Name(), "owner-serving-prepare-proof"))
+					if e != nil || !bytes.Equal(disk, prepared.raw) {
+						t.Fatal("missing exact receipt", e)
+					}
+				}
+				s.Stop()
+				<-runDone
 				<-done
 				return
 			}

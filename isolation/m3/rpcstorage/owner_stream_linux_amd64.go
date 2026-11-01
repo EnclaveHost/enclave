@@ -51,7 +51,20 @@ func (s *BrokerSession) RunOwnerContinuations(a *bootstrap.Authorization, bundle
 	if stream == nil || stream.authorization != a || !ready || !stream.used.CompareAndSwap(false, true) {
 		return errors.New("original authenticated owner/2 stream required after export binding")
 	}
+	readySignal := s.readinessSignal()
 	for {
+		// Prefer an already published observation even when the periodic timer and
+		// readiness become runnable together. An in-flight exchange is not retried.
+		if s.continuationSequence > 0 && readySignal != nil {
+			select {
+			case <-readySignal:
+				readySignal = nil
+				if err = s.prepareOwnerServing(stream, a, bundle, receipts); err != nil {
+					return err
+				}
+			default:
+			}
+		}
 		if err = s.continueOwnerOnce(stream, a, bundle, receipts); err != nil {
 			return err
 		}
@@ -61,9 +74,15 @@ func (s *BrokerSession) RunOwnerContinuations(a *bootstrap.Authorization, bundle
 			timer.Stop()
 			return errors.New("owner continuation session lost")
 		case <-timer.C:
+		case <-readySignal:
+			timer.Stop()
+			// Process at the top before any further startup refresh. The
+			// one-shot signal is disabled there after successful preparation.
+
 		}
 	}
 }
+
 func (s *BrokerSession) continueOwnerOnce(stream *ownerContinuationConnection, a *bootstrap.Authorization, bundle []byte, receipts *os.File) (err error) {
 	s.continuationMu.Lock()
 	defer s.continuationMu.Unlock()

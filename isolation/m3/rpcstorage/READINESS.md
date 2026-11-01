@@ -26,3 +26,27 @@ chain synchronization/finality and consumer cutover remain unqualified.
 
 Component qualification and failed-attempt provenance:
 [53 passing checks and three builds](../../../ops/rpc-ready-delivery-r1/ROOT-RESULT.md).
+
+## Original-owner preparation (source only)
+
+On the first private readiness observation, the actual owner loop wakes before
+its next periodic startup refresh and sends `enclave-rpc-serving-prepare/1` on
+the same authenticated TLS connection. The canonical request carries the current
+accepted startup sequence/link and the unchanged152-byte frame. Both original
+volume owners sign a separate `enclave-rpc-serving-prepared/1` response bound to
+the exact request hash and original export proof. The dispatcher verifies that
+those exact response bytes already exist in the original owner's journal.
+
+This preparation is one-shot and does not advance the startup chain or extend
+any permission/deadline. Its signatures are domain-separated from continuation
+permits. The broker independently enforces the remaining four-second freshness
+budget, prior authority and three-second transaction bound. The owner does not
+compare unrelated host/guest kernel clocks; it relies on the authenticated
+measured broker's freshness checks, independently verifying scope and current
+owner authorization. This is not a new remote health attestation.
+
+The original live actors retain short-lived prepared capabilities. A later
+coordinated guardian commit must use those actors while the actual observation
+is still fresh and before originalD. Receipts cannot rehydrate them. No serving
+commit or deadline transfer is implemented yet. See
+[actual TLS/crypto and dispatcher qualification](../../../ops/rpc-serving-prepare-r1/ROOT-RESULT.md).

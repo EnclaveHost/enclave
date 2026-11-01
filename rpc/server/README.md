@@ -673,3 +673,20 @@ Closing the exact local systemd transport does **not** prove independently owned
 signer/exporter death. Their original deadline/permit controls remain armed;
 ambiguous submissions, writer reservations and journal records remain held.
 Neither a process response nor these source tests establish a running RPC.
+
+### One-shot serving preparation (not activation)
+
+The continuous owner/2 stream also forwards one
+`enclave-rpc-serving-prepare/1` request after a valid startup permit. It contains
+`sequence`, `previousSha256` and base64 `observation` (the exact152-byte private
+front frame). Its `enclave-rpc-serving-prepared/1` response contains the exact
+`requestSha256` and both role-separated `l1`/`base` signatures. The actual Go
+owner verifies identity/authorization and consumes its original journal before
+signing; the Python dispatcher verifies the existing exact journal proof before
+acknowledgment. Preparation leaves the startup sequence/link unchanged. The
+same90-frame total and originalD bounds apply. This is not a serving permit,
+new writer reservation, new signer, ledger event or watchdog transfer.
+
+See [readiness handoff status](../../isolation/m3/rpcstorage/READINESS.md).
+Production remains unqualified; older pinned binaries do not implement this
+message. Do not mix old signer images with a new broker or reset an attempt.

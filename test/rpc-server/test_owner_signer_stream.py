@@ -65,7 +65,7 @@ class DispatchStream(unittest.TestCase):
         f.config.update(schema='enclave-rpc-owner-dispatch/2',entry=c.write_new(f.root/'entry2',c.encode(f.cfg)))
         self.relay=Path(f.clock['path']).parent/'relay';self.relay.mkdir(mode=0o700)
         self.processes=[]
-    def invoke(self,mode='normal',bad=False,through_relay=False):
+    def invoke(self,mode='normal',bad=False,through_relay=False,preparation=None):
         f=self.f;resource={'authenticated':True,'unreadUnits':0,'availableMiB':40000,'pendingMiB':0,'floorMiB':18432}
         class Response:stdout=json.dumps(resource).encode()
         class Owner:
@@ -108,6 +108,19 @@ class DispatchStream(unittest.TestCase):
                     raw=json.dumps(p,separators=(',',':')).encode();os.write(writer,struct.pack('!I',len(raw))+raw)
                     reply=frame();replies.append(reply);previous=hashlib.sha256(reply).hexdigest()
                     self.assertEqual(reply,c.read(f.out/('continuation-%016x-proof'%sequence)))
+                    if sequence==1 and preparation:
+                        observation=b'ERPCRD01'+b'x'*144
+                        prep={'schema':'enclave-rpc-serving-prepare/1','sequence':sequence,'previousSha256':previous,'observation':base64.b64encode(observation).decode()}
+                        if preparation=='wrong-link':prep['previousSha256']='e'*64
+                        if preparation=='short':prep['observation']=base64.b64encode(observation[:-1]).decode()
+                        raw=json.dumps(prep,separators=(',',':')).encode();os.write(writer,struct.pack('!I',len(raw))+raw)
+                        prepared=frame();replies.append(prepared)
+                        self.assertEqual(prepared,c.read(f.out/'serving-prepare-proof'))
+                        self.assertEqual(json.loads(prepared)['requestSha256'],hashlib.sha256(raw).hexdigest())
+                        if preparation=='replay':
+                            os.write(writer,struct.pack('!I',len(raw))+raw);frame();raise AssertionError('preparation replay acknowledged')
+                        # The startup chain link deliberately remains unchanged.
+
             except EOFError:pass
             except Exception as e:errors.append(e)
             finally:os.close(writer);os.close(reader)
@@ -135,6 +148,27 @@ class DispatchStream(unittest.TestCase):
     def test_serving_request_refused_before_signer_write(self):
         replies=self.invoke(bad=True);self.assertEqual(len(replies),1)
         self.assertFalse((self.f.out/'continuation-0000000000000001-submit').exists())
+    def test_serving_preparation_same_original_actor_and_startup_chain(self):
+        replies=self.invoke(through_relay=True,preparation='normal')
+        self.assertEqual(len(replies),4);self.assertEqual(self.f.starts,1)
+        self.assertTrue((self.f.out/'serving-prepare-submit').exists())
+        self.assertTrue((self.f.out/'continuation-0000000000000002-proof').exists())
+    def test_serving_preparation_requires_original_durable_response(self):
+        for mode in ('missing-prepare-journal','bad-prepare-response'):
+            # Each test case needs its own original consumed namespace.
+            with self.subTest(mode=mode):
+                obj=DispatchStream();obj.setUp()
+                try:
+                    replies=obj.invoke(mode=mode,preparation='normal');self.assertEqual(len(replies),2)
+                    self.assertFalse((obj.f.out/'serving-prepare-proof').exists())
+                finally:obj.doCleanups()
+    def test_serving_preparation_replay_and_wrong_scope_refused(self):
+        for mode,count in (('replay',3),('wrong-link',2),('short',2)):
+            with self.subTest(mode=mode):
+                obj=DispatchStream();obj.setUp()
+                try:self.assertEqual(len(obj.invoke(preparation=mode)),count)
+                finally:obj.doCleanups()
+
     def test_stream_requires_real_pipes_before_submission(self):
         with self.assertRaises(ValueError):d.dispatch(self.f.config)
         self.assertFalse(self.f.out.exists())
