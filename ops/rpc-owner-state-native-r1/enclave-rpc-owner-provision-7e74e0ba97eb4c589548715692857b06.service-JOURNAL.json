@@ -1,0 +1,12 @@
+[
+  {
+    "__REALTIME_TIMESTAMP": "1793531989178925",
+    "USER_INVOCATION_ID": "ad39486c16594d679ca6806b563fe95a",
+    "MESSAGE": "Starting [systemd-run] /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-state-native-r1/frozen/rpc/server/owner_state.py /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-state-native-r1/private/provision.json..."
+  },
+  {
+    "__REALTIME_TIMESTAMP": "1793531989201425",
+    "USER_INVOCATION_ID": "ad39486c16594d679ca6806b563fe95a",
+    "MESSAGE": "Started [systemd-run] /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-state-native-r1/frozen/rpc/server/owner_state.py /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-state-native-r1/private/provision.json."
+  }
+]

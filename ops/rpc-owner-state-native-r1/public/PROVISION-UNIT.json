@@ -1,0 +1,20 @@
+{
+  "CPUQuotaPerSecUSec": "1s",
+  "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-rpc-owner-provision-7e74e0ba97eb4c589548715692857b06.service",
+  "ExecMainStartTimestampMonotonic": "1837102895652",
+  "FinalKillSignal": "9",
+  "Id": "enclave-rpc-owner-provision-7e74e0ba97eb4c589548715692857b06.service",
+  "InvocationID": "ad39486c16594d679ca6806b563fe95a",
+  "KillMode": "control-group",
+  "LimitCORE": "0",
+  "MainPID": "773014",
+  "MemoryMax": "134217728",
+  "MemorySwapMax": "0",
+  "NoNewPrivileges": "yes",
+  "Restart": "no",
+  "RuntimeMaxUSec": "20s",
+  "SendSIGKILL": "yes",
+  "TasksMax": "32",
+  "TimeoutStopUSec": "1s",
+  "Type": "exec"
+}

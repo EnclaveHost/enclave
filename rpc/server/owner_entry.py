@@ -39,8 +39,9 @@ def show(unit):
     return row
 
 
-def envelope(attempt, original):
-    unit = 'enclave-rpc-owner-sign-'+attempt+'.service'
+def envelope(attempt, original, kind='sign'):
+    if kind not in ('sign','provision'):raise ValueError('Fixed owner service role required')
+    unit = 'enclave-rpc-owner-'+kind+'-'+attempt+'.service'
     row = show(unit)
     expected = {'Id':unit,'MainPID':str(os.getpid()),'InvocationID':os.environ.get('INVOCATION_ID',''),
         'Type':'exec','RuntimeMaxUSec':'20s','TimeoutStopUSec':'1s','MemoryMax':str(128<<20),
@@ -106,18 +107,18 @@ def inside():
 def main(path):
     os.umask(0o077)
     c=clock_module();raw=c.read(path);config=c.protocol.decode(raw)
-    fields={'schema','attempt','clock','contract','policy','journal','seeds','binary','pins','receipt'}
+    fields={'schema','attempt','clock','contract','policy','ownerProvision','binary','pins','receipt'}
     if set(config)!=fields or config['schema']!='enclave-rpc-owner-entry/1':raise ValueError('Exact signer bootstrap configuration required')
     original=c.validate(config['clock'])
     if config['attempt']!=original['attempt']:raise ValueError('Original attempt differs')
     envelope(config['attempt'],original)
-    required={str(HERE/'owner_entry.py'),str(HERE.parent/'startup_clock.py'),str(HERE.parent/'storage_protocol.py'),'/usr/bin/bwrap','/usr/bin/python3'}
+    required={str(HERE/n) for n in ('owner_entry.py','owner_state.py','volume_export.py')}
+    required|={str(HERE.parent/'startup_clock.py'),str(HERE.parent/'storage_protocol.py'),'/usr/bin/bwrap','/usr/bin/python3'}
     if set(config['pins'])!=required:raise ValueError('Exact signer bootstrap closure required')
     for name,wanted in config['pins'].items():
         c.protocol.digest(wanted)
         with open(name,'rb') as f:
             if hashlib.file_digest(f,'sha256').hexdigest()!=wanted:raise ValueError('Signer bootstrap source changed')
-    if type(config['seeds']) is not list or len(config['seeds'])!=2:raise ValueError('Two owner seed paths required')
     contract=c.protocol.decode(c.read_pinned(config['contract']))
     if contract['startupClock']!=config['clock'] or contract['attempt']!=original['attempt']:raise ValueError('Exact original export contract required')
     policy=c.protocol.decode(c.read_pinned(config['policy']))
@@ -132,8 +133,11 @@ def main(path):
     try:
         for key in ('policy','contract','clock'):
             b=config[key];fds.append((key,held(b['path'],65536,wanted=b['sha256']),False))
-        fds.append(('journal',held(config['journal'],0,0o700,directory=True),True))
-        for name,path in zip(('l1-seed','base-seed'),config['seeds']):fds.append((name,held(path,32),False))
+        spec=importlib.util.spec_from_file_location('rpc_owner_state',HERE/'owner_state.py')
+        owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
+        # Keys and journal are derived together from the original exclusive
+        # owner setup. No per-attempt caller-selected replacement journal.
+        fds.extend(owner.bind(config['ownerProvision'],contract,policy))
         b=config['binary'];fds.append(('issuer',held(b['path'],64<<20,0o700,wanted=b['sha256']),False))
         # The source file is mounted by a held/pinned descriptor too. An outer
         # path replacement cannot substitute an unreviewed inner bootstrap.

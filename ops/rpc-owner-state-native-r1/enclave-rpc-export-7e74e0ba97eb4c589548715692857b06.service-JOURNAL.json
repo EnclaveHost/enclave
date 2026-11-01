@@ -1,0 +1,22 @@
+[
+  {
+    "__REALTIME_TIMESTAMP": "1793531989991708",
+    "USER_INVOCATION_ID": "c9ac7689266341e59da8a80507bb2bd6",
+    "MESSAGE": "Starting [systemd-run] /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-state-native-r1/frozen/rpc/server/guarded_export.py /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-state-native-r1/private/contract.json..."
+  },
+  {
+    "__REALTIME_TIMESTAMP": "1793531990091998",
+    "USER_INVOCATION_ID": "c9ac7689266341e59da8a80507bb2bd6",
+    "MESSAGE": "Started [systemd-run] /usr/bin/python3 -B /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-state-native-r1/frozen/rpc/server/guarded_export.py /home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-state-native-r1/private/contract.json."
+  },
+  {
+    "__REALTIME_TIMESTAMP": "1793531990798260",
+    "USER_INVOCATION_ID": "c9ac7689266341e59da8a80507bb2bd6",
+    "MESSAGE": "enclave-rpc-export-7e74e0ba97eb4c589548715692857b06.service: Main process exited, code=exited, status=2/INVALIDARGUMENT"
+  },
+  {
+    "__REALTIME_TIMESTAMP": "1793531990798567",
+    "USER_INVOCATION_ID": "c9ac7689266341e59da8a80507bb2bd6",
+    "MESSAGE": "enclave-rpc-export-7e74e0ba97eb4c589548715692857b06.service: Failed with result 'exit-code'."
+  }
+]

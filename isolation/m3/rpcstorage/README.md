@@ -215,7 +215,7 @@ The actor requires a dedicated kernel cgroup capped at 128 MiB, no swap, CPU1
 and at most 32 tasks. Its service manager must independently enforce a 20-second
 actor limit and the original owner deadline. The supplemental process timer is
 not a death certificate for a blocked kernel operation. The service envelope and command composition have the bounded fixture evidence
-described below; real credential provisioning and installation remain unfinished.
+described below; production credential provisioning and installation remain unfinished.
 Do not run it as an unbounded shell helper.
 
 `OwnerIssuer` verifies local public keys against both actual owner-committed
@@ -251,3 +251,19 @@ were unchanged, and reservation records remained held. Real HTTPS chain authorit
 remote identity and production provisioning/installation remain unqualified.
 No writable-root grant, client sync, RPC readiness or persistent adoption was
 proved by that fixture.
+
+The dispatcher now requires the local `owner_state.py` provisioner descriptor.
+It no longer accepts unrelated per-attempt key and journal paths. A single
+exclusive ext4 authority directory binds original volume identities, generated
+public keys and the persistent journal; partial setup is permanently consumed.
+The command's fixed FDs remain unchanged, but they now come from that checked
+namespace. This prevents an ordinary configuration from replacing a consumed
+journal with an empty directory while retaining the signing keys.
+
+The provisioner is implemented and native fixture-qualified, not installed for
+production volumes. Its public-policy output is not an owner commitment or remote
+attestation. The signer still uses actual Reader authorization and checks the
+corresponding keys before consent; tests use controlled chain replies. Writable
+root grants, existing writer settlement, accepted guest bootstrap and persistent
+serving remain required. See the owner dispatcher documentation for exact state
+format, service bounds, partial-failure behavior and qualification limits.

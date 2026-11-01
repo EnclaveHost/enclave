@@ -1,0 +1,15 @@
+{
+  "match": true,
+  "manifestSha256": "c536aeef99f91b3159a7a0fed96f5b33a02e6174fac2427fa41976d7cb9e5e1d",
+  "publicPolicy": {
+    "base": {
+      "publicKey": "c2c9ce92ac60964fee13d0900085a07d3fdfd8ce596abae48681335690c0b224",
+      "volumeId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "l1": {
+      "publicKey": "a371840c538c638a266fcda07c570ccbafc2d45157800c0f7914168b70efd205",
+      "volumeId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "schema": "enclave-rpc-storage-authorities/1"
+  }
+}

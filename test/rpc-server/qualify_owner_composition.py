@@ -3,7 +3,7 @@
 The opt-in Go TEST BINARY changes only the chain HTTP transport. All production
 command code, journal writes, actual systemd envelopes and TLS exports execute.
 No real chain, storage authority provisioning, remote attestation or RPC clients.
-Reserve1536MiB: controller512+wrapper128+dispatcher256+signer128+export384+128.
+Reserve1664MiB: controller512+wrapper128+dispatcher256+signer128+export384+provisioner128+128.
 """
 from pathlib import Path
 import hashlib,importlib.util,json,os,select,socket,ssl,subprocess,sys,time,uuid
@@ -36,7 +36,7 @@ def main(private,public,observer_config,binary):
     pins={str(p):g.digest(p) for p in paths};write(public/'PINS.json',pins)
     argv=['/usr/bin/node',str(SOURCE/'rpc/server/observe_resources.mjs'),str(observer_config)]
     admission=json.loads(command(argv,3))
-    if not admission['authenticated'] or admission['unreadUnits'] or admission['availableMiB']-admission['pendingMiB']-1536<max(27648,admission['floorMiB']):raise ValueError('Full1536MiB fixture admission failed')
+    if not admission['authenticated'] or admission['unreadUnits'] or admission['availableMiB']-admission['pendingMiB']-1664<max(27648,admission['floorMiB']):raise ValueError('Full1664MiB fixture admission failed')
     write(public/'ADMISSION.json',admission)
     attempt=uuid.uuid4().hex;instance='rpc-owned-fixture-'+attempt
     exportunit='enclave-rpc-export-'+attempt+'.service';dispatchunit='enclave-rpc-owner-dispatch-'+attempt+'.service';signunit='enclave-rpc-owner-sign-'+attempt+'.service'
@@ -46,13 +46,9 @@ def main(private,public,observer_config,binary):
     begin=c.begin(cp,attempt,instance,uuid.uuid4().hex);started=c.protocol.decode(c.read_pinned(begin))
     sample=write(private/'synthetic-windows-clock.json',{'schema':'owned-rpc-windows-clock/1','attempt':attempt,'vmAttempt':started['vmAttempt'],'windowsBoot':uuid.uuid4().hex,'monotonicMilliseconds':1000000000})
     clock=c.finish(begin,sample);original=c.validate(clock)
-    journal=private/'journal';journal.mkdir(mode=0o700)
     # Explicit test artifact, not the release issuer. The only injected behavior
     # is its HTTP RoundTripper; the command main/run below remain unchanged.
     issuer=private/'TEST-ONLY-owner';issuer.write_bytes(binary.read_bytes());issuer.chmod(0o700)
-    command([str(issuer),'--prepare-composition',str(private),str(SOURCE/'isolation/m2/bootstrap/testdata/vectors.json'),str(original['originMonotonicNs'])])
-    request=json.loads((private/'request.json').read_bytes())['request']
-    requestsha=hashlib.sha256(json.dumps(request,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     (private/'openssl.cnf').write_text('[req]\ndistinguished_name=dn\n[dn]\n')
     os.environ['OPENSSL_CONF']=str(private/'openssl.cnf')
     ca=private/'ca';ca.mkdir(mode=0o700)
@@ -75,6 +71,27 @@ def main(private,public,observer_config,binary):
         sock=socket.socket();sock.bind(('127.0.0.1',0));sockets.append(sock)
         roles[role]={'parent':str(exports),'originals':[[str(image_path),v.metadata(image_path)]],'bytes':4000000000000,
                      'tls':str(tls),'clientTls':str(tls),'tlsName':'rpc-fixture.local','host':'127.0.0.1','port':sock.getsockname()[1]}
+    ownerparent=private/'owner';ownerparent.mkdir(mode=0o700)
+    ownerroles={role:{'volumeId':('a' if role=='l1' else 'b')*64,'originals':roles[role]['originals']} for role in ('l1','base')}
+    provisionpaths=[SOURCE/'rpc/server'/n for n in ('owner_state.py','owner_entry.py','volume_export.py','observe_resources.mjs')]
+    provisionpaths += [SOURCE/'rpc/startup_clock.py',SOURCE/'rpc/storage_protocol.py',observer_config]+[Path('/usr/bin/'+n) for n in ('python3','node','openssl','stat')]
+    pc={'schema':'enclave-rpc-owner-provision/1','attempt':attempt,'clock':clock,
+        'parent':{'path':str(ownerparent),'identity':[ownerparent.stat().st_dev,ownerparent.stat().st_ino]},'roles':ownerroles,
+        'resourceConfig':{'path':str(observer_config),'sha256':g.digest(observer_config)},'pins':{str(p):g.digest(p) for p in provisionpaths}}
+    write(private/'provision.json',pc)
+    provisionunit='enclave-rpc-owner-provision-'+attempt+'.service'
+    if inspect(provisionunit)['LoadState']!='not-found':raise ValueError('Provision unit consumed')
+    pp=['Type=exec','RuntimeMaxSec=20','TimeoutStopSec=1','MemoryMax=128M','MemorySwapMax=0','CPUQuota=100%',
+        'TasksMax=32','KillMode=control-group','Restart=no','SendSIGKILL=yes','FinalKillSignal=SIGKILL','NoNewPrivileges=yes','LimitCORE=0','UMask=0077']
+    pa=['/usr/bin/systemd-run','--user','--quiet','--wait','--pipe','--unit='+provisionunit,*['--property='+x for x in pp],
+        '/usr/bin/python3','-B',str(SOURCE/'rpc/server/owner_state.py'),str(private/'provision.json')]
+    write(public/'PROVISION-INTENT.json',{'unit':provisionunit,'argv':pa,'originalClock':clock,'productionAuthority':False})
+    provision=json.loads(command(pa,24));write(public/'PROVISION.json',provision)
+    authority=Path(provision['authority']['path']).parent;journal=authority/'journal'
+    # The fixture's manifest keys now derive from the ACTUAL one-time owner setup.
+    command([str(issuer),'--prepare-composition',str(authority),str(SOURCE/'isolation/m2/bootstrap/testdata/vectors.json'),str(original['originMonotonicNs'])])
+    request=json.loads((authority/'request.json').read_bytes())['request']
+    requestsha=hashlib.sha256(json.dumps(request,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     state=private/'state';state.mkdir(mode=0o700)
     outputs=private/'outputs';outputs.mkdir(mode=0o700);out=outputs/attempt
     controltls=Path(roles['l1']['tls']);reserve=socket.socket();reserve.bind(('127.0.0.1',0));sockets.append(reserve)
@@ -86,27 +103,27 @@ def main(private,public,observer_config,binary):
         'appControl':{'schema':'enclave-rpc-export-control/1','host':'127.0.0.1','port':reserve.getsockname()[1],
         'tls':str(controltls),'requestSha256':requestsha,'clientCertificateSha256':clientsha}}
     cb=write(private/'contract.json',contract)
-    meta=json.loads((private/'fixture-policy.json').read_bytes())
+    meta=json.loads((authority/'fixture-policy.json').read_bytes())
     binding={'host':'127.0.0.1','port':contract['appControl']['port'],'serverName':'rpc-fixture.local',
         'serverCertificateSha256':serversha,'clientCertificateSha256':clientsha,'contractSha256':cb['sha256']}
     policy={'schema':'enclave-rpc-storage-owner/1','runtime':meta['runtime'],'l1Volume':request['l1Volume'],'baseVolume':request['baseVolume'],
         'chainId':8453,'ledger':meta['ledger'],'rpcs':['https://one.rpc.example','https://two.rpc.example','https://three.rpc.example'],
         'confirmations':2,'maxAgeSeconds':90,'export':binding}
     pb=write(private/'policy.json',policy)
-    entrypaths=[SOURCE/'rpc/server/owner_entry.py',SOURCE/'rpc/startup_clock.py',SOURCE/'rpc/storage_protocol.py',Path('/usr/bin/bwrap'),Path('/usr/bin/python3')]
-    entry={'schema':'enclave-rpc-owner-entry/1','attempt':attempt,'clock':clock,'contract':cb,'policy':pb,'journal':str(journal),
-        'seeds':[str(private/n) for n in ('l1-seed','base-seed')],'binary':{'path':str(issuer),'sha256':g.digest(issuer)},
+    entrypaths=[SOURCE/'rpc/server/owner_state.py',SOURCE/'rpc/server/volume_export.py',SOURCE/'rpc/server/owner_entry.py',SOURCE/'rpc/startup_clock.py',SOURCE/'rpc/storage_protocol.py',Path('/usr/bin/bwrap'),Path('/usr/bin/python3')]
+    entry={'schema':'enclave-rpc-owner-entry/1','attempt':attempt,'clock':clock,'contract':cb,'policy':pb,'ownerProvision':provision['authority'],
+        'binary':{'path':str(issuer),'sha256':g.digest(issuer)},
         'pins':{str(p):g.digest(p) for p in entrypaths},'receipt':str(out/'signer-started.json')}
     eb=write(private/'entry.json',entry)
     dispatchpaths=list((SOURCE/'rpc').rglob('*.py'))+[Path('/usr/bin/'+n) for n in ('python3','systemd-run','systemctl','bwrap','node')]
-    config={'schema':'enclave-rpc-owner-dispatch/1','entry':eb,'request':{'path':str(private/'request.json'),'sha256':g.digest(private/'request.json')},
+    config={'schema':'enclave-rpc-owner-dispatch/1','entry':eb,'request':{'path':str(authority/'request.json'),'sha256':g.digest(authority/'request.json')},
         'outputParent':str(outputs),'pins':{str(p):g.digest(p) for p in dispatchpaths}}
     write(private/'dispatch.json',config)
     props=['Type=exec','RuntimeMaxSec=60','TimeoutStopSec=1','MemoryMax=256M','MemorySwapMax=0','CPUQuota=100%',
         'TasksMax=32','KillMode=control-group','Restart=no','SendSIGKILL=yes','FinalKillSignal=SIGKILL','NoNewPrivileges=yes','LimitCORE=0','UMask=0077',
         'StandardOutput=file:'+str(private/'dispatch.stdout'),'StandardError=file:'+str(private/'dispatch.stderr')]
     args=['/usr/bin/systemd-run','--user','--quiet','--unit='+dispatchunit,*['--property='+p for p in props],'/usr/bin/python3','-B',str(SOURCE/'rpc/server/dispatch_owner.py'),str(private/'dispatch.json')]
-    write(public/'ATTEMPT.json',{'attempt':attempt,'units':[dispatchunit,signunit,exportunit],'argv':args,'clockSha256':clock['sha256'],
+    write(public/'ATTEMPT.json',{'attempt':attempt,'units':[provisionunit,dispatchunit,signunit,exportunit],'argv':args,'clockSha256':clock['sha256'],
         'contractSha256':cb['sha256'],'requestSha256':requestsha,'testBinarySha256':g.digest(issuer),'chainMocked':True,'syntheticWindows':True})
     fds=[];killfd=None;peer=None;settled=False;launched=False
     try:
@@ -172,8 +189,25 @@ def main(private,public,observer_config,binary):
         assert all(g.digest(Path(n))==h for n,h in hashes.items())
         assert all(g.digest(Path(n))==h for n,h in pins.items())
         assert json.loads((journal/('proof-'+requestsha)).read_bytes())==proof
-        # Persisted records remain after real export termination; no release API.
-        write(public/'RESULT.json',{'pass':True,'actualCommandCode':True,'chainHTTPMocked':True,'actualDispatcher':True,'actualExports':True,
+        # Actual provisioned state refuses spliced mappings and changed key
+        # inodes after the one complete execution, without a second signer call.
+        import owner_state as statecheck
+        rejected=[]
+        wrong=dict(policy);wrong['l1Volume']='f'*64
+        wrongcontract=json.loads(json.dumps(contract));wrongcontract['roles']['l1']['originals']=contract['roles']['base']['originals']
+        for label,cc,pp in [('wrong-volume',contract,wrong),('wrong-original-chain',wrongcontract,policy)]:
+            try:statecheck.inspect(provision['authority'],cc,pp)
+            except ValueError:rejected.append(label)
+            else:raise AssertionError('Owner state accepted '+label)
+        assert statecheck.inspect(provision['authority'],contract,policy)['journal']==[journal.stat().st_dev,journal.stat().st_ino]
+        seedpath=authority/'l1-seed';seedpath.rename(authority/'retained-original-seed')
+        seedpath.write_bytes(os.urandom(32));seedpath.chmod(0o600)
+        try:statecheck.bind(provision['authority'],contract,policy)
+        except ValueError:rejected.append('replaced-key')
+        else:raise AssertionError('Owner state accepted replacement key')
+        # Original key and all journals remain private and retained. No reset,
+        # re-sign, re-provision or export restart follows this destructive fixture.
+        write(public/'RESULT.json',{'pass':True,'actualCommandCode':True,'chainHTTPMocked':True,'actualDispatcher':True,'actualExports':True,'actualOwnerProvisioning':True,'stateRejections':rejected,
             'exactHeldProcessesExited':True,'secondsAfterControlLoss':elapsed,'journalRecordsRetained':sorted(p.name for p in journal.iterdir()),
             'originalHashesUnchanged':True,'sourcePinsUnchanged':True,'rpcReady':False,'reservationMayRelease':False})
         settled=True
@@ -199,7 +233,7 @@ def main(private,public,observer_config,binary):
                 if time.monotonic()>=until:raise TimeoutError('Failed fixture cleanup remains ambiguous')
         for fd in fds:os.close(fd)
         if launched:
-            for unit in (dispatchunit,signunit,exportunit):
+            for unit in (provisionunit,dispatchunit,signunit,exportunit):
                 write(public/(unit+'.json'),inspect(unit))
                 log=subprocess.run(['/usr/bin/journalctl','--user','-u',unit,'--no-pager','-n','30','-o','cat'],stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=3)
                 # Journals contain failures/identities, never input private keys.

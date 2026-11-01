@@ -32,7 +32,7 @@ class DispatchTests(unittest.TestCase):
         contract={'attempt':self.attempt,'startupClock':self.clock,'appControl':{'requestSha256':request_sha},'stateParent':str(state),'floorMiB':27648,'resourceArgv':argv,'sourcePins':{p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in argv}}
         cb=c.write_new(self.root/'contract',c.encode(contract));self.contract=contract;self.cb=cb
         policy={'export':{'contractSha256':cb['sha256']}};pb=c.write_new(self.root/'policy',c.encode(policy));self.policy=policy
-        cfg={'attempt':self.attempt,'clock':self.clock,'contract':cb,'policy':pb,'journal':str(self.journal),'binary':{'path':'/not-executed','sha256':'c'*64},'receipt':str(self.out/'signer-started.json')};self.cfg=cfg
+        cfg={'attempt':self.attempt,'clock':self.clock,'contract':cb,'policy':pb,'journal':str(self.journal),'binary':{'path':'/not-executed','sha256':'c'*64},'receipt':str(self.out/'signer-started.json')};cfg['ownerProvision']={'path':str(self.root/'authority.json'),'sha256':'e'*64};self.cfg=cfg
         eb=c.write_new(self.root/'entry',c.encode(cfg))
         rb=c.write_new(self.root/'request',c.encode({'request':request}))
         paths={str(p) for p in d.HERE.parent.rglob('*.py')}|{'/usr/bin/python3','/usr/bin/systemd-run','/usr/bin/systemctl','/usr/bin/bwrap','/usr/bin/node'}
@@ -63,9 +63,13 @@ class DispatchTests(unittest.TestCase):
         if self.mode=='low-reserve':resource['availableMiB']=27648
         class Response:stdout=json.dumps(resource).encode()
         real_load=d.load
+        class Owner:
+            @staticmethod
+            def inspect(*args):pass
+        owner=Owner()
         class Startup:pass
         startup=Startup();startup.start_export=self.start
-        with patch.object(d,'dispatcher_envelope',return_value={}),patch.object(d,'load',side_effect=lambda name,path:startup if name=='rpc_owner_startup' else real_load(name,path)),patch.object(d.subprocess,'run',return_value=Response()),patch.object(d,'run_signer',side_effect=self.signer):
+        with patch.object(d,'dispatcher_envelope',return_value={}),patch.object(d,'load',side_effect=lambda name,path:startup if name=='rpc_owner_startup' else owner if name=='rpc_dispatch_owner_state' else real_load(name,path)),patch.object(d.subprocess,'run',return_value=Response()),patch.object(d,'run_signer',side_effect=self.signer):
             return d.dispatch(self.config)
 
     def test_ordered_persistence_before_ack_and_no_repeat(self):

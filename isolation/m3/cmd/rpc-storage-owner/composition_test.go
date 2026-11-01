@@ -9,7 +9,6 @@ package main
 import (
 	"bytes"
 	"crypto/ed25519"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -120,15 +119,14 @@ func compositionPrepare(root, vectors, originText string) error {
 	manifest.Deployment = request.Deployment
 	manifest.RPCStorage = &bootstrap.RPCStorage{Schema: "enclave-rpc-storage-authorities/1"}
 	for i, a := range []*bootstrap.RPCStorageAuthority{&manifest.RPCStorage.L1, &manifest.RPCStorage.Base} {
-		pub, key, e := ed25519.GenerateKey(rand.Reader)
-		if e != nil {
-			return e
+		seed, e := os.ReadFile(filepath.Join(root, []string{"l1-seed", "base-seed"}[i]))
+		if e != nil || len(seed) != ed25519.SeedSize {
+			return fmt.Errorf("fixture requires provisioned Ed25519 seed")
 		}
+		key := ed25519.NewKeyFromSeed(seed)
+		pub := key.Public().(ed25519.PublicKey)
 		a.PublicKey = hex.EncodeToString(pub)
 		a.VolumeID = []string{request.L1Volume, request.BaseVolume}[i]
-		if e = compositionWrite(filepath.Join(root, []string{"l1-seed", "base-seed"}[i]), key.Seed()); e != nil {
-			return e
-		}
 	}
 	packageBytes, e := json.Marshal(manifest)
 	if e != nil {

@@ -84,6 +84,9 @@ def dispatch(config):
         raise ValueError('Original native-app export contract required')
     policy_raw=c.read_pinned(cfg['policy']);policy=c.protocol.decode(policy_raw)
     if policy['export']['contractSha256']!=cfg['contract']['sha256']:raise ValueError('Signed contract pin differs')
+    owner=load('rpc_dispatch_owner_state',HERE/'owner_state.py')
+    owner.inspect(cfg['ownerProvision'],contract,policy)
+    journal=Path(cfg['ownerProvision']['path']).parent/'journal'
     output=c.directory(config['outputParent'])/original['attempt']
     if cfg['receipt']!=str(output/'signer-started.json'):raise ValueError('Original dispatcher receipt namespace required')
     # Authoritative admission includes signer128 + dispatcher256 + exporter384
@@ -122,7 +125,8 @@ def dispatch(config):
         if proof.get('schema')!='enclave-rpc-storage-consent/2' or proof.get('export')!=policy['export']:raise ValueError('Owner response binding differs')
         # Exact durable response already exists in the owner's authoritative
         # journal. Read it by a held fd; never create/reconstruct/replay it here.
-        fd=entry.held(str(Path(cfg['journal'])/('proof-'+request_sha)),2048,0o400,wanted=hashlib.sha256(proof_raw).hexdigest())
+        owner.inspect(cfg['ownerProvision'],contract,policy)
+        fd=entry.held(str(journal/('proof-'+request_sha)),2048,0o400,wanted=hashlib.sha256(proof_raw).hexdigest())
         os.close(fd)
         started=c.protocol.decode(c.read(output/'signer-started.json'))
         if started['attempt']!=original['attempt'] or started['clock']!=cfg['clock'] or started['contract']!=cfg['contract'] or started['binary']!=cfg['binary'] or started['unit']['Id']!=unit:

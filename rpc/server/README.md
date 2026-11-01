@@ -321,9 +321,11 @@ persistent adoption, settlement or writable-root descriptor is granted here.
 
 `owner_entry.py` is the fixed signer bootstrap. Its protected
 `enclave-rpc-owner-entry/1` configuration contains `attempt`, `clock`, `contract`,
-`policy`, `binary` bindings, the authoritative `journal`, two local `seeds` paths,
+`policy`, `binary`, and `ownerProvision` bindings,
 `receipt` (the dispatcher's signer-started.json) and exact bootstrap `pins`.
-The binary must be a private700 file, inputs private600, journal private700.
+The binary must be a private700 file and inputs private600. The required
+ownerProvision descriptor supplies the fixed private700 journal and two private600
+seed files together; independent per-attempt journal/seed paths are refused.
 The signer unit has128MiB/noSwap/CPU1/Tasks32, Type=exec, RuntimeMaxSec=20,
 TimeoutStopSec=1 and the same kill/no-restart/no-new-privileges settings.
 It verifies the actual unit PID/invocation/cgroup before opening keys. A private
@@ -342,8 +344,9 @@ service deadline terminate the entire tree in21.52s including startup/stop grace
 with an empty cgroup. The first namespace-layout failure is preserved. These
 are bootstrap checks; the composed qualification below supplies separate evidence.
 
-No service is installed. Real volume/key/policy/journal provisioning, accepted
-remote identity/client credentials, real HTTPS chain authority, writer settlement
+No production service is installed. The local owner provisioner described below
+is implemented; production volume selection and owner commitment, accepted remote
+identity/client credentials, real HTTPS chain authority, writer settlement
 and native RPC bootstrap remain required. Existing owner policy
 is a permission to use a runtime, not remote attestation. Source merging does not
 activate any unit or authorize a fake grant. Production RPC remains offline.
@@ -374,3 +377,51 @@ and is preserved. The successful run consumed one fresh attempt, with the origin
 and fresh authenticated1536MiB whole-fixture admission above the retained floor
 and pending commitments. No production volume, VM, client, chain transaction or
 route changed. Do not replay these completed attempts or install the test binary.
+
+## One-time local storage-owner provisioning
+
+`owner_state.py` implements `enclave-rpc-owner-provision/1`. Its protected input
+contains `attempt`, the original `clock` binding, `parent` (canonical private700
+path plus `[device,inode]`), `roles` (L1/Base logical volume IDs and exact original
+chain paths/metadata), `resourceConfig` and the exact source/tool `pins`.
+It must run in `enclave-rpc-owner-provision-ATTEMPT.service` with the same independent
+128MiB/CPU1/noSwap/20-second plus1-second-stop envelope as the signer. It verifies
+that actual unit, the original clock and fresh authenticated capacity before work.
+
+The fixed `parent/authority` directory is created exclusively and fsynced. This
+is the consumed setup gate: an existing or partially created directory refuses
+all subsequent setup, even if it lacks a descriptor. The owner never deletes it
+or chooses a new suffix automatically. Within this ext4 directory, the provisioner
+writes an intent, a journal, two random Ed25519 seeds, and finally `authority.json`,
+with file/directory fsync. OpenSSL derives only the public keys using a fixed
+command with configuration loading disabled; private seed bytes never enter argv,
+logs or output. Originals are opened read-only and checked, never modified.
+
+The descriptor binds parent/root/journal device and inode, both key file identities,
+public keys, logical volumes and exact original chains. The dispatcher validates
+this binding, and the signer retains the corresponding journal/key descriptors.
+An empty replacement journal, changed key, spliced original chain, alias or mismatched
+logical volume is refused. Consumed journal contents are retained and need not be
+empty. Setup returns the existing `rpcStorage` public-policy format for a subsequent
+owner commitment, with `ownerCommitmentVerified=false`; no on-chain operation runs.
+The actual signer still verifies both private keys against the authenticated
+owner-committed policy before issuing consent.
+
+This establishes a local namespace binding. The actual owner must consistently
+select this authority and authorize its original volumes; another parent or copied
+keys do not settle old writers. It does not qualify existing writer cleanup,
+remote guest identity, accepted root attachment or continuous serving authority.
+There is no migration, reset, release or reprovisioning API. Historical signer
+configs with independent `journal`/`seeds` fields are incompatible and must not be
+replayed. The old standalone stub fixture is retired; its frozen evidence remains.
+
+Qualification: five new ext4/key/state tests and six affected dispatcher tests
+passed (unit/resource observations mocked there). The actual new provisioner,
+signer, dispatcher and guarded exporter then completed one native composition
+using disposable images and controlled chain replies. Its public keys independently
+matched the Go-prepared manifest, all four held export processes exited85ms after
+control loss, original hashes stayed unchanged, and consumed records remained.
+Wrong volume, wrong original chain and a replaced key were rejected by the actual
+state validator. That fixture's key was intentionally replaced after termination;
+its private state is poisoned and must never be reused. No production state was
+provisioned and no chain client or production RPC started.

@@ -1,0 +1,4 @@
+{
+  "sha256": "2cda7af877bcba223ff69fe1bf2c5022a9a8b944e33787943b32cdd4d9718d55",
+  "text": "{\"clock\":{\"path\":\"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-state-native-r1/private/clocks/7e74e0ba97eb4c589548715692857b06/clock.json\",\"sha256\":\"cf45ae358c97aeac5666e1ab4a7f5d5116ed47cd3b9e2b53d191bb111098f3f7\"},\"contract\":{\"path\":\"/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/unified-funding-20261028/rpc-owner-state-native-r1/private/contract.json\",\"sha256\":\"e5032c5678a64c27251203d05a976a06f2b69ed90aabbeee4663a2362722b469\"},\"proofSha256\":\"19c118922525a39397896d1d94cab9a4934984f111fd8b9a7f7e207ff9315739\",\"requestSha256\":\"37e0e7044b293fa1b1afd9a9c086592cae52b865a83dd3ffc7ce785b0dc9801c\",\"unit\":\"enclave-rpc-export-7e74e0ba97eb4c589548715692857b06.service\"}\n"
+}

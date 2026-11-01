@@ -153,4 +153,5 @@ def main(private,public,resource_config):
     print(json.dumps({'cases':len(results),'pass':True,'stubOnly':True}),flush=True)
 
 
-if __name__=='__main__':main(*(Path(p) for p in sys.argv[1:]))
+if __name__=='__main__':
+    raise SystemExit('Historical stub fixture retired: use qualify_owner_composition.py with required owner provisioning; prior evidence is preserved in ops/rpc-owner-entry-native-r1/r2')
