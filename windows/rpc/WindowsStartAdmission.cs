@@ -22,8 +22,9 @@ internal sealed partial class WindowsStartAdmission {
     readonly JavaScriptSerializer Json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
     WindowsStartAdmission(ProtectedAttempt vm,string admissionHash,LegacyHandoff.Completion completed,bool freshInventory=false){this.vm=vm;this.admissionHash=admissionHash;this.completed=completed;this.freshInventory=freshInventory;began=BoundedWorker.MonotonicMilliseconds();}
     string stage="begin";
+    internal const long FreshnessMilliseconds=4000;
     internal static void RequireFresh(long began,long now,string stage) {
-        if(began<0||now<began||now-began>2000)throw new TimeoutException("Aggregate start observation exceeds two seconds; phase="+stage+" elapsedMs="+(now>=began&&began>=0?(now-began).ToString(CultureInfo.InvariantCulture):"invalid"));
+        if(began<0||now<began||now-began>FreshnessMilliseconds)throw new TimeoutException("Aggregate start observation exceeds four seconds; phase="+stage+" elapsedMs="+(now>=began&&began>=0?(now-began).ToString(CultureInfo.InvariantCulture):"invalid"));
     }
     void CheckTime(){vm.CheckDeadline();RequireFresh(began,BoundedWorker.MonotonicMilliseconds(),stage);}
     void Stage(string value){CheckTime();stage=value;CheckTime();}

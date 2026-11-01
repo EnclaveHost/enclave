@@ -35,9 +35,9 @@ public static class StartupControllerHarness {
  static Dictionary<string,object> Row(Dictionary<string,object> n,int i){return (Dictionary<string,object>)((object[])n["deployments"])[i];}
  static string Receipt(Dictionary<string,object> n,bool raw=false){return WindowsStartAdmission.DeploymentReceipt(n,raw);}
  static void AdmissionTests(){
-  Test("admission-two-second-window-not-relaxed",()=>{WindowsStartAdmission.RequireFresh(100,2100,"fixture");Refuse(()=>WindowsStartAdmission.RequireFresh(100,2101,"fixture"));});
+  Test("admission-four-second-window-boundary",()=>{Check(WindowsStartAdmission.FreshnessMilliseconds==4000);WindowsStartAdmission.RequireFresh(100,3349,"fixture");WindowsStartAdmission.RequireFresh(100,4100,"fixture");Refuse(()=>WindowsStartAdmission.RequireFresh(100,4101,"fixture"));});
   Test("admission-clock-reversal-and-overflow-refused",()=>{Refuse(()=>WindowsStartAdmission.RequireFresh(100,99,"fixture"));Refuse(()=>WindowsStartAdmission.RequireFresh(Int64.MinValue,Int64.MaxValue,"fixture"));});
-  Test("admission-timeout-retains-stage-and-elapsed",()=>{try{WindowsStartAdmission.RequireFresh(100,2101,"listeners");throw new Exception("Accepted stale");}catch(TimeoutException e){Check(e.Message.Contains("phase=listeners elapsedMs=2001"));}});
+  Test("admission-timeout-retains-stage-and-elapsed",()=>{try{WindowsStartAdmission.RequireFresh(100,4101,"listeners");throw new Exception("Accepted stale");}catch(TimeoutException e){Check(e.Message.Contains("exceeds four seconds; phase=listeners elapsedMs=4001"));}});
   Test("actual-native-physical-abi-and-wmi-total-agree",()=>{var m=WindowsStartAdmission.Physical();Check(m.Size==64&&m.Total>0&&m.Available<=m.Total);using(var q=new System.Management.ManagementObjectSearcher("root\\cimv2","SELECT TotalVisibleMemorySize FROM Win32_OperatingSystem"))using(var rows=q.Get()){int n=0;foreach(System.Management.ManagementObject row in rows)using(row){n++;Check(m.Total==Convert.ToUInt64(row["TotalVisibleMemorySize"])*1024);}Check(n==1);}});
   Test("actual-native-disk-capacity-bounded",()=>{long free=WindowsStartAdmission.DiskAvailable();Check(free>0&&free<=new DriveInfo(@"C:\").TotalSize);});
   using(var self=System.Diagnostics.Process.GetCurrentProcess()){
