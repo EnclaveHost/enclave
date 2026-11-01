@@ -211,13 +211,14 @@ namespace Enclave.OwnedRpc {
     // child identity and prove an empty job. Do not substitute task state.
     foreach(var p in new[]{owner,observer})if(!p.WaitForExit((int)Math.Max(0,end-BoundedWorker.MonotonicMilliseconds()))||p.ExitCode!=0)throw new InvalidOperationException("Native exact role completion failed");
     if(lease.ReadOnce("owner.result")!="native-definition-observed;rpc-ready=false;provider-fenced=false;reservation-release=false"||lease.ReadOnce("observer.result")!="exact-owner-death;job-empty;provider-fenced=false;reservation-release=false")throw new InvalidOperationException("Native exact cleanup receipts absent");
-    var result=StartRecords.Parse(lease.ReadOnce("child.result"),new[]{"readGrantReceipt","opticalReceipt","securityReceipt","plan","state","vmGuid","ownedReceipt","settled","startAuthorized","providerOperationFenced","reservationMayRelease"});
+    var result=StartRecords.Parse(lease.ReadOnce("child.result"),new[]{"deviceReceipt","readGrantReceipt","opticalReceipt","securityReceipt","plan","state","vmGuid","ownedReceipt","settled","startAuthorized","providerOperationFenced","reservationMayRelease"});
     if(S(result["plan"])!=plan.Digest||S(result["state"])!="defined-native-owned-off"||!(result["settled"] is bool)||!(bool)result["settled"])throw new InvalidOperationException("Native result not owned Off");
     foreach(string flag in new[]{"startAuthorized","providerOperationFenced","reservationMayRelease"})if(!(result[flag] is bool)||(bool)result[flag])throw new InvalidOperationException("Invalid native release assertion");
     VerifyOwnedResult(plan,result,pin.ReadOnce("native-definition.system"),pin.ReadOnce("native-definition.owned"));
     if(S(result["securityReceipt"])!=NativeRpcSecurity.VerifyCompleted(plan,new NativeRpcDefinitionJournal(pin)))throw new InvalidOperationException("Original security readback differs");
     if(S(result["readGrantReceipt"])!=NativeRpcReadGrant.VerifyCompleted(plan,new NativeRpcDefinitionJournal(pin)))throw new InvalidOperationException("Original VM media read grant differs");
     if(S(result["opticalReceipt"])!=NativeRpcOptical.VerifyCompleted(plan,new NativeRpcDefinitionJournal(pin)))throw new InvalidOperationException("Original optical readback differs");
+    if(S(result["deviceReceipt"])!=NativeRpcDevicePolicy.VerifyCompleted(plan,new NativeRpcDefinitionJournal(pin)))throw new InvalidOperationException("Original device policy differs");
     ledger.Files.Publish(Path.Combine(ledger.Root,"result.json"),E(result));return result;
    }
   }

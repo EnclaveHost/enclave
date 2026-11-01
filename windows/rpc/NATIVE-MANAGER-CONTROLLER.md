@@ -267,3 +267,31 @@ provider, clock and admission were mocked. Both production entrypoints compile,
 but actual SYSTEM/WMI timing and target boot remain unqualified. Exact receipts,
 source pins, process exits and executable hashes are preserved in
 `../../ops/unified-funding-20261028/rpc-native-progress-ci-r1/ROOT-RESULT.md`.
+
+The original owned-Off worker now requires a fresh (at most four seconds)
+closed resource inventory receipt after security, per-VM read grant and optical
+attachment. It accepts exactly one CPU setting, one memory setting and the five
+original optical references. Actual CPU/memory quantities and all optical
+parents/slots are rechecked by the original provider guard. NICs, network
+attachments, pass-through, disks, 3D/GPU and unknown allocations are refused;
+there is no implicit removal or adoption. Optional default serial ports (at most
+two) must have no host backing, connection or debugger mode; at most one unbacked
+non-3D synthetic display is permitted. Resource inventory is bounded and queried
+only through the original VM configuration's Msvm_VirtualSystemSettingDataComponent
+association, requesting the CIM base so sibling resource classes are included.
+The protected receipt binds prior original receipts and a canonical inventory
+hash. Reconciliation rereads; changed inventory remains held. Historical receipt
+verification does not authorize start: the eventual start operation must obtain
+another fresh observation. No start, provider fencing or reservation release is
+asserted. Target provider defaults, effective VM token access and the actual
+association closure remain unqualified until a reviewed native attempt.
+
+NativeRpcWmi.cs now contains the native provider implementation and is excluded
+from the controller executable. Shared recipes and protected receipt validators
+remain in NativeRpcDefinition.cs; the actual worker retains all provider methods.
+This reduces controller build size without relaxing the 262144-byte image cap.
+
+Schema references: [resource association](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-virtualsystemsettingdatacomponent),
+[resource settings and serial connection](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-resourceallocationsettingdata),
+[serial debugger](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-serialportsettingdata),
+[synthetic display](https://learn.microsoft.com/en-us/windows/win32/hyperv_v2/msvm-syntheticdisplaycontrollersettingdata).

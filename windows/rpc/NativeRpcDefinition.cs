@@ -292,11 +292,7 @@ namespace Enclave.OwnedRpc {
  // Actual local WMI implementation, never invoked by the qualification harness.
  // Defines an Off shell and separately journals guest security configuration.
  // Optical/network/serial configuration and accepted boot/start remain separate.
- public sealed partial class HyperVNativeRpcDefinition : INativeRpcDefinitionProvider, INativeRpcSecurityProvider {
-  readonly INativeRpcDefinitionRuntime runtime;readonly IStartJournal journal;
-  public HyperVNativeRpcDefinition(INativeRpcDefinitionRuntime runtime,IStartJournal journal){
-   if(runtime==null||journal==null)throw new ArgumentNullException("dependencies");this.runtime=runtime;this.journal=journal;
-  }
+ public sealed partial class HyperVNativeRpcDefinition {
   internal static Dictionary<string,object> Settings(NativeRpcDefinitionPlan p){return new Dictionary<string,object>{
    {"ElementName",p.Name},{"Notes",new[]{p.Note}},{"VirtualSystemSubType","Microsoft:Hyper-V:SubType:2"},
    {"ConfigurationDataRoot",p.ConfigurationRoot},{"SnapshotDataRoot",p.ConfigurationRoot},{"SuspendDataRoot",p.ConfigurationRoot},{"SwapFileDataRoot",p.ConfigurationRoot},{"LogDataRoot",p.ConfigurationRoot},
@@ -305,100 +301,13 @@ namespace Enclave.OwnedRpc {
    {"VMBusMessageRedirection",false},{"SecureBootEnabled",false},{"EnableHibernation",false},{"VirtualNumaEnabled",false},
    {"UserSnapshotType",(ushort)2},{"AutomaticSnapshotsEnabled",false},{"AutomaticStartupAction",(ushort)2},{"AutomaticShutdownAction",(ushort)4},{"AutomaticRecoveryAction",(ushort)2}};}
   internal static Dictionary<string,object> MemorySettings(){return new Dictionary<string,object>{{"VirtualQuantity",(ulong)19456},{"Reservation",(ulong)19456},{"Limit",(ulong)19456},{"DynamicMemoryEnabled",false},{"AutomaticAllocation",true}};}
-  static ManagementObject New(ManagementScope scope,string name,Dictionary<string,object> fields){
-   using(var cls=new ManagementClass(scope,new ManagementPath(name),null)){var row=cls.CreateInstance();if(row==null)throw new InvalidOperationException("Native class unavailable");try{foreach(var pair in fields)row[pair.Key]=pair.Value;return row;}catch{row.Dispose();throw;}}
-  }
-  public NativeDefinitionResponse Define(NativeRpcDefinitionPlan p){
-   ProtectedAttempt.RequireSystem();runtime.Check(p,true);
-   if(journal.Read("native-definition.intent")!=p.Encode()||journal.Read("native-definition.submit")!=p.Digest||journal.Read("native-definition.native")!=p.Digest)throw new InvalidOperationException("Consumed native intent required");
-   journal.WriteOnce("native-definition.invoke",p.Digest);var scope=HyperVStartProvider.Scope();
-   using(var service=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_VirtualSystemManagementService"))
-   using(var system=New(scope,"Msvm_VirtualSystemSettingData",Settings(p)))
-   using(var memory=New(scope,"Msvm_MemorySettingData",MemorySettings()))
-   using(var cpu=New(scope,"Msvm_ProcessorSettingData",new Dictionary<string,object>{{"VirtualQuantity",(ulong)4}}))
-   using(var input=service.GetMethodParameters("DefineSystem")){
-    input["SystemSettings"]=system.GetText(TextFormat.WmiDtd20);input["ResourceSettings"]=new[]{memory.GetText(TextFormat.WmiDtd20),cpu.GetText(TextFormat.WmiDtd20)};input["ReferenceConfiguration"]=null;
-    runtime.Check(p,true);if(runtime.Now<p.Origin||runtime.Now>=p.Deadline)throw new InvalidOperationException("Native original deadline");
-    using(var output=service.InvokeMethod("DefineSystem",input,new InvokeMethodOptions{Timeout=TimeSpan.FromSeconds(2)})){
-     if(output==null||output["ReturnValue"]==null)throw new InvalidOperationException("Native definition response absent");
-     return new NativeDefinitionResponse(Convert.ToUInt32(output["ReturnValue"]),output["Job"] as string,output["ResultingSystem"] as string);
-    }
-   }
-  }
-  public StartJob ReadJob(string reference){
-   ProtectedAttempt.RequireSystem();if(HyperVStartProvider.CanonicalJobReference(reference)!=reference)throw new InvalidOperationException("Exact persisted job required");
-   using(var job=new ManagementObject(HyperVStartProvider.Scope(),new ManagementPath(reference),new ObjectGetOptions{Timeout=TimeSpan.FromSeconds(2)})){
-    job.Get();if(HyperVStartProvider.CanonicalJobReference(job.Path.Path)!=reference)throw new InvalidOperationException("Job reference changed");
-    foreach(string field in new[]{"InstanceID","TimeSubmitted","JobState","ErrorCode","JobRunTimes"})if(job[field]==null)throw new InvalidOperationException("Definition job field absent");
-    string time=(string)job["TimeSubmitted"];ManagementDateTimeConverter.ToDateTime(time);
-    return new StartJob(reference,(string)job["InstanceID"],time,Convert.ToUInt16(job["JobState"]),Convert.ToUInt16(job["ErrorCode"]),Convert.ToUInt32(job["JobRunTimes"]));
-   }
-  }
-  public string ReadResultingSystem(string exactSettledJob){
-   ProtectedAttempt.RequireSystem();if(HyperVStartProvider.CanonicalJobReference(exactSettledJob)!=exactSettledJob)throw new InvalidOperationException("Exact settled job required");
-   using(var job=new ManagementObject(HyperVStartProvider.Scope(),new ManagementPath(exactSettledJob),new ObjectGetOptions{Timeout=TimeSpan.FromSeconds(2)})){
-    job.Get();if(HyperVStartProvider.CanonicalJobReference(job.Path.Path)!=exactSettledJob||Convert.ToUInt16(job["JobState"])!=7||Convert.ToUInt16(job["ErrorCode"])!=0||Convert.ToUInt32(job["JobRunTimes"])!=1)throw new InvalidOperationException("Successful settled definition required");
-    string found=null;using(var rows=job.GetRelated("Msvm_ComputerSystem","Msvm_AffectedJobElement",null,null,null,null,false,null))foreach(ManagementObject row in rows)using(row){if(found!=null)throw new InvalidOperationException("Ambiguous resulting system");found=NativeDefinitionReferences.SystemReference(row.Path.Path);}
-    if(found==null)throw new InvalidOperationException("Resulting system unavailable; no name scan");return found;
-   }
-  }
-  static ManagementObject RelatedOne(ManagementObject parent,string name){
-   ManagementObject found=null;
-   try{using(var rows=parent.GetRelated(name))foreach(ManagementObject row in rows){if(found!=null){row.Dispose();throw new InvalidOperationException("Ambiguous native association: "+name);}found=row;}
-    if(found==null)throw new InvalidOperationException("Missing native association: "+name);return found;
-   }catch{if(found!=null)found.Dispose();throw;}
-  }
   internal static void RequireSecurityFields(IDictionary<string,object> fields){
    foreach(string key in new[]{"TpmEnabled","VirtualizationBasedSecurityOptOut"})if(!fields.ContainsKey(key)||!(fields[key] is bool)||!(bool)fields[key])throw new InvalidOperationException("Native security readback differs: "+key);
-  }
-  public NativeDefinitionResponse ConfigureSecurity(NativeRpcDefinitionPlan p,string guid,string intent){
-   ProtectedAttempt.RequireSystem();runtime.Check(p,true);string original;NativeRpcSecurity.Ownership(p,journal,out original);
-   if(original!=guid||journal.Read("native-security.native")!=intent||NativeRpcDefinitionPlan.Hash(journal.Read("native-security.intent"))!=intent)throw new InvalidOperationException("Exact consumed security intent required");
-   RequireOwnedOff(p,guid);var scope=HyperVStartProvider.Scope();
-   using(var vm=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_ComputerSystem WHERE Name='"+guid+"'"))
-   using(var settings=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemIdentifier='"+guid+"' AND VirtualSystemType='Microsoft:Hyper-V:System:Realized'"))
-   using(var security=RelatedOne(settings,"Msvm_SecuritySettingData"))
-   using(var service=RelatedOne(vm,"Msvm_SecurityService"))
-   using(var input=service.GetMethodParameters("ModifySecuritySettings")){
-    // Modify only this guest's TPM/VTL1 offer. Preserve every other security
-    // property; never disable host VBS or alter Type1 partition isolation.
-    security["TpmEnabled"]=true;security["VirtualizationBasedSecurityOptOut"]=true;
-    input["SecuritySettingData"]=security.GetText(TextFormat.WmiDtd20);
-    journal.WriteOnce("native-security.invoke",intent);runtime.Check(p,true);
-    if(runtime.Now<p.Origin||runtime.Now>=p.Deadline)throw new InvalidOperationException("Native original deadline");
-    using(var output=service.InvokeMethod("ModifySecuritySettings",input,new InvokeMethodOptions{Timeout=TimeSpan.FromSeconds(2)})){
-     if(output==null||output["ReturnValue"]==null)throw new InvalidOperationException("Native security response absent");
-     return new NativeDefinitionResponse(Convert.ToUInt32(output["ReturnValue"]),output["Job"] as string,null);
-    }
-   }
-  }
-  public void RequireSecurity(NativeRpcDefinitionPlan p,string guid){
-   ProtectedAttempt.RequireSystem();RequireOwnedOff(p,guid);
-   using(var settings=HyperVStartProvider.One(HyperVStartProvider.Scope(),"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemIdentifier='"+guid+"' AND VirtualSystemType='Microsoft:Hyper-V:System:Realized'"))
-   using(var security=RelatedOne(settings,"Msvm_SecuritySettingData")){
-    RequireSecurityFields(new Dictionary<string,object>{{"TpmEnabled",security["TpmEnabled"]},{"VirtualizationBasedSecurityOptOut",security["VirtualizationBasedSecurityOptOut"]}});
-   }runtime.Check(p,false);
   }
   internal static void RequireProcessors(IList<object> quantities){
    if(quantities==null||quantities.Count!=1||!(quantities[0] is ulong)||(ulong)quantities[0]!=4)throw new InvalidOperationException("Exact four-vCPU definition required");
   }
-  public void RequireOwnedOff(NativeRpcDefinitionPlan p,string guid){
-   ProtectedAttempt.RequireSystem();runtime.Check(p,false);
-   if(NativeDefinitionReferences.GuidForReference("Msvm_ComputerSystem.Name=\""+guid+"\"")!=guid)throw new InvalidOperationException("Canonical returned VM GUID required");
-   var scope=HyperVStartProvider.Scope();
-   using(var vm=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_ComputerSystem WHERE Name='"+guid+"'"))
-   using(var settings=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemIdentifier='"+guid+"' AND VirtualSystemType='Microsoft:Hyper-V:System:Realized'"))
-   using(var memory=HyperVStartProvider.One(scope,"SELECT SystemName,BlockSize,NumberOfBlocks FROM Msvm_Memory WHERE SystemName='"+guid+"'")){
-    if((string)vm["Name"]!=guid||(string)vm["ElementName"]!=p.Name||!(vm["EnabledState"] is ushort)||(ushort)vm["EnabledState"]!=3)throw new InvalidOperationException("Native owned Off identity differs");
-    foreach(var pair in Settings(p)){
-     object value=settings[pair.Key];if(pair.Value is string[]){var a=value as string[];if(a==null||a.Length!=1||a[0]!=p.Note)throw new InvalidOperationException("Native owner marker differs");}
-     else if(!Object.Equals(value,pair.Value))throw new InvalidOperationException("Native setting differs: "+pair.Key);
-    }
-    if((string)memory["SystemName"]!=guid||!(memory["BlockSize"] is ulong)||(ulong)memory["BlockSize"]!=1048576||!(memory["NumberOfBlocks"] is ulong)||(ulong)memory["NumberOfBlocks"]!=0)throw new InvalidOperationException("Native zero allocation unconfirmed");
-    int count=0;using(var rows=settings.GetRelated("Msvm_MemorySettingData"))foreach(ManagementObject row in rows)using(row){if(++count>1)throw new InvalidOperationException("Native memory ambiguity");var d=new Dictionary<string,object>();foreach(string k in new[]{"ResourceType","ResourceSubType","AllocationUnits","VirtualQuantityUnits","VirtualQuantity","Reservation","Limit","DynamicMemoryEnabled","AutomaticAllocation","SwapFilesInUse"})d[k]=row[k];HyperVStartProvider.RequireGuestMemory(d,19L*1073741824);}if(count!=1)throw new InvalidOperationException("Native memory absent");
-    var cpus=new List<object>();using(var rows=settings.GetRelated("Msvm_ProcessorSettingData"))foreach(ManagementObject row in rows)using(row){if(cpus.Count>=2)throw new InvalidOperationException("Native CPU ambiguity");cpus.Add(row["VirtualQuantity"]);}RequireProcessors(cpus);
-   }runtime.Check(p,false);
-  }
+
  }
 
  // Fixed boot-media attachment transaction. The original owned-Off/security
@@ -481,7 +390,7 @@ namespace Enclave.OwnedRpc {
    string proof=Proof(p,guid,owned,security,resources);if(j.Read("native-optical.observed")!=proof)throw new InvalidOperationException("Original optical readback absent");return H(proof);
   }
  }
- public sealed partial class HyperVNativeRpcDefinition : INativeRpcOpticalProvider {
+ public sealed partial class HyperVNativeRpcDefinition {
   internal static string OpticalClass(string step){if(step=="scsi"||step=="imagedrive"||step=="hashdrive")return "Msvm_ResourceAllocationSettingData";if(step=="imagemedia"||step=="hashmedia")return "Msvm_StorageAllocationSettingData";throw new ArgumentException("Fixed optical role required");}
   internal static string OpticalReference(string step,string raw){
    if(raw==null||raw.Length>2048)throw new InvalidOperationException("Optical reference bound");var path=new ManagementPath(raw);string cls=OpticalClass(step);
@@ -495,23 +404,6 @@ namespace Enclave.OwnedRpc {
    if(step=="imagemedia"||step=="hashmedia")return new Dictionary<string,object>{{"ResourceType",(ushort)31},{"ResourceSubType","Microsoft:Hyper-V:Virtual CD/DVD Disk"},{"Parent",prior[step=="imagemedia"?"imagedrive":"hashdrive"]},{"HostResource",new[]{Path.Combine(p.Root,NativeRpcMediaProfile.Name(step=="hashmedia"))}}};
    throw new ArgumentException("Fixed optical role required");
   }
-  static ManagementObject OpticalSettings(string guid){return HyperVStartProvider.One(HyperVStartProvider.Scope(),"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemIdentifier='"+guid+"' AND VirtualSystemType='Microsoft:Hyper-V:System:Realized'");}
-  static Dictionary<string,Dictionary<string,object>> OpticalInventory(ManagementObject settings){
-   var found=new Dictionary<string,Dictionary<string,object>>(StringComparer.Ordinal);int count=0;
-   // These are sibling WMI classes, not an Msvm inheritance chain. Query both
-   // through this exact original VM setting's association; retain one bound.
-   foreach(string cls in new[]{"Msvm_ResourceAllocationSettingData","Msvm_StorageAllocationSettingData"})
-   using(var rows=settings.GetRelated(cls))foreach(ManagementObject row in rows)using(row){
-    if(++count>64)throw new InvalidOperationException("Optical inventory bound");string sub=row["ResourceSubType"] as string;ushort type=Convert.ToUInt16(row["ResourceType"]);
-    bool scsi=sub=="Microsoft:Hyper-V:Synthetic SCSI Controller",drive=sub=="Microsoft:Hyper-V:Synthetic DVD Drive",media=sub=="Microsoft:Hyper-V:Virtual CD/DVD Disk";
-    if(!scsi&&!drive&&!media){if(type==5||type==6||type==15||type==16||type==17||type==19||type==31)throw new InvalidOperationException("Unexpected storage device on native VM");continue;}
-    string step=scsi?"scsi":drive?"imagedrive":"imagemedia",reference=OpticalReference(step,row.Path.Path);var values=new Dictionary<string,object>();
-    foreach(string field in scsi?new[]{"ResourceType","ResourceSubType","Address"}:drive?new[]{"ResourceType","ResourceSubType","Parent","AddressOnParent"}:new[]{"ResourceType","ResourceSubType","Parent","HostResource"})values[field]=row[field];
-    found.Add(reference,values);
-   }return found;
-  }
-  // Exact original-VM association and every expected parent/address/media path,
-  // not just a matching filename or a resource belonging to another VM.
   internal static void VerifyOpticalInventory(NativeRpcDefinitionPlan p,IDictionary<string,string> resources,IDictionary<string,Dictionary<string,object>> actual){
    if(actual.Count!=resources.Count)throw new InvalidOperationException("Unexpected optical topology");var unique=new HashSet<string>(StringComparer.Ordinal);
    foreach(string step in NativeRpcOptical.Steps){string reference;if(!resources.TryGetValue(step,out reference))continue;if(OpticalReference(step,reference)!=reference||!unique.Add(reference)||!actual.ContainsKey(reference))throw new InvalidOperationException("Returned optical resource absent or aliased");
@@ -526,36 +418,69 @@ namespace Enclave.OwnedRpc {
   internal static void VerifyOpticalSubset(NativeRpcDefinitionPlan p,IDictionary<string,string> expected,IDictionary<string,Dictionary<string,object>> actual){
    var selected=new Dictionary<string,Dictionary<string,object>>();foreach(var x in expected){Dictionary<string,object> row;if(!actual.TryGetValue(x.Value,out row))throw new InvalidOperationException("Original returned optical association missing");selected.Add(x.Value,row);}VerifyOpticalInventory(p,expected,selected);
   }
-  void OpticalGuard(NativeRpcDefinitionPlan p,string guid,bool mutation){runtime.Check(p,mutation);string original;NativeRpcSecurity.Ownership(p,journal,out original);if(original!=guid)throw new InvalidOperationException("Original optical VM differs");NativeRpcSecurity.VerifyCompleted(p,journal);RequireOwnedOff(p,guid);RequireSecurity(p,guid);runtime.Check(p,mutation);}
-  public NativeOpticalResponse Attach(NativeRpcDefinitionPlan p,string guid,string step,IDictionary<string,string> prior,string intent){
-   ProtectedAttempt.RequireSystem();OpticalGuard(p,guid,true);string pre="native-optical."+step;
-   if(journal.Read(pre+".submit")!=intent||NativeRpcDefinitionPlan.Hash(journal.Read(pre+".intent"))!=intent)throw new InvalidOperationException("Consumed optical intent required");
-   var scope=HyperVStartProvider.Scope();using(var settings=OpticalSettings(guid)){
-    var inventory=OpticalInventory(settings);
-    if(step=="scsi"&&prior.Count==0&&inventory.Count==1){foreach(string existing in inventory.Keys){var one=new Dictionary<string,string>{{"scsi",existing}};VerifyOpticalInventory(p,one,inventory);return new NativeOpticalResponse(0,null,existing,true);}}
-    VerifyOpticalInventory(p,prior,inventory);
-    var values=OpticalValues(p,step,prior);
-    using(var service=HyperVStartProvider.One(scope,"SELECT * FROM Msvm_VirtualSystemManagementService"))using(var row=New(scope,OpticalClass(step),values))using(var input=service.GetMethodParameters("AddResourceSettings")){
-     if(values.ContainsKey("Parent"))row["Parent"]=scope.Path.Path+":"+(string)values["Parent"];
-     input["AffectedConfiguration"]=settings.Path.Path;input["ResourceSettings"]=new[]{row.GetText(TextFormat.WmiDtd20)};
-     journal.WriteOnce(pre+".invoke",intent);OpticalGuard(p,guid,true);
-     using(var output=service.InvokeMethod("AddResourceSettings",input,new InvokeMethodOptions{Timeout=TimeSpan.FromSeconds(2)})){
-      if(output==null||output["ReturnValue"]==null)throw new InvalidOperationException("Optical response absent");var refs=output["ResultingResourceSettings"] as string[];if(refs!=null&&refs.Length>1)throw new InvalidOperationException("Ambiguous optical resources");
-      return new NativeOpticalResponse(Convert.ToUInt32(output["ReturnValue"]),output["Job"] as string,refs==null||refs.Length==0?null:refs[0]);
-     }
+
+ }
+
+ // Closed resource policy for the original native VM. Observation only: no
+ // remove/adopt/reconfigure/start operation is exposed by this interface.
+ public sealed class NativeRpcDevice {
+  public readonly string Reference,Class,Subtype;public readonly ushort Type;
+  public readonly string[] Host,Connection;public readonly bool Debugger;
+  public NativeRpcDevice(string reference,string cls,ushort type,string subtype,string[] host,string[] connection,bool debugger=false){Reference=reference;Class=cls;Type=type;Subtype=subtype;Host=host==null?null:(string[])host.Clone();Connection=connection==null?null:(string[])connection.Clone();Debugger=debugger;}
+ }
+ public interface INativeRpcDeviceProvider {IList<NativeRpcDevice> ReadDevices(NativeRpcDefinitionPlan p,string guid);}
+ public static class NativeRpcDevicePolicy {
+  static string H(string x){return NativeRpcDefinitionPlan.Hash(x);}
+  static string S(object x){return StartRecords.Text(x);}
+  static void Current(NativeRpcDefinitionPlan p,INativeRpcDefinitionRuntime r){r.Check(p,false);if(r.Now<p.Origin||r.Now>=p.Deadline)throw new InvalidOperationException("Original device deadline");}
+  static bool Empty(string[] a){return a==null||a.Length==0||(a.Length==1&&a[0]=="");}
+  internal static string Reference(NativeRpcDevice d){
+   if(d==null||d.Reference==null||d.Reference.Length>2048||d.Class==null||!Regex.IsMatch(d.Class,"\\AMsvm_[A-Za-z]+SettingData\\z"))throw new InvalidOperationException("Device reference bound/class");
+   var p=new ManagementPath(d.Reference);
+   if(!p.IsInstance||p.Server!=""||p.NamespacePath!=""||p.ClassName!=d.Class||p.RelativePath!=d.Reference||!Regex.IsMatch(d.Reference,"\\A"+d.Class+"\\.InstanceID=\"(?:[^\"\\\\\\r\\n]|\\\\[\\\\\"]){1,1024}\"\\z"))throw new InvalidOperationException("Exact relative device instance required");return d.Reference;
+  }
+  internal static string Validate(NativeRpcDefinitionPlan p,IDictionary<string,string> optical,IList<NativeRpcDevice> rows){
+   if(rows==null||rows.Count<7||rows.Count>10||optical==null||optical.Count!=5)throw new InvalidOperationException("Closed native device count");
+   var expected=new Dictionary<string,string>(StringComparer.Ordinal);foreach(string step in NativeRpcOptical.Steps){string value;if(!optical.TryGetValue(step,out value)||HyperVNativeRpcDefinition.OpticalReference(step,value)!=value)throw new InvalidOperationException("Original optical resource absent");expected.Add(value,step);}
+   var all=new SortedDictionary<string,string>(StringComparer.Ordinal);int cpu=0,memory=0,serial=0,display=0,media=0;
+   foreach(var d in rows){string reference=Reference(d),step;if(all.ContainsKey(reference)||!Empty(d.Connection)||d.Debugger)throw new InvalidOperationException("Aliased or externally connected device");
+    if(expected.TryGetValue(reference,out step)){
+     var v=HyperVNativeRpcDefinition.OpticalValues(p,step,optical);
+     if(d.Class!=HyperVNativeRpcDefinition.OpticalClass(step)||d.Type!=(ushort)v["ResourceType"]||d.Subtype!=(string)v["ResourceSubType"])throw new InvalidOperationException("Original optical device type differs");
+     if(v.ContainsKey("HostResource")){var host=(string[])v["HostResource"];if(d.Host==null||d.Host.Length!=1||d.Host[0]!=host[0])throw new InvalidOperationException("Original media backing differs");}else if(!Empty(d.Host))throw new InvalidOperationException("Unexpected storage host backing");media++;
+    }else{
+     if(!Empty(d.Host))throw new InvalidOperationException("Host resource assignment refused");
+     if(d.Class=="Msvm_ProcessorSettingData"&&d.Type==3&&d.Subtype=="Microsoft:Hyper-V:Processor"){if(++cpu>1)throw new InvalidOperationException("CPU ambiguity");}
+     else if(d.Class=="Msvm_MemorySettingData"&&d.Type==4&&d.Subtype=="Microsoft:Hyper-V:Memory"){if(++memory>1)throw new InvalidOperationException("Memory ambiguity");}
+     else if((d.Class=="Msvm_ResourceAllocationSettingData"||d.Class=="Msvm_SerialPortSettingData")&&d.Type==21&&d.Subtype=="Microsoft:Hyper-V:Serial Port"){if(++serial>2)throw new InvalidOperationException("Serial count");}
+     else if(d.Class=="Msvm_SyntheticDisplayControllerSettingData"&&d.Type==24&&d.Subtype=="Microsoft:Hyper-V:Synthetic Display Controller"){if(++display>1)throw new InvalidOperationException("Display count");}
+     else throw new InvalidOperationException("Unexpected native device class/type/subtype");
     }
+    all.Add(reference,StartRecords.Encode(new Dictionary<string,object>{{"class",d.Class},{"type",d.Type},{"subtype",d.Subtype},{"host",Empty(d.Host)?new string[0]:d.Host},{"connection",new string[0]},{"debugger",false}}));
    }
+   if(cpu!=1||memory!=1||media!=5)throw new InvalidOperationException("Required native resources missing");
+   var buffer=new StringBuilder();foreach(var pair in all){buffer.Append(pair.Key.Length.ToString(CultureInfo.InvariantCulture)).Append(':').Append(pair.Key).Append(pair.Value.Length.ToString(CultureInfo.InvariantCulture)).Append(':').Append(pair.Value);}string encoded=buffer.ToString();if(Encoding.UTF8.GetByteCount(encoded)>65536)throw new InvalidOperationException("Device inventory encoding bound");return H(encoded);
   }
-  public void VerifyOptical(NativeRpcDefinitionPlan p,string guid,string step,string reference,IDictionary<string,string> prior){
-   ProtectedAttempt.RequireSystem();OpticalGuard(p,guid,false);var expected=new Dictionary<string,string>(prior);expected.Add(step,reference);
-   // Earlier steps may be re-observed after later returned resources exist.
-   // Verify their exact association/fields here; before every new mutation and
-   // at final completion the entire inventory must match the known closure.
-   using(var settings=OpticalSettings(guid))VerifyOpticalSubset(p,expected,OpticalInventory(settings));OpticalGuard(p,guid,false);
+  static Dictionary<string,string> Resources(NativeRpcDefinitionPlan p,IStartJournal j){
+   NativeRpcOptical.VerifyCompleted(p,j);var proof=StartRecords.Parse(j.Read("native-optical.observed"),new[]{"schema","plan","vmGuid","owned","security","profile","resources","startAuthorized","providerOperationFenced","reservationMayRelease"});
+   var raw=proof["resources"] as Dictionary<string,object>;if(raw==null||raw.Count!=5)throw new InvalidOperationException("Optical resource receipt shape");var result=new Dictionary<string,string>();foreach(string step in NativeRpcOptical.Steps)result.Add(step,S(raw[step]));return result;
   }
-  public void VerifyOpticalComplete(NativeRpcDefinitionPlan p,string guid,IDictionary<string,string> resources){
-   ProtectedAttempt.RequireSystem();if(resources.Count!=5)throw new InvalidOperationException("Both optical roles required");OpticalGuard(p,guid,false);
-   using(var settings=OpticalSettings(guid))VerifyOpticalInventory(p,resources,OpticalInventory(settings));OpticalGuard(p,guid,false);
+  static string Proof(NativeRpcDefinitionPlan p,IStartJournal j,string inventory,int count){
+   string guid,owned=NativeRpcSecurity.Ownership(p,j,out guid);StartIdentity.Hex(inventory,64);if(count<7||count>10)throw new InvalidOperationException("Device count receipt");
+   return StartRecords.Encode(new Dictionary<string,object>{{"schema","native-rpc-device-observed/1"},{"plan",p.Digest},{"vmGuid",guid},{"owned",owned},{"security",NativeRpcSecurity.VerifyCompleted(p,j)},{"readGrant",NativeRpcReadGrant.VerifyCompleted(p,j)},{"optical",NativeRpcOptical.VerifyCompleted(p,j)},{"inventory",inventory},{"count",count},{"network","no-nic-af-hyperv-only"},{"serial","disconnected"},{"startAuthorized",false},{"providerOperationFenced",false},{"reservationMayRelease",false}});
+  }
+  public static string Observe(NativeRpcDefinitionPlan p,IStartJournal j,INativeRpcDeviceProvider provider,INativeRpcDefinitionRuntime runtime){
+   Current(p,runtime);long before=runtime.Now;string guid;NativeRpcSecurity.Ownership(p,j,out guid);var resources=Resources(p,j);
+   NativeRpcReadGrant.VerifyCompleted(p,j);var rows=provider.ReadDevices(p,guid);Current(p,runtime);
+   string proof=Proof(p,j,Validate(p,resources,rows),rows.Count);Current(p,runtime);long after=runtime.Now;
+   if(after<before||after-before>4000)throw new InvalidOperationException("Device observation stale");
+   string saved=j.Read("native-device.observed");if(saved==null)j.WriteOnce("native-device.observed",proof);else if(saved!=proof)throw new InvalidOperationException("Original device inventory changed");return H(proof);
+  }
+  // This authenticates historical evidence only. It never authorizes a later
+  // start; that operation must call Observe again within its original deadline.
+  internal static string VerifyCompleted(NativeRpcDefinitionPlan p,IStartJournal j){
+   string raw=j.Read("native-device.observed");var d=StartRecords.Parse(raw,new[]{"schema","plan","vmGuid","owned","security","readGrant","optical","inventory","count","network","serial","startAuthorized","providerOperationFenced","reservationMayRelease"});
+   long count=StartRecords.Number(d["count"]);if(count<7||count>10||raw!=Proof(p,j,S(d["inventory"]),(int)count))throw new InvalidOperationException("Original device policy receipt differs");return H(raw);
   }
  }
 }

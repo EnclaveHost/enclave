@@ -143,7 +143,7 @@ namespace Enclave.OwnedRpc {
                             runtime.Check(p,false);NativeRpcDefinitionOutcome result;
                             if(a.Operation=="define"){NativeRpcDefinition.Prepare(p,journal);result=NativeRpcDefinition.Submit(p,journal,provider,runtime);}
                             else result=NativeRpcDefinition.Reconcile(p,journal,provider,runtime);
-                            string securityReceipt="",opticalReceipt="",readGrantReceipt="";
+                            string securityReceipt="",opticalReceipt="",readGrantReceipt="",deviceReceipt="";
                             if(result.State=="defined-native-owned-off"){
                                 // Same original lease and asset pins; never reopen a consumed
                                 // security operation from a reconcile-only worker.
@@ -154,8 +154,9 @@ namespace Enclave.OwnedRpc {
                                 if(readGrantReceipt==null)throw new InvalidOperationException("Native file read grant held; no start or retry");
                                 opticalReceipt=NativeRpcOptical.Configure(p,journal,provider,runtime,a.Operation!="define");
                                 if(opticalReceipt==null)throw new InvalidOperationException("Native optical operation held; no start or retry");
+                                deviceReceipt=NativeRpcDevicePolicy.Observe(p,journal,provider,runtime);
                             }
-                            check();a.WriteOnce("child.result",StartRecords.Encode(new Dictionary<string,object>{{"readGrantReceipt",readGrantReceipt},{"opticalReceipt",opticalReceipt},{"securityReceipt",securityReceipt},{"plan",plan.ContractHash},{"state",result.State},{"vmGuid",result.VmGuid??""},{"ownedReceipt",result.OwnershipReceipt??""},{"settled",result.Settled},{"startAuthorized",false},{"providerOperationFenced",false},{"reservationMayRelease",false}}));
+                            check();a.WriteOnce("child.result",StartRecords.Encode(new Dictionary<string,object>{{"deviceReceipt",deviceReceipt},{"readGrantReceipt",readGrantReceipt},{"opticalReceipt",opticalReceipt},{"securityReceipt",securityReceipt},{"plan",plan.ContractHash},{"state",result.State},{"vmGuid",result.VmGuid??""},{"ownedReceipt",result.OwnershipReceipt??""},{"settled",result.Settled},{"startAuthorized",false},{"providerOperationFenced",false},{"reservationMayRelease",false}}));
                             return result.State=="defined-native-owned-off"?0:2;
                         }
                     }

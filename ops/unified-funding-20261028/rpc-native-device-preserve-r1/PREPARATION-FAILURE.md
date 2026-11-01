@@ -1,0 +1,1 @@
+Initial source-only move audit refused OpticalSettings because its original declaration follows a closing brace on the same line. No helper/build/test/commit/dispatched run occurred. Audit matching corrected to support that existing declaration formatting; exact method-body comparison retained.
