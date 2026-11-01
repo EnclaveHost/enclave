@@ -4,8 +4,8 @@ Package `enclave.host/isolation/m3/rpcservice`: a fixed supervisor for the RPC
 companion's native chain wrappers. It runs **inside** the attested dedicated
 CPU app domain. It is never a host launcher or an external provider proxy. It
 is a real, callable process-control adapter. It is **not** a complete attested
-deployment. Nothing calls it yet. There is no CLI activation and no monitor
-default.
+deployment. The explicit `cmd/rpc-native-init` namespace entry calls it; no
+monitor launch path or default enables it yet. It refuses ordinary host execution.
 
 The author supplied source without execution. Root review corrected cleanup
 quiescence, bounded caller waits for stalled kernel controls, and privilege
@@ -101,8 +101,8 @@ permanently poison the domain, as `poisonNative` does.
 ## Missing production integration (exact)
 
 1. No monitor call site. The monitor must create the cgroups and hold their
-   FDs, pass the original admission `time.Time` origin, call `Run`, and act on
-   `Cleanup`. Nothing is wired or enabled by default.
+   FDs, carry the original admission clock in the sealed entry contract, and
+   invoke the measured namespace entry. Nothing is enabled by default.
 2. The image must create role UIDs/GIDs 2101 (EL), 2102 (CL), 2103 (Base),
    2104 (probe), and bind only the matching writable data subtrees. The backend
    drops supplementary groups and selects these fixed unprivileged credentials.
@@ -121,9 +121,10 @@ permanently poison the domain, as `poisonNative` does.
    the 19 GiB parent are validated against real clients.
 7. The `-I -B` interpreter flags are this package's choice. Check them
    against how the maintained wrapper is invoked elsewhere.
-8. Tests use only an internal fake backend. There is no real subprocess or
-   cgroup test. The Linux backend (`backend_linux_amd64.go`) needs separate
-   privileged qualification on the target kernel.
+8. Lifecycle tests use an internal fake backend. Entry tests additionally use
+   real sealed memfds and an owned helper process with a held pidfd. There is
+   no positive privileged cgroup test. The Linux backend
+   (`backend_linux_amd64.go`) needs separate qualification on the target kernel.
 
 Cleanup confirmation covers process containment, not clean database shutdown,
 fsync, writer fencing or reservation release. A kill may leave recovery work.
@@ -137,3 +138,40 @@ Root qualification: 25 bounded Go checks passed; the Linux backend compiled.
 These exercise simulated lifecycle failure paths and actual refusal of ordinary
 directory descriptors, not privileged native containment. The image must also
 provision JWT read access only for EL/CL without granting cross-role writes.
+
+## Explicit namespace entry
+
+`cmd/rpc-native-init` is a separate amd64 ELF for the measured bootstrap. It is
+not part of the client root image and exposes no command/path configuration.
+It requires UID/EUID 0 and namespace PID1, with exactly these inherited FDs:
+
+| FD | Capability |
+| --- | --- |
+| 3 | The trusted monitor's own live pidfd |
+| 4 | Fully sealed 40-byte original deadline contract |
+| 5 | Aggregate parent cgroup |
+| 6–9 | EL, CL, Base and probe cgroups |
+| 10 | Supervisor control cgroup, a sibling of the role groups |
+
+The control cgroup must contain only PID1, with memory.max=128 MiB,
+memory.swap.max=0, memory.oom.group=1, pids.max=128, domain type and inherited
+CPU limit. It is inside the existing 19 GiB aggregate. Keeping the aggregate
+node empty permits its domain controllers to remain enabled.
+
+The monitor captures `MonotonicNow()` before preparation and passes that same
+origin to `NewEntryContract`. The memfd binds the kernel boot UUID and original
+monotonic origin/deadline; both sides require zero Linux time-namespace offsets.
+Full seals prevent mutation, not replay or unauthorized monitor substitution.
+The monitor must own the one-shot deployment claim and transfer its own pidfd.
+
+After validating the contract, an independent locked-thread watchdog is armed
+before cgroup validation or client startup. Owner death, descriptor error or
+the original deadline exits PID1 with status124, letting the kernel terminate
+its namespace descendants. It never signals an external process. SIGTERM and
+SIGINT enter the existing cleanup path; the watchdog remains armed. Borrowed
+FDs remain alive for the entire process. An outer guardian must cover bootstrap
+before the watchdog arms, kernel stalls and exact final domain death.
+
+This entry does not authenticate mounts, root measurement, app identity,
+JWT access, writer ownership or network policy. Those remain monitor release
+requirements. Process exit is not a clean database or storage-release receipt.
