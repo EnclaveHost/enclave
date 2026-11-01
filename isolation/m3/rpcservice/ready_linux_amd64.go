@@ -47,6 +47,11 @@ func (b *osBackend) localReady(ctx context.Context) (time.Time, error) {
 	if err = record.Validate(expected, now); err != nil {
 		return time.Time{}, err
 	}
+	if b.handoff != nil {
+		if record.ObservedMono == 0 || !b.handoff.observed.CompareAndSwap(0, record.ObservedMono) {
+			return time.Time{}, errors.New("private readiness already bound to handoff")
+		}
+	}
 	if b.readyOutput != nil {
 		if err = forwardLocalReady(ctx, b.readyOutput, raw); err != nil {
 			return time.Time{}, err

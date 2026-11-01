@@ -251,8 +251,17 @@ func (g *GuardClient) exchange(ctx context.Context, raw []byte) (err error) {
 // before mounts/client setup, never takes lifecycle/auth locks, and watches both
 // exact monitor pidfd and the original broker capability through all phases.
 func watchServingEntry(owner, channel int, origin, deadline uint64, armed chan<- struct{}, terminate func(int)) {
+	watchServingEntryWithHandoff(owner, channel, origin, deadline, armed, nil, terminate)
+}
+func watchServingEntryWithHandoff(owner, channel int, origin, deadline uint64, armed chan<- struct{}, handoff *servingHandoff, terminate func(int)) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	if handoff != nil {
+		defer handoff.fail()
+	}
+	var pending *servingOffer
+	var pendingState guardState
+	var pendingFrame []byte
 	state, e := newGuardState(origin, deadline)
 	close(armed)
 	if e != nil {
@@ -265,6 +274,35 @@ func watchServingEntry(owner, channel int, origin, deadline uint64, armed chan<-
 		if e != nil || now < origin || now >= state.until {
 			fail()
 			return
+		}
+		if handoff != nil {
+			select {
+			case <-handoff.lost:
+				fail()
+				return
+			default:
+			}
+		}
+		if pending != nil {
+			select {
+			case accepted := <-pending.accepted:
+				dead, e := pollOwner(owner, 0)
+				now, ne := MonotonicNow()
+				if !accepted || e != nil || dead || ne != nil || now >= state.until || now >= pendingState.until ||
+					(pendingFrame[8] == 2 && (now < pendingState.binding.Observed || now-pendingState.binding.Observed >= guardFresh)) {
+					fail()
+					return
+				}
+				state = pendingState
+				pendingFrame[8] |= 0x80
+				if sendGuard(channel, pendingFrame) != nil {
+					fail()
+					return
+				}
+				pending = nil
+				pendingFrame = nil
+			default:
+			}
 		}
 		wait := state.until - now
 		if wait > uint64(20*time.Millisecond) {
@@ -293,11 +331,30 @@ func watchServingEntry(owner, channel int, origin, deadline uint64, armed chan<-
 			fail()
 			return
 		}
+		if pending != nil {
+			fail()
+			return
+		} // one in-flight decision; no pipelined commits
 		prior := state.until
-		if e = state.accept(raw, now); e != nil {
+		next := state
+		if e = next.accept(raw, now); e != nil {
 			fail()
 			return
 		}
+		if handoff != nil && raw[8] != 1 {
+			offer := &servingOffer{binding: next.binding, sequence: next.sequence, expiry: next.until, accepted: make(chan bool, 1)}
+			select {
+			case handoff.offers <- offer:
+				pending = offer
+				pendingState = next
+				pendingFrame = raw
+				continue
+			default:
+				fail()
+				return
+			}
+		}
+		state = next
 		now, e = MonotonicNow()
 		dead, de := pollOwner(owner, 0)
 		if e != nil || de != nil || dead || now >= prior || now >= state.until {

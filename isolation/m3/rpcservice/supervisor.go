@@ -4,12 +4,13 @@
 // an attested deployment. Nothing runs on import; New only validates borrowed
 // capabilities and Run launches at most once.
 //
-// The supervisor classifies startup qualification only. PhaseClientsStarted
+// The supervisor records startup qualification and a local guardian commit. PhaseClientsStarted
 // records process launch; PhaseLocalReady additionally records a fresh private
 // front observation of the portable controller's whole-stack health. Neither
 // supplies attestation, storage authority or persistent serving permission. No
-// deadline handoff exists: every launched process is terminated at the
-// original origin+900s deadline.
+// health response extends a deadline. The native entry may commit the private
+// guardian handoff only after local readiness; serving remains independently
+// bounded by short permits, owner/channel loss and client process exits.
 package rpcservice
 
 import (
@@ -135,13 +136,14 @@ const (
 	PhaseStartingBase       Phase = "starting-base"
 	PhaseClientsStarted     Phase = "clients-started" // processes launched; not serving readiness
 	PhaseLocalReady         Phase = "local-ready"     // initial controller observation; not persistent adoption
+	PhaseServing            Phase = "serving-permit"  // local guardian commit only; not ledger Running
 	PhaseTerminated         Phase = "terminated"
 )
 
 type Outcome string
 
 const (
-	OutcomeDeadline Outcome = "deadline" // original deadline reached; see ClientsStarted
+	OutcomeDeadline Outcome = "deadline" // startup deadline or active serving permit expired
 	OutcomeStopped  Outcome = "stopped"
 	OutcomeFailed   Outcome = "failed"
 )
@@ -156,12 +158,13 @@ const (
 // State is a snapshot. ClientsStarted records that startup qualified before
 // the original deadline; it never implies RPC readiness or later liveness.
 type State struct {
-	Phase          Phase
-	ClientsStarted bool
-	LocalReadyAt   time.Time // historical monotonic request-start time; consumers must check freshness
-	Outcome        Outcome
-	Cleanup        Cleanup
-	Reason         string
+	Phase              Phase
+	ClientsStarted     bool
+	LocalReadyAt       time.Time // historical monotonic request-start time; consumers must check freshness
+	ServingCommittedAt time.Time // historical local guardian commit, not current health/authority
+	Outcome            Outcome
+	Cleanup            Cleanup
+	Reason             string
 }
 
 var ErrUsed = errors.New("rpcservice: supervisor is single-use")
@@ -189,9 +192,12 @@ type timing struct {
 var defaultTiming = timing{probeTimeout: 150 * time.Second, probeInterval: 10 * time.Second, probeSettle: 2 * time.Second, cleanupBound: 15 * time.Second, poll: 20 * time.Millisecond}
 
 type Supervisor struct {
-	be       backend
-	deadline time.Time
-	t        timing
+	be              backend
+	deadline        time.Time
+	t               timing
+	handoff         *servingHandoff // set only by native entry before Run
+	servingSequence uint64
+	servingBinding  GuardBinding
 
 	used     atomic.Bool
 	stopOnce sync.Once
@@ -265,8 +271,18 @@ func (s *Supervisor) run(parent context.Context) State {
 	// The deadline timer and this loop are the watchdog. Both are armed before
 	// the first launch and neither depends on the launching goroutine, which
 	// may be stuck inside a Start system call that no context can interrupt.
-	ctx, cancel := context.WithDeadline(parent, s.deadline)
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
+	until := s.deadline
+	expiry := time.NewTimer(time.Until(until))
+	defer expiry.Stop()
+	var offers <-chan *servingOffer
+	var lost <-chan struct{}
+	if s.handoff != nil {
+		offers = s.handoff.offers
+		lost = s.handoff.lost
+		defer s.handoff.fail()
+	}
 	exits := make(chan role, roleCount)
 	driven := make(chan error, 1)
 	driveDone := make(chan struct{})
@@ -277,20 +293,53 @@ func (s *Supervisor) run(parent context.Context) State {
 		select {
 		case <-s.stop:
 			outcome, reason = OutcomeStopped, "stop requested"
+		case <-expiry.C:
+			if time.Now().Before(until) {
+				expiry.Reset(time.Until(until))
+				continue
+			}
+			outcome, reason = OutcomeDeadline, "active startup/serving deadline reached"
+		case <-lost:
+			outcome, reason = OutcomeFailed, "original serving guardian lost"
+		case offer := <-offers:
+			// A pending process exit wins over serving adoption. Do not hide
+			// an exited client behind an otherwise fresh historical health.
+			select {
+			case r := <-exits:
+				offer.accepted <- false
+				outcome, reason = OutcomeFailed, r.String()+" wrapper exited"
+				continue
+			default:
+			}
+			next, err := s.acceptServing(ctx, offer, until)
+			if err != nil {
+				offer.accepted <- false
+				outcome, reason = OutcomeFailed, err.Error()
+				continue
+			}
+			until = next
+			if !expiry.Stop() {
+				select {
+				case <-expiry.C:
+				default:
+				}
+			}
+			expiry.Reset(time.Until(until))
+			offer.accepted <- true
 		case <-ctx.Done():
-			outcome, reason = s.ended()
+			outcome, reason = s.ended(until)
 		case r := <-exits:
 			outcome, reason = OutcomeFailed, r.String()+" wrapper exited"
 		case err := <-driven:
 			driven = nil
 			if err == nil {
-				continue // local health observed; supervise until the original deadline
+				continue // local health alone changes no deadline
 			}
 			outcome, reason = OutcomeFailed, err.Error()
 			if s.isStopped() {
 				outcome, reason = OutcomeStopped, "stop requested"
 			} else if ctx.Err() != nil {
-				outcome, reason = s.ended()
+				outcome, reason = s.ended(until)
 			}
 		}
 	}
@@ -326,9 +375,9 @@ func (s *Supervisor) run(parent context.Context) State {
 	return s.state
 }
 
-func (s *Supervisor) ended() (Outcome, string) {
-	if !time.Now().Before(s.deadline) {
-		return OutcomeDeadline, "original startup deadline reached"
+func (s *Supervisor) ended(until time.Time) (Outcome, string) {
+	if !time.Now().Before(until) {
+		return OutcomeDeadline, "active startup/serving deadline reached"
 	}
 	return OutcomeStopped, "caller context ended"
 }

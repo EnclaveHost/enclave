@@ -313,3 +313,24 @@ the original startup deadline unchanged. Broker preparation now requires both
 exact guardian acknowledgements. COMMIT/RENEW have no production emitter until
 the remaining owner/exporter/supervisor/operator/Windows boundaries participate.
 See `../rpcstorage/READINESS.md` for the protocol and current qualification limits.
+
+The native entry now links its guardian receiver to the same process's fixed-role
+supervisor through a private one-shot handoff. A COMMIT acknowledgement waits for
+Supervisor.Run to accept the transition while its own PhaseLocalReady and exact
+raw private observation are still fresh. The OS backend binds that observation
+before forwarding it to the broker. A public Request cannot supply this link.
+The run loop arms an explicit original startup timer before any launch; only a
+valid private commit replaces that active timer with a conservatively mapped
+short serving expiry. The original launch deadline remains immutable and no
+new client launch/retry becomes available after it. Ordered renewals update only
+the serving timer. Stops, caller loss, guardian loss and client exits still end
+all roles. `ServingCommittedAt` is a historical local commit timestamp, not
+current health, complete storage authority, ledger Running or release permission.
+
+While an offer waits for the supervisor (even on a held supervisor lock), the
+independent entry watcher continues watching the prior expiry, held monitor
+pidfd and broker socket. It neither changes its expiry nor sends COMMIT/RENEW ACK
+until acceptance and a final prior-expiry/freshness/liveness check. Invalid or
+late handoffs terminate. The broker still does not emit serving commits: original
+owner/exporter/broker/operator/systemd/Windows coordination remains unfinished.
+This increment is source integration and finite fixture evidence, not activation.

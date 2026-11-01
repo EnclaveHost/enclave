@@ -62,12 +62,16 @@ func TestLocalReadyForwardsExactPrivateFrameOnce(t *testing.T) {
 					}
 				}
 			}
-			b := &osBackend{readyReader: r, readyOutput: writer, approvalFrame: approval}
+			h := newServingHandoff()
+			b := &osBackend{readyReader: r, readyOutput: writer, approvalFrame: approval, handoff: h}
 			_, e = b.localReady(ctx)
 			if (e == nil) != (mode == "valid") {
 				t.Fatal(mode, e)
 			}
 			if mode == "valid" {
+				if h.observed.Load() != record.ObservedMono {
+					t.Fatal("handoff not bound to exact private observation")
+				}
 				rec, got, e := ReadLocalReadyEvidence(ctx, out)
 				if e != nil || rec != record || !bytes.Equal(got, raw) {
 					t.Fatal("changed/undelivered observation", e)

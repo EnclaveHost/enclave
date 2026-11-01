@@ -350,7 +350,8 @@ func EnterInherited() int {
 	if err != nil {
 		return 126
 	}
-	go watchServingEntry(3, channel, rawOrigin, deadline, armed, os.Exit)
+	handoff := newServingHandoff()
+	go watchServingEntryWithHandoff(3, channel, rawOrigin, deadline, armed, handoff, os.Exit)
 	<-armed
 	// Close the executable capability before any service can run. The monitor
 	// invoked this exact held inode, not a mutable path after verification.
@@ -373,6 +374,8 @@ func EnterInherited() int {
 	if err != nil {
 		return 126
 	}
+	s.handoff = handoff
+	s.be.(*osBackend).handoff = handoff
 	s.be.(*osBackend).readyOutput = readyOutput
 	if err := validateOwner(3); err != nil {
 		return 126

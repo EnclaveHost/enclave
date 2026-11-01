@@ -26,6 +26,7 @@ type osBackend struct {
 	groups                                          [roleCount]*os.File
 	approvalReader, approvalWriter, approvalBinding *os.File
 	approvalFrame                                   []byte
+	handoff                                         *servingHandoff
 	approvalUsed                                    atomic.Bool
 	readyReader, readyWriter, readyOutput           *os.File
 	readyUsed                                       atomic.Bool
