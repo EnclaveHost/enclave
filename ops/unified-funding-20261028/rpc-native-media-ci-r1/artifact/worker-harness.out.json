@@ -1,0 +1,4 @@
+{
+  "sha256": "4fb3617bf6f481091d6f6722a24c4a584c866eadcdc891799fd5a2f3657ace0e",
+  "text": "PASS canonical fixed profile binds both payload hashes\r\nPASS profile refuses duplicate escaped noncanonical or extra keys\r\nPASS profile refuses altered geometry role kernel and digest\r\n"
+}

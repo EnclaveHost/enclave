@@ -39,7 +39,7 @@ namespace Enclave.OwnedRpc {
   // namespace. No allocation proportional to media size; no header extensions.
   internal string Verify(Stream input,bool tree,Action current,Stream output){
    if(input==null||current==null||!input.CanRead||!input.CanSeek||input.Position!=0||input.Length!=Size(tree))throw new InvalidOperationException("Exact optical container geometry required");
-   current();var buffer=new byte[65536];long position=0;
+   current();var buffer=new byte[1048576];long position=0;
    using(var payload=new SHA256Cng())using(var whole=new SHA256Cng()){
     while(position<input.Length){
      current();int need=(int)Math.Min(buffer.Length,input.Length-position),n=input.Read(buffer,0,need);if(n==0)throw new EndOfStreamException("Short optical container");

@@ -1,0 +1,7 @@
+{
+  "windows/rpc/NativeRpcAuthority.cs": "6aa7baf592653159203cb21bdff199ad6bb786f239f2da444c30e93ee60246e8",
+  "windows/rpc/NativeRpcController.cs": "63cce838d9c278118763f1fa33b641c983c986ea8fe5496967089ad08ea33ea6",
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md": "9f176ca8b7002e7f866b57a16dd110da201ec262e209d260cee1ed7945ae469a",
+  "test/rpc-windows-worker/NativeRpcMediaHarness.cs": "749bd483827db777559a2d7e855f2a177371940fb2142e13554f63936b5e6129",
+  "test/rpc-windows-worker/run-native-media-ci.ps1": "3dec8487d8db425c1014a0c33c9f533ff29080296e40ebfe871b8f2561eb5133"
+}

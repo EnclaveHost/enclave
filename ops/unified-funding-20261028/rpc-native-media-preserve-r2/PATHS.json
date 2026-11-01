@@ -1,0 +1,10 @@
+[
+  "windows/rpc/NativeRpcAuthority.cs",
+  "windows/rpc/NativeRpcController.cs",
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md",
+  "test/rpc-windows-worker/NativeRpcMediaHarness.cs",
+  "test/rpc-windows-worker/run-native-media-ci.ps1",
+  "ops/unified-funding-20261028/rpc-native-media-ci-r1",
+  "ops/unified-funding-20261028/rpc-native-media-preserve-r2",
+  "ops/unified-funding-20261028/rpc-native-media-ci-r2"
+]

@@ -141,7 +141,7 @@ hashes, fixed sizes, kernel and wrapper. The controller validates that complete
 profile and exclusively copies both optical containers into the original
 attempt after consuming the original launch/define request. A 64 KiB all-zero
 prefix and exact payload size/hash are mandatory. Copies stream through a
-64 KiB buffer, fsync before publication, retain partial pending files on failure,
+1 MiB buffer, fsync before publication, retain partial pending files on failure,
 and never overwrite or retry. The source namespace and files stay held against
 write/replacement during copying. The prepared receipt is descriptive and says
 `attached=false`; it grants no provider or boot authority.

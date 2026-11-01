@@ -71,7 +71,7 @@ namespace Enclave.OwnedRpc {
    current();ProtectedAttempt.LocalPath(path);PinDirectory(Path.GetDirectoryName(path),true);
    if(Path.GetFileName(path)!=NativeRpcMediaProfile.Name(tree))throw new InvalidOperationException("Fixed optical destination required");
    string pending=path+".pending",digest;
-   using(var output=new FileStream(pending,FileMode.CreateNew,FileSystemRights.WriteData|FileSystemRights.ReadPermissions,FileShare.None,65536,FileOptions.WriteThrough,Security())){
+   using(var output=new FileStream(pending,FileMode.CreateNew,FileSystemRights.WriteData|FileSystemRights.ReadPermissions,FileShare.None,1048576,FileOptions.WriteThrough,Security())){
     ProtectedAttempt.Authority(output.SafeFileHandle,true,false,pending);
     digest=profile.Verify(input,tree,current,output);output.Flush(true);
    }

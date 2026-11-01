@@ -1,0 +1,30 @@
+{
+  "harness-compile.out": {
+    "bytes": 395,
+    "sha256": "33b43d1f215e5ad837bf2b26220cbaca419101fe05810e138b14886443590057"
+  },
+  "process-results.json": {
+    "bytes": 563,
+    "sha256": "96766c1d6782c040174ea120864dcee8fedcaeb4c81eb0697394ee9cf0f24dbf"
+  },
+  "pins.json": {
+    "bytes": 3917,
+    "sha256": "54473b87e75dc8b42a728bfe77607b998fcf79eb5c232e83bd9f01e2532c1f24"
+  },
+  "worker-harness.out": {
+    "bytes": 185,
+    "sha256": "4fb3617bf6f481091d6f6722a24c4a584c866eadcdc891799fd5a2f3657ace0e"
+  },
+  "worker-harness.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "harness-compile.err": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "owned-entry.exe": {
+    "bytes": 256000,
+    "sha256": "83413a369d08a6ae346ca16eebdbeaafb55c454052ad82dc7d050e02e577ade4"
+  }
+}
