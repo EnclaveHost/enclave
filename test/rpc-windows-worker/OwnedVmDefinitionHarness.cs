@@ -156,6 +156,33 @@ public static class OwnedVmDefinitionHarness {
   string commit=ready+(wrongHash?new string('0',64):ProtectedAttempt.Hash(bytes))+"\n";a.WriteOnce("observation.commit",commit);return commit;
  }
 
+ sealed class InventoryCase {
+  internal readonly List<Dictionary<string,object>> Systems=new List<Dictionary<string,object>>(),Settings=new List<Dictionary<string,object>>(),Links=new List<Dictionary<string,object>>(),Memory=new List<Dictionary<string,object>>();
+  internal static string PathFor(string type,string key){return @"\\.\root\virtualization\v2:"+type+".InstanceID=\""+key+"\"";}
+  internal InventoryCase(){
+   string g=PathFor("Msvm_VirtualSystemSettingData","group"),m=PathFor("Msvm_MemorySettingData","memory");
+   Systems.Add(D("Name",Id));Settings.Add(D("__PATH",g,"VirtualSystemIdentifier",Id));Links.Add(D("GroupComponent",g,"PartComponent",m));
+   Memory.Add(D("__PATH",m,"ResourceType",(ushort)4,"ResourceSubType","Microsoft:Hyper-V:Memory","AllocationUnits","byte * 2^20","VirtualQuantityUnits","byte * 2^20","VirtualQuantity",(ulong)2048,"Reservation",(ulong)2048,"Limit",(ulong)2048,"DynamicMemoryEnabled",false));
+  }
+  internal SortedDictionary<string,LegacyHandoff.MemoryRecord> Read(){return LegacyHandoff.InventoryRows(Systems,Settings,Links,Memory);}
+ }
+ static void InventoryTests(){
+  Test("batch-inventory-exact-native-association",()=>Check(new InventoryCase().Read()[Id].Bytes==2147483648));
+  Test("batch-inventory-missing-realized-refused",()=>{var c=new InventoryCase();c.Settings.Clear();Refuse(()=>c.Read());});
+  Test("batch-inventory-unknown-realized-refused",()=>{var c=new InventoryCase();c.Systems.Clear();Refuse(()=>c.Read());});
+  Test("batch-inventory-duplicate-system-refused",()=>{var c=new InventoryCase();c.Systems.Add(c.Systems[0]);Refuse(()=>c.Read());});
+  Test("batch-inventory-duplicate-realized-refused",()=>{var c=new InventoryCase();c.Settings.Add(c.Settings[0]);Refuse(()=>c.Read());});
+  Test("batch-inventory-missing-association-refused",()=>{var c=new InventoryCase();c.Links.Clear();Refuse(()=>c.Read());});
+  Test("batch-inventory-duplicate-association-refused",()=>{var c=new InventoryCase();c.Links.Add(c.Links[0]);Refuse(()=>c.Read());});
+  Test("batch-inventory-missing-memory-refused",()=>{var c=new InventoryCase();c.Memory.Clear();Refuse(()=>c.Read());});
+  Test("batch-inventory-duplicate-memory-refused",()=>{var c=new InventoryCase();c.Memory.Add(c.Memory[0]);Refuse(()=>c.Read());});
+  Test("batch-inventory-foreign-reference-refused",()=>{foreach(string path in new[]{@"\\foreign.invalid\root\virtualization\v2:Msvm_MemorySettingData.InstanceID=""memory""",@"\\.\root\cimv2:Msvm_MemorySettingData.InstanceID=""memory""","Msvm_MemorySettingData"}){var c=new InventoryCase();c.Links[0]["PartComponent"]=path;Refuse(()=>c.Read());}});
+  Test("batch-inventory-other-resource-not-memory",()=>{var c=new InventoryCase();c.Links[0]["PartComponent"]=InventoryCase.PathFor("Msvm_ProcessorSettingData","memory");Refuse(()=>c.Read());});
+  Test("batch-inventory-unrelated-template-not-a-claim",()=>{var c=new InventoryCase();c.Links.Add(D("GroupComponent",InventoryCase.PathFor("Msvm_VirtualSystemSettingData","template"),"PartComponent",c.Memory[0]["__PATH"]));Check(c.Read().Count==1);});
+  Test("batch-inventory-shared-memory-refused",()=>{var c=new InventoryCase();string id=Guid.NewGuid().ToString("D"),g=InventoryCase.PathFor("Msvm_VirtualSystemSettingData","other");c.Systems.Add(D("Name",id));c.Settings.Add(D("__PATH",g,"VirtualSystemIdentifier",id));c.Links.Add(D("GroupComponent",g,"PartComponent",c.Memory[0]["__PATH"]));Refuse(()=>c.Read());});
+  Test("batch-inventory-dynamic-memory-refused",()=>{var c=new InventoryCase();c.Memory[0]["DynamicMemoryEnabled"]=true;Refuse(()=>c.Read());});
+  Test("batch-inventory-finite-input-bounds",()=>{var c=new InventoryCase();while(c.Links.Count<=2048)c.Links.Add(c.Links[0]);Refuse(()=>c.Read());});
+ }
  static void PreparedContextTests(){
   Test("initial-gate-read-does-not-open-work-gate",()=>{var c=new ProtectedCase("preparation-gated");using(var a=c.Lease()){
    Check(ProtectedAttempt.Hash(a.ReadInitialGateObservation())==c.ObservationHash);Refuse(()=>a.ReadAdmission(c.ObservationHash));Check(!File.Exists(Path.Combine(a.Root,"observation.ready")));
@@ -299,7 +326,7 @@ public static class OwnedVmDefinitionHarness {
   Test("missing-vcpu-readback-refused",()=>Refuse(()=>HyperVOwnedDefinition.RequireProcessors(new object[]{})));
   Test("duplicate-vcpu-readback-refused",()=>Refuse(()=>HyperVOwnedDefinition.RequireProcessors(new object[]{(ulong)4,(ulong)4})));
   Test("plan-overflow-refused",()=>Refuse(()=>new OwnedVmDefinitionPlan(new string('a',32),new string('b',32),new string('c',64),new string('d',64),@"C:\OwnedRpcFixture\"+new string('a',32),Int64.MaxValue,Int64.MaxValue,new string('e',64),new string('f',64))));
-  PreparedContextTests();CollectorTests();
+  InventoryTests();PreparedContextTests();CollectorTests();
   PredecessorTests();ProtectedTests();count+=OwnedVmBootHarness.Run();
   Console.WriteLine("RESULT tests="+count+" providerCallsAreFakes=true vmChanged=false");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}

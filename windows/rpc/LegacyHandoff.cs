@@ -83,7 +83,7 @@ namespace Enclave.OwnedRpc {
   }
   List<Dictionary<string,object>> Query(string scope,string query,string[] fields,int maximum){
    Check();var list=new List<Dictionary<string,object>>();
-   var opts=new EnumerationOptions{Timeout=TimeSpan.FromSeconds(3),ReturnImmediately=false,Rewindable=false};
+   var opts=new EnumerationOptions{Timeout=TimeSpan.FromSeconds(3),ReturnImmediately=false,Rewindable=false,EnsureLocatable=Array.IndexOf(fields,"__PATH")>=0};
    using(var search=new ManagementObjectSearcher(scope,query,opts))using(var rows=search.Get())
     foreach(ManagementObject row in rows)using(row){Check();if(list.Count>=maximum)throw new InvalidOperationException("Management row bound");var d=new Dictionary<string,object>();foreach(string f in fields)d[f]=row[f];list.Add(d);}
    Check();return list;
@@ -159,24 +159,39 @@ namespace Enclave.OwnedRpc {
    public bool DynamicMemoryEnabled;
   }
 
+  static readonly string[] MemoryFields={"ResourceType","ResourceSubType","AllocationUnits","VirtualQuantityUnits","VirtualQuantity","Reservation","Limit","DynamicMemoryEnabled"};
+  internal static string InventoryPath(object value,string type){
+   string text=Str(value);var p=new ManagementPath(text);string server=p.Server,ns=p.NamespacePath;
+   if(!p.IsInstance||(!String.Equals(server,Environment.MachineName,StringComparison.OrdinalIgnoreCase)&&server!="."&&server!="")||
+      (!String.Equals(ns,@"root\virtualization\v2",StringComparison.OrdinalIgnoreCase)&&!String.Equals(ns,@"\\"+server+@"\root\virtualization\v2",StringComparison.OrdinalIgnoreCase))||
+      (type!=null&&!String.Equals(p.ClassName,type,StringComparison.OrdinalIgnoreCase)))throw new InvalidOperationException("Foreign inventory reference");
+   return p.RelativePath;
+  }
+  internal static SortedDictionary<string,MemoryRecord> InventoryRows(List<Dictionary<string,object>> systems,List<Dictionary<string,object>> settings,List<Dictionary<string,object>> links,List<Dictionary<string,object>> memory){
+   if(systems.Count>32||settings.Count>32||links.Count>2048||memory.Count>256)throw new InvalidOperationException("Inventory batch bound");
+   var expected=new HashSet<string>();foreach(var row in systems){Guid id;if(!Guid.TryParseExact(Str(row["Name"]),"D",out id)||!expected.Add(id.ToString("D")))throw new InvalidOperationException("VM identifier ambiguity");}
+   var groups=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);var covered=new HashSet<string>();
+   foreach(var row in settings){Guid id;if(!Guid.TryParseExact(Str(row["VirtualSystemIdentifier"]),"D",out id)||!expected.Contains(id.ToString("D"))||!covered.Add(id.ToString("D")))throw new InvalidOperationException("Realized VM inventory differs");
+    groups.Add(InventoryPath(row["__PATH"],"Msvm_VirtualSystemSettingData"),id.ToString("D"));}
+   if(covered.Count!=expected.Count)throw new InvalidOperationException("Incomplete all-VM inventory");
+   var records=new Dictionary<string,Dictionary<string,object>>(StringComparer.OrdinalIgnoreCase);
+   foreach(var row in memory)records.Add(InventoryPath(row["__PATH"],"Msvm_MemorySettingData"),row);
+   var used=new HashSet<string>(StringComparer.OrdinalIgnoreCase);var result=new SortedDictionary<string,MemoryRecord>(StringComparer.Ordinal);
+   foreach(var row in links){string group=InventoryPath(row["GroupComponent"],"Msvm_VirtualSystemSettingData"),part=InventoryPath(row["PartComponent"],null),id;
+    if(!groups.TryGetValue(group,out id)||!String.Equals(new ManagementPath(part).ClassName,"Msvm_MemorySettingData",StringComparison.OrdinalIgnoreCase))continue;
+    Dictionary<string,object> d;if(!records.TryGetValue(part,out d)||!used.Add(part)||result.ContainsKey(id))throw new InvalidOperationException("VM memory association ambiguity");
+    result.Add(id,new MemoryRecord{Bytes=MaximumMemory(d),VirtualQuantityMiB=(ulong)d["VirtualQuantity"],ReservationMiB=(ulong)d["Reservation"],LimitMiB=(ulong)d["Limit"],DynamicMemoryEnabled=(bool)d["DynamicMemoryEnabled"]});
+   }
+   if(result.Count!=expected.Count)throw new InvalidOperationException("Missing VM memory association");return result;
+  }
   SortedDictionary<string,MemoryRecord> Inventory(){
-   const string ns=@"root\virtualization\v2";Check();
+   const string ns=@"root\virtualization\v2";
    var systems=Query(ns,"SELECT Name FROM Msvm_ComputerSystem WHERE Caption='Virtual Machine'",new[]{"Name"},32);
-   var expected=new HashSet<string>();foreach(var s in systems){Guid id;if(!Guid.TryParseExact(Str(s["Name"]),"D",out id)||!expected.Add(id.ToString("D")))throw new InvalidOperationException("VM identifier ambiguity");}
-   var result=new SortedDictionary<string,MemoryRecord>(StringComparer.Ordinal);
-   var opts=new EnumerationOptions{Timeout=TimeSpan.FromSeconds(3),ReturnImmediately=false,Rewindable=false};
-   using(var search=new ManagementObjectSearcher(ns,"SELECT * FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemType='Microsoft:Hyper-V:System:Realized'",opts))using(var rows=search.Get())
-    foreach(ManagementObject vm in rows)using(vm){
-     Check();Guid id;if(result.Count>=32||!Guid.TryParseExact((string)vm["VirtualSystemIdentifier"],"D",out id)||!expected.Contains(id.ToString("D"))||result.ContainsKey(id.ToString("D")))throw new InvalidOperationException("Realized VM inventory differs");
-     int count=0;MemoryRecord record=null;
-     using(var memory=vm.GetRelated("Msvm_MemorySettingData"))foreach(ManagementObject m in memory)using(m){
-      Check();if(++count!=1)throw new InvalidOperationException("VM memory association ambiguity");var d=new Dictionary<string,object>();
-      foreach(string k in new[]{"ResourceType","ResourceSubType","AllocationUnits","VirtualQuantityUnits","VirtualQuantity","Reservation","Limit","DynamicMemoryEnabled"})d[k]=m[k];
-      record=new MemoryRecord{Bytes=MaximumMemory(d),VirtualQuantityMiB=(ulong)d["VirtualQuantity"],ReservationMiB=(ulong)d["Reservation"],LimitMiB=(ulong)d["Limit"],DynamicMemoryEnabled=(bool)d["DynamicMemoryEnabled"]};
-     }
-     if(count!=1)throw new InvalidOperationException("Missing VM memory association");result.Add(id.ToString("D"),record);
-    }
-   if(result.Count!=expected.Count)throw new InvalidOperationException("Incomplete all-VM inventory");Check();return result;
+   var settings=Query(ns,"SELECT __PATH,VirtualSystemIdentifier FROM Msvm_VirtualSystemSettingData WHERE VirtualSystemType='Microsoft:Hyper-V:System:Realized'",new[]{"__PATH","VirtualSystemIdentifier"},32);
+   var links=Query(ns,"SELECT GroupComponent,PartComponent FROM Msvm_VirtualSystemSettingDataComponent",new[]{"GroupComponent","PartComponent"},2048);
+   var fields=new List<string>(MemoryFields);fields.Add("__PATH");
+   var memory=Query(ns,"SELECT "+String.Join(",",fields)+" FROM Msvm_MemorySettingData",fields.ToArray(),256);
+   var result=InventoryRows(systems,settings,links,memory);Check();return result;
   }
   internal static SortedDictionary<string,long> AssignedRows(SortedDictionary<string,MemoryRecord> inventory,IEnumerable<Dictionary<string,object>> rows){
    var assigned=new SortedDictionary<string,long>(StringComparer.Ordinal);
