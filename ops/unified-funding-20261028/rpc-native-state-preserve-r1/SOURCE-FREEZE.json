@@ -1,0 +1,11 @@
+{
+  "windows/rpc/NATIVE-MANAGER-CONTROLLER.md": "b826a1f0c765976136b7da75efeb664af83feb708e9d9356848bb2323af2d6f4",
+  "windows/rpc/NativeRpcAuthority.cs": "621242ad3b9b736a4791ee2151c077b07c69b910118eae1fab690ed362c903eb",
+  "windows/rpc/NativeRpcStartAuthority.cs": "9901ffaab50307e27b2cd55919d8ad01a88fa5902acb9c6e70fd09f683279ab6",
+  "windows/rpc/ProtectedAttempt.cs": "49ed650a3716cfc69c8efc9d1b9f03d4b25ca3af988123eac6f301a3f349e7f9",
+  "windows/rpc/ProviderStart.cs": "9eaf3c834fd1ebb4b2f26f2b3be44ef27b85f8dc5d8d23d909c5562edde9c75e",
+  "windows/rpc/README.md": "df7178602b8150afb7a79840022b09128d7c952115ad2ee837dd107310c6371d",
+  ".github/workflows/rpc-native-state.yml": "8643725844c60c614ccbcf493f45a8327f685a8115542402611d128807a934b6",
+  "test/rpc-windows-worker/NativeRpcStateHarness.cs": "6ea6dd4895a4d625c2741a2dbf3c19bd69b0f1b847756eb17d7aeb81a8e99ae3",
+  "test/rpc-windows-worker/run-native-state-ci.ps1": "8592854f6237c23521f87916ec14129b33f5863d987b34bf8cb205c351402020"
+}

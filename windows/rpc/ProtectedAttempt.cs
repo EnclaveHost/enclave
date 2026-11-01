@@ -303,6 +303,7 @@ namespace Enclave.OwnedRpc {
         }
         internal static bool NativeDefinitionRecordAllowed(string name,bool reconcile) {
             if(name=="native-device.observed"||NativeRpcOptical.Allowed(name,reconcile))return true;
+            if(!reconcile&&name=="native-state.initial")return true;
             if(!reconcile&&(name=="native-read.intent"||name=="native-read.submit"||name=="native-read.receipt"))return true;
             if(name=="native-security.job"||name=="native-security.terminal"||name=="native-security.observed")return true;
             if(!reconcile&&(name=="native-security.intent"||name=="native-security.native"||name=="native-security.invoke"||name=="native-security.receipt"))return true;

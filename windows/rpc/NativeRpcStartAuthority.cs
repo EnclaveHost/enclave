@@ -36,6 +36,7 @@ namespace Enclave.OwnedRpc {
   public void Check(NativeRpcDefinitionPlan p,bool mutation){
    ProtectedAttempt.RequireSystem();guard();lease.CheckDeadline();pin.CheckDeadline();if(p==null||p.Encode()!=pin.NativeDefinitionPlan.Encode()||lease.PermitHash!=p.Digest||p.Boot!=ProtectedAttempt.CurrentBoot()||!keeper.Alive||Now<p.Origin||Now>=p.Deadline)throw new InvalidOperationException("Original native lifecycle authority expired");
    if(mutation){if(!pinned){pin.PinNativeAsset("runtime.igvm",p.FirmwareHash,Int32.MaxValue,false);pin.PinNativeAsset("guest-state.vmgs",p.StateHash,64*1024*1024,true);pin.PinNativeAsset("bundle.bin",p.App,9*1024*1024,false);pin.PinNativeAsset("record.json",p.Record,65536,false);pin.PinNativeAsset("profile.json",p.Profile,65536,false);pin.PinNativeMedia();pinned=true;}WindowsStartAdmission.VerifyNativeDefinition(pin,lease,ref completion);}
+   if(pinned)pin.ObserveNativeState();
    guard();lease.CheckDeadline();if(!keeper.Alive)throw new InvalidOperationException("Independent lifecycle owner lost");
   }
   public string CheckStart(NativeRpcDefinitionPlan p,string guid){Check(p,true);var j=new NativeRpcCleanupJournal(pin);string original;NativeRpcSecurity.Ownership(p,j,out original);if(original!=guid)throw new InvalidOperationException("Original lifecycle VM differs");

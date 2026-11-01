@@ -203,6 +203,7 @@ namespace Enclave.OwnedRpc {
                 throw new InvalidOperationException("Configured VM memory differs from reserved static guest budget");
         }
         static readonly string[] MemoryFields={"ResourceType","ResourceSubType","AllocationUnits","VirtualQuantityUnits","VirtualQuantity","Reservation","Limit","DynamicMemoryEnabled","AutomaticAllocation","SwapFilesInUse"};
+#if !NATIVE_RPC_ONLY
         static void VerifyGuestMemory(ManagementObject settings,long bytes) {
             int count=0;
             using(var rows=settings.GetRelated("Msvm_MemorySettingData")) {
@@ -222,9 +223,12 @@ namespace Enclave.OwnedRpc {
             runtime.VerifyBeforeSubmit(id);
             if(runtime.Now<id.Origin||runtime.Now>=id.Deadline)throw new InvalidOperationException("Original deadline expired");
         }
+#endif
         const string Namespace=@"root\virtualization\v2";
+#if !NATIVE_RPC_ONLY
         readonly IStartRuntime runtime;readonly IStartJournal journal;
         public HyperVStartProvider(IStartRuntime runtime,IStartJournal journal){if(runtime==null||journal==null)throw new ArgumentNullException("dependencies");this.runtime=runtime;this.journal=journal;}
+#endif
         public static string ReferenceForId(string id){if(id==null||!Regex.IsMatch(id,"\\A[A-Za-z0-9_:{}.\\-]{1,128}\\z"))throw new InvalidOperationException("Job key encoding");return "Msvm_ConcreteJob.InstanceID=\""+id+"\"";}
         public static string CanonicalJobReference(string raw){
             if(raw==null||raw.Length>2048)throw new InvalidOperationException("Returned job reference bound");
@@ -279,6 +283,7 @@ namespace Enclave.OwnedRpc {
             }
         }
 #endif
+#if !NATIVE_RPC_ONLY
         public StartJob ReadJob(string reference){
             ProtectedAttempt.RequireSystem();string path=CanonicalJobReference(reference);if(path!=reference)throw new InvalidOperationException("Persisted canonical reference required");
             using(var job=new ManagementObject(Scope(),new ManagementPath(path),new ObjectGetOptions{Timeout=TimeSpan.FromSeconds(2)})){
@@ -288,5 +293,6 @@ namespace Enclave.OwnedRpc {
                 return new StartJob(reference,(string)job["InstanceID"],time,Convert.ToUInt16(job["JobState"]),Convert.ToUInt16(job["ErrorCode"]),Convert.ToUInt32(job["JobRunTimes"]));
             }
         }
+#endif
     }
 }

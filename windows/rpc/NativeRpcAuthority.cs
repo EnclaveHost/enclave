@@ -59,6 +59,7 @@ namespace Enclave.OwnedRpc {
   }
  }
  public sealed partial class ProtectedAttempt {
+  SafeFileHandle nativeStatePin;string nativeStateRecord;
   readonly Dictionary<string,SafeFileHandle> nativeReadPins=new Dictionary<string,SafeFileHandle>();
   internal void PinNativeMedia(){
    if(NativeDefinitionPlan==null||accessLease==null||!((LeaseProfile=="native-definition-journal"&&accessLease.Operation=="define")||(LeaseProfile=="native-start-journal"&&accessLease.Operation=="start")))throw new InvalidOperationException("Original native media custody requires submit lease");
@@ -84,15 +85,39 @@ namespace Enclave.OwnedRpc {
     Authority(h,true,false,path);FileInfo info;
     if(!GetFileInformationByHandle(h,out info)||info.Links!=1)throw new InvalidOperationException("Native asset must be a single-link private copy");
     stream=new FileStream(h,FileAccess.Read);if(stream.Length<1||stream.Length>maximum)throw new InvalidOperationException("Native asset size bound");
-    string actual;using(var sha=SHA256.Create())actual=BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","").ToLowerInvariant();
-    if(actual!=digest)throw new InvalidOperationException("Native asset digest differs");
-    // Firmware/bundle/profile/record deny write+delete. VMGS allows provider
-    // updates but not replacement: hash is the INITIAL state copy, not a claim
-    // that VMGS stays immutable after DefineSystem. The full guest verifier
-    // must authenticate actual hardware/runtime before accepting any service.
+    if(mutable){
+     if(digest!=NativeDefinitionPlan.StateHash||maximum!=64*1024*1024)throw new InvalidOperationException("Fixed original state budget required");
+     if(nativeStatePin!=null)throw new InvalidOperationException("State custody already acquired");
+     if(LeaseProfile=="native-definition-journal"){
+      // This record is created before any provider submission. A partial or
+      // existing record never permits recapturing a changed file as initial.
+      var journal=new NativeRpcDefinitionJournal(this);
+      if(journal.Read("native-state.initial")!=null||journal.Read("native-definition.submit")!=null)throw new InvalidOperationException("Initial state capture already consumed");
+      string actual;using(var sha=SHA256.Create())actual=BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","").ToLowerInvariant();
+      if(actual!=digest)throw new InvalidOperationException("Initial native state digest differs");
+      long size;string identity=ReadGrantFileIdentity(h,out size);
+      nativeStateRecord=String.Join("\n",new[]{"native-rpc-state-custody/1",NativeDefinitionPlan.Digest,digest,identity,size.ToString(CultureInfo.InvariantCulture),ReadGrantSecurityHash(ReadGrantDescriptor(h)),""});
+      journal.WriteOnce("native-state.initial",nativeStateRecord);
+     }else nativeStateRecord=new NativeRpcCleanupJournal(this).Read("native-state.initial");
+     ValidateNativeState(h,nativeStateRecord);nativeStatePin=h;
+    }else{
+     string actual;using(var sha=SHA256.Create())actual=BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","").ToLowerInvariant();
+     if(actual!=digest)throw new InvalidOperationException("Native asset digest differs");
+    }
+    // Firmware/bundle/profile/record deny write+delete. VMGS permits provider
+    // writes, never replacement while held. Later start custody checks the
+    // recorded original file incarnation and ACL, not pristine template bytes.
+    // This is not continuous custody between processes or guest attestation.
     held.Add(stream);if(name=="runtime.igvm")nativeReadPins.Add(name,h);stream=null;CheckDeadline();
    }catch{if(stream!=null)stream.Dispose();else if(!h.IsClosed)h.Dispose();throw;}
   }
+  void ValidateNativeState(SafeFileHandle h,string raw){
+   if(raw==null)throw new InvalidOperationException("Original state receipt missing");var f=raw.Split('\n');long initial;
+   if(f.Length!=7||f[0]!="native-rpc-state-custody/1"||f[1]!=NativeDefinitionPlan.Digest||f[2]!=NativeDefinitionPlan.StateHash||f[6]!=""||!Int64.TryParse(f[4],NumberStyles.None,CultureInfo.InvariantCulture,out initial)||initial<1||initial>64*1024*1024)throw new InvalidOperationException("Original state receipt differs");
+   long size;string identity=ReadGrantFileIdentity(h,out size);
+   if(identity!=f[3]||size>64*1024*1024||ReadGrantSecurityHash(ReadGrantDescriptor(h))!=f[5])throw new InvalidOperationException("Original state identity permissions or size changed");
+  }
+  internal void ObserveNativeState(){CheckDeadline();if(nativeStatePin==null)throw new InvalidOperationException("Original state handle missing");ValidateNativeState(nativeStatePin,nativeStateRecord);CheckDeadline();}
  }
  internal static class NativeManagerAuthority {
   static readonly JavaScriptSerializer Json=new JavaScriptSerializer{MaxJsonLength=262144,RecursionLimit=32};
@@ -165,6 +190,7 @@ namespace Enclave.OwnedRpc {
     if(!pinned){plan.PinNativeAsset("runtime.igvm",p.FirmwareHash,Int32.MaxValue,false);plan.PinNativeAsset("guest-state.vmgs",p.StateHash,64*1024*1024,true);plan.PinNativeAsset("bundle.bin",p.App,9*1024*1024,false);plan.PinNativeAsset("record.json",p.Record,65536,false);plan.PinNativeAsset("profile.json",p.Profile,65536,false);plan.PinNativeMedia();pinned=true;}
     WindowsStartAdmission.VerifyNativeDefinition(plan,lease,ref completed);
    }
+   if(pinned)plan.ObserveNativeState();
    guard();plan.CheckDeadline();if(mutation&&Now>=p.Deadline)throw new InvalidOperationException("Native startup deadline expired");
   }
   public bool WaitForNextObservation(NativeRpcDefinitionPlan p){
