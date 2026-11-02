@@ -1,6 +1,6 @@
 """Build the measured SEV-SNP RPC guest image from the reviewed RPC guest OS.
 
-python3 -I rpc/snp/build_image.py OUT_DIR
+python3 -I rpc/snp/build_image.py OUT_DIR [COVERAGE_DIR]
 
 One ordinary (non-confidential) KVM build VM boots a private overlay of the
 pinned public boot image once; cloud-init applies every root-only change and
@@ -17,6 +17,12 @@ client drop-ins), plus: SNP report modules, a verity local-top script, chain
 clients and the attested front enabled at boot, longer clean-stop timeouts, a
 tmpfs overlay for all runtime writes, and SSH and cloud-init disabled so the
 measured image is the only code path into the guest.
+
+COVERAGE_DIR (optional) activates Base: its receipt.json, verdict.json, origin.json
+and snapshot-manifest.json become root-owned /etc/enclave-rpc/coverage/*, and
+chain.json's baseBootstrap is replaced by COVERAGE_DIR/base-bootstrap.json. The
+guest's chain service (coverage_activation) checks that this section pins those
+exact bytes and that they bind this chain config, manifest and binaries.
 """
 import base64
 import hashlib
@@ -45,14 +51,27 @@ def run(argv, **kw):
     return subprocess.run(argv, check=True, capture_output=True, text=True, **kw)
 
 
-def seed_config(owner_pub):
+COVERAGE_FILES = ('receipt.json', 'verdict.json', 'origin.json', 'snapshot-manifest.json')
+
+
+# chain.json and manifest.json come from the pinned boot image, so the baseBootstrap swap runs in the build VM.
+SET_BOOTSTRAP = (
+    "import json,os; p='/etc/enclave-rpc/chain.json'; c=json.load(open(p)); "
+    "c['baseBootstrap']=json.load(open('/etc/enclave-rpc/base-bootstrap.json')); "
+    "open(p,'w').write(json.dumps(c,indent=1)+chr(10)); os.remove('/etc/enclave-rpc/base-bootstrap.json')")
+
+
+def seed_config(owner_pub, coverage=None):
     raw = (PRIVATE_SEED/'files/user-data').read_text()
-    base = json.loads(raw.split('\n', 1)[1])
-    writes = [w for w in base['write_files'] if not w['path'].startswith('/etc/ssh/')]
+    writes = [w for w in json.loads(raw.split('\n', 1)[1])['write_files'] if not w['path'].startswith('/etc/ssh/')]
 
     def add(path, data, mode='0644'):
         writes.append({'path': path, 'owner': 'root:root', 'permissions': mode, 'encoding': 'b64',
                        'content': base64.b64encode(data).decode()})
+    if coverage is not None:
+        add('/etc/enclave-rpc/base-bootstrap.json', (coverage/'base-bootstrap.json').read_bytes())
+        for name in COVERAGE_FILES:
+            add('/etc/enclave-rpc/coverage/'+name, (coverage/name).read_bytes())
     add('/opt/enclave-rpc/front.py', (HERE/'front.py').read_bytes(), '0755')
     add('/etc/initramfs-tools/hooks/enclave-verity', (HERE/'enclave-verity-hook').read_bytes(), '0755')
     add('/etc/initramfs-tools/scripts/local-top/enclave-verity', (HERE/'enclave-verity-local-top').read_bytes(), '0755')
@@ -77,6 +96,7 @@ def seed_config(owner_pub):
         'apt-get -q update',
         'apt-get -qy install linux-modules-extra-$(uname -r)',
         'apt-get clean',
+        *(['python3 -I -c "%s"' % SET_BOOTSTRAP, 'chmod 0755 /etc/enclave-rpc/coverage'] if coverage is not None else []),
         'update-initramfs -u -k all',
         'for u in enclave-rpc-el enclave-rpc-cl enclave-rpc-base; do ln -sf /etc/systemd/system/$u.service /etc/systemd/system/multi-user.target.wants/$u.service; done',
         'systemctl enable enclave-rpc-front.service',
@@ -101,15 +121,16 @@ def seed_config(owner_pub):
     return cloud
 
 
-def main(out):
+def main(out, coverage=None):
     out = Path(out)
+    coverage = Path(coverage) if coverage else None
     out.mkdir(mode=0o700)
     if sha(BOOT_VHDX) != BOOT_SHA256:
         raise ValueError('Pinned boot image changed')
     run(['/usr/bin/ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(out/'build-key')])
     seed = out/'seed'
     seed.mkdir(mode=0o700)
-    (seed/'user-data').write_text('#cloud-config\n'+json.dumps(seed_config((out/'build-key.pub').read_text().strip()))+'\n')
+    (seed/'user-data').write_text('#cloud-config\n'+json.dumps(seed_config((out/'build-key.pub').read_text().strip(), coverage))+'\n')
     # identity.py binds the guest to /var/lib/cloud/data/instance-id, which cloud-init
     # records from this meta-data: use the runtime identity's own instance.
     config = json.loads((seed/'user-data').read_text().split('\n', 1)[1])
@@ -158,7 +179,8 @@ def main(out):
              'buildSeconds': round(time.time()-t), 'bootImageSha256': BOOT_SHA256,
              'artifacts': {n: {'bytes': (out/n).stat().st_size, 'sha256': sha(out/n)}
                            for n in ('vmlinuz', 'initrd.img', 'root.img', 'root.verity')},
-             'sources': {n: sha(HERE/n) for n in ('front.py', 'enclave-verity-hook', 'enclave-verity-local-top', 'build_image.py')}}
+             'sources': {n: sha(HERE/n) for n in ('front.py', 'enclave-verity-hook', 'enclave-verity-local-top', 'build_image.py')},
+             'coverage': {n: sha(coverage/n) for n in COVERAGE_FILES + ('base-bootstrap.json',)} if coverage else None}
     (out/'IMAGE.json').write_text(json.dumps(image, indent=1)+'\n')
     for p in (out/'build-key', out/'build.qcow2'):
         p.unlink()
@@ -166,4 +188,4 @@ def main(out):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    main(*sys.argv[1:3])
