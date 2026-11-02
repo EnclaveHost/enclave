@@ -3,7 +3,9 @@
 package rpcstorage
 
 import (
+	"bytes"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/tls"
@@ -320,5 +322,79 @@ func TestGrantRootsRefusesBeforeAuthorityAndIsOneShot(t *testing.T) {
 	}
 	if err = g.session.GrantRoots(root, root); err == nil || !strings.Contains(err.Error(), "already consumed") {
 		t.Fatal("grant replay after refusal", err)
+	}
+}
+
+// guestBootstrapCertificate reproduces rpcbootstrap's in-guest transport
+// certificate: self-signed Ed25519, constant CN, not a CA, private key never
+// leaving the guest. Only its exact DER is pinned by both storage authorities.
+func guestBootstrapCertificate(t *testing.T) tls.Certificate {
+	t.Helper()
+	pub, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	now := time.Now()
+	tpl := &x509.Certificate{SerialNumber: serial, Subject: pkix.Name{CommonName: "RPC attempt"}, NotBefore: now.Add(-time.Minute), NotAfter: now.Add(15 * time.Minute), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}, BasicConstraintsValid: true}
+	der, err := x509.CreateCertificate(rand.Reader, tpl, tpl, pub, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}
+}
+
+// The data path reuses the guest's own bootstrap credential instead of host-
+// delivered per-role client keys. qemu-nbd trusts exactly the listed DER beside
+// the owner CA (needed for its own server chain); the DN alone is not identity,
+// so a different self-signed certificate with the same constant DN is refused.
+func TestGuestBootstrapCertificateAuthorizesOnlyExactExport(t *testing.T) {
+	const size = 1 << 20
+	for _, mode := range []string{"listed-guest", "same-dn-impostor", "unlisted-guest"} {
+		t.Run(mode, func(t *testing.T) {
+			dir := t.TempDir()
+			tlsDir := filepath.Join(dir, "tls")
+			os.Mkdir(tlsDir, 0700)
+			pki := newPKI(t, tlsDir, "rpc-storage-test-l1")
+			guest := guestBootstrapCertificate(t)
+			var trust bytes.Buffer
+			pem.Encode(&trust, &pem.Block{Type: "CERTIFICATE", Bytes: pki.ca.Raw})
+			if mode != "unlisted-guest" {
+				pem.Encode(&trust, &pem.Block{Type: "CERTIFICATE", Bytes: guest.Certificate[0]})
+			}
+			if err := os.WriteFile(filepath.Join(tlsDir, "ca-cert.pem"), trust.Bytes(), 0600); err != nil {
+				t.Fatal(err)
+			}
+			client := guest
+			if mode == "same-dn-impostor" {
+				client = guestBootstrapCertificate(t)
+			}
+			image := filepath.Join(dir, "state.raw")
+			if err := os.WriteFile(image, nil, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Truncate(image, size); err != nil {
+				t.Fatal(err)
+			}
+			port := freePort(t)
+			startQemuNBD(t, image, tlsDir, "rpc-test-l1", "CN=RPC attempt", port)
+			ep := DataEndpoint{Role: "l1", Address: netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), uint16(port)), ServerName: "rpc-storage-test-l1", ExportName: "rpc-test-l1", Bytes: size, FilesystemUUID: [16]byte{1}, ServerCA: pki.ca}
+			raw, err := net.Dial("tcp", ep.Address.String())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer raw.Close()
+			got, err := negotiateExport(raw, ep, client, time.Now().Add(3*time.Second))
+			if mode == "listed-guest" {
+				if err != nil {
+					t.Fatal("exact listed guest certificate refused", err)
+				}
+				got.conn.Close()
+				return
+			}
+			if err == nil {
+				t.Fatal("unlisted certificate with the guest DN negotiated an export")
+			}
+		})
 	}
 }

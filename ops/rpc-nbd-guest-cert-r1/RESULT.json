@@ -1,0 +1,1 @@
+{"phases": [{"phase": "nbd-attach", "exit": 0}], "elapsed": 31.70483773199976, "sourcePins": 8, "pinsUnchanged": true, "artifacts": {}, "deployed": false}
