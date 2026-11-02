@@ -2,15 +2,20 @@
 
 Written 2026-10-25. This is source and staging only. Nothing here touched the VM, made an SSH or chain call, read a secret, or wrote `chain.json`/`coverageVerified`. No commits.
 
-**Status: the gate is runnable and tested offline. It has never been run on the real snapshot or the real L1 pair.** A downloaded snapshot is not a ready snapshot. Activation still needs the live runs in §5 and root's review of their output.
+**Status (updated 2026-11-02):** this file was written before any live run, and its §5–§6 record that history.
+- The gate has since returned `COVERED` on the real snapshot and L1 pair. The verdict is r4, with one blob-patched slot, 15522751.
+- The verdict was accepted after an independent review. The accepted set, review findings and conditions are in `ops/rpc-base-coverage-r1/activation-r4/` (`REVIEW.md`), and the set is built into SNP image r8.
+- The bootstrap blobs are served only until about 2026-11-11 16:50 UTC. A Base start after that needs a new verdict and a new image.
 
 ## 1. Files
 
 | File | sha256 | Purpose |
 |---|---|---|
 | `origin_extract.py` | `6b63b901…3c86c` | Offline, read-only extraction of the snapshot's persisted safe, finalized and tip labels and their L1 origins. |
-| `coverage_gate.py` | `b4f6d639…3854b` | Read-only L1 coverage validator. Writes a structured verdict. |
+| `coverage_gate.py` | `389d296f…c17e7e` | Read-only L1 coverage validator. Writes a structured verdict. |
 | `kzgcheck/` (`src/main.rs`, `Cargo.toml`, `Cargo.lock` `647aad9f…af10b4`) | binary `00b3eeb94efece39e4f2cf8e34d5d3450d532328ccc667a6a74e83b151be10eb` | Recomputes commitments: blob → KZG commitment (c-kzg 2.1.8, embedded mainnet setup), and header hash, transactions root and receipts root (alloy 2.4.1). |
+| `acceptance.py` | | Assembles the activation set from a reviewed verdict, including the verdict's blob patch, and checks it with the image's own `coverage_activation`. |
+| `vm_smoke.py` | | Boots a guest to smoke-test the Base start path. |
 | `kzgcheck/lockcheck.py` | | Proves every crate in kzgcheck's lock equals base-v1.5.1's `Cargo.lock` (version + checksum + source). |
 | `test_origin_extract.py`, `test_coverage_gate.py`, `jobs/{build-kzg,test,real-origin}.sh` | | Tests and queue jobs. |
 | `logs/` | | Queue guard logs and outputs. The `*.try1.out` files keep the failed attempts. |
@@ -158,5 +163,6 @@ Only `COVERED` (exit 0) plus root's review may lead to setting `baseBootstrap.{c
    - The beacon block root and canonical flag come from our own Lighthouse; SSZ roots are not recomputed.
    - Signatures and senders are not recovered. This is harmless because the blob filter does not use `from`.
    - Base's derivation correctness beyond data availability is not tested.
-6. **`chain_service.py` is unchanged.** Its Base start check is still count-only (`len(blobs) == len(commitments)` at one slot). Consider making it require a reviewed `COVERED` verdict. That is outside this staging directory.
+6. **Superseded:** `chain_service.py` was once count-only. Its `coverage_activation` now requires an accepted `COVERED` receipt that binds the verdict, origin, snapshot manifest, chain config, binary and kzgcheck by sha256.
+   - It does not yet require the blob patch's sha256 when the verdict has patched slots. Review condition (a) covers that, and it is open for the next image.
 7. **Single site and sequencer.** One operator and one site, and the sequencer dependence remains, as recorded in the HANDOFF.
