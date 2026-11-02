@@ -19,3 +19,17 @@
 - While the backfill runs, the enclave runs r8 with the L1 disk only (`prod-r8-l1.json`), and public L1 is served.
 
 **Gateway:** the control-VM allowlist now accepts measurements b04f… (r6), 51bc… (r7) and 059f… (r8). The backup is `config.attested.json.r6-only`.
+
+**Backfill runs** (work dirs `/vm/enclave-volumes/rpc-base-history-backfill-r{1,2,3}`)
+- r1 failed before downloading: getty's vhangup on ttyS0 gave EIO to cloud-init's redirect. It was first misread as an apt lock.
+- **r2, 11:57–15:03 MST, FAILED partway.**
+  - It installed the 7 transactions archives for 49.0M–52.5M, each blake3-verified.
+  - It then refused at receipts-48000000. The `.part` files in `data/.download-cache`, left by the earlier `base snapshot download` attempt, are not zstd ("unsupported format").
+  - curl had resumed onto them, so the downloads had the right size but the wrong bytes.
+  - Nothing unverified was installed.
+- r3 uses the fixed tool (83b844f02):
+  - foreign partials are rejected by their zstd magic;
+  - an archive that fails extraction or verification is fetched once more;
+  - installed archives are skipped;
+  - status comes back through a results disk.
+  - It has 11 archives left, 104 GB.
