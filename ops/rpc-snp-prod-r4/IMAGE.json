@@ -1,0 +1,32 @@
+{
+ "schema": "enclave-rpc-snp-image/1",
+ "kernel": "vmlinuz-6.8.0-147-generic",
+ "cmdline": "root=/dev/mapper/vroot ro enclave.roothash=65febb426e2289d83471afe8b52169ab6b1a7cbc5afaecc249b9c2d6a8a6c147 overlayroot=tmpfs console=ttyS0 panic=-1",
+ "rootHash": "65febb426e2289d83471afe8b52169ab6b1a7cbc5afaecc249b9c2d6a8a6c147",
+ "buildSeconds": 53,
+ "bootImageSha256": "a76940c926985b91590ab5916c7996c23d7812ccc2277fe8188bb21f11a0ae2c",
+ "artifacts": {
+  "vmlinuz": {
+   "bytes": 15083912,
+   "sha256": "41ba36d860aa0b0cd995f4ca8856d80249b244577e704929b55be13fbd1ebd2f"
+  },
+  "initrd.img": {
+   "bytes": 48181361,
+   "sha256": "2cf61df706d99d0ee18620e3aefbbe06480bdb2e187a329e8be4189c9ae8e29a"
+  },
+  "root.img": {
+   "bytes": 5367643648,
+   "sha256": "5d6340d3dc6598d20792b008f68b1d1e0b7a19d34fac6b86d7dd360f24a1d728"
+  },
+  "root.verity": {
+   "bytes": 42270720,
+   "sha256": "1ce53dec308f2a820ee2845c056606c3611303c307f927e6b919e0198b9a78b6"
+  }
+ },
+ "sources": {
+  "front.py": "ae607c2a4b33aeb14e903d0787d15678f248b92b7ec9e99f5bcb40fd41b374f3",
+  "enclave-verity-hook": "cb93bfdccb9697f469bc8b4d6c9b7b7d50d44c2e34d537e5395e53b3cc352085",
+  "enclave-verity-local-top": "57024c1ec992fa4417f59b2d240e472ac62dcc7fa8498e533461dd033aae482f",
+  "build_image.py": "0b970a6e509a1a0e71b854e72f2814051b3b9be6a0a627c1450ae7587aaa5753"
+ }
+}

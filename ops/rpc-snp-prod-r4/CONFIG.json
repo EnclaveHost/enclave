@@ -1,0 +1,1 @@
+{"image": "/vm/enclave-volumes/rpc-snp-image-r6", "run": "/vm/enclave-volumes/rpc-snp-prod-r4", "memoryMiB": 26624, "cpus": 8, "disks": [{"path": "/vm/enclave-volumes/rpc-l1-catchup-af67c013a9664a5b8e9a8b4580eece44/l1.qcow2", "serial": "RPC-l1"}], "hostfwd": [[18443, 8443]]}

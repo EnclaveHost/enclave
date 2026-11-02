@@ -7,6 +7,7 @@ and serves:
   GET  /.well-known/enclave-attestation  {report, certificate, reportData}
   GET  /health                           local L1/Base sync summary (no secrets)
   GET  /logs/{el,cl,base,front,identity}  bounded journal tail (operator view)
+  GET  /beacon/eth/...                   allowlisted read-only beacon API (blobs, blocks, headers)
   POST /l1, POST /base                   JSON-RPC proxied to the local node
 
 A client that verifies the report (AMD VCEK chain, expected launch measurement)
@@ -25,6 +26,7 @@ import ssl
 import subprocess
 import sys
 import threading
+import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -33,6 +35,7 @@ UPSTREAM = {'/l1': 'http://127.0.0.1:18645', '/base': 'http://127.0.0.1:18545'}
 BEACON = 'http://127.0.0.1:15052'
 ALLOWED = re.compile(r'^(eth_(?!sign|sendTransaction|accounts|coinbase|mining|hashrate|submit|getWork)[A-Za-z]+|net_(version|listening|peerCount)|web3_clientVersion)$')
 MAX_BODY = 1 << 20
+BEACON_PATH = re.compile(r'^/eth/(v1/beacon/(blobs|blob_sidecars|headers|genesis|states/[a-z0-9x]+/finality_checkpoints)|v2/beacon/blocks|v1/node/(syncing|version|identity)|v1/config/spec)(/[A-Za-z0-9]+)?$')
 LOG_UNITS = {'/logs/'+k: 'enclave-rpc-%s.service' % k for k in ('el', 'cl', 'base', 'front', 'identity')}
 MAX_BATCH = 100
 
@@ -123,6 +126,15 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, self.attestation)
         elif self.path == '/health':
             self.reply(200, json.dumps(health()).encode())
+        elif self.path.startswith('/beacon/') and BEACON_PATH.match(self.path[len('/beacon'):].split('?')[0]):
+            # Read-only beacon API (blob sidecars, blocks, headers, sync, spec) for L1/Base data checks.
+            try:
+                with urllib.request.urlopen(BEACON+self.path[len('/beacon'):], timeout=30) as r:
+                    self.reply(r.status, r.read(32 << 20), r.headers.get('content-type', 'application/json'))
+            except urllib.error.HTTPError as e:
+                self.reply(e.code, e.read(65536))
+            except Exception:
+                self.reply(502, b'{"error":"beacon unavailable"}')
         elif self.path.split('?')[0] in LOG_UNITS:
             # Read-only operator view; a public gateway forwards only RPC, attestation and health.
             query = dict(x.split('=', 1) for x in self.path.partition('?')[2].split('&') if '=' in x)
