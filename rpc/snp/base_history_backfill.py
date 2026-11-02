@@ -15,7 +15,8 @@ root downloads each archive (resuming .part files in data/.download-cache), extr
 a staging directory on the same filesystem, requires exactly the manifest's output files
 with their sizes and blake3 digests, then renames them into data/static_files with the
 owner and mode of the existing static files. A receipt listing every added file is
-written to the disk root (backfill-FROM-UPTO.json) and read back here with debugfs.
+written to the disk root (backfill-FROM-UPTO.json) and, with the guest's log and exit
+status, to a small results disk that this host process reads back with debugfs.
 
 The disk must not be attached to any other VM while this runs.
 """
@@ -40,33 +41,56 @@ cache = data/'.download-cache'; stage = data/'.backfill-stage'
 ref = os.stat(static/plan['reference'])
 cache.mkdir(exist_ok=True); stage.mkdir(exist_ok=True)
 def log(**kw): print(json.dumps(kw), flush=True)
+ZSTD_MAGIC = bytes.fromhex('28b52ffd')
 def fetch(a):
     part = cache/(pathlib.Path(a['file']).name + '.part')
     for attempt in range(3):
-        if part.exists() and part.stat().st_size > a['size']:
+        # A partial left by another downloader may not be this archive's bytes at all.
+        if part.exists() and (part.stat().st_size > a['size'] or part.open('rb').read(4) not in (ZSTD_MAGIC, b'')):
             part.unlink()
         subprocess.run(['curl', '-fsSL', '--retry', '30', '--retry-all-errors', '--retry-delay', '5',
                         '-C', '-', '-o', str(part), a['url']], check=False)
         if part.exists() and part.stat().st_size == a['size']:
             return part
     raise SystemExit('download size mismatch: ' + a['file'])
-lock = threading.Lock(); added = []
+lock = threading.Lock(); added = []; present_files = []
+def extract(a, part, out):
+    shutil.rmtree(out, ignore_errors=True); out.mkdir()
+    if subprocess.run('set -o pipefail; zstd -dc %s | tar -x -C %s' % (part, out), shell=True, executable='/bin/bash').returncode:
+        return 'archive does not extract'
+    got = sorted(str(p.relative_to(out)) for p in out.rglob('*') if p.is_file())
+    want = sorted(o['path'] for o in a['outputs'])
+    if got != want:
+        return 'archive outputs differ: %s' % sorted(set(got) ^ set(want))
+    for o in a['outputs']:
+        p = out/o['path']
+        if p.stat().st_size != o['size']:
+            return 'output size differs: ' + o['path']
+        if subprocess.run(['b3sum', '--no-names', str(p)], check=True, capture_output=True, text=True).stdout.strip() != o['blake3']:
+            return 'output blake3 differs: ' + o['path']
 def install(a):
-    part = fetch(a)
+    present = [(data/o['path']).exists() for o in a['outputs']]
+    if all(present):
+        # Installed by an earlier run, which verified the blake3 digests before the rename.
+        bad = [o['path'] for o in a['outputs'] if (data/o['path']).stat().st_size != o['size']]
+        if bad:
+            raise SystemExit('installed output size differs: %s' % bad)
+        log(event='archive-present', file=a['file']); present_files.append(a['file'])
+        return
+    if any(present):
+        raise SystemExit('archive partly installed: ' + a['file'])
+    out = stage/pathlib.Path(a['file']).name
+    for attempt in range(2):
+        part = fetch(a)
+        with lock:
+            err = extract(a, part, out)
+            if err is None:
+                break
+            log(event='archive-rejected', file=a['file'], error=err)
+            shutil.rmtree(out, ignore_errors=True); part.unlink()
+    else:
+        raise SystemExit('%s: %s' % (a['file'], err))
     with lock:
-        out = stage/pathlib.Path(a['file']).name
-        shutil.rmtree(out, ignore_errors=True); out.mkdir()
-        subprocess.run('zstd -dc %s | tar -x -C %s' % (part, out), shell=True, check=True)
-        got = sorted(str(p.relative_to(out)) for p in out.rglob('*') if p.is_file())
-        want = sorted(o['path'] for o in a['outputs'])
-        if got != want:
-            raise SystemExit('archive outputs differ: %s %s' % (a['file'], sorted(set(got) ^ set(want))))
-        for o in a['outputs']:
-            p = out/o['path']
-            if p.stat().st_size != o['size']:
-                raise SystemExit('output size differs: ' + o['path'])
-            if subprocess.run(['b3sum', '--no-names', str(p)], check=True, capture_output=True, text=True).stdout.strip() != o['blake3']:
-                raise SystemExit('output blake3 differs: ' + o['path'])
         for o in a['outputs']:
             p, dest = out/o['path'], data/o['path']
             if dest.exists():
@@ -79,10 +103,10 @@ def install(a):
 with concurrent.futures.ThreadPoolExecutor(4) as ex:
     for f in [ex.submit(install, a) for a in plan['archives']]:
         f.result()
-stage.rmdir()
+shutil.rmtree(stage)
 receipt = {'format': 'enclave-base-history-backfill/1', 'manifestSha256': plan['manifestSha256'],
            'fromBlock': plan['fromBlock'], 'uptoBlock': plan['uptoBlock'], 'archives': [a['file'] for a in plan['archives']],
-           'added': added, 'owner': [ref.st_uid, ref.st_gid], 'mode': oct(ref.st_mode & 0o7777)}
+           'added': added, 'alreadyPresent': sorted(present_files), 'owner': [ref.st_uid, ref.st_gid], 'mode': oct(ref.st_mode & 0o7777)}
 path = root/('backfill-%d-%d.json' % (plan['fromBlock'], plan['uptoBlock']))
 path.write_text(json.dumps(receipt, indent=1) + '\n'); os.chmod(path, 0o644)
 os.sync()
@@ -122,7 +146,8 @@ def main(work, disk, manifest_path, uuid, lo, hi):
         'apt-get -q -o DPkg::Lock::Timeout=600 update', 'apt-get -qy -o DPkg::Lock::Timeout=600 install b3sum zstd curl',
         'mkdir -p /mnt/base', 'mount -o noatime UUID=%s /mnt/base' % uuid,
         'python3 -I /opt/backfill/guest.py',
-        'umount /mnt/base', 'sync', 'poweroff',
+        'cp /mnt/base/backfill-%d-%d.json /mnt/results/receipt.json' % (lo, hi),
+        'umount /mnt/base', 'sync',
     ])
 
     def wf(path, data, mode='0644'):
@@ -132,8 +157,9 @@ def main(work, disk, manifest_path, uuid, lo, hi):
              'write_files': [wf('/opt/backfill/plan.json', json.dumps(plan).encode()),
                              wf('/opt/backfill/guest.py', GUEST.encode()),
                              wf('/opt/backfill/run.sh', script.encode()+b'\n', '0700')],
-             'runcmd': [['bash', '-c', 'set -o pipefail; /opt/backfill/run.sh 2>&1 | tee /var/log/backfill.log > /dev/ttyS0 '
-                         '|| { echo backfill-failed; tail -n 40 /var/log/backfill.log; } > /dev/ttyS0; poweroff']]}
+             'runcmd': [['bash', '-c', 'mkdir -p /mnt/results && mount /dev/disk/by-id/virtio-RESULTS /mnt/results; '
+                         '/opt/backfill/run.sh > /mnt/results/backfill.log 2>&1; echo $? > /mnt/results/rc; '
+                         'umount /mnt/results; sync; poweroff']]}
     seed = work/'seed'
     seed.mkdir(mode=0o700)
     (seed/'user-data').write_text('#cloud-config\n'+json.dumps(cloud)+'\n')
@@ -141,6 +167,9 @@ def main(work, disk, manifest_path, uuid, lo, hi):
     run(['/usr/bin/xorriso', '-as', 'mkisofs', '-V', 'cidata', '-J', '-r', '-o', str(work/'seed.iso'),
          str(seed/'user-data'), str(seed/'meta-data')])
     run(['/usr/bin/qemu-img', 'create', '-q', '-f', 'qcow2', '-F', 'vhdx', '-b', str(BOOT_VHDX), str(work/'os.qcow2'), '8G'])
+    # getty hangs up ttyS0 at its login prompt, so the guest reports on a small results disk.
+    run(['/usr/bin/truncate', '-s', '64M', str(work/'results.img')])
+    run(['/usr/sbin/mkfs.ext4', '-q', str(work/'results.img')])
     args = ['/usr/bin/bwrap', '--die-with-parent', '--new-session', '--unshare-user', '--ro-bind', '/', '/',
             '--bind', str(work), str(work), '--bind', str(disk), str(disk),
             '--dev', '/dev', '--dev-bind', '/dev/kvm', '/dev/kvm', '--',
@@ -151,16 +180,22 @@ def main(work, disk, manifest_path, uuid, lo, hi):
             '-device', 'virtio-blk-pci,drive=os0,bootindex=0',
             '-drive', 'file='+str(disk)+',format=qcow2,if=none,id=base0,cache=none,discard=unmap',
             '-device', 'virtio-blk-pci,drive=base0,serial=RPC-base',
+            '-drive', 'file='+str(work/'results.img')+',format=raw,if=none,id=res0,cache=none',
+            '-device', 'virtio-blk-pci,drive=res0,serial=RESULTS',
             '-drive', 'file='+str(work/'seed.iso')+',format=raw,media=cdrom,readonly=on',
             '-netdev', 'user,id=net0', '-device', 'virtio-net-pci,netdev=net0']
     t = time.time()
     r = subprocess.run(args, capture_output=True, text=True)
-    console = (work/'console.log').read_text(errors='replace')
     (work/'os.qcow2').unlink()
-    if r.returncode != 0 or '"event": "backfill-complete"' not in console:
-        raise RuntimeError('backfill VM did not complete; see console.log ' + r.stderr[-400:])
+    for name in ('backfill.log', 'receipt.json', 'rc'):
+        subprocess.run(['/usr/sbin/debugfs', '-R', 'dump /%s %s' % (name, work/name), str(work/'results.img')],
+                       capture_output=True)
+    rc = (work/'rc').read_text().strip() if (work/'rc').exists() else None
+    if r.returncode != 0 or rc != '0' or not (work/'receipt.json').exists():
+        raise RuntimeError('backfill VM did not complete (rc %s); see backfill.log %s' % (rc, r.stderr[-400:]))
+    receipt = json.loads((work/'receipt.json').read_text())
     result = {'seconds': round(time.time()-t), 'disk': str(disk), 'planSha256': sha(work/'plan.json'),
-              'guestReceipt': 'backfill-%d-%d.json' % (lo, hi)}
+              'added': len(receipt['added']), 'receiptSha256': sha(work/'receipt.json')}
     (work/'RESULT.json').write_text(json.dumps(result, indent=1)+'\n')
     print(json.dumps(result))
 
