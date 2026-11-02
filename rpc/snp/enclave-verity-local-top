@@ -1,0 +1,18 @@
+#!/bin/sh
+# Open the read-only root through dm-verity. The root hash comes only from the
+# kernel cmdline, which SEV-SNP measures (kernel-hashes=on); a host that changes
+# one root block makes reads of it fail instead of running different code.
+PREREQ=""
+prereqs() { echo "$PREREQ"; }
+case "$1" in prereqs) prereqs; exit 0;; esac
+. /scripts/functions
+hash=""
+for x in $(cat /proc/cmdline); do
+	case "$x" in enclave.roothash=*) hash="${x#enclave.roothash=}";; esac
+done
+[ -n "$hash" ] || exit 0
+modprobe dm-verity
+data=/dev/disk/by-id/virtio-ROOT-DATA
+tree=/dev/disk/by-id/virtio-ROOT-HASH
+for i in $(seq 1 100); do [ -b "$data" ] && [ -b "$tree" ] && break; sleep 0.1; done
+veritysetup open "$data" vroot "$tree" "$hash" || panic "enclave verity root refused"

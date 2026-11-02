@@ -1,0 +1,1 @@
+{"image": "/vm/enclave-volumes/rpc-snp-image-r2", "run": "/vm/enclave-volumes/rpc-snp-imageboot-r2", "memoryMiB": 4096, "cpus": 2, "disks": [], "hostfwd": [[18443, 8443]]}

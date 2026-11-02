@@ -1,0 +1,8 @@
+#!/bin/sh
+# initramfs-tools hook: veritysetup and dm-verity for the measured SNP root.
+PREREQ=""
+prereqs() { echo "$PREREQ"; }
+case "$1" in prereqs) prereqs; exit 0;; esac
+. /usr/share/initramfs-tools/hook-functions
+copy_exec /usr/sbin/veritysetup /sbin
+manual_add_modules dm-verity
