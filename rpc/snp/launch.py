@@ -65,8 +65,11 @@ def main(config_path):
             '-netdev', 'user,id=net0'+(','+fwd if fwd else ''), '-device', 'virtio-net-pci,netdev=net0']
     binds = []
     for i, d in enumerate(c.get('disks', [])):
-        args += ['-drive', 'file=%s,format=qcow2,if=none,id=d%d,cache=none,aio=native' % (d['path'], i),
-                 '-device', 'virtio-blk-pci,drive=d%d,serial=%s' % (i, d['serial'])]
+        # A dedicated I/O thread per chain disk: in the main loop, completions competed with
+        # user-mode networking and saturated it (rpc-snp-prod-r4: main thread ~85% CPU, D state).
+        args += ['-object', 'iothread,id=io%d' % i,
+                 '-drive', 'file=%s,format=qcow2,if=none,id=d%d,cache=none,aio=native' % (d['path'], i),
+                 '-device', 'virtio-blk-pci,drive=d%d,serial=%s,iothread=io%d,num-queues=4' % (i, d['serial'], i)]
         binds += ['--bind', str(Path(d['path']).parent), str(Path(d['path']).parent)]
     args = ['/usr/bin/bwrap', '--die-with-parent', '--new-session', '--unshare-user', '--ro-bind', '/', '/',
             '--bind', str(run), str(run), *binds, '--dev', '/dev', '--dev-bind', '/dev/kvm', '/dev/kvm',
