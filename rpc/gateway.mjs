@@ -111,6 +111,8 @@ export function createServer(gateway){
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   const config=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+  // attested: {origin: {allowedMeasurements}} pins those upstreams to verified SEV-SNP enclaves (rpc/snp).
+  if(config.attested)config.fetchImpl=(await import('./snp/attested-fetch.mjs')).createAttestedFetch({attested:config.attested});
   const gateway=createRpcGateway(config),server=createServer(gateway);
   server.listen(config.port??8190,'127.0.0.1',()=>console.log('RPC gateway ready; upstream credentials private'));
   for(const sig of ['SIGTERM','SIGINT'])process.on(sig,()=>server.close(()=>process.exit(0)));

@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: gateway reads mainnet L1 through the attested enclave
+ok 1 - gateway reads mainnet L1 through the attested enclave
+  ---
+  duration_ms: 536.940238
+  type: 'test'
+  ...
+# Subtest: an enclave whose measurement is not allowlisted is refused
+ok 2 - an enclave whose measurement is not allowlisted is refused
+  ---
+  duration_ms: 4.638834
+  type: 'test'
+  ...
+# Subtest: concurrent first requests share one attestation
+ok 3 - concurrent first requests share one attestation
+  ---
+  duration_ms: 12.217496
+  type: 'test'
+  ...
+# Subtest: a stale key pin re-attests once and then succeeds
+ok 4 - a stale key pin re-attests once and then succeeds
+  ---
+  duration_ms: 22.383169
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 644.742183
