@@ -1,0 +1,11 @@
+{
+ "coverageVerified": true,
+ "coverageAcceptance": {
+  "receiptSha256": "4cc8e1a426456e30630c1d0ba08464b742e4434b93583290c2002cc97d110dbf",
+  "verdictSha256": "6abb91dd28f7d7ef836c12601348cf05a0e506110fd3cdada5f12e192c010577",
+  "originSha256": "b13d9bbd8a8269cfa71b9d9b9f4b242abedae495736857690fa0aa0636b6dfe4",
+  "snapshotManifestSha256": "1f0c4e6c259d4353f598a94ac75a0540321ced2b52b464fb4e11c2ec34c649f2"
+ },
+ "l1Block": 26262339,
+ "blobSlot": 15501577
+}

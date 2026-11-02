@@ -1,0 +1,22 @@
+{
+ "format": "enclave-base-coverage-acceptance/v1",
+ "decision": "accepted",
+ "review": {
+  "reviewer": "independent-review-agent: fresh-context subagent, read-only, 2026-11-02",
+  "gateRunner": "root-session fe5c04cf (ran enclave-base-coverage-gate-r4)",
+  "reviewedAt": "2026-11-02T18:31:21+00:00",
+  "notes": "Independently rechecked: needFrom=26265939-3600=26262339; 30000 blocks to 26292338 (<= finalized 26327753); counts and request totals agree with try2/try3. Gate binds txs/receipts via recomputed roots and header hash to beacon payload hashes, and blobs via c-kzg commitment to tx versioned hashes; 7/7 patch blobs re-hash OK and Base re-verifies blobs itself. 78 missed slots are parent_root-linked gaps with no EL block. Conditions: image must carry blob-patch.json sha256 8bad515d; L1 after 26292338 unverified (liveness only); blobSlot blobs prune ~2026-11-11."
+ },
+ "verdictSha256": "6abb91dd28f7d7ef836c12601348cf05a0e506110fd3cdada5f12e192c010577",
+ "originSha256": "b13d9bbd8a8269cfa71b9d9b9f4b242abedae495736857690fa0aa0636b6dfe4",
+ "snapshotManifestSha256": "1f0c4e6c259d4353f598a94ac75a0540321ced2b52b464fb4e11c2ec34c649f2",
+ "snapshotManifestUrl": "https://mainnet-v2-snapshots.base.org/1792886410/manifest.json",
+ "bootstrapManifestSha256": "8bc81c93fde18234fec42792a15cf854dfc09df22f31ec2825733fce97f24441",
+ "chainConfigSha256": "d01a2dcbb9c4d31aec0fd6446b09f78fcb80a891a94228aca9086f6ef71823b2",
+ "kzgcheckSha256": "00b3eeb94efece39e4f2cf8e34d5d3450d532328ccc667a6a74e83b151be10eb",
+ "baseBinarySha256": "9c44836d3dd41ae92df3c52fe0df7957dc10b77859d8d80cce6d5fb89d35e53f",
+ "baseBootstrap": {
+  "l1Block": 26262339,
+  "blobSlot": 15501577
+ }
+}
