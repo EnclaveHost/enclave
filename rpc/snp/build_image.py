@@ -23,6 +23,8 @@ and snapshot-manifest.json become root-owned /etc/enclave-rpc/coverage/*, and
 chain.json's baseBootstrap is replaced by COVERAGE_DIR/base-bootstrap.json. The
 guest's chain service (coverage_activation) checks that this section pins those
 exact bytes and that they bind this chain config, manifest and binaries.
+An optional COVERAGE_DIR/blob-patch.json (the gate's --blob-patch, KZG-verified) adds
+beacon-patch.py on 127.0.0.1:15053 and points the Base client's --l1-beacon at it.
 """
 import base64
 import hashlib
@@ -61,6 +63,10 @@ SET_BOOTSTRAP = (
     "open(p,'w').write(json.dumps(c,indent=1)+chr(10)); os.remove('/etc/enclave-rpc/base-bootstrap.json')")
 
 
+BEACON_PATCH_SED = ("sed -i \"s|'--l1-beacon', 'http://127.0.0.1:15052'|'--l1-beacon', 'http://127.0.0.1:15053'|\" "
+                    "/opt/enclave-rpc/chain_service.py")
+
+
 def seed_config(owner_pub, coverage=None):
     raw = (PRIVATE_SEED/'files/user-data').read_text()
     writes = [w for w in json.loads(raw.split('\n', 1)[1])['write_files'] if not w['path'].startswith('/etc/ssh/')]
@@ -72,6 +78,17 @@ def seed_config(owner_pub, coverage=None):
         add('/etc/enclave-rpc/base-bootstrap.json', (coverage/'base-bootstrap.json').read_bytes())
         for name in COVERAGE_FILES:
             add('/etc/enclave-rpc/coverage/'+name, (coverage/name).read_bytes())
+        if (coverage/'blob-patch.json').exists():
+            add('/etc/enclave-rpc/blob-patch.json', (coverage/'blob-patch.json').read_bytes())
+            add('/opt/enclave-rpc/beacon-patch.py', (HERE/'beacon-patch.py').read_bytes(), '0755')
+            add('/etc/systemd/system/enclave-rpc-beacon-patch.service', (
+                b'[Unit]\nDescription=Beacon API view for Base that fills KZG-verified patched slots\n'
+                b'After=enclave-rpc-cl.service\n[Service]\nType=exec\n'
+                b'ExecStart=/usr/bin/python3 -I /opt/enclave-rpc/beacon-patch.py /etc/enclave-rpc/blob-patch.json\n'
+                b'Restart=always\nRestartSec=5\nMemoryMax=256M\nNoNewPrivileges=yes\nProtectHome=yes\nDynamicUser=yes\n'
+                b'[Install]\nWantedBy=multi-user.target\n'))
+            add('/etc/systemd/system/enclave-rpc-base.service.d/beacon-patch.conf',
+                b'[Unit]\nWants=enclave-rpc-beacon-patch.service\nAfter=enclave-rpc-beacon-patch.service\n')
     add('/opt/enclave-rpc/front.py', (HERE/'front.py').read_bytes(), '0755')
     add('/etc/initramfs-tools/hooks/enclave-verity', (HERE/'enclave-verity-hook').read_bytes(), '0755')
     add('/etc/initramfs-tools/scripts/local-top/enclave-verity', (HERE/'enclave-verity-local-top').read_bytes(), '0755')
@@ -97,6 +114,9 @@ def seed_config(owner_pub, coverage=None):
         'apt-get -qy install linux-modules-extra-$(uname -r)',
         'apt-get clean',
         *(['python3 -I -c "%s"' % SET_BOOTSTRAP, 'chmod 0755 /etc/enclave-rpc/coverage'] if coverage is not None else []),
+        *([BEACON_PATCH_SED, "grep -q \"'--l1-beacon', 'http://127.0.0.1:15053'\" /opt/enclave-rpc/chain_service.py",
+           'systemctl enable enclave-rpc-beacon-patch.service']
+          if coverage is not None and (coverage/'blob-patch.json').exists() else []),
         'update-initramfs -u -k all',
         'for u in enclave-rpc-el enclave-rpc-cl enclave-rpc-base; do ln -sf /etc/systemd/system/$u.service /etc/systemd/system/multi-user.target.wants/$u.service; done',
         'systemctl enable enclave-rpc-front.service',
@@ -180,7 +200,8 @@ def main(out, coverage=None):
              'artifacts': {n: {'bytes': (out/n).stat().st_size, 'sha256': sha(out/n)}
                            for n in ('vmlinuz', 'initrd.img', 'root.img', 'root.verity')},
              'sources': {n: sha(HERE/n) for n in ('front.py', 'enclave-verity-hook', 'enclave-verity-local-top', 'build_image.py')},
-             'coverage': {n: sha(coverage/n) for n in COVERAGE_FILES + ('base-bootstrap.json',)} if coverage else None}
+             'coverage': {n: sha(coverage/n) for n in COVERAGE_FILES + ('base-bootstrap.json', 'blob-patch.json')
+                          if (coverage/n).exists()} if coverage else None}
     (out/'IMAGE.json').write_text(json.dumps(image, indent=1)+'\n')
     for p in (out/'build-key', out/'build.qcow2'):
         p.unlink()

@@ -55,6 +55,7 @@ SYSTEM_CONFIG = '0x73a79fab69143498ed3712e519a88a918e1f4072'
 CONFIG_UPDATE_TOPIC = '0x1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be'
 UPDATE_TYPE_BATCHER = '0x' + '00' * 32
 HARD_MAX_BLOCKS = 30000
+BLOB_PATCH_FORMAT = 'enclave-base-blob-patch/v1'   # {"slots": {"<slot>": {"<versioned hash>": "0x<blob>"}}}
 HISTORY_EXPIRED = 4444           # reth: 'pruned history unavailable' (EIP-4444 pre-merge expiry)
 LIST_CAP = 100
 H32 = re.compile(r'0x[0-9a-f]{64}')
@@ -269,8 +270,17 @@ def run(a, origin, report):
     c = Client(a.el, a.beacon, a.timeout, a.max_requests, a.rps, a.max_body)
     report['http'] = c
     report.update({'rule': rule, 'needFromBlock': need_from, 'missedSlots': [], 'missingData': [],
-              'mismatches': [], 'counts': {'blocks': 0, 'transactions': 0, 'receipts': 0, 'blobTxs': 0,
-                                           'blobsVerified': 0, 'missedSlots': 0, 'missingData': 0, 'mismatches': 0}})
+              'mismatches': [], 'patchedSlots': [], 'counts': {'blocks': 0, 'transactions': 0, 'receipts': 0, 'blobTxs': 0,
+                                           'blobsVerified': 0, 'missedSlots': 0, 'missingData': 0, 'mismatches': 0,
+                                           'patchedSlots': 0}})
+    patch = {}
+    if a.blob_patch:
+        raw = open(a.blob_patch, 'rb').read()
+        doc = json.loads(raw)
+        if doc.get('format') != BLOB_PATCH_FORMAT or not isinstance(doc.get('slots'), dict):
+            raise ValueError('blob patch format')
+        patch = doc['slots']
+        report['blobPatch'] = {'sha256': hashlib.sha256(raw).hexdigest(), 'slots': sorted(int(k) for k in patch)}
 
     def note(kind, entry):
         report['counts'][kind] += 1
@@ -381,6 +391,12 @@ def run(a, origin, report):
             q = '&'.join('versioned_hashes=' + h for h in wanted)
             st, bl = c.bn(f'/eth/v1/beacon/blobs/{slot}?{q}')
             blobs = bl.get('data') if st == 200 else None
+            patched = False
+            if (not isinstance(blobs, list) or len(blobs) != len(wanted)) and str(slot) in patch \
+                    and all(h in patch[str(slot)] for h in wanted):
+                # The local beacon lacks this slot; the patch supplies it and is verified below exactly like
+                # served blobs (KZG commitment -> versioned hash in the EL transactions bound above).
+                blobs, patched = [patch[str(slot)][h] for h in wanted], True
             if not isinstance(blobs, list) or len(blobs) != len(wanted):
                 note('missingData', {'block': n, 'slot': slot, 'kind': 'blobs', 'http': st,
                                      'served': len(blobs) if isinstance(blobs, list) else 0, 'wanted': len(wanted),
@@ -394,6 +410,8 @@ def run(a, origin, report):
                 note('mismatches', {'block': n, 'slot': slot, 'kind': 'blob-commitment'})
                 continue
             report['counts']['blobsVerified'] += len(got)
+            if patched:
+                note('patchedSlots', {'block': n, 'slot': slot, 'blobs': len(got)})
             first_blob_slot = first_blob_slot if first_blob_slot is not None else slot
     finally:
         kzg.close()
@@ -424,6 +442,7 @@ def main(argv=None):
     ap.add_argument('--out', required=True)
     ap.add_argument('--to-block', type=int)
     ap.add_argument('--blob-scope', choices=('batcher', 'all'), default='batcher')
+    ap.add_argument('--blob-patch', help='blobs for slots the local beacon cannot serve; each is KZG-verified like served ones')
     ap.add_argument('--accept-tip-walk-rule', action='store_true')
     ap.add_argument('--max-blocks', type=int, default=12000)
     ap.add_argument('--max-requests', type=int, default=80000)

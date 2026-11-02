@@ -22,6 +22,7 @@ export function parseSnpReport(r) {
     vmpl: r.readUInt32LE(0x30),
     reportData: r.subarray(0x50, 0x50 + 64),
     measurement: r.subarray(0x90, 0x90 + 48),
+    hostData: r.subarray(0xc0, 0xc0 + 32),          // HOST_DATA: set by the launcher, outside the measurement
     reportedTcb: r.subarray(0x180, 0x188),
     cpuidFam: r[0x188], cpuidMod: r[0x189], cpuidStep: r[0x18a],   // report version 3 and later
     chipId: r.subarray(0x1a0, 0x1a0 + 64),
@@ -414,6 +415,6 @@ export async function verifyQuote(report, { challenge, transportKeySpki, allowed
     const t = checkMinTcb(minTcb, chained, p);
     if (!t.ok) return fail(t.reason);
     reasons.push(t.reason);
-    return { ok: true, measurement, reasons, vcekVerified: true, vmpl: p.vmpl, tcb: { product: chained, reported: t.reported, checked: t.checked } };
+    return { ok: true, measurement, hostData: p.hostData.toString("hex"), reasons, vcekVerified: true, vmpl: p.vmpl, tcb: { product: chained, reported: t.reported, checked: t.checked } };
   } catch (e) { return fail(`cert-chain verification error: ${e.message}`); }
 }

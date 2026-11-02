@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enclave RPC release</title>
+<style>
+  :root { --bg:#f7f7f5; --fg:#1c1c1a; --muted:#6b6b66; --line:#dcdcd6; --ok:#1f7a3f; --act:#1d4ed8; --warn:#9a3412; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141413; --fg:#ecece8; --muted:#a3a39c; --line:#33332f; --ok:#4ade80; --act:#93b4ff; --warn:#fdba74; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width:820px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; } p.lead { color:var(--muted); margin:0 0 20px; }
+  .bar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px 0; border-bottom:1px solid var(--line); margin-bottom:16px; }
+  button { font:inherit; padding:8px 14px; border-radius:6px; border:1px solid var(--act); background:var(--act); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .step { border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin:12px 0; }
+  .step h2 { font-size:16px; margin:0 0 6px; display:flex; justify-content:space-between; gap:8px; }
+  .tag { font-size:12px; font-weight:600; color:var(--muted); } .tag.done { color:var(--ok); } .tag.ready { color:var(--act); }
+  .why { color:var(--muted); margin:0 0 10px; }
+  table { border-collapse:collapse; width:100%; font-size:13px; margin:0 0 10px; }
+  td { border-top:1px solid var(--line); padding:4px 6px; vertical-align:top; word-break:break-all; }
+  td:first-child { color:var(--muted); width:30%; word-break:normal; }
+  code { font-family:ui-monospace, monospace; font-size:12px; }
+  .msg { font-size:13px; margin-top:8px; } .msg.err { color:var(--warn); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Release Enclave RPC to production</h1>
+  <p class="lead">Each step is one transaction from your owner wallet on Base. Check the details on the Trezor screen before confirming. This page never signs or sends anything by itself.</p>
+  <div class="bar"><button id="connect">Connect wallet</button><span id="who">Not connected</span></div>
+  <div id="steps"></div>
+</main>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

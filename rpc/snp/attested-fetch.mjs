@@ -9,9 +9,15 @@
 // to that pin. The enclave makes a new key every boot, so a pin mismatch triggers
 // one re-attestation and one retry; anything else fails closed. Non-attested
 // origins go to the ordinary fetch.
+//
+// A policy is either {allowedMeasurements[, hostData]} or {deployment: {...}} (chain-policy.mjs):
+// then the allowed measurements and the required HOST_DATA (the deployment id) come from Base,
+// are re-read every recheckMs (default 60 s), and any change or failed read drops the pin, so
+// the origin is refused until the chain admits it again.
 import https from 'node:https';
 import { createHash, X509Certificate } from 'node:crypto';
 import { verifyQuote } from '../../relay/snp-verify.mjs';
+import { resolveDeploymentPolicy } from './chain-policy.mjs';
 
 const spkiOf = (pemOrDer) => new X509Certificate(pemOrDer).publicKey.export({ type: 'spki', format: 'der' });
 const sha256 = (b) => createHash('sha256').update(b).digest('hex');
@@ -38,15 +44,28 @@ function request(url, { method = 'GET', headers = {}, body, signal, ca, pin }) {
   });
 }
 
-export function createAttestedFetch({ attested, fallbackFetch = fetch, kds = true, minTcb } = {}) {
-  const pins = new Map(), inflight = new Map();
+export function createAttestedFetch({ attested, fallbackFetch = fetch, kds = true, minTcb, chainFetch = fetch } = {}) {
+  const pins = new Map(), inflight = new Map(), chain = new Map();
+  // The policy in force for an origin; for chain policies, re-read when stale.
+  async function policyOf(origin) {
+    const policy = attested[origin];
+    if (!policy.deployment) return policy;
+    const c = chain.get(origin);
+    if (c && Date.now() - c.at < (policy.deployment.recheckMs ?? 60000)) return c.policy;
+    let next;
+    try { next = await resolveDeploymentPolicy(policy.deployment, { fetchImpl: chainFetch }); }
+    catch (e) { chain.delete(origin); pins.delete(origin); throw new Error('chain refuses enclave: ' + e.message); }
+    if (c && JSON.stringify([c.policy.allowedMeasurements, c.policy.hostData]) !== JSON.stringify([next.allowedMeasurements, next.hostData])) pins.delete(origin);
+    chain.set(origin, { policy: next, at: Date.now() });
+    return next;
+  }
   // One attestation per origin at a time: concurrent first requests share it.
   function attest(origin) {
     if (!inflight.has(origin)) inflight.set(origin, attestOnce(origin).finally(() => inflight.delete(origin)));
     return inflight.get(origin);
   }
   async function attestOnce(origin) {
-    const policy = attested[origin];
+    const policy = await policyOf(origin);
     const r = await request(origin + '/.well-known/enclave-attestation', {});
     if (r.status !== 200 || !r.peerDer) throw new Error('attestation unavailable');
     const doc = JSON.parse(r.body.toString('utf8'));
@@ -55,13 +74,15 @@ export function createAttestedFetch({ attested, fallbackFetch = fetch, kds = tru
     const v = await verifyQuote(Buffer.from(doc.report, 'base64'), {
       transportKeySpki: served, challenge: Buffer.alloc(0), allowedMeasurements: policy.allowedMeasurements, kds, minTcb });
     if (!v.ok || v.vcekVerified !== true) throw new Error('enclave attestation refused: ' + (v.reasons || []).slice(-1)[0]);
-    const pin = { spki: sha256(served), ca: doc.certificate, measurement: v.measurement, at: Date.now() };
+    if (policy.hostData && v.hostData !== policy.hostData) throw new Error('enclave attestation refused: HOST_DATA is not this deployment');
+    const pin = { spki: sha256(served), ca: doc.certificate, measurement: v.measurement, hostData: v.hostData, at: Date.now() };
     pins.set(origin, pin);
     return pin;
   }
   async function attestedFetch(url, opts = {}) {
     const origin = new URL(url).origin;
     if (!attested?.[origin]) return fallbackFetch(url, opts);
+    if (attested[origin].deployment) await policyOf(origin);   // fail closed as soon as the chain withdraws it
     for (let attempt = 0; attempt < 2; attempt++) {
       const pin = pins.get(origin) || await attest(origin);
       try {
@@ -75,5 +96,6 @@ export function createAttestedFetch({ attested, fallbackFetch = fetch, kds = tru
     throw new Error('attested upstream unavailable');
   }
   attestedFetch.pins = pins;
+  attestedFetch.chain = chain;
   return attestedFetch;
 }

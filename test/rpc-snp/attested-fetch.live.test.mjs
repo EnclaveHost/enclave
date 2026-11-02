@@ -44,3 +44,13 @@ test('a stale key pin re-attests once and then succeeds', { skip }, async () => 
   assert.equal((await again.json()).result, '0x1');
   assert.equal(f.pins.get(origin).spki, real.spki);
 });
+
+test('HOST_DATA must match the policy', { skip }, async () => {
+  const body = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] });
+  const wrong = createAttestedFetch({ attested: { [origin]: { allowedMeasurements: [measurement], hostData: 'ab'.repeat(32) } } });
+  await assert.rejects(wrong(origin + '/l1', { method: 'POST', body }), /HOST_DATA/);
+  const f = createAttestedFetch({ attested: { [origin]: { allowedMeasurements: [measurement] } } });
+  await f(origin + '/l1', { method: 'POST', body });
+  const right = createAttestedFetch({ attested: { [origin]: { allowedMeasurements: [measurement], hostData: f.pins.get(origin).hostData } } });
+  assert.equal((await (await right(origin + '/l1', { method: 'POST', body })).json()).result, '0x1');
+});

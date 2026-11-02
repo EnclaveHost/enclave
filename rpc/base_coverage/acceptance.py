@@ -8,7 +8,7 @@ OUT_DIR receives receipt.json, verdict.json, origin.json, snapshot-manifest.json
 files rpc/snp/build_image.py installs under /etc/enclave-rpc/coverage) and
 base-bootstrap.json (the chain.json baseBootstrap section pinning their bytes).
 M and C are the image's /opt/enclave-rpc/manifest.json and /etc/enclave-rpc/chain.json.
-The set is then validated by the guest's own coverage_activation (rpc/guest/chain_service.py),
+The set is then validated by the guest's own coverage_activation (--chain-service, default rpc/guest/chain_service.py),
 so a binding the guest would refuse is refused here, before an image is built.
 """
 import argparse
@@ -24,9 +24,9 @@ HERE = Path(__file__).resolve().parent
 CHAIN_SERVICE = HERE.parent/'guest'/'chain_service.py'
 
 
-def guest_functions():
+def guest_functions(path=CHAIN_SERVICE):
     """chain_service.py's definitions without its import-time reads of the installed guest."""
-    tree = ast.parse(CHAIN_SERVICE.read_text())
+    tree = ast.parse(Path(path).read_text())
     keep = []
     for node in tree.body:
         if isinstance(node, (ast.Import, ast.ImportFrom, ast.FunctionDef)):
@@ -35,7 +35,7 @@ def guest_functions():
                 and 'os.environ' not in ast.unparse(node.value):
             keep.append(node)
     ns = {'__name__': 'chain_service_offline'}
-    exec(compile(ast.Module(keep, []), str(CHAIN_SERVICE), 'exec'), ns)
+    exec(compile(ast.Module(keep, []), str(path), 'exec'), ns)
     return ns
 
 
@@ -49,8 +49,10 @@ def main(argv=None):
     for k in ('verdict', 'origin', 'snapshot-manifest', 'installed-manifest', 'chain-config', 'reviewer', 'gate-runner',
               'review-notes'):
         ap.add_argument('--'+k, required=True)
+    ap.add_argument('--chain-service', default=str(CHAIN_SERVICE),
+                    help="the image's own /opt/enclave-rpc/chain_service.py, so its rules are the ones checked")
     a = ap.parse_args(argv)
-    g = guest_functions()
+    g = guest_functions(a.chain_service)
     out = Path(a.out)
     out.mkdir(mode=0o755)
     for src, name in ((a.verdict, 'verdict.json'), (a.origin, 'origin.json'), (a.snapshot_manifest, 'snapshot-manifest.json')):

@@ -3,15 +3,20 @@
 python3 -I rpc/snp/launch.py CONFIG.json   (as the main process of its systemd unit)
 
 CONFIG: {"image": DIR with IMAGE.json, "run": private run dir, "memoryMiB", "cpus",
-         "disks": [{"path": qcow2, "serial": "RPC-l1"}...], "hostfwd": [[host, guest]...]}
+         "disks": [{"path": qcow2, "serial": "RPC-l1"}...], "hostfwd": [[host, guest]...],
+         "hostData": optional 64 hex chars, the EnclaveDeployments id this guest serves}
 
 The image artifacts are checked against IMAGE.json before launch; the kernel,
 initrd and the cmdline carrying the verity root hash are what SEV-SNP measures
 (kernel-hashes=on), so a changed artifact either refuses here or changes the
 attested measurement. Chain disks are ordinary writable disks owned by this host.
+hostData becomes SNP HOST_DATA: carried in every attestation report but not in the
+measurement, so one measured image can serve a deployment created after it was published,
+and consumers (rpc/snp/chain-policy.mjs) require the report to name their deployment.
 SIGTERM requests an ACPI power-off through QMP and waits for the guest's own
 clean client stop before the unit's TimeoutStopSec escalates.
 """
+import base64
 import hashlib
 import json
 import os
@@ -49,12 +54,18 @@ def main(config_path):
         if (image/name).stat().st_size != row['bytes'] or sha(image/name) != row['sha256']:
             raise ValueError('Image artifact differs from IMAGE.json: '+name)
     run.mkdir(mode=0o700, exist_ok=True)
+    snp = 'sev-snp-guest,id=cx0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on,sev-device=/dev/sev'
+    if c.get('hostData'):
+        host_data = bytes.fromhex(c['hostData'])
+        if len(host_data) != 32:
+            raise ValueError('hostData must be 32 bytes')
+        snp += ',host-data=' + base64.b64encode(host_data).decode()
     fwd = ','.join('hostfwd=tcp:127.0.0.1:%d-:%d' % (h, g) for h, g in c['hostfwd'])
     args = ['/usr/sbin/qemu-system-x86_64', '-name', 'enclave-rpc-snp',
             '-machine', 'q35,accel=kvm,confidential-guest-support=cx0,memory-backend=ram0', '-cpu', 'EPYC-v4',
             '-smp', str(c['cpus']), '-m', str(c['memoryMiB']),
             '-object', 'memory-backend-memfd,id=ram0,size=%dM,share=true,prealloc=false' % c['memoryMiB'],
-            '-object', 'sev-snp-guest,id=cx0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=on,sev-device=/dev/sev',
+            '-object', snp,
             '-bios', OVMF, '-kernel', str(image/'vmlinuz'), '-initrd', str(image/'initrd.img'), '-append', meta['cmdline'],
             '-nodefaults', '-no-reboot', '-display', 'none', '-monitor', 'none',
             '-serial', 'file:'+str(run/'console.log'), '-qmp', 'unix:'+str(run/'qmp.sock')+',server=on,wait=off',

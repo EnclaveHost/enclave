@@ -1,0 +1,62 @@
+// Local signing page for the owner's wallet (Trezor via the browser wallet) to release the SNP
+// RPC app: node rpc/snp/owner-sign/server.mjs PLAN.json [PORT]
+//
+// PLAN.json (rpc/snp/owner-sign/plan.mjs writes it) lists each owner transaction with its exact
+// calldata and the decoded arguments shown to the owner. The page sends a step only when the
+// owner clicks it, from the owner's own wallet; this server signs and sends nothing. /status
+// reads Base so the page can show which steps are already done and which are ready.
+// Listens on 127.0.0.1 only. Submitted hashes are appended to PLAN.json's journal file.
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createPublicClient, fallback, http as viemHttp } from 'viem';
+import { base } from 'viem/chains';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const [planPath, port = '42290'] = process.argv.slice(2);
+const plan = JSON.parse(fs.readFileSync(planPath, 'utf8'));
+const pub = createPublicClient({ chain: base, transport: fallback(plan.rpcs.map((u) => viemHttp(u, { timeout: 15000 }))) });
+const ABI = {
+  numVersions: [{ type: 'function', name: 'numVersions', stateMutability: 'view', inputs: [{ type: 'bytes32' }], outputs: [{ type: 'uint256' }] }],
+  regGet: [{ type: 'function', name: 'get', stateMutability: 'view', inputs: [{ type: 'bytes32' }], outputs: [{ type: 'tuple', components: [
+    { name: 'endpoint', type: 'string' }, { name: 'repo', type: 'string' }, { name: 'measurement', type: 'bytes32' },
+    { name: 'operator', type: 'address' }, { name: 'registeredAt', type: 'uint64' }, { name: 'lastSeen', type: 'uint64' },
+    { name: 'active', type: 'bool' }, { name: 'cpuPricePerSec6', type: 'uint64' }, { name: 'gpuPricePerSec6', type: 'uint64' },
+    { name: 'proofKey', type: 'address' }, { name: 'payoutWallet', type: 'address' }] }] }],
+};
+
+async function status() {
+  const s = plan.status;
+  const [bal, versions, entry] = await Promise.all([
+    pub.getBalance({ address: s.runner }),
+    pub.readContract({ address: s.catalog, abi: ABI.numVersions, functionName: 'numVersions', args: [s.appId] }),
+    pub.readContract({ address: s.registry, abi: ABI.regGet, functionName: 'get', args: [s.enclaveId] })]);
+  const registered = entry.operator.toLowerCase() === s.runner.toLowerCase() && entry.active;
+  const journal = fs.existsSync(plan.journal) ? fs.readFileSync(plan.journal, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
+  return {
+    fund: bal >= BigInt(s.runnerMinWei), publish: versions > BigInt(s.versionIndex),
+    payout: registered && entry.payoutWallet.toLowerCase() === plan.owner.toLowerCase(),
+    create: journal.some((j) => j.step === 'create' && j.hash),
+    ready: { fund: true, publish: true, payout: registered, create: versions > BigInt(s.versionIndex) && registered && entry.payoutWallet.toLowerCase() === plan.owner.toLowerCase() },
+    runnerBalanceWei: String(bal), versions: String(versions), runnerRegistered: registered, journal,
+  };
+}
+
+http.createServer(async (req, res) => {
+  const send = (code, body, type = 'application/json') => { res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store' }); res.end(type === 'application/json' ? JSON.stringify(body) : body); };
+  try {
+    if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) return send(200, fs.readFileSync(path.join(HERE, 'index.html')), 'text/html; charset=utf-8');
+    if (req.method === 'GET' && req.url === '/app.js') return send(200, fs.readFileSync(path.join(HERE, 'app.js')), 'text/javascript');
+    if (req.method === 'GET' && req.url === '/plan') return send(200, { chainId: plan.chainId, owner: plan.owner, steps: plan.steps });
+    if (req.method === 'GET' && req.url === '/status') return send(200, await status());
+    if (req.method === 'POST' && req.url === '/submitted') {
+      let body = ''; for await (const c of req) { body += c; if (body.length > 4096) throw new Error('too large'); }
+      const { step, hash } = JSON.parse(body);
+      if (!plan.steps.some((s) => s.id === step) || !/^0x[0-9a-f]{64}$/.test(hash)) return send(400, { error: 'bad submission' });
+      fs.appendFileSync(plan.journal, JSON.stringify({ step, hash, at: new Date().toISOString() }) + '\n');
+      return send(200, { ok: true });
+    }
+    send(404, { error: 'not found' });
+  } catch (e) { send(500, { error: String(e.shortMessage || e.message).slice(0, 300) }); }
+}).listen(Number(port), '127.0.0.1', () => console.log(JSON.stringify({ event: 'listening', url: `http://127.0.0.1:${port}/` })));

@@ -283,6 +283,22 @@ class GateTest(unittest.TestCase):
         v = self.refused('missing-data')
         self.assertEqual(v['missingData'][0]['kind'], 'blobs')
 
+    def test_blob_patch_fills_only_verified_missing_slots(self):
+        sl = self.chain.slots[1005]
+        self.chain.blob_status[sl] = (404, {'message': 'Insufficient data columns'})
+        good = os.path.join(self.tmp.name, 'patch.json')
+        with open(good, 'w') as f:
+            json.dump({'format': cg.BLOB_PATCH_FORMAT, 'slots': {str(sl): self.chain.blobs[sl]}}, f)
+        rc, v = self.gate(None, '--blob-patch', good)
+        self.assertEqual((rc, v['verdict']), (0, 'COVERED'), v.get('refusal'))
+        self.assertEqual((v['counts']['patchedSlots'], v['patchedSlots'][0]['slot']), (1, sl))
+        self.assertEqual(v['blobPatch']['slots'], [sl])
+        bad = os.path.join(self.tmp.name, 'bad.json')
+        other = next(b for s2, m in self.chain.blobs.items() if s2 != sl for b in m.values())
+        with open(bad, 'w') as f:
+            json.dump({'format': cg.BLOB_PATCH_FORMAT, 'slots': {str(sl): {h: other for h in self.chain.blobs[sl]}}}, f)
+        self.assertEqual(self.gate(None, '--blob-patch', bad)[1]['refusal']['code'], 'data-mismatch')
+
     def test_right_count_wrong_blob_is_rejected(self):
         sl = self.chain.slots[1002]
         self.chain.blobs[sl] = {VH['A']: BLOBS['A'], VH['B']: BLOBS['C']}   # count matches, content does not
