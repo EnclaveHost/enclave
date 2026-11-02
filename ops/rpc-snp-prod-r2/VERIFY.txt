@@ -1,0 +1,18 @@
+
+SEV-SNP report — version 5, VMPL 0, 1184 bytes
+  ✓ guest runs at VMPL 0 (full privilege inside the CVM)
+  ✓ guest policy 0x30000: DEBUG off, MIGRATE_MA off
+  ✓ VCEK obtained (AMD KDS (Turin)) — OU=Engineering
+  ✓ VCEK signature over the report is VALID
+  ✓ VCEK is signed by the AMD SEV intermediate (ASK)
+  ✓ ASK is signed by the AMD SEV root (ARK)
+  ✓ ARK is self-signed (AMD root of trust)
+  ✓ ARK is AMD's pinned Turin root (sha256 matches)
+  ✓ VCEK chip ID and TCB extensions match the report
+  • TCB: no minimum-TCB policy supplied, so the firmware level is NOT judged (pass --min-tcb to judge it)
+
+  launch measurement: ab6c59ac6944075962328b92e1fa9e803a33e94e5cf491dc98aa4c9d98c63347076d5a0be40a32a67c7907cf04e82e3c
+  ✓ measurement matches the build manifest (8 vcpu)
+  ✓ report_data binds the served transport key (sha256 SPKI)
+
+VERIFIED — self-hosted SEV-SNP enclave, first-party (AMD root of trust + reproducible measurement + key binding).

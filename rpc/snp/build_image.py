@@ -64,9 +64,13 @@ def seed_config(owner_pub):
         b'Restart=on-failure\nRestartSec=5\nMemoryMax=512M\nNoNewPrivileges=yes\nProtectHome=yes\n'
         b'StandardOutput=journal+console\nStandardError=journal+console\n'
         b'[Install]\nWantedBy=multi-user.target\n'))
-    for side, stop in (('el', 300), ('cl', 300), ('base', 300)):
-        add('/etc/systemd/system/enclave-rpc-%s.service.d/stop.conf' % side,
-            b'[Service]\nTimeoutStopSec=%d\n' % stop)
+    # Measured limits (ops/rpc-l1-catchup): the image's 4.5/6.5 GiB MemoryHigh throttled
+    # Lighthouse into thrashing during range sync; whole stack stays below 32 GB.
+    for side, high, cap in (('el', 11264, 12288), ('cl', 10240, 11264), ('base', 7168, 8192)):
+        add('/etc/systemd/system/enclave-rpc-%s.service.d/limits.conf' % side,
+            b'[Service]\nTimeoutStopSec=300\nMemoryHigh=%dM\nMemoryMax=%dM\n' % (high, cap))
+    add('/etc/systemd/system/enclave-rpc-clients.slice.d/limits.conf',
+        b'[Slice]\nMemoryHigh=28672M\nMemoryMax=30720M\n')
     script = '\n'.join([
         'set -eux',
         'export DEBIAN_FRONTEND=noninteractive',
@@ -106,7 +110,12 @@ def main(out):
     seed = out/'seed'
     seed.mkdir(mode=0o700)
     (seed/'user-data').write_text('#cloud-config\n'+json.dumps(seed_config((out/'build-key.pub').read_text().strip()))+'\n')
-    (seed/'meta-data').write_text('instance-id: rpc-snp-build-%d\nlocal-hostname: rpc-snp-build\n' % time.time_ns())
+    # identity.py binds the guest to /var/lib/cloud/data/instance-id, which cloud-init
+    # records from this meta-data: use the runtime identity's own instance.
+    config = json.loads((seed/'user-data').read_text().split('\n', 1)[1])
+    ident = next(w for w in config['write_files'] if w['path'] == '/etc/enclave-rpc/identity.json')
+    instance = json.loads(base64.b64decode(ident['content']))['instance']
+    (seed/'meta-data').write_text('instance-id: %s\nlocal-hostname: %s\n' % (instance, instance))
     run(['/usr/bin/xorriso', '-as', 'mkisofs', '-V', 'cidata', '-J', '-r', '-o', str(out/'seed.iso'),
          str(seed/'user-data'), str(seed/'meta-data')])
     run(['/usr/bin/qemu-img', 'create', '-q', '-f', 'qcow2', '-F', 'vhdx', '-b', str(BOOT_VHDX), str(out/'build.qcow2'), '6G'])
