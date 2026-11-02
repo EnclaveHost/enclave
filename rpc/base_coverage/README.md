@@ -55,7 +55,7 @@ Written 2026-10-25. This is source and staging only. Nothing here touched the VM
 
 **Per slot:**
 - The beacon header is canonical and not optimistic.
-- The blinded block commits to this EL hash [`el-cl-mismatch`].
+- The beacon block (`/eth/v2/beacon/blocks`, the path the RPC enclave front serves) commits to this EL hash [`el-cl-mismatch`].
 - Its parent_root links to the previous non-empty slot [`cl-discontinuity`].
 - Empty slots between two linked beacon blocks are reported as **`missedSlots`**, which the hash linkage proves.
 - A slot that has an EL block but no served beacon block is **`missingData: beacon-block`**, not a missed slot.

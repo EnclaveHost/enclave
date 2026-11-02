@@ -123,7 +123,7 @@ class Chain:
             prev = slots.get(n - 1)
             self.blinded[sl] = {'data': {'message': {
                 'slot': str(sl), 'parent_root': h32('cl', prev) if prev is not None else h32('cl', 'pre'),
-                'body': {'execution_payload_header': {'block_hash': blk['hash']},
+                'body': {'execution_payload': {'block_hash': blk['hash']},
                          'blob_kzg_commitments': [COMMIT[k] for k in blob_keys.get(n, '')]}}}}
             self.blobs[sl] = {VH[k]: BLOBS[k] for k in blob_keys.get(n, '')}
         sealer.close()
@@ -170,7 +170,7 @@ class Chain:
         slot = int(parts[-1]) if parts[-1].isdigit() else None
         if path.startswith('/eth/v1/beacon/headers/') and slot in self.headers:
             return 200, self.headers[slot]
-        if path.startswith('/eth/v1/beacon/blinded_blocks/') and slot in self.blinded:
+        if path.startswith('/eth/v2/beacon/blocks/') and slot in self.blinded:
             return 200, self.blinded[slot]
         if path.startswith('/eth/v1/beacon/blobs/') and slot in self.blobs:
             if slot in self.blob_status:
@@ -355,7 +355,7 @@ class GateTest(unittest.TestCase):
         self.chain.blinded[self.chain.slots[1004]]['data']['message']['parent_root'] = h32('fork', 0)
         self.refused('cl-discontinuity')
         self.chain.blinded[self.chain.slots[1004]]['data']['message']['parent_root'] = h32('cl', self.chain.slots[1003])
-        self.chain.blinded[self.chain.slots[1006]]['data']['message']['body']['execution_payload_header']['block_hash'] = h32('x', 0)
+        self.chain.blinded[self.chain.slots[1006]]['data']['message']['body']['execution_payload']['block_hash'] = h32('x', 0)
         self.refused('el-cl-mismatch')
 
     def test_batcher_change_in_range(self):

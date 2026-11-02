@@ -1,0 +1,28 @@
+{
+ "counts": {
+  "blobTxs": 0,
+  "blobsVerified": 0,
+  "blocks": 0,
+  "mismatches": 0,
+  "missedSlots": 0,
+  "missingData": 0,
+  "receipts": 0,
+  "transactions": 0
+ },
+ "coverageVerifiedWritten": false,
+ "format": "enclave-base-l1-coverage-verdict/v1",
+ "http": {
+  "bytes": 166,
+  "requests": 2
+ },
+ "mismatches": [],
+ "missedSlots": [],
+ "missingData": [],
+ "needFromBlock": 26262339,
+ "refusal": {
+  "code": "el-rpc-error",
+  "detail": "eth_getBlockByNumber['0x0', False]: {'code': 4444, 'message': 'pruned history unavailable: requested 0, earliest available 26150000'}"
+ },
+ "rule": "safe-origin-minus-seq-window",
+ "verdict": "REFUSED"
+}

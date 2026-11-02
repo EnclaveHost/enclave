@@ -350,13 +350,14 @@ def run(a, origin, report):
             if hd.get('canonical') is not True or hdr.get('execution_optimistic') is not False:
                 raise Refuse('cl-optimistic', f'slot {slot} header not canonical or optimistic')
             root = hd.get('root')
-            st, bb = c.bn(f'/eth/v1/beacon/blinded_blocks/{slot}')
+            # The full block, not blinded_blocks: the production RPC enclave front serves only /eth/v2/beacon/blocks.
+            st, bb = c.bn(f'/eth/v2/beacon/blocks/{slot}')
             if st != 200:
                 note('missingData', {'block': n, 'slot': slot, 'kind': 'beacon-block'})
                 prev_root = None
                 continue
             msg = bb['data']['message']
-            if int(msg['slot']) != slot or msg['body']['execution_payload_header']['block_hash'] != blk['hash']:
+            if int(msg['slot']) != slot or msg['body']['execution_payload']['block_hash'] != blk['hash']:
                 raise Refuse('el-cl-mismatch', f'slot {slot} does not commit to EL block {n}')
             if prev_root is not None:
                 if msg['parent_root'] != prev_root:

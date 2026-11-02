@@ -1,0 +1,539 @@
+{
+ "batcher": "0x5050f69a9786f081509234f1a7f4684b5e5b76c9",
+ "blobScope": "batcher",
+ "counts": {
+  "blobTxs": 0,
+  "blobsVerified": 0,
+  "blocks": 30000,
+  "mismatches": 0,
+  "missedSlots": 0,
+  "missingData": 30000,
+  "receipts": 7497957,
+  "transactions": 7497957
+ },
+ "coverageVerifiedWritten": false,
+ "format": "enclave-base-l1-coverage-verdict/v1",
+ "http": {
+  "bytes": 41116292816,
+  "requests": 120014
+ },
+ "l1": {
+  "custodyGroupCount": 64,
+  "elIdentity": "history-expired: chainId 1 + beacon payload commitments under the mainnet genesis_validators_root",
+  "finalized": 26326606,
+  "finalizedHash": "0xd344d598e5234f56cc7a1219a4fd65fc060fa8b89f99e675ea04303f47909646",
+  "head": 26326686
+ },
+ "mismatches": [],
+ "missedSlots": [],
+ "missingData": [
+  {
+   "block": 26262339,
+   "kind": "beacon-block",
+   "slot": 15501573
+  },
+  {
+   "block": 26262340,
+   "kind": "beacon-block",
+   "slot": 15501574
+  },
+  {
+   "block": 26262341,
+   "kind": "beacon-block",
+   "slot": 15501575
+  },
+  {
+   "block": 26262342,
+   "kind": "beacon-block",
+   "slot": 15501576
+  },
+  {
+   "block": 26262343,
+   "kind": "beacon-block",
+   "slot": 15501577
+  },
+  {
+   "block": 26262344,
+   "kind": "beacon-block",
+   "slot": 15501578
+  },
+  {
+   "block": 26262345,
+   "kind": "beacon-block",
+   "slot": 15501579
+  },
+  {
+   "block": 26262346,
+   "kind": "beacon-block",
+   "slot": 15501580
+  },
+  {
+   "block": 26262347,
+   "kind": "beacon-block",
+   "slot": 15501581
+  },
+  {
+   "block": 26262348,
+   "kind": "beacon-block",
+   "slot": 15501582
+  },
+  {
+   "block": 26262349,
+   "kind": "beacon-block",
+   "slot": 15501583
+  },
+  {
+   "block": 26262350,
+   "kind": "beacon-block",
+   "slot": 15501584
+  },
+  {
+   "block": 26262351,
+   "kind": "beacon-block",
+   "slot": 15501585
+  },
+  {
+   "block": 26262352,
+   "kind": "beacon-block",
+   "slot": 15501586
+  },
+  {
+   "block": 26262353,
+   "kind": "beacon-block",
+   "slot": 15501587
+  },
+  {
+   "block": 26262354,
+   "kind": "beacon-block",
+   "slot": 15501588
+  },
+  {
+   "block": 26262355,
+   "kind": "beacon-block",
+   "slot": 15501589
+  },
+  {
+   "block": 26262356,
+   "kind": "beacon-block",
+   "slot": 15501590
+  },
+  {
+   "block": 26262357,
+   "kind": "beacon-block",
+   "slot": 15501591
+  },
+  {
+   "block": 26262358,
+   "kind": "beacon-block",
+   "slot": 15501592
+  },
+  {
+   "block": 26262359,
+   "kind": "beacon-block",
+   "slot": 15501593
+  },
+  {
+   "block": 26262360,
+   "kind": "beacon-block",
+   "slot": 15501594
+  },
+  {
+   "block": 26262361,
+   "kind": "beacon-block",
+   "slot": 15501595
+  },
+  {
+   "block": 26262362,
+   "kind": "beacon-block",
+   "slot": 15501596
+  },
+  {
+   "block": 26262363,
+   "kind": "beacon-block",
+   "slot": 15501597
+  },
+  {
+   "block": 26262364,
+   "kind": "beacon-block",
+   "slot": 15501598
+  },
+  {
+   "block": 26262365,
+   "kind": "beacon-block",
+   "slot": 15501599
+  },
+  {
+   "block": 26262366,
+   "kind": "beacon-block",
+   "slot": 15501600
+  },
+  {
+   "block": 26262367,
+   "kind": "beacon-block",
+   "slot": 15501601
+  },
+  {
+   "block": 26262368,
+   "kind": "beacon-block",
+   "slot": 15501602
+  },
+  {
+   "block": 26262369,
+   "kind": "beacon-block",
+   "slot": 15501603
+  },
+  {
+   "block": 26262370,
+   "kind": "beacon-block",
+   "slot": 15501604
+  },
+  {
+   "block": 26262371,
+   "kind": "beacon-block",
+   "slot": 15501605
+  },
+  {
+   "block": 26262372,
+   "kind": "beacon-block",
+   "slot": 15501606
+  },
+  {
+   "block": 26262373,
+   "kind": "beacon-block",
+   "slot": 15501607
+  },
+  {
+   "block": 26262374,
+   "kind": "beacon-block",
+   "slot": 15501608
+  },
+  {
+   "block": 26262375,
+   "kind": "beacon-block",
+   "slot": 15501609
+  },
+  {
+   "block": 26262376,
+   "kind": "beacon-block",
+   "slot": 15501610
+  },
+  {
+   "block": 26262377,
+   "kind": "beacon-block",
+   "slot": 15501611
+  },
+  {
+   "block": 26262378,
+   "kind": "beacon-block",
+   "slot": 15501612
+  },
+  {
+   "block": 26262379,
+   "kind": "beacon-block",
+   "slot": 15501613
+  },
+  {
+   "block": 26262380,
+   "kind": "beacon-block",
+   "slot": 15501614
+  },
+  {
+   "block": 26262381,
+   "kind": "beacon-block",
+   "slot": 15501615
+  },
+  {
+   "block": 26262382,
+   "kind": "beacon-block",
+   "slot": 15501616
+  },
+  {
+   "block": 26262383,
+   "kind": "beacon-block",
+   "slot": 15501617
+  },
+  {
+   "block": 26262384,
+   "kind": "beacon-block",
+   "slot": 15501618
+  },
+  {
+   "block": 26262385,
+   "kind": "beacon-block",
+   "slot": 15501619
+  },
+  {
+   "block": 26262386,
+   "kind": "beacon-block",
+   "slot": 15501620
+  },
+  {
+   "block": 26262387,
+   "kind": "beacon-block",
+   "slot": 15501621
+  },
+  {
+   "block": 26262388,
+   "kind": "beacon-block",
+   "slot": 15501622
+  },
+  {
+   "block": 26262389,
+   "kind": "beacon-block",
+   "slot": 15501623
+  },
+  {
+   "block": 26262390,
+   "kind": "beacon-block",
+   "slot": 15501624
+  },
+  {
+   "block": 26262391,
+   "kind": "beacon-block",
+   "slot": 15501625
+  },
+  {
+   "block": 26262392,
+   "kind": "beacon-block",
+   "slot": 15501626
+  },
+  {
+   "block": 26262393,
+   "kind": "beacon-block",
+   "slot": 15501627
+  },
+  {
+   "block": 26262394,
+   "kind": "beacon-block",
+   "slot": 15501628
+  },
+  {
+   "block": 26262395,
+   "kind": "beacon-block",
+   "slot": 15501629
+  },
+  {
+   "block": 26262396,
+   "kind": "beacon-block",
+   "slot": 15501630
+  },
+  {
+   "block": 26262397,
+   "kind": "beacon-block",
+   "slot": 15501631
+  },
+  {
+   "block": 26262398,
+   "kind": "beacon-block",
+   "slot": 15501632
+  },
+  {
+   "block": 26262399,
+   "kind": "beacon-block",
+   "slot": 15501633
+  },
+  {
+   "block": 26262400,
+   "kind": "beacon-block",
+   "slot": 15501634
+  },
+  {
+   "block": 26262401,
+   "kind": "beacon-block",
+   "slot": 15501635
+  },
+  {
+   "block": 26262402,
+   "kind": "beacon-block",
+   "slot": 15501636
+  },
+  {
+   "block": 26262403,
+   "kind": "beacon-block",
+   "slot": 15501637
+  },
+  {
+   "block": 26262404,
+   "kind": "beacon-block",
+   "slot": 15501638
+  },
+  {
+   "block": 26262405,
+   "kind": "beacon-block",
+   "slot": 15501639
+  },
+  {
+   "block": 26262406,
+   "kind": "beacon-block",
+   "slot": 15501640
+  },
+  {
+   "block": 26262407,
+   "kind": "beacon-block",
+   "slot": 15501641
+  },
+  {
+   "block": 26262408,
+   "kind": "beacon-block",
+   "slot": 15501642
+  },
+  {
+   "block": 26262409,
+   "kind": "beacon-block",
+   "slot": 15501643
+  },
+  {
+   "block": 26262410,
+   "kind": "beacon-block",
+   "slot": 15501644
+  },
+  {
+   "block": 26262411,
+   "kind": "beacon-block",
+   "slot": 15501645
+  },
+  {
+   "block": 26262412,
+   "kind": "beacon-block",
+   "slot": 15501646
+  },
+  {
+   "block": 26262413,
+   "kind": "beacon-block",
+   "slot": 15501647
+  },
+  {
+   "block": 26262414,
+   "kind": "beacon-block",
+   "slot": 15501648
+  },
+  {
+   "block": 26262415,
+   "kind": "beacon-block",
+   "slot": 15501649
+  },
+  {
+   "block": 26262416,
+   "kind": "beacon-block",
+   "slot": 15501650
+  },
+  {
+   "block": 26262417,
+   "kind": "beacon-block",
+   "slot": 15501651
+  },
+  {
+   "block": 26262418,
+   "kind": "beacon-block",
+   "slot": 15501652
+  },
+  {
+   "block": 26262419,
+   "kind": "beacon-block",
+   "slot": 15501653
+  },
+  {
+   "block": 26262420,
+   "kind": "beacon-block",
+   "slot": 15501654
+  },
+  {
+   "block": 26262421,
+   "kind": "beacon-block",
+   "slot": 15501655
+  },
+  {
+   "block": 26262422,
+   "kind": "beacon-block",
+   "slot": 15501657
+  },
+  {
+   "block": 26262423,
+   "kind": "beacon-block",
+   "slot": 15501658
+  },
+  {
+   "block": 26262424,
+   "kind": "beacon-block",
+   "slot": 15501659
+  },
+  {
+   "block": 26262425,
+   "kind": "beacon-block",
+   "slot": 15501660
+  },
+  {
+   "block": 26262426,
+   "kind": "beacon-block",
+   "slot": 15501661
+  },
+  {
+   "block": 26262427,
+   "kind": "beacon-block",
+   "slot": 15501662
+  },
+  {
+   "block": 26262428,
+   "kind": "beacon-block",
+   "slot": 15501663
+  },
+  {
+   "block": 26262429,
+   "kind": "beacon-block",
+   "slot": 15501664
+  },
+  {
+   "block": 26262430,
+   "kind": "beacon-block",
+   "slot": 15501665
+  },
+  {
+   "block": 26262431,
+   "kind": "beacon-block",
+   "slot": 15501666
+  },
+  {
+   "block": 26262432,
+   "kind": "beacon-block",
+   "slot": 15501667
+  },
+  {
+   "block": 26262433,
+   "kind": "beacon-block",
+   "slot": 15501668
+  },
+  {
+   "block": 26262434,
+   "kind": "beacon-block",
+   "slot": 15501669
+  },
+  {
+   "block": 26262435,
+   "kind": "beacon-block",
+   "slot": 15501670
+  },
+  {
+   "block": 26262436,
+   "kind": "beacon-block",
+   "slot": 15501671
+  },
+  {
+   "block": 26262437,
+   "kind": "beacon-block",
+   "slot": 15501672
+  },
+  {
+   "block": 26262438,
+   "kind": "beacon-block",
+   "slot": 15501673
+  }
+ ],
+ "needFromBlock": 26262339,
+ "refusal": {
+  "code": "missing-data",
+  "detail": "30000 slots/blocks lack EL, receipt, beacon or blob data"
+ },
+ "rule": "safe-origin-minus-seq-window",
+ "toBlock": 26292338,
+ "verdict": "REFUSED"
+}
