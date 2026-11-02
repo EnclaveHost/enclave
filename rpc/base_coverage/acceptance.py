@@ -2,11 +2,14 @@
 """Assemble the Base coverage activation set for an RPC guest image and check it offline.
 
 python3 -I acceptance.py OUT_DIR --verdict V --origin O --snapshot-manifest S \
-    --installed-manifest M --chain-config C --reviewer R --gate-runner G --review-notes N
+    --installed-manifest M --chain-config C --reviewer R --gate-runner G --review-notes N [--blob-patch P]
 
 OUT_DIR receives receipt.json, verdict.json, origin.json, snapshot-manifest.json (the
 files rpc/snp/build_image.py installs under /etc/enclave-rpc/coverage) and
 base-bootstrap.json (the chain.json baseBootstrap section pinning their bytes).
+A verdict that patched blob slots (the gate's --blob-patch) needs that patch file: it is
+required, must match the verdict's blobPatch.sha256, and is copied as blob-patch.json,
+which build_image.py installs for the guest's beacon patch.
 M and C are the image's /opt/enclave-rpc/manifest.json and /etc/enclave-rpc/chain.json.
 The set is then validated by the guest's own coverage_activation (--chain-service, default rpc/guest/chain_service.py),
 so a binding the guest would refuse is refused here, before an image is built.
@@ -49,6 +52,7 @@ def main(argv=None):
     for k in ('verdict', 'origin', 'snapshot-manifest', 'installed-manifest', 'chain-config', 'reviewer', 'gate-runner',
               'review-notes'):
         ap.add_argument('--'+k, required=True)
+    ap.add_argument('--blob-patch', help="the gate's --blob-patch file, when the verdict patched slots")
     ap.add_argument('--chain-service', default=str(CHAIN_SERVICE),
                     help="the image's own /opt/enclave-rpc/chain_service.py, so its rules are the ones checked")
     a = ap.parse_args(argv)
@@ -58,6 +62,14 @@ def main(argv=None):
     for src, name in ((a.verdict, 'verdict.json'), (a.origin, 'origin.json'), (a.snapshot_manifest, 'snapshot-manifest.json')):
         shutil.copyfile(src, out/name)
     verdict = json.loads((out/'verdict.json').read_text())
+    want_patch = (verdict.get('blobPatch') or {}).get('sha256')
+    if bool(want_patch) != bool(a.blob_patch):
+        raise SystemExit('the verdict %s a blob patch; --blob-patch %s' % (('records', 'is required') if want_patch
+                                                                          else ('records no', 'must be omitted')))
+    if a.blob_patch:
+        if sha(a.blob_patch) != want_patch:
+            raise SystemExit('--blob-patch is not the file the verdict was computed with')
+        shutil.copyfile(a.blob_patch, out/'blob-patch.json')
     installed = json.loads(Path(a.installed_manifest).read_text())
     cfg = json.loads(Path(a.chain_config).read_text())
     prop = verdict.get('proposedBaseBootstrap') or {}
