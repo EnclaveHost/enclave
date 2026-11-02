@@ -140,11 +140,48 @@ func pollBroker(rows []brokerPoll, wait time.Duration) (bool, error) {
 	}
 	return false, nil
 }
-func (s *BrokerSession) alive() error {
-	cutoff := s.servingCutoff.Load()
-	if cutoff == 0 {
-		cutoff = s.request.Deadline
+
+// Cutoff is the kernel-monotonic end of this session's authority: the original
+// startup deadline until a complete serving transaction publishes its
+// conservative signed expiry. The watcher and the command backstop both follow it.
+func (s *BrokerSession) Cutoff() uint64 {
+	if c := s.servingCutoff.Load(); c != 0 {
+		return c
 	}
+	return s.request.Deadline
+}
+
+// announceServing tells the original monitor, on the same pidfd-pinned socket,
+// that the broker cutoff moved to expiry. Without it the monitor retires the
+// attempt at the original deadline. A failed or partial write is loss.
+func (s *BrokerSession) announceServing(expiry uint64) error {
+	raw, err := json.Marshal(s.request)
+	if err != nil {
+		return err
+	}
+	sum := sha256.Sum256(raw)
+	packet := []byte(servingPrefix + hex.EncodeToString(sum[:]) + " " + strconv.FormatUint(expiry, 10) + "\n")
+	before := time.Now()
+	now, err := rpcservice.MonotonicNow()
+	if err != nil || now >= expiry {
+		return errors.New("late serving announcement")
+	}
+	remaining := time.Duration(expiry - now)
+	if remaining > 3*time.Second {
+		remaining = 3 * time.Second
+	}
+	if err = s.conn.SetWriteDeadline(before.Add(remaining)); err != nil {
+		return err
+	}
+	n, on, err := s.conn.WriteMsgUnix(packet, nil, nil)
+	if err != nil || n != len(packet) || on != 0 {
+		return errors.New("ambiguous serving announcement")
+	}
+	return s.conn.SetWriteDeadline(time.Time{})
+}
+
+func (s *BrokerSession) alive() error {
+	cutoff := s.Cutoff()
 	now, e := rpcservice.MonotonicNow()
 	if e != nil {
 		return e

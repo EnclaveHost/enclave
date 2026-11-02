@@ -229,6 +229,10 @@ func (s *BrokerSession) continueServingOwnerOnce(stream *ownerContinuationConnec
 	}
 	published = true
 	s.mu.Unlock()
+	if err = s.announceServing(expiry); err != nil {
+		s.lose()
+		return err
+	}
 	// Outer operator/host adoption remains separate; original request is immutable.
 	if err = stream.raw.SetDeadline(accepted.NotAfter()); err != nil {
 		return err

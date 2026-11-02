@@ -87,7 +87,7 @@ func TestBrokerOwnerHelper(t *testing.T) {
 		t.Fatal(e)
 	}
 	var ack [1]byte
-	if _, e = c.Read(ack[:]); e == nil {
+	if e = readSkippingServing(c); e == nil {
 		if mode == "close-live" {
 			c.Close()
 			time.Sleep(time.Second)
@@ -95,6 +95,18 @@ func TestBrokerOwnerHelper(t *testing.T) {
 		if mode == "extra-message" {
 			c.Write([]byte("retry"))
 			c.Read(ack[:])
+		}
+	}
+}
+
+// readSkippingServing waits for the next packet, passing over serving-expiry
+// announcements the way the real monitor's watchServing follows them.
+func readSkippingServing(c *net.UnixConn) error {
+	buf := make([]byte, 256)
+	for {
+		n, e := c.Read(buf)
+		if e != nil || !strings.HasPrefix(string(buf[:n]), servingPrefix) {
+			return e
 		}
 	}
 }

@@ -1,0 +1,1 @@
+{"phases": [{"phase": "transition", "exit": 0}, {"phase": "broker-serving", "exit": 1}], "elapsed": 12.075011633000031, "sourcePins": 774, "pinsUnchanged": true, "artifacts": {}, "deployed": false}

@@ -19,6 +19,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -154,8 +155,22 @@ func run() error {
 	deadline := before.Add(time.Duration(origin + uint64(rpcservice.StartupWindow) - now))
 	// Supplementary only. Accepted bootstrap's independently enforced cutoff must
 	// already cover process setup, every FD read, auth, relay and blocked calls.
-	timer := time.AfterFunc(time.Until(deadline), func() { os.Exit(124) })
-	defer timer.Stop()
+	// It follows the session cutoff: original startup until a complete serving
+	// commit publishes its signed expiry, never a reset or a new window.
+	var current atomic.Pointer[rpcstorage.BrokerSession]
+	var backstop func()
+	backstop = func() {
+		cutoff := origin + uint64(rpcservice.StartupWindow)
+		if s := current.Load(); s != nil {
+			cutoff = s.Cutoff()
+		}
+		now, e := rpcservice.MonotonicNow()
+		if e != nil || now >= cutoff {
+			os.Exit(124)
+		}
+		time.AfterFunc(time.Duration(cutoff-now), backstop)
+	}
+	time.AfterFunc(time.Until(deadline), backstop)
 	if e = envelope(); e != nil {
 		return e
 	}
@@ -199,6 +214,7 @@ func run() error {
 	if e != nil {
 		return e
 	}
+	current.Store(session)
 	defer receipts.Close()
 	defer session.Stop()
 	if e = session.BindServingGuards(os.NewFile(13, "original-kernel-guardian"), os.NewFile(14, "original-entry-guardian")); e != nil {

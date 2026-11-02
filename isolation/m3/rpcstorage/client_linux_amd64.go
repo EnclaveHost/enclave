@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -27,6 +28,10 @@ const socketPath = "/run/native-rpc-storage/broker.sock"
 const requestSchema = contract.RPCStorageRequestSchema
 const acceptedPrefix = "ENCLAVE-RPC-STORAGE-ACCEPTED/1 "
 const replyPrefix = "ENCLAVE-RPC-STORAGE/1 "
+const servingPrefix = "ENCLAVE-RPC-SERVING/1 "
+
+// servingSpan bounds one announced expiry; it equals the guardian permit.
+const servingSpan = uint64(30 * time.Second)
 
 // Request binds one attempt to actual loaded identity and the original clock.
 // No host pathname, endpoint, executable, budget or asserted permission exists.
@@ -251,16 +256,59 @@ func acquire(c *net.UnixConn, req Request) (a *Attempt, err error) {
 	if err = c.SetReadDeadline(before.Add(time.Duration(req.Deadline - now))); err != nil {
 		return a, err
 	}
-	go func() {
-		// Any packet, EOF, exact broker death or original deadline is loss.
-		_, rights, _ := readAcquisitionPacket(c, a.peer, before.Add(time.Duration(req.Deadline-now)))
+	go watchServing(c, a, req)
+	return a, nil
+}
+
+// watchServing holds the granted attempt until the original deadline, or the
+// latest expiry the exact broker announced after its complete serving commit.
+// Any other packet, EOF, broker death, rights or a missed expiry is loss.
+func watchServing(c *net.UnixConn, a *Attempt, req Request) {
+	defer close(a.loss)
+	defer c.Close()
+	raw, err := json.Marshal(req)
+	if err != nil {
+		return
+	}
+	sum := sha256.Sum256(raw)
+	prefix := servingPrefix + hex.EncodeToString(sum[:]) + " "
+	cutoff := req.Deadline
+	for {
+		before := time.Now()
+		now, e := rpcservice.MonotonicNow()
+		if e != nil || now >= cutoff {
+			return
+		}
+		limit := before.Add(time.Duration(cutoff - now))
+		if c.SetReadDeadline(limit) != nil {
+			return
+		}
+		packet, rights, e := readAcquisitionPacket(c, a.peer, limit)
 		for _, fd := range rights {
 			syscall.Close(fd)
 		}
-		c.Close()
-		close(a.loss)
-	}()
-	return a, nil
+		if e != nil || len(rights) != 0 {
+			return
+		}
+		next, ok := servingExpiry(packet, prefix)
+		if now, e = rpcservice.MonotonicNow(); !ok || e != nil || now >= cutoff || next <= cutoff || next > now+servingSpan {
+			return
+		}
+		cutoff = next
+	}
+}
+
+func servingExpiry(packet []byte, prefix string) (uint64, bool) {
+	line, ok := strings.CutPrefix(string(packet), prefix)
+	if !ok || !strings.HasSuffix(line, "\n") {
+		return 0, false
+	}
+	digits := strings.TrimSuffix(line, "\n")
+	if digits == "" || len(digits) > 20 || strings.TrimLeft(digits, "0123456789") != "" || (len(digits) > 1 && digits[0] == '0') {
+		return 0, false
+	}
+	v, err := strconv.ParseUint(digits, 10, 64)
+	return v, err == nil
 }
 
 // readAcquisitionPacket watches the exact broker pidfd even if another process
