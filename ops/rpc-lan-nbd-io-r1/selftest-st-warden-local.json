@@ -1,0 +1,67 @@
+{
+ "addr": "127.0.0.1:10899",
+ "connectMs": 1.643066,
+ "export": "rpc-lan-io-st",
+ "exportBytes": 67108864,
+ "label": "st-warden-local",
+ "offsets": 100000,
+ "phases": [
+  {
+   "phase": "rand4k-qd1",
+   "ops": 505074,
+   "seconds": 30.000404065,
+   "iops": 16835.5732444699,
+   "MBps": 68.9585080093487,
+   "meanUs": 59.291,
+   "p50Us": 56.83,
+   "p90Us": 59.29,
+   "p99Us": 73.57,
+   "maxUs": 47680.612,
+   "queueDepth": 1,
+   "requestBytes": 4096
+  },
+  {
+   "phase": "rand4k-qd32",
+   "ops": 1779737,
+   "seconds": 20.000368743,
+   "iops": 88985.20936634713,
+   "MBps": 364.48341756455784,
+   "meanUs": 359.502,
+   "p50Us": 354.932,
+   "p90Us": 374.742,
+   "p99Us": 479.782,
+   "maxUs": 94007.137,
+   "queueDepth": 32,
+   "requestBytes": 4096
+  },
+  {
+   "phase": "rand16k-qd1",
+   "ops": 117669,
+   "seconds": 10.000002773,
+   "iops": 11766.896737039535,
+   "MBps": 192.78883613965573,
+   "meanUs": 84.876,
+   "p50Us": 82.94,
+   "p90Us": 85.251,
+   "p99Us": 100.66,
+   "maxUs": 47010.214,
+   "queueDepth": 1,
+   "requestBytes": 16384
+  },
+  {
+   "phase": "seq1m-qd4",
+   "ops": 29486,
+   "seconds": 15.001840204,
+   "iops": 1965.4922062253422,
+   "MBps": 2060.9679556349442,
+   "meanUs": 2034.868,
+   "p50Us": 1951.888,
+   "p90Us": 2072.868,
+   "p99Us": 2623.54,
+   "maxUs": 49384.454,
+   "queueDepth": 4,
+   "requestBytes": 1048576
+  }
+ ],
+ "schema": "rpc-lan-nbd-io/1"
+}

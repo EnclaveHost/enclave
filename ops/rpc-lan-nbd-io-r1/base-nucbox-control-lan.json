@@ -1,0 +1,67 @@
+{
+ "addr": "192.168.8.249:10812",
+ "connectMs": 8.725086,
+ "export": "rpc-lan-io-base",
+ "exportBytes": 4000000000000,
+ "label": "base-nucbox-control-lan",
+ "offsets": 100000,
+ "phases": [
+  {
+   "phase": "rand4k-qd1",
+   "ops": 1651,
+   "seconds": 30.018372956,
+   "iops": 54.99964979514328,
+   "MBps": 0.22527856556090686,
+   "meanUs": 18180.897,
+   "p50Us": 18589.897,
+   "p90Us": 22037.674,
+   "p99Us": 29149.463,
+   "maxUs": 42057.407,
+   "queueDepth": 1,
+   "requestBytes": 4096
+  },
+  {
+   "phase": "rand4k-qd32",
+   "ops": 1223,
+   "seconds": 20.417600462,
+   "iops": 59.89930120712145,
+   "MBps": 0.24534753774436943,
+   "meanUs": 529007.695,
+   "p50Us": 492699.355,
+   "p90Us": 824369.613,
+   "p99Us": 955355.352,
+   "maxUs": 1029014.22,
+   "queueDepth": 32,
+   "requestBytes": 4096
+  },
+  {
+   "phase": "rand16k-qd1",
+   "ops": 540,
+   "seconds": 10.015417707,
+   "iops": 53.91687254567345,
+   "MBps": 0.8833740397883137,
+   "meanUs": 18546.275,
+   "p50Us": 18716.302,
+   "p90Us": 25694.862,
+   "p99Us": 30173.642,
+   "maxUs": 49373.306,
+   "queueDepth": 1,
+   "requestBytes": 16384
+  },
+  {
+   "phase": "seq1m-qd4",
+   "ops": 1671,
+   "seconds": 15.030237132,
+   "iops": 111.1758906612572,
+   "MBps": 116.57637072601842,
+   "meanUs": 35944.172,
+   "p50Us": 35717.267,
+   "p90Us": 35921.448,
+   "p99Us": 43755.322,
+   "maxUs": 63054.021,
+   "queueDepth": 4,
+   "requestBytes": 1048576
+  }
+ ],
+ "schema": "rpc-lan-nbd-io/1"
+}
