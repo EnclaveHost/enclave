@@ -71,11 +71,14 @@ export function createAttestedFetch({ attested, fallbackFetch = fetch, kds = tru
     const doc = JSON.parse(r.body.toString('utf8'));
     const served = spkiOf(r.peerDer);
     if (!served.equals(spkiOf(doc.certificate))) throw new Error('served certificate differs from the attested one');
-    const v = await verifyQuote(Buffer.from(doc.report, 'base64'), {
+    const report = Buffer.from(doc.report, 'base64');
+    const v = await verifyQuote(report, {
       transportKeySpki: served, challenge: Buffer.alloc(0), allowedMeasurements: policy.allowedMeasurements, kds, minTcb });
     if (!v.ok || v.vcekVerified !== true) throw new Error('enclave attestation refused: ' + (v.reasons || []).slice(-1)[0]);
-    if (policy.hostData && v.hostData !== policy.hostData) throw new Error('enclave attestation refused: HOST_DATA is not this deployment');
-    const pin = { spki: sha256(served), ca: doc.certificate, measurement: v.measurement, hostData: v.hostData, at: Date.now() };
+    // HOST_DATA (report offset 0xC0, 32 bytes) lies in the signed region verifyQuote just checked.
+    const hostData = report.subarray(0xc0, 0xe0).toString('hex');
+    if (policy.hostData && hostData !== policy.hostData) throw new Error('enclave attestation refused: HOST_DATA is not this deployment');
+    const pin = { spki: sha256(served), ca: doc.certificate, measurement: v.measurement, hostData, at: Date.now() };
     pins.set(origin, pin);
     return pin;
   }
