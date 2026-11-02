@@ -6,6 +6,7 @@ and serves:
 
   GET  /.well-known/enclave-attestation  {report, certificate, reportData}
   GET  /health                           local L1/Base sync summary (no secrets)
+  GET  /logs/{el,cl,base,front,identity}  bounded journal tail (operator view)
   POST /l1, POST /base                   JSON-RPC proxied to the local node
 
 A client that verifies the report (AMD VCEK chain, expected launch measurement)
@@ -32,6 +33,7 @@ UPSTREAM = {'/l1': 'http://127.0.0.1:18645', '/base': 'http://127.0.0.1:18545'}
 BEACON = 'http://127.0.0.1:15052'
 ALLOWED = re.compile(r'^(eth_(?!sign|sendTransaction|accounts|coinbase|mining|hashrate|submit|getWork)[A-Za-z]+|net_(version|listening|peerCount)|web3_clientVersion)$')
 MAX_BODY = 1 << 20
+LOG_UNITS = {'/logs/'+k: 'enclave-rpc-%s.service' % k for k in ('el', 'cl', 'base', 'front', 'identity')}
 MAX_BATCH = 100
 
 
@@ -121,6 +123,13 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, self.attestation)
         elif self.path == '/health':
             self.reply(200, json.dumps(health()).encode())
+        elif self.path.split('?')[0] in LOG_UNITS:
+            # Read-only operator view; a public gateway forwards only RPC, attestation and health.
+            query = dict(x.split('=', 1) for x in self.path.partition('?')[2].split('&') if '=' in x)
+            lines = min(max(int(query.get('lines', '200')) if query.get('lines', '').isdigit() else 200, 1), 2000)
+            r = subprocess.run(['/usr/bin/journalctl', '-u', LOG_UNITS[self.path.split('?')[0]], '-n', str(lines),
+                                '-o', 'short-iso', '--no-pager'], capture_output=True, timeout=15)
+            self.reply(200, r.stdout[-(4 << 20):], 'text/plain; charset=utf-8')
         else:
             self.reply(404, b'{"error":"not found"}')
 
