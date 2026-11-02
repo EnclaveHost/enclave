@@ -65,6 +65,16 @@ SET_BOOTSTRAP = (
 
 BEACON_PATCH_SED = ("sed -i \"s|'--l1-beacon', 'http://127.0.0.1:15052'|'--l1-beacon', 'http://127.0.0.1:15053'|\" "
                     "/opt/enclave-rpc/chain_service.py")
+# identity.py refuses to start the clients unless identity.json's runtimePins equal the
+# shipped runtime files, so the image pins the chain_service.py it actually carries.
+REPIN_IDENTITY = (
+    "import json,hashlib; p='/etc/enclave-rpc/identity.json'; c=json.load(open(p)); "
+    "f='/opt/enclave-rpc/chain_service.py'; c['runtimePins'][f]=hashlib.sha256(open(f,'rb').read()).hexdigest(); "
+    "open(p,'w').write(json.dumps(c,sort_keys=True))")
+CHECK_PINS = (
+    "import json,hashlib; c=json.load(open('/etc/enclave-rpc/identity.json')); "
+    "bad=[f for f,d in c['runtimePins'].items() if hashlib.sha256(open(f,'rb').read()).hexdigest()!=d]; "
+    "assert not bad, bad")
 
 
 def seed_config(owner_pub, coverage=None):
@@ -115,8 +125,9 @@ def seed_config(owner_pub, coverage=None):
         'apt-get clean',
         *(['python3 -I -c "%s"' % SET_BOOTSTRAP, 'chmod 0755 /etc/enclave-rpc/coverage'] if coverage is not None else []),
         *([BEACON_PATCH_SED, "grep -q \"'--l1-beacon', 'http://127.0.0.1:15053'\" /opt/enclave-rpc/chain_service.py",
-           'systemctl enable enclave-rpc-beacon-patch.service']
+           'python3 -I -c "%s"' % REPIN_IDENTITY, 'systemctl enable enclave-rpc-beacon-patch.service']
           if coverage is not None and (coverage/'blob-patch.json').exists() else []),
+        'python3 -I -c "%s"' % CHECK_PINS,
         'update-initramfs -u -k all',
         'for u in enclave-rpc-el enclave-rpc-cl enclave-rpc-base; do ln -sf /etc/systemd/system/$u.service /etc/systemd/system/multi-user.target.wants/$u.service; done',
         'systemctl enable enclave-rpc-front.service',
