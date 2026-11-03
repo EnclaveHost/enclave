@@ -6,7 +6,8 @@
 # Env: WORK (deploy-l1.sh output), KEYS, DEVNET (runtime dir, outside the repo),
 #      SEQ_L1_RPC, SEQ_L1_BEACON, REPLICA_L1_RPC, REPLICA_L1_BEACON,
 #      BATCHER_MAX_CHANNEL_DURATION (L1 blocks, default 25 = ~5 min),
-#      PROPOSAL_INTERVAL (default 1h), SEQ_L1_CONFS (default 4).
+#      PROPOSAL_INTERVAL (default 1h), SEQ_L1_CONFS (default 4),
+#      PROPOSER_GAME_TYPE (5 until the anchor is real, then 9).
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 : "${WORK:?}" "${KEYS:?}" "${DEVNET:?}" "${SEQ_L1_RPC:?}" "${SEQ_L1_BEACON:?}" "${REPLICA_L1_RPC:?}" "${REPLICA_L1_BEACON:?}"
@@ -34,6 +35,7 @@ REPLICA_L1_BEACON=$REPLICA_L1_BEACON
 SEQ_L1_CONFS=${SEQ_L1_CONFS:-4}
 BATCHER_MAX_CHANNEL_DURATION=${BATCHER_MAX_CHANNEL_DURATION:-25}
 PROPOSAL_INTERVAL=${PROPOSAL_INTERVAL:-1h}
+PROPOSER_GAME_TYPE=${PROPOSER_GAME_TYPE:-5}
 DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy "$WORK/chain-addresses.json")
 EOF
 chmod 600 "$DEVNET"/*.env

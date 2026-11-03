@@ -112,3 +112,24 @@ The flows all succeeded on anvil, which has no L1 fee. Gas used, including the
 - release 54,920
 
 The Sepolia devnet numbers, with real L1 data fees, are in `sepolia/`.
+
+## Correction: attempt 3 made game 9 respected too early
+
+After attempt 3, an attempt to create a game-9 proposal on the fork reverted
+with `BadExtraData`. The reason: `AnchorStateRegistry.getAnchorRoot()` returned
+`0xdead…0000` at sequence 0, OP's placeholder. A SUPER_PERMISSIONED genesis
+leaves the placeholder anchor in place, and `opcm.upgrade` rejects an
+`overrides.cfg.startingAnchorRoot` instruction (only
+`overrides.cfg.startingRespectedGameType` is permitted,
+`OPContractsManagerV2._isPermittedInstruction`). The anchor moves only when a
+respected game resolves and finalizes and `setAnchorState` is called. On
+standard parameters that takes about 3.5 days of clock plus a 3.5-day
+finality delay.
+
+Respecting game 9 on a placeholder anchor would have every permissionless game
+start from a root that no honest challenger can prove against. So
+`deploy-l1.sh` now registers game 9 but leaves SUPER_PERMISSIONED respected
+while the anchor is the placeholder. The proposer starts on type 5
+(`PROPOSER_GAME_TYPE`). Making game 9 respected is a dated follow-up step and a
+mainnet release gate (see DESIGN.md). The kona prestate and config are checked
+now, against live blocks, with `op-challenger run-trace`.

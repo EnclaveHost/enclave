@@ -57,7 +57,7 @@ services:
     depends_on: [seq-node]
     env_file: ["${DEVNET}/secrets-proposer.env"]     # OP_PROPOSER_PRIVATE_KEY
     command: [op-proposer, "--l1-eth-rpc=${SEQ_L1_RPC}", --superroot-rpcs=http://seq-node:8547,
-      "--game-factory-address=${DISPUTE_GAME_FACTORY}", --game-type=9, "--proposal-interval=${PROPOSAL_INTERVAL}",
+      "--game-factory-address=${DISPUTE_GAME_FACTORY}", "--game-type=${PROPOSER_GAME_TYPE}", "--proposal-interval=${PROPOSAL_INTERVAL}",
       --poll-interval=30s, --num-confirmations=1, --rpc.addr=0.0.0.0, --rpc.port=8560, --log.level=info]
 
   replica-reth:

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # deploy-l1.sh - deploy the Enclave L2's L1 contracts with op-deployer, then
-# turn on permissionless (SUPER_CANNON_KONA) fault proofs. Testnet tooling:
+# register permissionless (SUPER_CANNON_KONA) fault proofs and, once the
+# anchor is a real super root, make them the respected game. Testnet tooling:
 # it refuses any L1 other than Sepolia.
 #
 # Why it is staged this way (each found on a Sepolia fork, 2026-11-03):
@@ -128,10 +129,22 @@ if ! have add-game; then
   cat add-game-exec.json; done_ add-game
 fi
 
+# Only a finalized respected game moves the anchor, and opcm.upgrade may not
+# override startingAnchorRoot. So after a SUPER_PERMISSIONED genesis the anchor
+# is the 0xdead placeholder, and respecting game 9 then would start every
+# permissionless game from a root nobody can prove against. Stay on game 5
+# until a type-5 game has resolved and finalized (~3.5 d clock + 3.5 d finality
+# delay) and setAnchorState has moved the anchor, then re-run this script.
+PLACEHOLDER=0xdead000000000000000000000000000000000000000000000000000000000000
+anchor=$(cast call "$ASR" 'getAnchorRoot()(bytes32,uint256)' --rpc-url "$L1_RPC" | head -1)
 if ! have respected; then
-  cast send "$ASR" 'setRespectedGameType(uint32)' 9 --private-key "$(cat "$KEYS/admin.key")" --rpc-url "$L1_RPC" --json \
-    | jq '{transactionHash, gasUsed, status}' > respected.json
-  cat respected.json; done_ respected
+  if [ "$anchor" = "$PLACEHOLDER" ]; then
+    echo "== respected game stays SUPER_PERMISSIONED (5): anchor is still the placeholder; re-run after a type-5 game finalizes"
+  else
+    cast send "$ASR" 'setRespectedGameType(uint32)' 9 --private-key "$(cat "$KEYS/admin.key")" --rpc-url "$L1_RPC" --json \
+      | jq '{transactionHash, gasUsed, status}' > respected.json
+    cat respected.json; done_ respected
+  fi
 fi
 
 jq -n --arg safe "$SAFE" --arg asr "$ASR" --arg dgf "$DGF" --arg pre "$PRESTATE" \
@@ -140,7 +153,8 @@ jq -n --arg safe "$SAFE" --arg asr "$ASR" --arg dgf "$DGF" --arg pre "$PRESTATE"
   --arg g9 "$(cast call "$DGF" 'gameImpls(uint32)(address)' 9 --rpc-url "$L1_RPC")" \
   --arg bond9 "$(cast call "$DGF" 'initBonds(uint32)(uint256)' 9 --rpc-url "$L1_RPC" | cut -d' ' -f1)" \
   --arg owner "$(cast call "$(jq -r .OpChainProxyAdminImpl chain-addresses.json)" 'owner()(address)' --rpc-url "$L1_RPC")" \
-  '{l1ProxyAdminOwnerSafe:$safe, proxyAdminOwnerOnChain:$owner, anchorStateRegistry:$asr, disputeGameFactory:$dgf,
+  --arg anchor "$(cast call "$ASR" 'getAnchorRoot()(bytes32,uint256)' --rpc-url "$L1_RPC" | tr '\n' ' ')" \
+  '{l1ProxyAdminOwnerSafe:$safe, anchorRoot:$anchor, proxyAdminOwnerOnChain:$owner, anchorStateRegistry:$asr, disputeGameFactory:$dgf,
     respectedGameType:($respected|tonumber), superPermissionedImpl:$g5, superCannonKonaImpl:$g9, superCannonKonaInitBondWei:$bond9,
     superCannonKonaAbsolutePrestate:$pre}' | tee proofs.json
 echo "deployer balance $(balance) wei at end" | tee -a costs.log
