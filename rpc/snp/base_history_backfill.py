@@ -130,40 +130,24 @@ def plan_archives(manifest, lo, hi):
     return archives
 
 
-def main(work, disk, manifest_path, uuid, lo, hi):
-    work, disk, lo, hi = Path(work), Path(disk), int(lo), int(hi)
-    work.mkdir(mode=0o700)
-    if sha(BOOT_VHDX) != BOOT_SHA256:
-        raise ValueError('Pinned boot image changed')
-    manifest = json.loads(Path(manifest_path).read_text())
-    plan = {'manifestSha256': sha(manifest_path), 'fromBlock': lo, 'uptoBlock': hi,
-            'reference': 'static_file_receipts_%d_%d' % (hi, hi + manifest['components']['receipts']['blocks_per_file'] - 1),
-            'archives': plan_archives(manifest, lo, hi)}
-    (work/'plan.json').write_text(json.dumps(plan, indent=1)+'\n')
-    script = '\n'.join([
-        'set -eux',
-        'export DEBIAN_FRONTEND=noninteractive',
-        'apt-get -q -o DPkg::Lock::Timeout=600 update', 'apt-get -qy -o DPkg::Lock::Timeout=600 install b3sum zstd curl',
-        'mkdir -p /mnt/base', 'mount -o noatime UUID=%s /mnt/base' % uuid,
-        'python3 -I /opt/backfill/guest.py',
-        'cp /mnt/base/backfill-%d-%d.json /mnt/results/receipt.json' % (lo, hi),
-        'umount /mnt/base', 'sync',
-    ])
-
+def helper_vm(work, disk, name, script, files=()):
+    """Boot a throwaway overlay of the pinned boot image with DISK attached (serial RPC-base), run SCRIPT
+    (shell lines, as root, under `set -eux`) and power off. The guest's log, exit status and
+    /mnt/results/receipt.json come back on a small results disk; returns the receipt's path in WORK,
+    or raises unless the script exited 0 and wrote one."""
     def wf(path, data, mode='0644'):
         return {'path': path, 'owner': 'root:root', 'permissions': mode, 'encoding': 'b64',
                 'content': base64.b64encode(data).decode()}
+    run_sh = '\n'.join(['set -eux', *script]).encode() + b'\n'
     cloud = {'ssh_pwauth': False, 'disable_root': True, 'package_update': False, 'package_upgrade': False,
-             'write_files': [wf('/opt/backfill/plan.json', json.dumps(plan).encode()),
-                             wf('/opt/backfill/guest.py', GUEST.encode()),
-                             wf('/opt/backfill/run.sh', script.encode()+b'\n', '0700')],
+             'write_files': [wf(p, d, m) for p, d, m in files] + [wf('/opt/backfill/run.sh', run_sh, '0700')],
              'runcmd': [['bash', '-c', 'mkdir -p /mnt/results && mount /dev/disk/by-id/virtio-RESULTS /mnt/results; '
                          '/opt/backfill/run.sh > /mnt/results/backfill.log 2>&1; echo $? > /mnt/results/rc; '
                          'umount /mnt/results; sync; poweroff']]}
     seed = work/'seed'
     seed.mkdir(mode=0o700)
     (seed/'user-data').write_text('#cloud-config\n'+json.dumps(cloud)+'\n')
-    (seed/'meta-data').write_text('instance-id: base-backfill-%d\nlocal-hostname: base-backfill\n' % lo)
+    (seed/'meta-data').write_text('instance-id: %s\nlocal-hostname: base-helper\n' % name)
     run(['/usr/bin/xorriso', '-as', 'mkisofs', '-V', 'cidata', '-J', '-r', '-o', str(work/'seed.iso'),
          str(seed/'user-data'), str(seed/'meta-data')])
     run(['/usr/bin/qemu-img', 'create', '-q', '-f', 'qcow2', '-F', 'vhdx', '-b', str(BOOT_VHDX), str(work/'os.qcow2'), '8G'])
@@ -173,7 +157,7 @@ def main(work, disk, manifest_path, uuid, lo, hi):
     args = ['/usr/bin/bwrap', '--die-with-parent', '--new-session', '--unshare-user', '--ro-bind', '/', '/',
             '--bind', str(work), str(work), '--bind', str(disk), str(disk),
             '--dev', '/dev', '--dev-bind', '/dev/kvm', '/dev/kvm', '--',
-            '/usr/sbin/qemu-system-x86_64', '-name', 'rpc-base-history-backfill', '-machine', 'q35,accel=kvm', '-cpu', 'host',
+            '/usr/sbin/qemu-system-x86_64', '-name', 'rpc-base-helper', '-machine', 'q35,accel=kvm', '-cpu', 'host',
             '-smp', '4', '-m', '4096', '-nodefaults', '-no-reboot', '-display', 'none', '-monitor', 'none',
             '-serial', 'file:'+str(work/'console.log'),
             '-drive', 'file='+str(work/'os.qcow2')+',format=qcow2,if=none,id=os0,cache=none',
@@ -184,7 +168,6 @@ def main(work, disk, manifest_path, uuid, lo, hi):
             '-device', 'virtio-blk-pci,drive=res0,serial=RESULTS',
             '-drive', 'file='+str(work/'seed.iso')+',format=raw,media=cdrom,readonly=on',
             '-netdev', 'user,id=net0', '-device', 'virtio-net-pci,netdev=net0']
-    t = time.time()
     r = subprocess.run(args, capture_output=True, text=True)
     (work/'os.qcow2').unlink()
     for name in ('backfill.log', 'receipt.json', 'rc'):
@@ -192,10 +175,32 @@ def main(work, disk, manifest_path, uuid, lo, hi):
                        capture_output=True)
     rc = (work/'rc').read_text().strip() if (work/'rc').exists() else None
     if r.returncode != 0 or rc != '0' or not (work/'receipt.json').exists():
-        raise RuntimeError('backfill VM did not complete (rc %s); see backfill.log %s' % (rc, r.stderr[-400:]))
-    receipt = json.loads((work/'receipt.json').read_text())
+        raise RuntimeError('helper VM did not complete (rc %s); see backfill.log %s' % (rc, r.stderr[-400:]))
+    return work/'receipt.json'
+
+
+def main(work, disk, manifest_path, uuid, lo, hi):
+    work, disk, lo, hi = Path(work), Path(disk), int(lo), int(hi)
+    work.mkdir(mode=0o700)
+    if sha(BOOT_VHDX) != BOOT_SHA256:
+        raise ValueError('Pinned boot image changed')
+    manifest = json.loads(Path(manifest_path).read_text())
+    plan = {'manifestSha256': sha(manifest_path), 'fromBlock': lo, 'uptoBlock': hi,
+            'reference': 'static_file_receipts_%d_%d' % (hi, hi + manifest['components']['receipts']['blocks_per_file'] - 1),
+            'archives': plan_archives(manifest, lo, hi)}
+    (work/'plan.json').write_text(json.dumps(plan, indent=1)+'\n')
+    t = time.time()
+    receipt_path = helper_vm(work, disk, 'base-backfill-%d' % lo, [
+        'export DEBIAN_FRONTEND=noninteractive',
+        'apt-get -q -o DPkg::Lock::Timeout=600 update', 'apt-get -qy -o DPkg::Lock::Timeout=600 install b3sum zstd curl',
+        'mkdir -p /mnt/base', 'mount -o noatime UUID=%s /mnt/base' % uuid,
+        'python3 -I /opt/backfill/guest.py',
+        'cp /mnt/base/backfill-%d-%d.json /mnt/results/receipt.json' % (lo, hi),
+        'umount /mnt/base', 'sync',
+    ], [('/opt/backfill/plan.json', json.dumps(plan).encode(), '0644'), ('/opt/backfill/guest.py', GUEST.encode(), '0644')])
+    receipt = json.loads(receipt_path.read_text())
     result = {'seconds': round(time.time()-t), 'disk': str(disk), 'planSha256': sha(work/'plan.json'),
-              'added': len(receipt['added']), 'receiptSha256': sha(work/'receipt.json')}
+              'added': len(receipt['added']), 'receiptSha256': sha(receipt_path)}
     (work/'RESULT.json').write_text(json.dumps(result, indent=1)+'\n')
     print(json.dumps(result))
 
