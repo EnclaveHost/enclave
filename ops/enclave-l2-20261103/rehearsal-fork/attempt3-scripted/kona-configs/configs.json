@@ -1,0 +1,90 @@
+{
+  "superchains": [
+    {
+      "name": "sepolia",
+      "config": {
+        "name": "Sepolia",
+        "l1": {
+          "chain_id": 11155111,
+          "public_rpc": "",
+          "explorer": ""
+        },
+        "hardforks": {},
+        "superchain_config_addr": null,
+        "op_contracts_manager_proxy_addr": null
+      },
+      "chains": [
+        {
+          "Name": "Enclave L2 Devnet",
+          "PublicRPC": "",
+          "SequencerRPC": "",
+          "Explorer": "",
+          "GovernedByOptimism": false,
+          "SuperchainTime": null,
+          "DataAvailabilityType": "eth-da",
+          "l2_chain_id": 4206917,
+          "batch_inbox_address": "0x00dbb164b4fe54940f900e79e885753166c1128b",
+          "block_time": 2,
+          "seq_window_size": 3600,
+          "max_sequencer_drift": 600,
+          "GasPayingToken": null,
+          "hardfork_configuration": {
+            "canyon_time": 0,
+            "delta_time": 0,
+            "ecotone_time": 0,
+            "fjord_time": 0,
+            "granite_time": 0,
+            "holocene_time": 0,
+            "isthmus_time": 0,
+            "jovian_time": 0,
+            "karst_time": 0
+          },
+          "optimism": {
+            "eip1559Elasticity": 6,
+            "eip1559Denominator": 50,
+            "eip1559DenominatorCanyon": 250
+          },
+          "alt_da": null,
+          "genesis": {
+            "l1": {
+              "hash": "0x6e6aff1f5bc0645df9a9bb45f40836a1865ee185a7aa25843121773371744504",
+              "number": 12054840
+            },
+            "l2": {
+              "hash": "0xca0cecf6351facf9faddfd88a03a2ea09458eddacf7d54c464c3be148af3b69e",
+              "number": 0
+            },
+            "l2_time": 1793704068,
+            "system_config": {
+              "batcherAddr": "0x3221c0f96f99323ab1fe3f988dc7cca87dee8f2d",
+              "overhead": "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "scalar": "0x010000000000000000000000000000000000000000000000000c3c9d00000558",
+              "gasLimit": 60000000,
+              "baseFeeScalar": null,
+              "blobBaseFeeScalar": null,
+              "eip1559Denominator": null,
+              "eip1559Elasticity": null,
+              "operatorFeeScalar": null,
+              "operatorFeeConstant": null,
+              "minBaseFee": 0,
+              "daFootprintGasScalar": 0
+            }
+          },
+          "Roles": {
+            "SystemConfigOwner": null,
+            "ProxyAdminOwner": "0x2AEB9329F0E0d523Eb0Db68569E98ED4a19F36E5",
+            "Guardian": null,
+            "Challenger": null,
+            "Proposer": null,
+            "UnsafeBlockSigner": null,
+            "BatchSubmitter": "0x3221c0f96f99323ab1fe3f988dc7cca87dee8f2d"
+          },
+          "Addresses": {
+            "OptimismPortalProxy": "0xef21819a305d3c9c27c6e7943bde6a710aa03f24",
+            "SystemConfigProxy": "0x42944d15d63e3e56a84293fc489100ad118bd573"
+          }
+        }
+      ]
+    }
+  ]
+}

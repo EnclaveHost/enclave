@@ -1,0 +1,19 @@
+[
+  {
+    "name": "Enclave L2 Devnet",
+    "identifier": "sepolia/enclave-devnet",
+    "chainId": 4206917,
+    "rpc": [],
+    "explorers": [],
+    "superchainLevel": 0,
+    "governedByOptimism": false,
+    "dataAvailabilityType": "eth-da",
+    "parent": {
+      "type": "L2",
+      "chain": "sepolia"
+    },
+    "faultProofs": {
+      "status": "permissionless"
+    }
+  }
+]

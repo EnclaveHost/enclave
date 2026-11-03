@@ -1,0 +1,40 @@
+{
+  "id": "0x0000000000000000000000000000000000000000000000000000000000403145",
+  "OpChainProxyAdminImpl": "0xab538596c2958d6ea6fa98daae944aaf8224e1a1",
+  "OptimismPortalProxy": "0xef21819a305d3c9c27c6e7943bde6a710aa03f24",
+  "AddressManagerImpl": "0xfed550746416bb49057b877f9241bdcc9e124df6",
+  "L1Erc721BridgeProxy": "0x888be8d61486205ca0a49f76c2c4417729323d71",
+  "SystemConfigProxy": "0x42944d15d63e3e56a84293fc489100ad118bd573",
+  "OptimismMintableErc20FactoryProxy": "0x18b0e4cf91dab789459e7e0488d471a33e931e30",
+  "L1StandardBridgeProxy": "0x33e0c0f4d8aad7cf89c1f8a081a403b545d884a2",
+  "L1CrossDomainMessengerProxy": "0x7d64892327e4cd3978370b6e950492c8eee0c47f",
+  "EthLockboxProxy": "0xc38714ee98d18a45b85cc1f3df31bedf263a7c7b",
+  "DisputeGameFactoryProxy": "0x45ce41b2c1b59baf94190f31e177ae467568f5a3",
+  "AnchorStateRegistryProxy": "0x4697912fab729ede882b6eaa5001f65d8ee3cba7",
+  "FaultDisputeGameImpl": "0x2dda3584b51ef5236f7726dea5a0fb6b3ca94aec",
+  "FaultDisputeGameCannonKonaImpl": "0x0000000000000000000000000000000000000000",
+  "PermissionedDisputeGameImpl": "0xe1dffcbe4e22b813f26d2106d943c102e7cab87e",
+  "SuperFaultDisputeGameImpl": "0x0000000000000000000000000000000000000000",
+  "SuperPermissionedDisputeGameImpl": "0x0000000000000000000000000000000000000000",
+  "DelayedWethPermissionedGameProxy": "0x57097fd418fae1092f9c8212c257157d92784926",
+  "DelayedWethPermissionlessGameProxy": "0x57097fd418fae1092f9c8212c257157d92784926",
+  "AltDAChallengeProxy": "0x0000000000000000000000000000000000000000",
+  "AltDAChallengeImpl": "0x0000000000000000000000000000000000000000",
+  "L2OutputOracleProxy": "0x0000000000000000000000000000000000000000",
+  "deployed": true,
+  "startingAnchorRoot": {
+    "root": "0x7ee0f0fcabd261a7d69556c7dd8eb96f0a19d6e5b669ee5c255ce0bb6811487d",
+    "l2SequenceNumber": "0x0"
+  },
+  "initialGameType": 5,
+  "additionalDisputeGames": null,
+  "startBlock": {
+    "hash": "0x6e6aff1f5bc0645df9a9bb45f40836a1865ee185a7aa25843121773371744504",
+    "parentHash": "0xad13552c5275c7948f1cc8af6507887da5c6f10e9ff3bff7063a581a2a6145ca",
+    "number": "0xb7f138",
+    "timestamp": "0x6ae9be2c"
+  },
+  "genesisTime": "0x6ae9c084",
+  "continuation": {},
+  "genesisBlockHash": "0xca0cecf6351facf9faddfd88a03a2ea09458eddacf7d54c464c3be148af3b69e"
+}

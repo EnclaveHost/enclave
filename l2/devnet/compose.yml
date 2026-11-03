@@ -1,0 +1,94 @@
+# Enclave L2 Sepolia devnet: sequencer, batcher, proposer, challenger and an
+# independent replica. Testnet only. Run through l2/devnet/up.sh, which
+# renders $DEVNET/.env (addresses, L1 URLs) and $DEVNET/secrets.env (role keys,
+# mode 0600, outside the repo) from the deploy-l1.sh output.
+#
+# The replica shares nothing with the sequencer but the L1: its own op-reth
+# datadir and JWT, a different Sepolia execution RPC and beacon provider, and
+# p2p disabled, so every block it has, it derived from Sepolia itself.
+# The challenger plays games against the replica's view, not the sequencer's.
+#
+# All RPC ports bind to 127.0.0.1. op-node's admin API is unauthenticated.
+name: enclave-l2-devnet
+
+x-reth: &reth
+  image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-reth:v2.8.0@sha256:c843f5a906ebb931ac5215415608f411f09a5cdb8761443be76378e10af9776c
+  restart: unless-stopped
+x-node: &node
+  image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:v1.20.0@sha256:47436354176f58444c78df3ca8f48c3bab8104e201e6f0fefa42d5d4fa1726ea
+  restart: unless-stopped
+
+services:
+  seq-reth:
+    <<: *reth
+    volumes: ["${DEVNET}/cfg:/cfg:ro", "${DEVNET}/seq/reth:/data", "${DEVNET}/seq/jwt.hex:/jwt.hex:ro"]
+    ports: ["127.0.0.1:9545:8545"]
+    command: [node, --chain=/cfg/genesis.json, --datadir=/data,
+      --http, --http.addr=0.0.0.0, --http.port=8545, --http.api=eth,net,web3,debug,txpool,
+      --authrpc.addr=0.0.0.0, --authrpc.port=8551, --authrpc.jwtsecret=/jwt.hex,
+      --rollup.disable-tx-pool-gossip, --builder.deadline=2, --builder.interval=100ms, --disable-discovery]
+
+  seq-node:
+    <<: *node
+    depends_on: [seq-reth]
+    env_file: ["${DEVNET}/secrets-sequencer.env"]   # OP_NODE_P2P_SEQUENCER_KEY
+    volumes: ["${DEVNET}/cfg:/cfg:ro", "${DEVNET}/seq/jwt.hex:/jwt.hex:ro", "${DEVNET}/seq/node:/data"]
+    ports: ["127.0.0.1:9547:8547"]
+    command: [op-node, "--l1=${SEQ_L1_RPC}", "--l1.beacon=${SEQ_L1_BEACON}", --l1.rpckind=standard,
+      --l2=http://seq-reth:8551, --l2.jwt-secret=/jwt.hex, --l2.enginekind=reth,
+      --rollup.config=/cfg/rollup.json, --sequencer.enabled, "--sequencer.l1-confs=${SEQ_L1_CONFS}",
+      "--verifier.l1-confs=${SEQ_L1_CONFS}", --p2p.disable, --safedb.path=/data/safedb,
+      --rpc.addr=0.0.0.0, --rpc.port=8547, --rpc.enable-admin, --log.level=info]
+
+  batcher:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:v1.18.0@sha256:cd80d0c77ff5ae770437119724a2227522497d8cf60a9c5746dc681d933a9719
+    restart: unless-stopped
+    depends_on: [seq-node]
+    env_file: ["${DEVNET}/secrets-batcher.env"]      # OP_BATCHER_PRIVATE_KEY
+    command: [op-batcher, "--l1-eth-rpc=${SEQ_L1_RPC}", --l2-eth-rpc=http://seq-reth:8545, --rollup-rpc=http://seq-node:8547,
+      --data-availability-type=blobs, --batch-type=span, --compression-algo=brotli-10,
+      "--max-channel-duration=${BATCHER_MAX_CHANNEL_DURATION}", --sub-safety-margin=10, --poll-interval=12s,
+      --num-confirmations=1, --safe-abort-nonce-too-low-count=3, --resubmission-timeout=60s,
+      --rpc.addr=0.0.0.0, --rpc.port=8548, --log.level=info]
+
+  proposer:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:v1.17.0@sha256:ef260f246aea7e93b9b70b458a77e3c41ca62b67d907029764d4fa1982c4044b
+    restart: unless-stopped
+    depends_on: [seq-node]
+    env_file: ["${DEVNET}/secrets-proposer.env"]     # OP_PROPOSER_PRIVATE_KEY
+    command: [op-proposer, "--l1-eth-rpc=${SEQ_L1_RPC}", --superroot-rpcs=http://seq-node:8547,
+      "--game-factory-address=${DISPUTE_GAME_FACTORY}", --game-type=9, "--proposal-interval=${PROPOSAL_INTERVAL}",
+      --poll-interval=30s, --num-confirmations=1, --rpc.addr=0.0.0.0, --rpc.port=8560, --log.level=info]
+
+  replica-reth:
+    <<: *reth
+    volumes: ["${DEVNET}/cfg:/cfg:ro", "${DEVNET}/replica/reth:/data", "${DEVNET}/replica/jwt.hex:/jwt.hex:ro"]
+    ports: ["127.0.0.1:9645:8545"]
+    command: [node, --chain=/cfg/genesis.json, --datadir=/data,
+      --http, --http.addr=0.0.0.0, --http.port=8545, --http.api=eth,net,web3,debug,
+      --authrpc.addr=0.0.0.0, --authrpc.port=8551, --authrpc.jwtsecret=/jwt.hex,
+      --rollup.disable-tx-pool-gossip, --disable-discovery, --max-outbound-peers=0, --max-inbound-peers=0]
+
+  replica-node:
+    <<: *node
+    depends_on: [replica-reth]
+    volumes: ["${DEVNET}/cfg:/cfg:ro", "${DEVNET}/replica/jwt.hex:/jwt.hex:ro", "${DEVNET}/replica/node:/data"]
+    ports: ["127.0.0.1:9647:8547"]
+    command: [op-node, "--l1=${REPLICA_L1_RPC}", "--l1.beacon=${REPLICA_L1_BEACON}", --l1.rpckind=standard,
+      --l2=http://replica-reth:8551, --l2.jwt-secret=/jwt.hex, --l2.enginekind=reth,
+      --rollup.config=/cfg/rollup.json, --p2p.disable, --syncmode=consensus-layer, --safedb.path=/data/safedb,
+      --rpc.addr=0.0.0.0, --rpc.port=8547, --log.level=info]
+
+  challenger:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.11.0@sha256:c9d4d81ba4956faa2896345ee0d9be0f3782b63a38da22618f36e86b85cbe40a
+    restart: unless-stopped
+    depends_on: [replica-node]
+    env_file: ["${DEVNET}/secrets-challenger.env"]   # OP_CHALLENGER_PRIVATE_KEY
+    volumes: ["${DEVNET}/cfg:/cfg:ro", "${DEVNET}/prestates:/prestates:ro", "${DEVNET}/challenger:/data"]
+    command: [op-challenger, "--l1-eth-rpc=${REPLICA_L1_RPC}", "--l1-beacon=${REPLICA_L1_BEACON}",
+      --l2-eth-rpc=http://replica-reth:8545, --superroot-rpc=http://replica-node:8547,
+      "--game-factory-address=${DISPUTE_GAME_FACTORY}", --game-types=super-cannon-kona,super-permissioned,
+      --super-cannon-kona-prestates-url=file:///prestates, --super-cannon-kona-rollup-config=/cfg/rollup.json,
+      --super-cannon-kona-l2-genesis=/cfg/genesis.json, --super-cannon-kona-depset-config=/cfg/depset.json,
+      --cannon-bin=/usr/local/bin/cannon, --cannon-kona-server=/usr/local/bin/kona-host,
+      --datadir=/data, --num-confirmations=1, --log.level=info]

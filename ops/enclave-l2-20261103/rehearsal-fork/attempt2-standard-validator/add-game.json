@@ -1,0 +1,46 @@
+{
+  "prank": "0xb9FB98c855a053A1cD3576eabCda1D74f1D5fD3D",
+  "opcm": "0x6abfabbc793883add5fa308a97163e8225a9f4ca",
+  "upgradeInput": {
+    "systemConfig": "0x2aec84317ec221eaab917d03b16435ccc318b341",
+    "disputeGameConfigs": [
+      {
+        "enabled": false,
+        "initBond": 0,
+        "gameType": 0
+      },
+      {
+        "enabled": false,
+        "initBond": 0,
+        "gameType": 1
+      },
+      {
+        "enabled": false,
+        "initBond": 0,
+        "gameType": 8
+      },
+      {
+        "enabled": true,
+        "initBond": 0,
+        "gameType": 5,
+        "superPermissionedDisputeGameConfig": {
+          "proposer": "0x0c97CC002182572c35b7dB58648bfbEbf2772F87"
+        }
+      },
+      {
+        "enabled": true,
+        "initBond": 1000000000000000,
+        "gameType": 9,
+        "faultDisputeGameConfig": {
+          "absolutePrestate": "0x0370ab3906895c20e44a1d77be96b9b8330092cce4a9f53a416d4c15c7670c51"
+        }
+      },
+      {
+        "enabled": false,
+        "initBond": 0,
+        "gameType": 10
+      }
+    ],
+    "extraInstructions": []
+  }
+}
