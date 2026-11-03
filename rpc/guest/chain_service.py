@@ -153,7 +153,14 @@ def beacon(path):
 
 def l1_ready():
     assert rpc(18645, 'eth_chainId', []) == '0x1'
-    assert rpc(18645, 'eth_getBlockByNumber', ['0x0', False])['hash'] == '0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3', 'wrong EL genesis'
+    # reth with EIP-4444 pre-merge expiry answers block 0 with error 4444; the EL is then pinned to mainnet by
+    # chainId 1 and by the head payload pairing below (as base_coverage/coverage_gate.py, verdict r4).
+    body = json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'eth_getBlockByNumber', 'params': ['0x0', False]}).encode()
+    req = urllib.request.Request('http://127.0.0.1:18645', body, {'Content-Type': 'application/json'})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        genesis = json.load(r)
+    assert (genesis.get('result') or {}).get('hash') == '0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3' \
+        or ('result' not in genesis and (genesis.get('error') or {}).get('code') == 4444), 'wrong EL genesis'
     assert beacon('/eth/v1/beacon/genesis')['genesis_validators_root'] == '0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95', 'wrong CL genesis'
     spec = beacon('/eth/v1/config/spec')
     assert spec['DEPOSIT_CHAIN_ID'] == '1' and spec['SECONDS_PER_SLOT'] == '12' and spec['FULU_FORK_EPOCH'] == '411392', 'wrong mainnet spec'

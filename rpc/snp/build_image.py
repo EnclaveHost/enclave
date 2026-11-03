@@ -99,6 +99,8 @@ def seed_config(owner_pub, coverage=None):
                 b'[Install]\nWantedBy=multi-user.target\n'))
             add('/etc/systemd/system/enclave-rpc-base.service.d/beacon-patch.conf',
                 b'[Unit]\nWants=enclave-rpc-beacon-patch.service\nAfter=enclave-rpc-beacon-patch.service\n')
+    # The production L1 disk has pre-merge history expired; see l1_identity_patch.py.
+    add('/opt/enclave-rpc-build/l1_identity_patch.py', (HERE/'l1_identity_patch.py').read_bytes(), '0700')
     add('/opt/enclave-rpc/front.py', (HERE/'front.py').read_bytes(), '0755')
     add('/etc/initramfs-tools/hooks/enclave-verity', (HERE/'enclave-verity-hook').read_bytes(), '0755')
     add('/etc/initramfs-tools/scripts/local-top/enclave-verity', (HERE/'enclave-verity-local-top').read_bytes(), '0755')
@@ -130,8 +132,11 @@ def seed_config(owner_pub, coverage=None):
         'apt-get clean',
         *(['python3 -I -c "%s"' % SET_BOOTSTRAP, 'chmod 0755 /etc/enclave-rpc/coverage'] if coverage is not None else []),
         *([BEACON_PATCH_SED, "grep -q \"'--l1-beacon', 'http://127.0.0.1:15053'\" /opt/enclave-rpc/chain_service.py",
-           'python3 -I -c "%s"' % REPIN_IDENTITY, 'systemctl enable enclave-rpc-beacon-patch.service']
+           'systemctl enable enclave-rpc-beacon-patch.service']
           if coverage is not None and (coverage/'blob-patch.json').exists() else []),
+        'python3 -I /opt/enclave-rpc-build/l1_identity_patch.py /opt/enclave-rpc/chain_service.py',
+        'rm -r /opt/enclave-rpc-build',
+        'python3 -I -c "%s"' % REPIN_IDENTITY,
         'python3 -I -c "%s"' % CHECK_PINS,
         'update-initramfs -u -k all',
         'for u in enclave-rpc-el enclave-rpc-cl enclave-rpc-base; do ln -sf /etc/systemd/system/$u.service /etc/systemd/system/multi-user.target.wants/$u.service; done',
@@ -215,7 +220,8 @@ def main(out, coverage=None):
              'buildSeconds': round(time.time()-t), 'bootImageSha256': BOOT_SHA256,
              'artifacts': {n: {'bytes': (out/n).stat().st_size, 'sha256': sha(out/n)}
                            for n in ('vmlinuz', 'initrd.img', 'root.img', 'root.verity')},
-             'sources': {n: sha(HERE/n) for n in ('front.py', 'enclave-verity-hook', 'enclave-verity-local-top', 'build_image.py')},
+             'sources': {n: sha(HERE/n) for n in ('front.py', 'enclave-verity-hook', 'enclave-verity-local-top', 'build_image.py',
+                                                    'l1_identity_patch.py')},
              'coverage': {n: sha(coverage/n) for n in COVERAGE_FILES + ('base-bootstrap.json', 'blob-patch.json')
                           if (coverage/n).exists()} if coverage else None}
     (out/'IMAGE.json').write_text(json.dumps(image, indent=1)+'\n')
