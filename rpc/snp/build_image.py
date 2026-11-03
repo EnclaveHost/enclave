@@ -115,6 +115,11 @@ def seed_config(owner_pub, coverage=None):
     for side, high, cap in (('el', 11264, 12288), ('cl', 10240, 11264), ('base', 7168, 8192)):
         add('/etc/systemd/system/enclave-rpc-%s.service.d/limits.conf' % side,
             b'[Service]\nTimeoutStopSec=300\nMemoryHigh=%dM\nMemoryMax=%dM\n' % (high, cap))
+    # Base's start checks need L1 synced and answering, which after a restart can take reth
+    # minutes (prod r8, 2026-11-03: refused once with ECONNREFUSED and stayed down). Each
+    # retry re-runs every fail-closed check; a refusal still refuses, it is just asked again.
+    add('/etc/systemd/system/enclave-rpc-base.service.d/restart.conf',
+        b'[Unit]\nStartLimitIntervalSec=0\n[Service]\nRestart=on-failure\nRestartSec=60\n')
     add('/etc/systemd/system/enclave-rpc-clients.slice.d/limits.conf',
         b'[Slice]\nMemoryHigh=28672M\nMemoryMax=30720M\n')
     script = '\n'.join([
