@@ -58,3 +58,8 @@
   - Seven model directories, unreferenced by any service config or release manifest and idle since September/October, are being moved to `/mnt/usb/enclave-volumes-archive-20261103`. So are the superseded SNP image builds r5, r7 and r9.
   - Copies are checksum-verified before the originals are removed.
 - **Capacity:** the T710 /vm holds both chains, 1.7 TB of Base and 1.1 TB of the L1 chain, with about 0.3 TB free. That headroom needs a plan before ongoing growth reaches the guard floor.
+
+**Second guard stop** (02:23Z): TransactionLookup restarts from checkpoint 0 after an interruption, so the restarted r10 rebuilt its ETL collect. /vm fell under the 200 GiB floor again, and the guard stopped r10.
+- `/vm/enclave-volumes/rpc-production-maint` (the 86 GB Oct 28–30 maintenance OS backups) was moved to the USB archive. Nothing uses it as a backing file or references it. The copy was checksum-verified before the original was removed.
+- That left /vm with 361 GB free. r10 and its guard were restarted, and public L1 was serving again.
+- 03:41Z: TransactionLookup finished, /vm had 327 GB free, and Base had peers. The pipeline is downloading bodies toward 53442849 (checkpoint 53414526). Execution of the remaining ~394k blocks follows. The Base head is still the snapshot head 53048526, so Base is not yet serving at the tip.
