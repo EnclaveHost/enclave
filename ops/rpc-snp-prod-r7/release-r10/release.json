@@ -1,0 +1,60 @@
+{
+ "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+ "appId": "0x0f628585d36c4272ae23c55b4f9ec6d5805f25e26d4744474710e46e4edbb537",
+ "slug": "enclave-rpc",
+ "name": "Enclave RPC",
+ "description": "Ethereum and Base JSON-RPC served from an AMD SEV-SNP confidential VM. Clients verify the enclave's AMD-signed attestation before use: the launch measurement is pinned in this version's config and the report's HOST_DATA names the serving deployment. Read-only methods plus eth_sendRawTransaction; the enclave holds no keys and signs nothing. Zero publisher fee.",
+ "version": "1.0.0",
+ "cid": "bafkreibywtty53ldd6xofoyd7mvp3b7vjke5w6s7muppprebvquznnvabe",
+ "res": [
+  0,
+  0,
+  34816,
+  0
+ ],
+ "ports": "tcp:8443",
+ "config": {
+  "schema": "enclave-rpc-snp/1",
+  "runtime": "sev-snp-vm",
+  "rpcReady": true,
+  "chains": {
+   "ethereum": 1,
+   "base": 8453
+  },
+  "snp": {
+   "measurements": {
+    "8": "cf6001bc770393d988a8ce8d382d9fb21e4767bdf39402b0ab53411c04d5ad594fa6d11103336813890ba51da2eb9797"
+   },
+   "vcpuType": "EPYC-v4",
+   "policy": "0x30000",
+   "hostData": "EnclaveDeployments id of the serving deployment",
+   "reportData": "sha256(served TLS SubjectPublicKeyInfo) then 32 zero bytes"
+  },
+  "image": {
+   "rootHash": "aa9bc1d33a20253c141f2db484392ff9b0a52e5324dd0eb5dbea771c75352790",
+   "ovmfSha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+   "cmdlineSha256": "8b57d72e9e671df75aad133a2af2fb6c74b9c08797001718877f224c0d1ef0e5"
+  },
+  "source": {
+   "repo": "EnclaveHost/enclave",
+   "commit": "9b783b42da2b53a568f00c341d3aff740cef0645"
+  },
+  "endpoints": {
+   "attestation": "/.well-known/enclave-attestation",
+   "ethereum": "/l1",
+   "base": "/base",
+   "beacon": "/beacon/"
+  },
+  "_media": {
+   "thumbnail": "bafkreibckyl555rgzuoxqfb54hmdubxeq6q3zrths7hhc2uu5f3ng43mze",
+   "thumbnailSvg": true,
+   "banner": "bafkreigk5wlaubssoere2f2v4gfjmyxvbob27wqzwcwc7gqq2xgpeex2ki",
+   "bannerSvg": true
+  }
+ },
+ "runner": "0x4D815cB2247675e00bAEd401D1dF2aBb8F3D0497",
+ "runnerFundWei": "1000000000000000",
+ "enclaveId": "0x71ca90ceda24c5cd1492969ecc29d63697f71076a86b2db56d3669640c2bb93b",
+ "appPort": 8443,
+ "journal": "/home/steven/.local/share/enclave-rpc-snp/owner-sign-journal.jsonl"
+}
