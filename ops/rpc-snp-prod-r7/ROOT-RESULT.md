@@ -33,3 +33,19 @@
   - installed archives are skipped;
   - status comes back through a results disk.
   - It has 11 archives left, 104 GB.
+- **r3 succeeded** (15:04–17:54 MST, RESULT `receiptSha256` ba21a80d…):
+  - 33 files were added, and the 7 archives r2 had installed were already present.
+  - The receipts-48.0M and receipts-49.5M downloads came back truncated; both were rejected and fetched again.
+
+**Image r8, both disks** (2026-11-03 00:55Z): Base checked L1 while reth was still starting and got ECONNREFUSED. Because the unit is `Restart=no`, it stayed down.
+
+**Image r9** (fc6358f7…ac3c) adds `Restart=on-failure`/60 s for enclave-rpc-base.
+- Every retry then refused at l1_ready: "local RPC failed" on block 0.
+- The L1 reth has pre-merge history expired (earliest block 26150000) and answers block 0 with error 4444.
+- Before r8, Base had never reached this check on this disk.
+
+**Image r10** (cf6001bc…9797) applies `rpc/snp/l1_identity_patch.py`: genesis hash or exactly error 4444. This is the coverage gate's rule, accepted in the r4 review.
+- Before the swap, the patched l1_ready passed on the host against the live attested L1.
+- 01:37Z: **Base passed every start check and started.** That covers coverage activation, history from 48M, state history from 52.5M, L1 ready, canonical safe origin, origin receipts and blob serving.
+- 01:40Z: it is syncing from the snapshot head 53048526 and receiving unsafe payloads at about 53440340.
+- The gateway allowlist now holds b04f, 51bc, 059f, fc63 and cf60. Stale entries are to be pruned once r10 serves.
