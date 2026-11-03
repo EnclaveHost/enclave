@@ -133,3 +133,18 @@ while the anchor is the placeholder. The proposer starts on type 5
 (`PROPOSER_GAME_TYPE`). Making game 9 respected is a dated follow-up step and a
 mainnet release gate (see DESIGN.md). The kona prestate and config are checked
 now, against live blocks, with `op-challenger run-trace`.
+
+## Compose smoke test against real Sepolia (no funds needed)
+
+`l2/devnet/up.sh` started the sequencer and replica pairs using attempt 3's
+configs. Two findings:
+
+- op-reth exited with `unexpected argument 'net'`. YAML flow lists split
+  `--http.api=eth,net,…` and `--game-types=a,b` at the commas. Those arguments
+  are now quoted. op-reth then served `eth_chainId = 0x403145` (4206917).
+- op-node refused with `incorrect L1 genesis block hash`. That is expected for
+  this smoke test: attempt 3's L1 anchor is a block the anvil fork mined itself.
+  A real deploy anchors on a Sepolia block.
+
+This host had no Docker Compose. The official v5.7.0 CLI plugin was installed
+into `~/.docker/cli-plugins` after checking it against the release's sha256.

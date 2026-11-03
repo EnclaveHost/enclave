@@ -24,7 +24,7 @@ services:
     volumes: ["${DEVNET}/cfg:/cfg:ro", "${DEVNET}/seq/reth:/data", "${DEVNET}/seq/jwt.hex:/jwt.hex:ro"]
     ports: ["127.0.0.1:9545:8545"]
     command: [node, --chain=/cfg/genesis.json, --datadir=/data,
-      --http, --http.addr=0.0.0.0, --http.port=8545, --http.api=eth,net,web3,debug,txpool,
+      --http, --http.addr=0.0.0.0, --http.port=8545, "--http.api=eth,net,web3,debug,txpool",
       --authrpc.addr=0.0.0.0, --authrpc.port=8551, --authrpc.jwtsecret=/jwt.hex,
       --rollup.disable-tx-pool-gossip, --builder.deadline=2, --builder.interval=100ms, --disable-discovery]
 
@@ -65,7 +65,7 @@ services:
     volumes: ["${DEVNET}/cfg:/cfg:ro", "${DEVNET}/replica/reth:/data", "${DEVNET}/replica/jwt.hex:/jwt.hex:ro"]
     ports: ["127.0.0.1:9645:8545"]
     command: [node, --chain=/cfg/genesis.json, --datadir=/data,
-      --http, --http.addr=0.0.0.0, --http.port=8545, --http.api=eth,net,web3,debug,
+      --http, --http.addr=0.0.0.0, --http.port=8545, "--http.api=eth,net,web3,debug",
       --authrpc.addr=0.0.0.0, --authrpc.port=8551, --authrpc.jwtsecret=/jwt.hex,
       --rollup.disable-tx-pool-gossip, --disable-discovery, --max-outbound-peers=0, --max-inbound-peers=0]
 
@@ -87,7 +87,7 @@ services:
     volumes: ["${DEVNET}/cfg:/cfg:ro", "${DEVNET}/prestates:/prestates:ro", "${DEVNET}/challenger:/data"]
     command: [op-challenger, "--l1-eth-rpc=${REPLICA_L1_RPC}", "--l1-beacon=${REPLICA_L1_BEACON}",
       --l2-eth-rpc=http://replica-reth:8545, --superroot-rpc=http://replica-node:8547,
-      "--game-factory-address=${DISPUTE_GAME_FACTORY}", --game-types=super-cannon-kona,super-permissioned,
+      "--game-factory-address=${DISPUTE_GAME_FACTORY}", "--game-types=super-cannon-kona,super-permissioned",
       --super-cannon-kona-prestates-url=file:///prestates, --super-cannon-kona-rollup-config=/cfg/rollup.json,
       --super-cannon-kona-l2-genesis=/cfg/genesis.json, --super-cannon-kona-depset-config=/cfg/depset.json,
       --cannon-bin=/usr/local/bin/cannon, --cannon-kona-server=/usr/local/bin/kona-host,
