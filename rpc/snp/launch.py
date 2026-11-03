@@ -3,7 +3,8 @@
 python3 -I rpc/snp/launch.py CONFIG.json   (as the main process of its systemd unit)
 
 CONFIG: {"image": DIR with IMAGE.json, "run": private run dir, "memoryMiB", "cpus",
-         "disks": [{"path": qcow2, "serial": "RPC-l1"}...], "hostfwd": [[host, guest]...],
+         "disks": [{"path": qcow2, "serial": "RPC-l1", "cache": optional "none" (default) or "writeback"}...],
+         "hostfwd": [[host, guest]...],
          "hostData": optional 64 hex chars, the EnclaveDeployments id this guest serves}
 
 The image artifacts are checked against IMAGE.json before launch; the kernel,
@@ -76,10 +77,18 @@ def main(config_path):
             '-netdev', 'user,id=net0'+(','+fwd if fwd else ''), '-device', 'virtio-net-pci,netdev=net0']
     binds = []
     for i, d in enumerate(c.get('disks', [])):
+        # cache=writeback puts the host page cache under the guest's own: Base's execution stage
+        # issues one random state read at a time and waited on the NVMe with no vCPU busy
+        # (rpc-snp-prod-r10). Guest flushes still reach the disk; the host sees chain disks in
+        # plaintext either way, so this changes nothing the attestation covers.
+        cache = d.get('cache', 'none')
+        if cache not in ('none', 'writeback'):
+            raise ValueError('disk cache must be none or writeback: '+cache)
+        aio = 'native' if cache == 'none' else 'threads'
         # A dedicated I/O thread per chain disk: in the main loop, completions competed with
         # user-mode networking and saturated it (rpc-snp-prod-r4: main thread ~85% CPU, D state).
         args += ['-object', 'iothread,id=io%d' % i,
-                 '-drive', 'file=%s,format=qcow2,if=none,id=d%d,cache=none,aio=native' % (d['path'], i),
+                 '-drive', 'file=%s,format=qcow2,if=none,id=d%d,cache=%s,aio=%s' % (d['path'], i, cache, aio),
                  '-device', 'virtio-blk-pci,drive=d%d,serial=%s,iothread=io%d,num-queues=4' % (i, d['serial'], i)]
         binds += ['--bind', str(Path(d['path']).parent), str(Path(d['path']).parent)]
     args = ['/usr/bin/bwrap', '--die-with-parent', '--new-session', '--unshare-user', '--ro-bind', '/', '/',
