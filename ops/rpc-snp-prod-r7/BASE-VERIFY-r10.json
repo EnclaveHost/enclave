@@ -1,0 +1,65 @@
+{
+ "at": "2026-11-04T04:36:13.089Z",
+ "measurement": "cf6001bc770393d988a8ce8d382d9fb21e4767bdf39402b0ab53411c04d5ad594fa6d11103336813890ba51da2eb9797",
+ "chainId": "0x2105",
+ "syncing": false,
+ "head": 53488813,
+ "publicHead": 53488813,
+ "lag": 0,
+ "finalized": 53468096,
+ "blocks": [
+  {
+   "n": 48000000,
+   "hashMatchesPublic": true,
+   "txs": 108,
+   "tx": "0x7b4a31390e45234ace1830851c3c1ae89b96a89a7d8f878392240a63102a601d",
+   "receiptStatus": "0x1",
+   "logs": 4,
+   "txLookup": true
+  },
+  {
+   "n": 48100000,
+   "hashMatchesPublic": true,
+   "txs": 111,
+   "tx": "0x30471f9236d24d89beb42e910ad8bc8c3eae0f5a95bb91cf054a5645eb4ce79f",
+   "receiptStatus": "0x1",
+   "logs": 0,
+   "txLookup": true
+  },
+  {
+   "n": 50000000,
+   "hashMatchesPublic": true,
+   "txs": 157,
+   "tx": "0x0bfcbc14176b09186676815ab358aded10b6652096493d455acff76360ec4c37",
+   "receiptStatus": "0x1",
+   "logs": 0,
+   "txLookup": true
+  },
+  {
+   "n": 52600000,
+   "hashMatchesPublic": true,
+   "txs": 173,
+   "tx": "0x471acba321bbda577d673c11e131d06ae4768cad20264c09aa582249967f920f",
+   "receiptStatus": "0x1",
+   "logs": 19,
+   "txLookup": true
+  },
+  {
+   "n": 53488808,
+   "hashMatchesPublic": true,
+   "txs": 183,
+   "tx": "0x16db293c55ac7b604e3bdf0dae8dd73bae353bb82beee0c0f35db41cd2a0dcc3",
+   "receiptStatus": "0x1",
+   "logs": 32,
+   "txLookup": true
+  }
+ ],
+ "contracts": {
+  "Catalog": 22733,
+  "Ledger": 24368,
+  "Registry": 5892
+ },
+ "getLogs48M": 0,
+ "getLogsRecentCatalog": 0,
+ "historicStateAt52_6M": "0xf3740ebb9e9ec"
+}

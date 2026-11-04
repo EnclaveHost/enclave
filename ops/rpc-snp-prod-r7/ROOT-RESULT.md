@@ -63,3 +63,15 @@
 - `/vm/enclave-volumes/rpc-production-maint` (the 86 GB Oct 28–30 maintenance OS backups) was moved to the USB archive. Nothing uses it as a backing file or references it. The copy was checksum-verified before the original was removed.
 - That left /vm with 361 GB free. r10 and its guard were restarted, and public L1 was serving again.
 - 03:41Z: TransactionLookup finished, /vm had 327 GB free, and Base had peers. The pipeline is downloading bodies toward 53442849 (checkpoint 53414526). Execution of the remaining ~394k blocks follows. The Base head is still the snapshot head 53048526, so Base is not yet serving at the tip.
+
+**Base at the tip** (2026-11-04 04:34Z), after the writeback-cache restart (6e134d94e, 09:47Z on 11-03):
+- 11-03: execution ran at ~9 blocks/s on average and ~11.4 in the last hour (6.4 before the restart). The restart cost 36 min of reth startup (a TransactionHashNumbers consistency prune, then the start checks).
+- 11-03 22:34Z: MerkleExecute was at 61%. It and the later stages took about 3.5 h and 43 GB of host space, then a catch-up pass ran.
+- 04:34Z: `eth_syncing` false, head 53488715.
+- `BASE-VERIFY-r10.json` (produced by `base-verify.mjs`, through the attested front pinned to the r10 measurement):
+  - chainId 8453, head 53488813, lag 0 against mainnet.base.org;
+  - block hashes match public Base at 48.0M, 48.1M, 50.0M, 52.6M and the head, with receipts and tx-by-hash lookups working at each;
+  - the Catalog, Ledger and Registry code is present, and historical state at 52.6M answers.
+- The safe head (53468342 → 53471820 over 04:36–04:51Z) is closing the ~20k-block derivation gap at ~3.9 blocks/s.
+- Growth at the tip over 15 min: base.qcow2 +3 MiB (ext4 reuses blocks freed inside it) and l1.qcow2 +102 MiB (~10 GB/day). /vm has 221 GB free, so the 200 GiB guard floor is about two days away at this rate. **A storage plan is needed**: the guest pins Base history from a fixed block (48M, state from 52.5M), so the Base disk grows without bound.
+- The owner signing page (`enclave-rpc-owner-sign-r10`, 127.0.0.1:42290) is serving r10's PLAN.json. Status: fund and publish are ready; payout waits for the runner's registration, which needs funding first.
