@@ -75,3 +75,32 @@
 - The safe head (53468342 → 53471820 over 04:36–04:51Z) is closing the ~20k-block derivation gap at ~3.9 blocks/s.
 - Growth at the tip over 15 min: base.qcow2 +3 MiB (ext4 reuses blocks freed inside it) and l1.qcow2 +102 MiB (~10 GB/day). /vm has 221 GB free, so the 200 GiB guard floor is about two days away at this rate. **A storage plan is needed**: the guest pins Base history from a fixed block (48M, state from 52.5M), so the Base disk grows without bound.
 - The owner signing page (`enclave-rpc-owner-sign-r10`, 127.0.0.1:42290) is serving r10's PLAN.json. Status: fund and publish are ready; payout waits for the runner's registration, which needs funding first.
+
+## Released to production (2026-11-04)
+
+**Owner transactions** (signed by the owner's Trezor from the r10 signing page; all status 1 on Base). Full record: `release-r10/DEPLOYMENT.json`.
+- fund: block 53491090, 0.001 ETH to the runner.
+- publish: block 53491100. Enclave RPC 1.0.0 is version index 1 of app 0x0f62…b537, CID bafkreibywtty…nvabe, pinning measurement cf6001bc…9797.
+- payout: block 53491131.
+- create: block 53491138, deployment **0x1abe9a34c07b5c9a2d0f85fd1873c1329d4fd92c3705b6c0e785ca282b970f2e**.
+
+**Runner:** registered host 0x71ca90ce…b93b (block 53491119). After the deployment id was set in runner-prod.json, it claimed the zero-rate lease (block 53491149) and now renews it.
+
+**HOST_DATA:** r10 was relaunched at 05:56Z with `hostData` set to the deployment id. The live report carries that HOST_DATA, measurement cf6001bc…9797 and policy 0x30000. `chain-policy.mjs resolveDeploymentPolicy` against two Base RPCs returns that measurement, that HOST_DATA, version 1.0.0 and the CID.
+
+**Gateway** (control VM, 06:00Z): the drop-in now runs release 3ae9ab477 (byte-identical to main's gateway, attested-fetch, chain-policy and snp-verify) with `config.deployment.json`. See `release-r10/gateway-50-attested-l1.conf`.
+- The attested origin is bound to the on-chain deployment. The hand-kept r6–r10 measurement list is gone.
+- Ethereum stays attested-only.
+- Base routes to the enclave first; the previous four providers remain as fallbacks, so the Base control plane survives an enclave outage.
+- Tested locally first: with the right deployment, Base and L1 answered through the pin, including a 48M receipt; with a wrong deployment id the gateway refused.
+- AMD KDS rate-limits VCEK fetches (HTTP 429, Retry-After 10). The first request after a gateway restart can therefore fail until the VCEK is cached.
+
+**Public check, 06:10Z:** `https://api.enclave.host/rpc/ethereum` returned 26339568, equal to the enclave head. `/rpc/base` returned 53491646, equal to the enclave head and 10 blocks (~20 s) behind mainnet.base.org at query time. It serves a receipt at 48.0M.
+- The relaunch cost Base ~2.4k blocks, its last persisted head, which it replayed in ~10 min.
+- **Open:** Base's derived safe/finalized head is still 53471820, ~20k blocks behind, and L1 derivation is catching it up (it ran at ~3.9 blocks/s before the relaunch). The `safe`/`finalized` tags lag until it does.
+
+**Still open:**
+- All units are transient systemd-run units, so a host reboot stops production until they are started again.
+- Storage: /vm has ~220 GB free, with ~10 GB/day growth at the tip, and Base history is pinned from a fixed block.
+- Coverage verdict and image before ≈ 2026-11-11 16:50Z.
+- The guest should require the blob-patch sha.

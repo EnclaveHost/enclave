@@ -94,3 +94,19 @@ Own RPC remainsOFF.14GiBguest+2overhead is a planning target, NOTmeasured fit. L
 SAME actualr3 7c12af057586421cbfc63a2e339a955a TERMINAL0/Main0/writer2573253/start165856967gone. Thirty actualoperations archive8oldunitinodes/mask8/remove4enablementlinks/create2archivedirs. All5exportersnormalcomplete/drainersjoined/no mounts/survivors; source+backupendpointidentity/digestunchanged; fsckbefore/after0/qcowcheck0. PRIVATE-PREPARED/nonpublishable. Derivative /vm/enclave-volumes/rpc-production-maint/os-private-20261030T094345Z-28653e/derivative.qcow2 inode148392388/size18581159936/SHA1c4fbce5ee66f4ce51a13f056ada362948f2a474aaf1bb725744a46d64af57b3. Receipt489ccafa0edc3a5a409167d92eba845b165a6cc2459e1ce83192dc9beb2dff2d. U/rpc-actual-os-private-prepare-r3/ROOT-RESULT authoritative.81MiBinner/min32590,512hard450RSSfloor27648CPU1noswap/sharedqueue. No boot/publication orRPCmemoryfit yet. Neverrepeatcompletedjob orreusefailedr1/r2copies.
 
 Narrowproduct2ac02fe8 literalhex-escapedabsolute unit paths preservebytes with strictarity/control/pathguards. Original86=84P1F1E retained8ef099cb; separateoneproductrepairSAME86PASS cca41601 includingactual32MiBext4 escapedregular+decoy/directory/symlink, no shellunescape/quoting. Existing84retained. Inputs/results1690a63b7PUSHED. Sourcecomposition handoff3c60a2d59PUSHED for human-authorized integration chat01a18c21-daaa-7fc1-8852-4c836defe3c7;114mappedlivesourcepaths, snapshots notblanketcanonical. Integration owns itsworktree/main and must gateautodeploy. Root ownsproduction/finance. That chat launched2readonlyClaudejobs beforequeuereply; exactidentity/floorstatusrequested, no furtherlaunches; rootno competingauthor/test/nativewhiletheyactive. ExploreKVMreadonlyruntimeadmissionreviewonly. Fullobjectiveactive/SAMEDNSKVM5eachrestorationunfinished/no duplicatefunding.
+
+
+## November 4: Enclave RPC 1.0.0 released to production on SEV-SNP
+
+See ops/rpc-snp-prod-r7/ROOT-RESULT.md ("Released to production") and release-r10/DEPLOYMENT.json.
+- Owner deployment: 0x1abe9a34…0f2e (Base block 53491138), app 0x0f62…b537 version index 1 (1.0.0).
+- Image r10, measurement cf6001bc…9797. Running as `enclave-rpc-snp-prod-r10` with HOST_DATA set to the deployment, plus the disk guard and local proxy.
+- The runner holds and renews the deployment lease.
+- The control-VM gateway is bound to the deployment through `chain-policy`. Ethereum is attested-only; Base goes to the enclave first, with the previous providers as fallbacks.
+
+Next:
+1. Make the units persistent at boot.
+2. Plan storage: Base history is pinned from 48M; /vm has ~220 GB free and grows ~10 GB/day.
+3. Produce the coverage verdict and image before 2026-11-11 16:50Z.
+4. Require the blob-patch sha in the guest.
+5. Watch Base safe-head derivation catch up.

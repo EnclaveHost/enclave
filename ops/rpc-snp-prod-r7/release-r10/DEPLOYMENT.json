@@ -1,0 +1,63 @@
+{
+ "format": "enclave-rpc-snp-deployment/1",
+ "chainId": 8453,
+ "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+ "app": {
+  "id": "0x0f628585d36c4272ae23c55b4f9ec6d5805f25e26d4744474710e46e4edbb537",
+  "versionIndex": 1,
+  "version": "1.0.0",
+  "cid": "bafkreibywtty53ldd6xofoyd7mvp3b7vjke5w6s7muppprebvquznnvabe"
+ },
+ "measurement": "cf6001bc770393d988a8ce8d382d9fb21e4767bdf39402b0ab53411c04d5ad594fa6d11103336813890ba51da2eb9797",
+ "deployment": "0x1abe9a34c07b5c9a2d0f85fd1873c1329d4fd92c3705b6c0e785ca282b970f2e",
+ "host": {
+  "enclaveId": "0x71ca90ceda24c5cd1492969ecc29d63697f71076a86b2db56d3669640c2bb93b",
+  "endpoint": "snp-rpc-warden.enclave.host",
+  "runner": "0x4D815cB2247675e00bAEd401D1dF2aBb8F3D0497",
+  "payoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61"
+ },
+ "ownerTransactions": [
+  {
+   "step": "fund",
+   "hash": "0x08a4086a24b14dabdd0e503ee2a3af08b0cd5c05c5ccc864f783fbe27ba21546",
+   "at": "2026-11-04T05:52:06.637Z",
+   "block": 53491090
+  },
+  {
+   "step": "publish",
+   "hash": "0xe475df412d052d0b2b8e5d5383e8b58fe73abea5f539e4616839a79946a3bb90",
+   "at": "2026-11-04T05:52:24.803Z",
+   "block": 53491100
+  },
+  {
+   "step": "payout",
+   "hash": "0x3f9bf3715a83eaa669bcef3de444584906f67406c2d7cc9ae6a7b0c2be183c9e",
+   "at": "2026-11-04T05:53:27.503Z",
+   "block": 53491131
+  },
+  {
+   "step": "create",
+   "hash": "0xf40187cc39ce8fb3256a73bec7f89a2c0d8e7754862dff94af3962cb087bce4f",
+   "at": "2026-11-04T05:53:40.912Z",
+   "block": 53491138
+  }
+ ],
+ "runnerTransactions": [
+  {
+   "step": "register",
+   "hash": "0x7cfe0515fa1e58f73a39e54b156bac2898b5dc0c085f1c8ee23c2e4103d70206",
+   "block": 53491119
+  },
+  {
+   "step": "claim",
+   "hash": "0x2b9890424750073a92834fa4506a08e781470d47013ffb64375d90ceb3e1251b",
+   "block": 53491149
+  }
+ ],
+ "attestation": {
+  "checkedAt": "2026-11-04T05:57Z",
+  "reportMeasurement": "cf6001bc\u20269797",
+  "reportHostData": "1abe9a34c07b5c9a2d0f85fd1873c1329d4fd92c3705b6c0e785ca282b970f2e",
+  "policy": "0x30000"
+ }
+}
