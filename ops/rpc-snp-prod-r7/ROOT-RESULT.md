@@ -144,3 +144,33 @@ The disks were attached without discard, so blocks freed by reth's rolling prune
 - /health doesn't report guest disk usage; the next image should add it.
 - Coverage verdict and image before ≈ 2026-11-11 16:50Z.
 - The guest should require the blob-patch sha.
+
+## Base down 4.5 h, a stuck gateway and a third restart (2026-11-05 afternoon)
+
+**Base exited and stayed down.** At 10:26–10:32Z both chain clients in the guest stalled:
+- Base reth logged read transactions held open for ~315 s.
+- Base's L1 watcher could not fetch logs from the guest's L1 EL (`127.0.0.1:18645`).
+- After its retries ran out (`RetriesExhausted`, L1 block 26347907), the rollup node exited with status 0.
+
+`enclave-rpc-base.service` restarts only `on-failure`, so it stayed down from 10:32Z, at Base block 53539494. The guest's L1 log had already rotated past that point by the time it was read, and the host journal shows nothing at that time, so the stall itself is unexplained.
+- The gateway's freshness probe demoted the enclave, so public `/rpc/base` stayed current from the fallback providers.
+- Source fix 25ca2a072 makes the restart drop-in `Restart=always`. It takes effect in the next measured image; r10 is unchanged.
+
+**Gateway answered every Ethereum request "RPC upstream unavailable" (seen 15:04Z).** Ethereum has no fallback, so `/rpc/ethereum` was down.
+- At the same time, the enclave's L1 answered attested requests from this host. From the control VM, a fresh process using the same release, config and deployment policy got the head immediately, and the policy read passed 4 times (213–687 ms).
+- Each failure took ~1.2 s, about one policy read. The process had made 7 upstream errors since 04:57Z, all of them these test requests, so when it started failing is unknown.
+- The catch block dropped the reason, so the cause could not be read before `systemctl restart enclave-rpc-gateway` at 15:07Z, which restored Ethereum.
+- Possibly related: the runner renewed the lease at 15:03:18Z (block 53550826), and at 15:03:56Z every Base fallback failed one probe.
+- A watcher on the control VM re-runs the policy read every 8 s across later renewals.
+
+Gateway releases 48fe29f5c and 0a1b93638 (live since 15:13Z) now log `upstream-error` and `upstream-probe-error` lines with the network, upstream index and a redacted reason (with the HTTP status for a non-2xx), once a minute per reason.
+
+**Third guest restart, 15:08Z.** This is the only way to restart a guest service. The guest stopped in 26 s and started under the persistent unit, with discard on both disks. `systemctl show` still flags the unit as transient (an attribute left from the earlier switch); it runs the persistent unit's settings and loads from the file at boot.
+
+**Catch-up after the 15:08Z restart:**
+- L1 was back at the tip by 15:11Z.
+- Base started at 53539474. Gossip delivered tip blocks within minutes, but reth backfilled the 11,770-block gap as one pipeline run: Bodies 15:17–15:22Z, Execution at ~900 blocks/min until ~15:41Z, then MerkleExecute.
+- That run committed at ~16:08Z. Two shorter runs followed, and latest was at the tip at 16:24Z (53553244, 8 s old).
+- During the move from Bodies to Execution, host I/O pressure was 30–40% and the guest's L1 fell ~100 s behind for about 2 minutes, then recovered.
+- The lease renewed at 15:23:23Z, and the control-VM policy watcher passed straight across it (leaseUntil 1793892799 → 1793894005). Since 15:13Z the gateway has logged no Ethereum errors after the guest's L1 came back.
+- Safe/finalized were still at 53517842. The rollup node had just left `AwaitingELSyncCompletion` and was searching back for a derivation start; at this morning's ~130 blocks/min net, they should reach the tip around 21:00Z.
