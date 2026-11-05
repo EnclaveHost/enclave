@@ -174,3 +174,22 @@ Gateway releases 48fe29f5c and 0a1b93638 (live since 15:13Z) now log `upstream-e
 - During the move from Bodies to Execution, host I/O pressure was 30–40% and the guest's L1 fell ~100 s behind for about 2 minutes, then recovered.
 - The lease renewed at 15:23:23Z, and the control-VM policy watcher passed straight across it (leaseUntil 1793892799 → 1793894005). Since 15:13Z the gateway has logged no Ethereum errors after the guest's L1 came back.
 - Safe/finalized were still at 53517842. The rollup node had just left `AwaitingELSyncCompletion` and was searching back for a derivation start; at this morning's ~130 blocks/min net, they should reach the tip around 21:00Z.
+
+## Base stalled on its memory limit; guest restarted with 64 GiB (2026-11-05 evening)
+
+**Base stopped executing at 16:37Z.** Latest stuck at 53553652 (16:37:31Z), one block before 53553653 (638 txs, 106.6 Mgas):
+- Every attempt failed with `read transaction has been timed out` (reth's 5-minute MDBX read limit), followed by `Receipt root task received incomplete receipts`.
+- Base's RPC stopped answering (`/health` base `TimeoutError`). Its EL had 0 peers, and the rollup node could not reach the guest's L1 EL at times.
+- All 8 vCPUs were at 100%. qemu read the Base disk at ~1.5 GB/s (48k reads/s, all on the Base disk's worker threads).
+- The image limits `enclave-rpc-base.service` to `MemoryHigh=7168M` / `MemoryMax=8192M`, and page cache is charged to that cgroup. Base's database working set no longer fits, so it re-reads instead of executing.
+- The gateway's freshness probe demoted the enclave, so public `/rpc/base` stayed current from the fallbacks the whole time.
+
+**Base's Denim upgrade activated during the stall.** At 18:00:01Z (block 53556127, timestamp 1793901600), Base moved from 2-second blocks to 5 per second. The guest's `base` v1.5.1 is the release Base requires for Denim, and the binary contains the activation timestamp. The stall began 83 minutes earlier, so it is unrelated to the upgrade.
+
+**Fourth guest restart, 21:25:46Z, with 64 GiB.**
+- `prod-r10.json` `memoryMiB` went from 34816 to 65536; the old config is kept at `prod-r10.json.pre-mem64`.
+- Memory is not in the SNP launch digest (`release.py` measures vCPUs only). The new guest answered a measurement-pinned (cf6001bc…) health check, and the gateway's chain policy accepted it.
+- The guest stopped cleanly in 76 s. Public `/rpc/ethereum` was down ~4 minutes, back at 21:30:00Z, 13 s behind.
+- The extra memory helps L1 and the page cache outside the clients. It cannot lift Base's 8 GiB limit, which is inside the measured image.
+
+**Source fix for the next image:** `build_image.py` raises Base to 30/32 GiB and the clients slice to 58/60 GiB, sized for a 64 GiB guest. The release that ships it should launch with `--mem-mib 65536`.

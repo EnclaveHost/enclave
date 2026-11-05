@@ -113,8 +113,11 @@ def seed_config(owner_pub, coverage=None):
         b'StandardOutput=journal+console\nStandardError=journal+console\n'
         b'[Install]\nWantedBy=multi-user.target\n'))
     # Measured limits (ops/rpc-l1-catchup): the image's 4.5/6.5 GiB MemoryHigh throttled
-    # Lighthouse into thrashing during range sync; whole stack stays below 32 GB.
-    for side, high, cap in (('el', 11264, 12288), ('cl', 10240, 11264), ('base', 7168, 8192)):
+    # Lighthouse into thrashing during range sync. Base's page cache counts against its limit: at
+    # 7/8 GiB it re-read its database at 1.5 GB/s with every vCPU busy and could not execute one
+    # block within reth's 5-minute read timeout (prod r10, 2026-11-05 16:37Z). Sized for a 64 GiB
+    # guest; memory is not in the SNP measurement, but these limits are.
+    for side, high, cap in (('el', 11264, 12288), ('cl', 10240, 11264), ('base', 30720, 32768)):
         add('/etc/systemd/system/enclave-rpc-%s.service.d/limits.conf' % side,
             b'[Service]\nTimeoutStopSec=300\nMemoryHigh=%dM\nMemoryMax=%dM\n' % (high, cap))
     # Base's start checks need L1 synced and answering, which after a restart can take reth
@@ -125,7 +128,7 @@ def seed_config(owner_pub, coverage=None):
     add('/etc/systemd/system/enclave-rpc-base.service.d/restart.conf',
         b'[Unit]\nStartLimitIntervalSec=0\n[Service]\nRestart=always\nRestartSec=60\n')
     add('/etc/systemd/system/enclave-rpc-clients.slice.d/limits.conf',
-        b'[Slice]\nMemoryHigh=28672M\nMemoryMax=30720M\n')
+        b'[Slice]\nMemoryHigh=59392M\nMemoryMax=61440M\n')
     script = '\n'.join([
         'set -eux',
         'export DEBIAN_FRONTEND=noninteractive',
