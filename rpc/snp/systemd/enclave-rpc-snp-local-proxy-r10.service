@@ -1,0 +1,13 @@
+# Installed to ~/.config/systemd/user/ (user manager, Linger=yes). See rpc/snp/systemd/README.md.
+[Unit]
+Description=Plain-HTTP view of the attested enclave for host-local tools (L1 EL :18645, beacon :15052), pinned to r10
+After=enclave-rpc-snp-prod-r10.service
+
+[Service]
+WorkingDirectory=%h/.local/share/enclave-rpc-snp/releases/37d9541c6
+ExecStart=/usr/bin/node rpc/snp/local-proxy.mjs https://127.0.0.1:18443 cf6001bc770393d988a8ce8d382d9fb21e4767bdf39402b0ab53411c04d5ad594fa6d11103336813890ba51da2eb9797 18645 15052
+Restart=always
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

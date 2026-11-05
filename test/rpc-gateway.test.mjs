@@ -53,3 +53,28 @@ test('HTTP batches preserve ids; bounds and method restrictions',async t=>{
  assert.equal((await fetch(url)).status,405);
  assert.equal((await fetch(url,{method:'POST',body:'x'})).status,400);
 });
+test('maxLagSeconds tries a stale upstream after fresh ones and restores it once caught up',async()=>{
+ let at=1_000_000_000_000,primaryTs=at/1000-3600;const calls=[],tick=()=>new Promise(r=>setImmediate(r));
+ const g=setup(async(url,init)=>{
+  const {method}=JSON.parse(init.body);
+  if(method==='eth_getBlockByNumber')return ok({timestamp:'0x'+Math.floor(url==='private-key-url'?primaryTs:at/1000).toString(16)});
+  calls.push(url);return ok('0x1');
+ },{now:()=>at,maxLagSeconds:{base:120}});
+ await g.request('base',msg(1,'eth_blockNumber',[]));await tick();
+ at+=1001;await g.request('base',msg(2,'eth_blockNumber',[]));
+ assert.deepEqual(calls,['private-key-url','public-url']);assert.equal(g.stats().staleUpstreams,1);
+ primaryTs=at/1000;at+=15000;await g.request('base',msg(3,'eth_blockNumber',[]));await tick();
+ at+=1001;await g.request('base',msg(4,'eth_blockNumber',[]));
+ assert.deepEqual(calls.slice(2),['public-url','private-key-url']);
+});
+test('a single stale upstream is still served; networks without maxLagSeconds are never probed',async()=>{
+ let at=1_000_000_000_000;const methods=[],tick=()=>new Promise(r=>setImmediate(r));
+ const g=createRpcGateway({upstreams:{ethereum:['enclave'],base:['a','b']},now:()=>at,maxLagSeconds:{ethereum:60},fetchImpl:async(url,init)=>{
+  const {method}=JSON.parse(init.body);methods.push(url+' '+method);
+  return ok(method==='eth_getBlockByNumber'?{timestamp:'0x1'}:'0x1');
+ }});
+ await g.request('ethereum',msg(1,'eth_blockNumber',[]));await tick();at+=1001;
+ assert.equal((await g.request('ethereum',msg(2,'eth_blockNumber',[]))).result,'0x1');
+ await g.request('base',msg(3,'eth_blockNumber',[]));
+ assert.deepEqual(methods.filter(m=>m.includes('getBlockByNumber')),['enclave eth_getBlockByNumber']);
+});

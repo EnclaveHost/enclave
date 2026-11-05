@@ -19,16 +19,44 @@ export function cacheTtl(method, params) {
   return 1000;
 }
 const failure=(code,message)=>({error:{code,message}});
-export function createRpcGateway({upstreams,fetchImpl=fetch,now=Date.now,maxEntries=4096,maxBytes=16*1024*1024,timeoutMs=3000,maxInflight=32,maxUpstreamPerSecond=30}={}) {
-  const cache=new Map(), pending=new Map(), stats={hits:0,misses:0,coalesced:0,primary:0,fallback:0,errors:0};
+// maxLagSeconds: {network: seconds} probes each upstream's latest block every probeMs and tries
+// one whose head is older than that after the fresh ones. A stale upstream stays in the list, so a
+// network with a single upstream (an attested-only enclave) is served as before.
+export function createRpcGateway({upstreams,fetchImpl=fetch,now=Date.now,maxEntries=4096,maxBytes=16*1024*1024,timeoutMs=3000,maxInflight=32,maxUpstreamPerSecond=30,maxLagSeconds={},probeMs=15000}={}) {
+  const cache=new Map(), pending=new Map(), heads=new Map(), stats={hits:0,misses:0,coalesced:0,primary:0,fallback:0,errors:0,staleUpstreams:0};
   let bytes=0,active=0,tokens=maxUpstreamPerSecond,tokenAt=now();
   function budget(){const at=now();tokens=Math.min(maxUpstreamPerSecond,tokens+(at-tokenAt)*maxUpstreamPerSecond/1000);tokenAt=at;if(tokens<1)return false;tokens--;return true;}
   function drop(k){const c=cache.get(k);if(c)bytes-=c.bytes;cache.delete(k);}
+  async function headAge(url){
+    const response=await fetchImpl(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_getBlockByNumber',params:['latest',false]}),signal:AbortSignal.timeout(timeoutMs)});
+    if(!response.ok){await response.body?.cancel();throw Error('upstream unavailable');}
+    const ts=Number.parseInt((await response.json())?.result?.timestamp,16);
+    if(!Number.isFinite(ts))throw Error('invalid head');
+    return now()/1000-ts;
+  }
+  function ordered(network){
+    const urls=upstreams[network],lag=maxLagSeconds[network];
+    if(!lag)return urls;
+    const at=now();
+    urls.forEach((url,i)=>{
+      const k=network+'\n'+url,h=heads.get(k);
+      if(h&&at-h.checkedAt<probeMs)return;
+      const head={checkedAt:at,stale:h?.stale??false};heads.set(k,head);
+      headAge(url).then(age=>age>lag,()=>true).then(stale=>{
+        if(stale!==head.stale)console.log(JSON.stringify({event:stale?'upstream-stale':'upstream-fresh',network,index:i}));
+        head.stale=stale;
+      });
+    });
+    const stale=url=>heads.get(network+'\n'+url).stale;
+    const fresh=urls.filter(u=>!stale(u));
+    if(fresh.length<urls.length)stats.staleUpstreams++;
+    return [...fresh,...urls.filter(stale)];
+  }
   async function upstream(network,method,params){
     if(active>=maxInflight)return failure(-32005,'RPC busy; retry shortly');
     active++;
     try {
-      const urls=upstreams[network];
+      const urls=ordered(network);
       for(let i=0;i<urls.length;i++) {
         if(!budget())return failure(-32005,'RPC rate limit; retry shortly');
         stats[i===0?'primary':'fallback']++;

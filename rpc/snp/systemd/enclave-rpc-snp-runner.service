@@ -1,0 +1,13 @@
+# Installed to ~/.config/systemd/user/ (user manager, Linger=yes). See rpc/snp/systemd/README.md.
+[Unit]
+Description=Hold the EnclaveDeployments lease for Enclave RPC on this host (registers, claims, renews)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/.local/share/enclave-rpc-snp/releases/37d9541c6
+ExecStart=/usr/bin/node rpc/snp/runner.mjs %h/.local/share/enclave-rpc-snp/runner-prod.json
+Restart=always
+RestartSec=1min
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,13 @@
+# Installed to ~/.config/systemd/user/ (user manager, Linger=yes). See rpc/snp/systemd/README.md.
+[Unit]
+Description=Forward the Enclave RPC enclave's attested TLS front to the control VM only (192.168.8.238)
+After=network-online.target
+
+[Service]
+ExecStart=/usr/sbin/socat TCP-LISTEN:18443,bind=192.168.8.249,reuseaddr,fork,range=192.168.8.238/32 TCP:127.0.0.1:18443
+# The LAN address may not be up yet at boot.
+Restart=always
+RestartSec=10s
+
+[Install]
+WantedBy=default.target
