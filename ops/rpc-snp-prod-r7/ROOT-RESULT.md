@@ -193,3 +193,11 @@ Gateway releases 48fe29f5c and 0a1b93638 (live since 15:13Z) now log `upstream-e
 - The extra memory helps L1 and the page cache outside the clients. It cannot lift Base's 8 GiB limit, which is inside the measured image.
 
 **Source fix for the next image:** `build_image.py` raises Base to 30/32 GiB and the clients slice to 58/60 GiB, sized for a 64 GiB guest. The release that ships it should launch with `--mem-mib 65536`.
+
+**After the 21:25Z restart:**
+- Base backfilled 53553645 → 53624992 in one pipeline run. Execution ran at ~100 blocks/s (300–600 Mgas/s), well past the block that had stalled. It committed at 22:53Z, and a second run reached the tip at 23:08Z.
+- After a short `sync_start` walk-back, safe/finalized began re-deriving at ~700 blocks/min. Latest was at the tip at 23:18Z.
+- At ~23:45Z, following the tip live at 5 blocks/s, Base thrashed again: 1.1 GB/s reads, ~5.7 cores busy, execution down to ~30 Mgas/s.
+- It fell behind and re-entered pipeline backfill at roughly 7–8 blocks/s, barely above the chain's 5. Safe/finalized slowed to ~80 blocks/min.
+- Under r10's 8 GiB Base limit, the enclave cannot reliably follow Base after Denim. The gateway's maxLag keeps public `/rpc/base` on the fallbacks while the enclave lags.
+- The fix is a new image with the d57d70ba0 limits, which needs a new catalog version and owner-signed release steps.
