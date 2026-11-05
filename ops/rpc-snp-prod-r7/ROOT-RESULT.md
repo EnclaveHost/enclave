@@ -104,3 +104,43 @@
 - Storage: /vm has ~220 GB free, with ~10 GB/day growth at the tip, and Base history is pinned from a fixed block.
 - Coverage verdict and image before ≈ 2026-11-11 16:50Z.
 - The guest should require the blob-patch sha.
+
+## Boot persistence, a stuck Base and disk churn (2026-11-05)
+
+**Units at boot.** The five host services are now user units from `rpc/snp/systemd/`, enabled at boot (the user manager lingers):
+- the guest;
+- its disk guard;
+- the LAN forward;
+- the local proxy;
+- the runner.
+
+The node services run from `~/.local/share/enclave-rpc-snp/releases/37d9541c6/` (`git archive` plus viem 2.53.1), not from a working tree. The runner restarted cleanly: it read its registration and lease from Base and resumed renewing without sending anything.
+
+**Disk guard floor 200 → 100 GiB (04:47Z).** /vm had fallen to 202.6 GiB. The L1 disk was briefly growing ~1 MiB/s, so the guard was within hours of stopping the enclave. 100 GiB still leaves room for the other workloads on /vm.
+
+**Base stuck for 19 h.** From 2026-11-04 09:17Z, Base reth sat in its Bodies stage (checkpoint 53497231, target 53502760, 8 peers), while L1 and the beacon stayed at the tip.
+- The gateway still sent Base to the enclave first. From then until 04:51Z, `api.enclave.host/rpc/base` returned a head ~35k blocks old.
+- Fixes:
+  - At 04:51Z the enclave moved to the end of the gateway's Base list.
+  - At 05:00Z gateway release 52b83cbe1 with `maxLagSeconds` (base 120 s, ethereum 180 s) went live. It probes every upstream's latest block every 15 s and tries a stale upstream after the fresh ones. The enclave is first again and is demoted while behind; it logged `upstream-stale` within seconds.
+- A guest restart at 04:53Z cleared the stall: Bodies completed, then two pipeline runs. Base was back at the tip at 07:43Z, 11 blocks behind public.
+
+**Where /vm space went.** Read from each qcow2's ext4 superblock (`qemu-io -r -U`):
+- **L1:** the guest holds 414 GiB, but the qcow2 holds 608 GiB on /vm.
+- **Base:** the guest holds 1704 GiB, but the qcow2 holds 1748 GiB.
+
+The disks were attached without discard, so blocks freed by reth's rolling prune (140k blocks) and Lighthouse's blob expiry (~4100 epochs) never returned to the host. That churn, not chain data, was the ~18 GiB/day. `launch.py` now takes a per-disk `"discard": true` (`discard=unmap`); this is host-side, outside the measurement. The measured image already enables `fstrim.timer` (weekly, Monday 00:00 UTC). At 07:43Z the guest was restarted with discard on both disks, under its persistent unit. The first trim should return ~238 GiB.
+
+**After the discard restart:**
+- The guest stopped cleanly in 25 s, so Base lost no blocks, and it was back at the tip at 07:49Z.
+- QEMU runs both chain disks with `discard=unmap` and the same HOST_DATA.
+- At 07:49:25Z the gateway logged the enclave `upstream-fresh`. Public `/rpc/base` returned 53537808, 5 blocks behind mainnet.base.org, and `/rpc/ethereum` returned 26347243.
+- A failed probe counts as stale, so free providers (mostly drpc) flip stale/fresh every few minutes. That only reorders the fallbacks.
+
+**Still open:**
+- Base safe/finalized re-derivation after the restarts.
+- The first fstrim (2026-11-09) needs confirming on /vm.
+- Base history is pinned from 48M, so it is unbounded.
+- /health doesn't report guest disk usage; the next image should add it.
+- Coverage verdict and image before ≈ 2026-11-11 16:50Z.
+- The guest should require the blob-patch sha.
