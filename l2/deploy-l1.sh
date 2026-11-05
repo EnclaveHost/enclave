@@ -21,7 +21,8 @@
 # Env: L1_RPC (Sepolia execution RPC), KEYS (dir of <role>.key/<role>.addr),
 #      WORK (output dir), OP_DEPLOYER (binary), MONOREPO (optimism checkout at
 #      the kona-client tag the challenger bundles), L2_CHAIN_ID,
-#      GENESIS_OFFSET (s, default 600), INIT_BOND_WEI (default 1e15), SAFE_SALT (default L2_CHAIN_ID).
+#      GENESIS_OFFSET (s, default 600), INIT_BOND_WEI (default 1e15), SAFE_SALT (default L2_CHAIN_ID),
+#      L1_SIM_RPC (an RPC whose eth_call allows DEPLOY_GAS, default L1_RPC), DEPLOY_GAS (default 80M).
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 : "${L1_RPC:?}" "${KEYS:?}" "${WORK:?}" "${OP_DEPLOYER:?}" "${MONOREPO:?}" "${L2_CHAIN_ID:?}"
@@ -81,11 +82,49 @@ if ! have prepare; then
   done_ prepare
 fi
 
+# Since Sepolia's state-growth repricing fork (forkId 0x6c1d9423, Oct 2026)
+# OPCM.deploy needs ~55M gas (8.97M before). Public RPCs cap eth_estimateGas and
+# eth_call at 50M, so op-deployer 0.8.1 cannot estimate it and gives up with
+# DeploymentFailed (0x30116425). Fallback: run op-deployer against a local fork
+# under the old gas rules (2^24 block limit) so it records its state, check that
+# the same calldata gives the same result on the live chain (L1_SIM_RPC must
+# allow DEPLOY_GAS), then send that calldata to Sepolia with an explicit limit.
+fork_assisted_deploy() {
+  local port=${FORK_PORT:-18690} fork from to n hash data live forked sim=${L1_SIM_RPC:-$L1_RPC} gas=${DEPLOY_GAS:-80000000}
+  fork=http://127.0.0.1:$port
+  anvil --port "$port" --fork-url "$L1_RPC" --gas-limit 16777216 --silent > fork-anvil.log 2>&1 &
+  local fpid=$!
+  trap 'kill $fpid 2>/dev/null' RETURN
+  for _ in $(seq 30); do cast chain-id --rpc-url "$fork" >/dev/null 2>&1 && break; sleep 1; done
+  cp .deployer/state.json .deployer/state.prepared.json
+  # fork-only balance, because op-deployer bids a tip of at least 1 gwei
+  cast rpc anvil_setBalance "$(addr deployer)" 0x56BC75E2D63100000 --rpc-url "$fork" > /dev/null
+  from=$(cast block-number --rpc-url "$fork")
+  DEPLOYER_PRIVATE_KEY=$(cat "$KEYS/deployer.key") "$OP_DEPLOYER" "${cache[@]}" continue --workdir .deployer \
+    --l1-rpc-url "$fork" > continue-fork.log 2>&1
+  to=$(cast block-number --rpc-url "$fork")
+  n=$(for b in $(seq $((from + 1)) "$to"); do cast block "$b" --rpc-url "$fork" --json | jq -r '.transactions[]'; done | tee fork-txs.txt | wc -l)
+  [ "$n" = 1 ] || { echo "deploy-l1: expected one OPCM.deploy on the fork, saw $n" >&2; cp .deployer/state.prepared.json .deployer/state.json; return 1; }
+  hash=$(cat fork-txs.txt)
+  [ "$(cast tx "$hash" to --rpc-url "$fork" | tr A-Z a-z)" = "$(echo "$OPCM" | tr A-Z a-z)" ] || { echo "deploy-l1: fork tx is not to the OPCM" >&2; return 1; }
+  data=$(cast tx "$hash" input --rpc-url "$fork"); echo "$data" > opcm-deploy-calldata.hex
+  forked=$(cast call --from "$(addr deployer)" "$OPCM" "$data" --block "$from" --gas-limit 16000000 --rpc-url "$fork")
+  live=$(cast rpc eth_call "{\"from\":\"$(addr deployer)\",\"to\":\"$OPCM\",\"gas\":\"$(cast to-hex "$gas")\",\"data\":\"$data\"}" latest --rpc-url "$sim" | tr -d '"')
+  [ "$live" = "$forked" ] || { echo "deploy-l1: live result differs from the fork's; not sending" >&2; cp .deployer/state.prepared.json .deployer/state.json; return 1; }
+  log "fork and live agree; sending OPCM.deploy to Sepolia with gas limit $gas"
+  node "$here/send.mjs" --rpc "$L1_RPC" --key "$KEYS/deployer.key" --to "$OPCM" --data "$data" --gas "$gas" > opcm-deploy-receipt.json
+  cat opcm-deploy-receipt.json
+}
+
 if ! have continue; then
   log "broadcasting OPCM.deploy"
-  DEPLOYER_PRIVATE_KEY=$(cat "$KEYS/deployer.key") "$OP_DEPLOYER" "${cache[@]}" continue --workdir .deployer \
-    --l1-rpc-url "$L1_RPC" > continue.log 2>&1
-  grep -E 'transaction confirmed' continue.log | tail -3
+  if ! DEPLOYER_PRIVATE_KEY=$(cat "$KEYS/deployer.key") "$OP_DEPLOYER" "${cache[@]}" continue --workdir .deployer \
+       --l1-rpc-url "$L1_RPC" > continue.log 2>&1; then
+    grep -q 'failed to estimate gas' continue.log || { tail -3 continue.log >&2; exit 1; }
+    log "op-deployer could not estimate OPCM.deploy on this L1; using the fork-assisted broadcast"
+    fork_assisted_deploy
+  fi
+  grep -hE 'transaction confirmed' continue.log continue-fork.log 2>/dev/null | tail -3
   "$OP_DEPLOYER" inspect rollup --workdir .deployer "$L2_CHAIN_ID" > rollup.json
   "$OP_DEPLOYER" inspect genesis --workdir .deployer "$L2_CHAIN_ID" > genesis.json
   jq '.opChainDeployments[0] | del(.allocs)' .deployer/state.json > chain-addresses.json
@@ -141,8 +180,8 @@ if ! have respected; then
   if [ "$anchor" = "$PLACEHOLDER" ]; then
     echo "== respected game stays SUPER_PERMISSIONED (5): anchor is still the placeholder; re-run after a type-5 game finalizes"
   else
-    cast send "$ASR" 'setRespectedGameType(uint32)' 9 --private-key "$(cat "$KEYS/admin.key")" --rpc-url "$L1_RPC" --json \
-      | jq '{transactionHash, gasUsed, status}' > respected.json
+    node "$here/send.mjs" --rpc "$L1_RPC" --key "$KEYS/admin.key" --to "$ASR" \
+      --data "$(cast calldata 'setRespectedGameType(uint32)' 9)" > respected.json
     cat respected.json; done_ respected
   fi
 fi
