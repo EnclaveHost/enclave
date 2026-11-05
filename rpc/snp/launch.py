@@ -3,7 +3,8 @@
 python3 -I rpc/snp/launch.py CONFIG.json   (as the main process of its systemd unit)
 
 CONFIG: {"image": DIR with IMAGE.json, "run": private run dir, "memoryMiB", "cpus",
-         "disks": [{"path": qcow2, "serial": "RPC-l1", "cache": optional "none" (default) or "writeback"}...],
+         "disks": [{"path": qcow2, "serial": "RPC-l1", "cache": optional "none" (default) or "writeback",
+                    "discard": optional true}...],
          "hostfwd": [[host, guest]...],
          "hostData": optional 64 hex chars, the EnclaveDeployments id this guest serves}
 
@@ -85,10 +86,16 @@ def main(config_path):
         if cache not in ('none', 'writeback'):
             raise ValueError('disk cache must be none or writeback: '+cache)
         aio = 'native' if cache == 'none' else 'threads'
+        # discard=unmap lets the guest's weekly fstrim return blocks its chain clients freed: reth's
+        # rolling prune and Lighthouse's blob expiry left the L1 qcow2 at 608 GiB for 414 GiB of
+        # data (rpc-snp-prod-r10). Like cache, a host-side device option outside the measurement.
+        if d.get('discard') not in (None, True):
+            raise ValueError('disk discard must be true when set')
+        discard = ',discard=unmap' if d.get('discard') else ''
         # A dedicated I/O thread per chain disk: in the main loop, completions competed with
         # user-mode networking and saturated it (rpc-snp-prod-r4: main thread ~85% CPU, D state).
         args += ['-object', 'iothread,id=io%d' % i,
-                 '-drive', 'file=%s,format=qcow2,if=none,id=d%d,cache=%s,aio=%s' % (d['path'], i, cache, aio),
+                 '-drive', 'file=%s,format=qcow2,if=none,id=d%d,cache=%s,aio=%s%s' % (d['path'], i, cache, aio, discard),
                  '-device', 'virtio-blk-pci,drive=d%d,serial=%s,iothread=io%d,num-queues=4' % (i, d['serial'], i)]
         binds += ['--bind', str(Path(d['path']).parent), str(Path(d['path']).parent)]
     args = ['/usr/bin/bwrap', '--die-with-parent', '--new-session', '--unshare-user', '--ro-bind', '/', '/',
