@@ -39,7 +39,7 @@ export function createRpcGateway({upstreams,fetchImpl=fetch,now=Date.now,maxEntr
   function drop(k){const c=cache.get(k);if(c)bytes-=c.bytes;cache.delete(k);}
   async function headAge(url){
     const response=await fetchImpl(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_getBlockByNumber',params:['latest',false]}),signal:AbortSignal.timeout(timeoutMs)});
-    if(!response.ok){await response.body?.cancel();throw Error('upstream unavailable');}
+    if(!response.ok){await response.body?.cancel();throw Error('upstream unavailable: HTTP '+response.status);}
     const ts=Number.parseInt((await response.json())?.result?.timestamp,16);
     if(!Number.isFinite(ts))throw Error('invalid head');
     return now()/1000-ts;
@@ -72,7 +72,7 @@ export function createRpcGateway({upstreams,fetchImpl=fetch,now=Date.now,maxEntr
         stats[i===0?'primary':'fallback']++;
         try {
           const response=await fetchImpl(urls[i],{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params}),signal:AbortSignal.timeout(timeoutMs)});
-          if(!response.ok){await response.body?.cancel();throw Error('upstream unavailable');}
+          if(!response.ok){await response.body?.cancel();throw Error('upstream unavailable: HTTP '+response.status);}
           let raw='',size=0;
           for await(const chunk of response.body){size+=chunk.length;if(size>4*1024*1024)throw Error('response too large');raw+=Buffer.from(chunk).toString();}
           const j=JSON.parse(raw);
