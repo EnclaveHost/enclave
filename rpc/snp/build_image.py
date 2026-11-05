@@ -120,8 +120,10 @@ def seed_config(owner_pub, coverage=None):
     # Base's start checks need L1 synced and answering, which after a restart can take reth
     # minutes (prod r8, 2026-11-03: refused once with ECONNREFUSED and stayed down). Each
     # retry re-runs every fail-closed check; a refusal still refuses, it is just asked again.
+    # Always, not on-failure: when its L1 watcher exhausted retries the rollup node exited 0 and
+    # Base stayed down for 4.5 hours (prod r10, 2026-11-05 10:32Z).
     add('/etc/systemd/system/enclave-rpc-base.service.d/restart.conf',
-        b'[Unit]\nStartLimitIntervalSec=0\n[Service]\nRestart=on-failure\nRestartSec=60\n')
+        b'[Unit]\nStartLimitIntervalSec=0\n[Service]\nRestart=always\nRestartSec=60\n')
     add('/etc/systemd/system/enclave-rpc-clients.slice.d/limits.conf',
         b'[Slice]\nMemoryHigh=28672M\nMemoryMax=30720M\n')
     script = '\n'.join([
