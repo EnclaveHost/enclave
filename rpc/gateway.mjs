@@ -22,10 +22,20 @@ const failure=(code,message)=>({error:{code,message}});
 // maxLagSeconds: {network: seconds} probes each upstream's latest block every probeMs and tries
 // one whose head is older than that after the fresh ones. A stale upstream stays in the list, so a
 // network with a single upstream (an attested-only enclave) is served as before.
-export function createRpcGateway({upstreams,fetchImpl=fetch,now=Date.now,maxEntries=4096,maxBytes=16*1024*1024,timeoutMs=3000,maxInflight=32,maxUpstreamPerSecond=30,maxLagSeconds={},probeMs=15000}={}) {
-  const cache=new Map(), pending=new Map(), heads=new Map(), stats={hits:0,misses:0,coalesced:0,primary:0,fallback:0,errors:0,staleUpstreams:0};
+// Upstream failures are logged by index with a redacted reason, at most once a minute per reason:
+// an attested enclave refused by the chain or its pin was otherwise silent (rpc-snp-prod-r10).
+export function createRpcGateway({upstreams,fetchImpl=fetch,now=Date.now,maxEntries=4096,maxBytes=16*1024*1024,timeoutMs=3000,maxInflight=32,maxUpstreamPerSecond=30,maxLagSeconds={},probeMs=15000,log=console.log}={}) {
+  const cache=new Map(), pending=new Map(), heads=new Map(), logged=new Map(), stats={hits:0,misses:0,coalesced:0,primary:0,fallback:0,errors:0,staleUpstreams:0};
   let bytes=0,active=0,tokens=maxUpstreamPerSecond,tokenAt=now();
   function budget(){const at=now();tokens=Math.min(maxUpstreamPerSecond,tokens+(at-tokenAt)*maxUpstreamPerSecond/1000);tokenAt=at;if(tokens<1)return false;tokens--;return true;}
+  function report(network,index,e,probe=false){
+    // A provider's body can echo request URLs (credentials), so JSON errors keep no text and URLs are cut.
+    const reason=(e instanceof SyntaxError?'invalid JSON':String(e?.message??e)).replace(/[a-z][a-z0-9+.-]*:\/\/\S*/gi,'<url>').slice(0,200)+(e?.cause?.code?' ('+String(e.cause.code).slice(0,40)+')':'');
+    const k=[network,index,probe,reason].join('\n'),at=now();
+    if(at-(logged.get(k)??-Infinity)<60000)return;
+    if(logged.size>=256)logged.clear();
+    logged.set(k,at);log(JSON.stringify({event:probe?'upstream-probe-error':'upstream-error',network,index,reason}));
+  }
   function drop(k){const c=cache.get(k);if(c)bytes-=c.bytes;cache.delete(k);}
   async function headAge(url){
     const response=await fetchImpl(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_getBlockByNumber',params:['latest',false]}),signal:AbortSignal.timeout(timeoutMs)});
@@ -42,8 +52,8 @@ export function createRpcGateway({upstreams,fetchImpl=fetch,now=Date.now,maxEntr
       const k=network+'\n'+url,h=heads.get(k);
       if(h&&at-h.checkedAt<probeMs)return;
       const head={checkedAt:at,stale:h?.stale??false};heads.set(k,head);
-      headAge(url).then(age=>age>lag,()=>true).then(stale=>{
-        if(stale!==head.stale)console.log(JSON.stringify({event:stale?'upstream-stale':'upstream-fresh',network,index:i}));
+      headAge(url).then(age=>age>lag,e=>{report(network,i,e,true);return true;}).then(stale=>{
+        if(stale!==head.stale)log(JSON.stringify({event:stale?'upstream-stale':'upstream-fresh',network,index:i}));
         head.stale=stale;
       });
     });
@@ -75,7 +85,8 @@ export function createRpcGateway({upstreams,fetchImpl=fetch,now=Date.now,maxEntr
           }
           if(method==='eth_chainId'&&j.result!==NETWORKS[network].id)throw Error('wrong chain');
           return {result:j.result};
-        }catch {
+        }catch(e){
+          report(network,upstreams[network].indexOf(urls[i]),e);
           // Submissions are never cached/coalesced/retried after an ambiguous
           // outcome. A caller must check its transaction hash before retrying.
           if(!READS.has(method))break;

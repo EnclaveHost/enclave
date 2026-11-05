@@ -78,3 +78,25 @@ test('a single stale upstream is still served; networks without maxLagSeconds ar
  await g.request('base',msg(3,'eth_blockNumber',[]));
  assert.deepEqual(methods.filter(m=>m.includes('getBlockByNumber')),['enclave eth_getBlockByNumber']);
 });
+test('upstream failures are logged by index, redacted, once a minute per reason',async()=>{
+ let at=1_000_000_000_000,mode='url';const lines=[],tick=()=>new Promise(r=>setImmediate(r));
+ const g=createRpcGateway({upstreams:{ethereum:['enclave'],base:['a','b']},now:()=>at,maxLagSeconds:{ethereum:60},log:l=>lines.push(JSON.parse(l)),fetchImpl:async url=>{
+  if(url==='b')return ok('0x1');
+  if(mode==='url')throw Error('fetch failed at https://base-mainnet.example/v2/SECRET',{cause:{code:'ECONNRESET'}});
+  if(mode==='json')return new Response('{"echo":"https://x/v2/SECRET"');
+  throw Error('chain refuses enclave: Base RPCs disagree on the deployment');
+ }});
+ for(let i=0;i<3;i++)await g.request('base',msg(i,'eth_call',[{data:'0x'+i},'latest']));
+ mode='json';at+=1001;await g.request('base',msg(4,'eth_blockNumber',[]));
+ mode='chain';at+=1001;assert.equal((await g.request('ethereum',msg(5,'eth_blockNumber',[]))).error.code,-32002);await tick();
+ assert.equal(JSON.stringify(lines).includes('SECRET'),false);
+ assert.deepEqual(lines.filter(l=>l.event==='upstream-error'),[
+  {event:'upstream-error',network:'base',index:0,reason:'fetch failed at <url> (ECONNRESET)'},
+  {event:'upstream-error',network:'base',index:0,reason:'invalid JSON'},
+  {event:'upstream-error',network:'ethereum',index:0,reason:'chain refuses enclave: Base RPCs disagree on the deployment'}]);
+ assert.deepEqual(lines.filter(l=>l.event==='upstream-probe-error').map(l=>l.network),['ethereum']);
+ mode='url';at+=56000;await g.request('base',msg(6,'eth_call',[{data:'0x6'},'latest']));
+ assert.equal(lines.filter(l=>l.event==='upstream-error').length,3);
+ at+=3000;await g.request('base',msg(7,'eth_call',[{data:'0x7'},'latest']));
+ assert.equal(lines.filter(l=>l.event==='upstream-error').length,4);
+});
