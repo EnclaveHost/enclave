@@ -5,7 +5,7 @@
  "name": "Enclave RPC",
  "description": "Ethereum and Base JSON-RPC served from an AMD SEV-SNP confidential VM. Clients verify the enclave's AMD-signed attestation before use: the launch measurement is pinned in this version's config and the report's HOST_DATA names the serving deployment. Read-only methods plus eth_sendRawTransaction; the enclave holds no keys and signs nothing. Zero publisher fee.",
  "version": "1.1.0",
- "cid": "bafkreidzei5rbxy4sgpizjqzvn7yq2mxf2c5pcrqrqquarkhqasdbr7x3q",
+ "cid": "bafkreifddyf4bumok7n4xxjaoxksdeobzq5gxx6wsbpag6t3j5mvybrpqi",
  "res": [
   0,
   0,
@@ -23,7 +23,7 @@
   },
   "snp": {
    "measurements": {
-    "8": "448fd2cb5a8b6b5082cb4e002ba277b66ac9e9efeb1d55d8a748302e1a2c0acc9abd8d6c4b89b9cf5183118200c8ad26"
+    "8": "75f488efdc0e244c9245788a711eb91542263d6470a45c0cbbb17d4fe3996d285abf6202a574d8bd167b7a7dcec7f6ef"
    },
    "vcpuType": "EPYC-v4",
    "policy": "0x30000",
@@ -31,13 +31,13 @@
    "reportData": "sha256(served TLS SubjectPublicKeyInfo) then 32 zero bytes"
   },
   "image": {
-   "rootHash": "78d7b88f174224b8be917e2d9800d5f1b78920b917405613f3e3cb0363a6494f",
+   "rootHash": "7bc5c97206a86d912cf32ec2fc5974a17db3b20345055bd8613a9d6fbdea59fa",
    "ovmfSha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
-   "cmdlineSha256": "da44884a1ac37a69230796b81ddbd2f16668ccf485eea73eeeec582485162938"
+   "cmdlineSha256": "fb9a592c9906bc829509159545b592d3e071b93943e3dd3ddaabb6267708f6eb"
   },
   "source": {
    "repo": "EnclaveHost/enclave",
-   "commit": "b5ce6c40c29d24aab3f4a27b022cb1b2f649f00d"
+   "commit": "456d14828d6fd29670fc5ebefdc9d160b6883729"
   },
   "endpoints": {
    "attestation": "/.well-known/enclave-attestation",

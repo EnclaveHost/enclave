@@ -1,9 +1,9 @@
 {
  "schema": "enclave-rpc-snp-image/1",
  "kernel": "vmlinuz-6.8.0-147-generic",
- "cmdline": "root=/dev/mapper/vroot ro enclave.roothash=78d7b88f174224b8be917e2d9800d5f1b78920b917405613f3e3cb0363a6494f overlayroot=tmpfs console=ttyS0 panic=-1",
- "rootHash": "78d7b88f174224b8be917e2d9800d5f1b78920b917405613f3e3cb0363a6494f",
- "buildSeconds": 83,
+ "cmdline": "root=/dev/mapper/vroot ro enclave.roothash=7bc5c97206a86d912cf32ec2fc5974a17db3b20345055bd8613a9d6fbdea59fa overlayroot=tmpfs console=ttyS0 panic=-1",
+ "rootHash": "7bc5c97206a86d912cf32ec2fc5974a17db3b20345055bd8613a9d6fbdea59fa",
+ "buildSeconds": 89,
  "bootImageSha256": "a76940c926985b91590ab5916c7996c23d7812ccc2277fe8188bb21f11a0ae2c",
  "artifacts": {
   "vmlinuz": {
@@ -11,24 +11,25 @@
    "sha256": "41ba36d860aa0b0cd995f4ca8856d80249b244577e704929b55be13fbd1ebd2f"
   },
   "initrd.img": {
-   "bytes": 48181473,
-   "sha256": "4192355bfb1d56b0a89362bf67abc4189cac7e59c6ad6fadba0da72d66ba9bdf"
+   "bytes": 48181385,
+   "sha256": "64a309844531d94e7b2e0d65e238f027757ec0c02db99529f9203d7fef657890"
   },
   "root.img": {
    "bytes": 5367643648,
-   "sha256": "8ae4422e3486713de7ef80a2ad2cee305f61ebf0f4d6a5042519abd44abc84ad"
+   "sha256": "2d0c2caebe23c490f4ae97a2a4a63450571ff93636dc51b650195ba1e504eb6b"
   },
   "root.verity": {
    "bytes": 42270720,
-   "sha256": "9672096e3a6895deaefed29a55231ed3b8e150acf7f20d7c577edb89bd5d27c8"
+   "sha256": "02c41c08a5d18623671d085099ade0522f0c71f890ad1470ffa8b3017e75552a"
   }
  },
  "sources": {
   "front.py": "ae607c2a4b33aeb14e903d0787d15678f248b92b7ec9e99f5bcb40fd41b374f3",
   "enclave-verity-hook": "cb93bfdccb9697f469bc8b4d6c9b7b7d50d44c2e34d537e5395e53b3cc352085",
   "enclave-verity-local-top": "57024c1ec992fa4417f59b2d240e472ac62dcc7fa8498e533461dd033aae482f",
-  "build_image.py": "ec2e617737f598edacf89a92eba34fb12a464ac6badbcc2af4b1c7e915ef352e",
-  "l1_identity_patch.py": "212ed37ec237da250a178e2f299f7abd6cef83dae81defb8bd01606a386a3e3a"
+  "build_image.py": "5e225d858caaa8a7b4ae71f5529dc8c00021c1ab44ef5b9872b7195dd412968d",
+  "l1_identity_patch.py": "212ed37ec237da250a178e2f299f7abd6cef83dae81defb8bd01606a386a3e3a",
+  "base_restart_patch.py": "dc97c183b59498b2b79313778ef2a87bc6188d99b771e15c862c4f2515c1e957"
  },
  "coverage": {
   "receipt.json": "4cc8e1a426456e30630c1d0ba08464b742e4434b93583290c2002cc97d110dbf",
