@@ -1,0 +1,41 @@
+{
+ "schema": "enclave-rpc-snp-image/1",
+ "kernel": "vmlinuz-6.8.0-147-generic",
+ "cmdline": "root=/dev/mapper/vroot ro enclave.roothash=78d7b88f174224b8be917e2d9800d5f1b78920b917405613f3e3cb0363a6494f overlayroot=tmpfs console=ttyS0 panic=-1",
+ "rootHash": "78d7b88f174224b8be917e2d9800d5f1b78920b917405613f3e3cb0363a6494f",
+ "buildSeconds": 83,
+ "bootImageSha256": "a76940c926985b91590ab5916c7996c23d7812ccc2277fe8188bb21f11a0ae2c",
+ "artifacts": {
+  "vmlinuz": {
+   "bytes": 15083912,
+   "sha256": "41ba36d860aa0b0cd995f4ca8856d80249b244577e704929b55be13fbd1ebd2f"
+  },
+  "initrd.img": {
+   "bytes": 48181473,
+   "sha256": "4192355bfb1d56b0a89362bf67abc4189cac7e59c6ad6fadba0da72d66ba9bdf"
+  },
+  "root.img": {
+   "bytes": 5367643648,
+   "sha256": "8ae4422e3486713de7ef80a2ad2cee305f61ebf0f4d6a5042519abd44abc84ad"
+  },
+  "root.verity": {
+   "bytes": 42270720,
+   "sha256": "9672096e3a6895deaefed29a55231ed3b8e150acf7f20d7c577edb89bd5d27c8"
+  }
+ },
+ "sources": {
+  "front.py": "ae607c2a4b33aeb14e903d0787d15678f248b92b7ec9e99f5bcb40fd41b374f3",
+  "enclave-verity-hook": "cb93bfdccb9697f469bc8b4d6c9b7b7d50d44c2e34d537e5395e53b3cc352085",
+  "enclave-verity-local-top": "57024c1ec992fa4417f59b2d240e472ac62dcc7fa8498e533461dd033aae482f",
+  "build_image.py": "ec2e617737f598edacf89a92eba34fb12a464ac6badbcc2af4b1c7e915ef352e",
+  "l1_identity_patch.py": "212ed37ec237da250a178e2f299f7abd6cef83dae81defb8bd01606a386a3e3a"
+ },
+ "coverage": {
+  "receipt.json": "4cc8e1a426456e30630c1d0ba08464b742e4434b93583290c2002cc97d110dbf",
+  "verdict.json": "6abb91dd28f7d7ef836c12601348cf05a0e506110fd3cdada5f12e192c010577",
+  "origin.json": "b13d9bbd8a8269cfa71b9d9b9f4b242abedae495736857690fa0aa0636b6dfe4",
+  "snapshot-manifest.json": "1f0c4e6c259d4353f598a94ac75a0540321ced2b52b464fb4e11c2ec34c649f2",
+  "base-bootstrap.json": "7ad5e898d8724976c2b691262b1a4a0703eee3b937b0017d8241e50ce49e34ca",
+  "blob-patch.json": "8bad515d53ebadfd3aaaa292c8178813403ebca79d5e51b63df6f7f85c765b8a"
+ }
+}
