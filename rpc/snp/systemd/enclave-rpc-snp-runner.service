@@ -4,7 +4,7 @@ Description=Hold the EnclaveDeployments lease for Enclave RPC on this host (regi
 After=network-online.target
 
 [Service]
-WorkingDirectory=%h/.local/share/enclave-rpc-snp/releases/37d9541c6
+WorkingDirectory=%h/.local/share/enclave-rpc-snp/releases/e4b7243d4
 ExecStart=/usr/bin/node rpc/snp/runner.mjs %h/.local/share/enclave-rpc-snp/runner-prod.json
 Restart=always
 RestartSec=1min

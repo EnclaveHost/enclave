@@ -217,3 +217,32 @@ Gateway releases 48fe29f5c and 0a1b93638 (live since 15:13Z) now log `upstream-e
 - `systemctl restart enclave-rpc-gateway` at 00:28:48Z restored Ethereum at 00:29:01Z.
 - Fix 184ee05a5: attested requests use an agent with `maxCachedSessions: 0`, with a live test added. Release 184ee05a5 is live on the control VM since 00:39:45Z. The 0a1b93638 drop-in is kept at `/etc/enclave-rpc/50-attested-l1.conf.pre-184ee05a5`.
 - At 00:40Z, `/rpc/ethereum` was 5–11 s behind and `/rpc/base` 0–1 s, the latter from the fallbacks.
+
+## Released r11 (Enclave RPC 1.1.0) to a new deployment (2026-11-06 23:00–23:16Z)
+
+r11 raises Base's limit to 30/32 GiB (r10's 8 GiB was the evening stall), and lets Base restart after L1
+prunes the coverage origin (`base_restart_patch.py`), so no image is due before 2026-11-11. Full record:
+`release-r11/DEPLOYMENT.json`.
+
+**Owner transactions** (Trezor, r11 signing page; status 1). Fund and payout from r10 still applied.
+- publish: block 54078152. Enclave RPC 1.1.0 is version index 2 of app 0x0f62…b537, CID bafkreifddyf4…brpqi,
+  measurement 75f488ef…f6ef.
+- create: block 54078292, deployment **0x694d872e5b4a9c0f02b6076efcc45384a00768f3b9c489ae7b7f5be89d8b5510**.
+
+**Runner** (release e4b7243d4, `runner-prod.json` with the new deployment and measurement; the r10 file is
+kept as `runner-prod.json.pre-r11`): re-registered the measurement (block 54078621) and claimed the new
+deployment's lease (block 54078627). `resolveDeploymentPolicy` then passed in full against two Base RPCs and
+allows only 75f488ef…f6ef. The r10 deployment 0x1abe…0f2e stays active on Base; its lease is no longer renewed.
+
+**Guest swap:** r10 units disabled; `enclave-rpc-snp-prod-r10` stopped 23:02:45–23:08:11Z (clean, 5.4 min).
+`enclave-rpc-snp-prod-r11`, `disk-guard-r11` and `local-proxy-r11` (release e4b7243d4) enabled and started at
+23:08Z on the same L1 and Base disks, 64 GiB. At 23:09Z the attested front on 18443 reported measurement
+75f488ef…f6ef, HOST_DATA = the new deployment.
+
+**Gateway** (control VM): `config.deployment.json` moved to the new deployment, versionIndex 2, at 23:09:20Z;
+the drop-in is unchanged. See `release-r11/gateway-50-attested-l1.conf`.
+
+**Public Ethereum was down 23:02:45–23:11:22Z** (8.6 min: guest stop, boot, L1 catch-up), then one probe
+timed out at 23:15:48Z. At 23:16:31Z `/rpc/ethereum` was 10 s behind and `/rpc/base` 0 s, from the fallbacks.
+
+**Base:** the guest's Base RPC answered from boot (`syncing: true`, head 53658729, the r10 stall point).

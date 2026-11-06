@@ -1,0 +1,56 @@
+{
+ "format": "enclave-rpc-snp-deployment/1",
+ "chainId": 8453,
+ "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+ "app": {
+  "id": "0x0f628585d36c4272ae23c55b4f9ec6d5805f25e26d4744474710e46e4edbb537",
+  "versionIndex": 2,
+  "version": "1.1.0",
+  "cid": "bafkreifddyf4bumok7n4xxjaoxksdeobzq5gxx6wsbpag6t3j5mvybrpqi"
+ },
+ "measurement": "75f488efdc0e244c9245788a711eb91542263d6470a45c0cbbb17d4fe3996d285abf6202a574d8bd167b7a7dcec7f6ef",
+ "deployment": "0x694d872e5b4a9c0f02b6076efcc45384a00768f3b9c489ae7b7f5be89d8b5510",
+ "host": {
+  "enclaveId": "0x71ca90ceda24c5cd1492969ecc29d63697f71076a86b2db56d3669640c2bb93b",
+  "endpoint": "snp-rpc-warden.enclave.host",
+  "runner": "0x4D815cB2247675e00bAEd401D1dF2aBb8F3D0497",
+  "payoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61"
+ },
+ "ownerTransactions": [
+  {
+   "step": "publish",
+   "hash": "0x40aeb289a8b4fb9bb12fe067addfe9358a538c13fba49431bae141511fc26713",
+   "at": "2026-11-06T23:00:05.560Z",
+   "block": 54078152
+  },
+  {
+   "step": "create",
+   "hash": "0xc6b095845e8722f2f880ee4910131d281856aa3255bb8e860704d57fc8b8a773",
+   "at": "2026-11-06T23:00:33.640Z",
+   "block": 54078292
+  }
+ ],
+ "runnerTransactions": [
+  {
+   "step": "register",
+   "hash": "0x30c5ac5b0cdc6694b70c4945e1d7554b851cb152f151da4d0d447d554415160d",
+   "block": 54078621
+  },
+  {
+   "step": "claim",
+   "hash": "0x4c838a55d75219accdc094d227d12458b103241244b53b670357222f9e52c845",
+   "block": 54078627
+  }
+ ],
+ "attestation": {
+  "checkedAt": "2026-11-06T23:09Z",
+  "reportMeasurement": "75f488ef…f6ef",
+  "reportHostData": "694d872e5b4a9c0f02b6076efcc45384a00768f3b9c489ae7b7f5be89d8b5510",
+  "policy": "0x30000"
+ },
+ "supersedes": {
+  "deployment": "0x1abe9a34c07b5c9a2d0f85fd1873c1329d4fd92c3705b6c0e785ca282b970f2e",
+  "versionIndex": 1,
+  "note": "still active on Base; its lease lapses unrenewed"
+ }
+}
