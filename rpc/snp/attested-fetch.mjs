@@ -22,12 +22,17 @@ import { resolveDeploymentPolicy } from './chain-policy.mjs';
 const spkiOf = (pemOrDer) => new X509Certificate(pemOrDer).publicKey.export({ type: 'spki', format: 'der' });
 const sha256 = (b) => createHash('sha256').update(b).digest('hex');
 const MAX_BODY = 16 << 20;
+// No TLS session cache: against the front, a resumed connection either reset or resumed without the
+// peer certificate, so once a pin was dropped every re-attestation failed "attestation unavailable"
+// until the process restarted (rpc-snp-prod-r10, 2026-11-05 15:04Z and 2026-11-06 00:20Z).
+// Keep-alive sockets are still reused; each one carries its own full handshake.
+const agent = new https.Agent({ keepAlive: true, maxCachedSessions: 0 });
 
 function request(url, { method = 'GET', headers = {}, body, signal, ca, pin }) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const req = https.request({
-      host: u.hostname, port: u.port || 443, path: u.pathname + u.search, method, headers, signal,
+      host: u.hostname, port: u.port || 443, path: u.pathname + u.search, method, headers, signal, agent,
       servername: 'enclave-rpc', ca, rejectUnauthorized: Boolean(ca),
       // With a pin, the peer key must be the attested one; the CA check alone only
       // proves the self-signed certificate matches itself.

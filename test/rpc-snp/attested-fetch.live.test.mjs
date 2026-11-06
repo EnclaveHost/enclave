@@ -54,3 +54,17 @@ test('HOST_DATA must match the policy', { skip }, async () => {
   const right = createAttestedFetch({ attested: { [origin]: { allowedMeasurements: [measurement], hostData: f.pins.get(origin).hostData } } });
   assert.equal((await (await right(origin + '/l1', { method: 'POST', body })).json()).result, '0x1');
 });
+
+test('re-attestation after a dropped pin works on a new connection', { skip, timeout: 180000 }, async () => {
+  // The front resets or resumes a cached TLS session without its certificate (prod r10, 2026-11-06).
+  // Seen from the control VM (192.168.8.249); over loopback Node cached no session and it passed anyway.
+  const f = createAttestedFetch({ attested: { [origin]: { allowedMeasurements: [measurement] } } });
+  const call = async (id) => (await (await f(origin + '/l1', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id, method: 'eth_chainId', params: [] }) })).json()).result;
+  assert.equal(await call(1), '0x1');
+  for (const id of [2, 3]) {
+    await new Promise((r) => setTimeout(r, 35000));  // past the front's 30 s idle close, so attestation reconnects
+    f.pins.delete(origin);
+    assert.equal(await call(id), '0x1');
+  }
+});
