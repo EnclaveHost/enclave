@@ -201,3 +201,19 @@ Gateway releases 48fe29f5c and 0a1b93638 (live since 15:13Z) now log `upstream-e
 - It fell behind and re-entered pipeline backfill at roughly 7–8 blocks/s, barely above the chain's 5. Safe/finalized slowed to ~80 blocks/min.
 - Under r10's 8 GiB Base limit, the enclave cannot reliably follow Base after Denim. The gateway's maxLag keeps public `/rpc/base` on the fallbacks while the enclave lags.
 - The fix is a new image with the d57d70ba0 limits, which needs a new catalog version and owner-signed release steps.
+
+## Public Ethereum down again: TLS session resumption, and a root-image throttle (2026-11-06 00:10–00:29Z)
+
+**Base's thrash starved the guest.** Most of the 1.1–1.8 GB/s was reads of the verity root image (`rootd`), not the Base disk, which read ~14 MB/s. Base's own program pages kept being evicted under its 8 GiB limit, and faulting them back meant dm-verity hashing plus bounce buffering. qemu ran ~900% CPU, and the front answered slowly.
+- At 00:22:32Z, QMP `block_set_io_throttle` capped `d1` (Base disk) at 200 MB/s and 6000 IOPS. That had no effect, so it was cleared.
+- At 00:23:42Z, the cap moved to `rootd`: 100 MB/s, 3000 IOPS. qemu fell to ~143%. L1 and the front keep their pages resident, so they are unaffected.
+- Base stays starved at that cap until a new image raises its limit.
+- The throttle is runtime-only and is lost at the next guest restart. `scratchpad/qmp.py rootd 0 0` clears it.
+
+**The gateway stayed down after the guest recovered: "attestation unavailable".** A fresh request from the control VM to the front succeeded, and so did the host's own attestation fetch, but the running gateway kept failing.
+- Root cause: Node's default HTTPS agent caches TLS sessions. Once the front closes an idle connection, re-attestation reconnects on the cached session. That connection resumes without the front's certificate (`isSessionReused`, no peer certificate), or resets.
+- Once the pin was dropped (here by the starved guest), every re-attestation failed until the process restarted. This also explains the 15:04Z outage.
+- Reproduced on the control VM: two "attestation unavailable" in a row on release 0a1b93638, then `0x1` each time with the fix. Over loopback on this host, Node cached no session, so the host did not reproduce it.
+- `systemctl restart enclave-rpc-gateway` at 00:28:48Z restored Ethereum at 00:29:01Z.
+- Fix 184ee05a5: attested requests use an agent with `maxCachedSessions: 0`, with a live test added. Release 184ee05a5 is live on the control VM since 00:39:45Z. The 0a1b93638 drop-in is kept at `/etc/enclave-rpc/50-attested-l1.conf.pre-184ee05a5`.
+- At 00:40Z, `/rpc/ethereum` was 5–11 s behind and `/rpc/base` 0–1 s, the latter from the fallbacks.
