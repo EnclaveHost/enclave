@@ -101,6 +101,8 @@ def seed_config(owner_pub, coverage=None):
                 b'[Unit]\nWants=enclave-rpc-beacon-patch.service\nAfter=enclave-rpc-beacon-patch.service\n')
     # The production L1 disk has pre-merge history expired; see l1_identity_patch.py.
     add('/opt/enclave-rpc-build/l1_identity_patch.py', (HERE/'l1_identity_patch.py').read_bytes(), '0700')
+    # Base restarts after L1 prunes the snapshot origin; see base_restart_patch.py.
+    add('/opt/enclave-rpc-build/base_restart_patch.py', (HERE/'base_restart_patch.py').read_bytes(), '0700')
     add('/opt/enclave-rpc/front.py', (HERE/'front.py').read_bytes(), '0755')
     add('/etc/initramfs-tools/hooks/enclave-verity', (HERE/'enclave-verity-hook').read_bytes(), '0755')
     add('/etc/initramfs-tools/scripts/local-top/enclave-verity', (HERE/'enclave-verity-local-top').read_bytes(), '0755')
@@ -140,6 +142,7 @@ def seed_config(owner_pub, coverage=None):
            'systemctl enable enclave-rpc-beacon-patch.service']
           if coverage is not None and (coverage/'blob-patch.json').exists() else []),
         'python3 -I /opt/enclave-rpc-build/l1_identity_patch.py /opt/enclave-rpc/chain_service.py',
+        'python3 -I /opt/enclave-rpc-build/base_restart_patch.py /opt/enclave-rpc/chain_service.py',
         'rm -r /opt/enclave-rpc-build',
         'python3 -I -c "%s"' % REPIN_IDENTITY,
         'python3 -I -c "%s"' % CHECK_PINS,
@@ -170,6 +173,13 @@ def seed_config(owner_pub, coverage=None):
 def main(out, coverage=None):
     out = Path(out)
     coverage = Path(coverage) if coverage else None
+    if coverage is not None:
+        # A verdict that patched slots covered them only with that blob patch; the guest does not check it, so
+        # an image without exactly those bytes would stall Base at the first patched slot (activation-r4 REVIEW.md (a)).
+        verdict = json.loads((coverage/'verdict.json').read_text())
+        if verdict.get('patchedSlots') and not ((coverage/'blob-patch.json').exists()
+                                                and sha(coverage/'blob-patch.json') == verdict['blobPatch']['sha256']):
+            raise ValueError('coverage verdict patched slots but blob-patch.json is missing or differs')
     out.mkdir(mode=0o700)
     if sha(BOOT_VHDX) != BOOT_SHA256:
         raise ValueError('Pinned boot image changed')
@@ -226,7 +236,7 @@ def main(out, coverage=None):
              'artifacts': {n: {'bytes': (out/n).stat().st_size, 'sha256': sha(out/n)}
                            for n in ('vmlinuz', 'initrd.img', 'root.img', 'root.verity')},
              'sources': {n: sha(HERE/n) for n in ('front.py', 'enclave-verity-hook', 'enclave-verity-local-top', 'build_image.py',
-                                                    'l1_identity_patch.py')},
+                                                    'l1_identity_patch.py', 'base_restart_patch.py')},
              'coverage': {n: sha(coverage/n) for n in COVERAGE_FILES + ('base-bootstrap.json', 'blob-patch.json')
                           if (coverage/n).exists()} if coverage else None}
     (out/'IMAGE.json').write_text(json.dumps(image, indent=1)+'\n')
