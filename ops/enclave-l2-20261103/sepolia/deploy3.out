@@ -1,0 +1,22 @@
+deployer 0x5f2957Af397902cF53141314dB12Bd7D3cbfdb5b balance 40800997716215157 wei at start
+[2026-11-05T23:33:13Z] building the reproducible kona-client prestate with this chain's rollup config embedded
+wrote kona-configs/{chainList,configs,depsets}.json for chain 4206917 (sepolia/enclave-devnet)
+prestate build seconds: 135
+0x03bb8afa5abb8758bda046d243c0e99630446e3015ac1ad4c88310d4ff5f4988
+== stage prestate-build done
+{"safe":"0xb9FB98c855a053A1cD3576eabCda1D74f1D5fD3D","tx":"0x350f4dc3002efcbcf42757890deb5316e60139512d5b8f3fcef24c74dedf78c5","gasUsed":2155775,"operation":"delegatecall"}
+== stage add-game done
+== respected game stays SUPER_PERMISSIONED (5): anchor is still the placeholder; re-run after a type-5 game finalizes
+{
+  "l1ProxyAdminOwnerSafe": "0xb9FB98c855a053A1cD3576eabCda1D74f1D5fD3D",
+  "anchorRoot": "0xdead000000000000000000000000000000000000000000000000000000000000 0 ",
+  "proxyAdminOwnerOnChain": "0xb9FB98c855a053A1cD3576eabCda1D74f1D5fD3D",
+  "anchorStateRegistry": "0xeaf5d8c722629f878edd447b4ddd7246ea269ceb",
+  "disputeGameFactory": "0x6d3afe7c0c75a908bd048ff1db6b6ed2aad1d471",
+  "respectedGameType": 5,
+  "superPermissionedImpl": "0x5C3eb47cB0174aea522a2a9Ae79487139A53D691",
+  "superCannonKonaImpl": "0x19AF533Cc2A2A55786DCB8672aA5717e64213208",
+  "superCannonKonaInitBondWei": "1000000000000000",
+  "superCannonKonaAbsolutePrestate": "0x03bb8afa5abb8758bda046d243c0e99630446e3015ac1ad4c88310d4ff5f4988"
+}
+deployer balance 40800997716215157 wei at end

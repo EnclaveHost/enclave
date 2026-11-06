@@ -1,0 +1,40 @@
+#39 172.2          /usr/lib/gcc-cross/mips64-linux-gnuabi64/10/../../../../mips64-linux-gnuabi64/bin/ld: /app/rust/target/mips64-unknown-none/release-client-lto/build/kona-client/1fd9112dc2b3ef86/out/kona_client_int uses -mhard-float (set by /usr/lib/gcc-cross/mips64-linux-gnuabi64/10/../../../../mips64-linux-gnuabi64/lib/../lib/crt1.o), /app/rust/target/mips64-unknown-none/release-client-lto/build/compiler_builtins/3bf9ff001e89782d/out/libcompiler_builtins-3bf9ff001e89782d.rlib(compiler_builtins-3bf9ff001e89782d.compiler_builtins.4d730cfa374e19a3-cgu.0.rcgu.o) uses -msoft-float
+#39 172.2   |
+#39 172.2   = note: `#[warn(linker_messages)]` on by default
+#39 172.2 
+#39 172.2 warning: `kona-client` (bin "kona-client-int") generated 1 warning
+#39 172.2     Finished `release-client-lto` profile [optimized] target(s) in 2m 51s
+#39 172.5 mise WARN  unknown field in /app/mise.toml: tool_alias
+#39 172.5 mise WARN  failed to resolve toolset: [/app/mise.toml] goreleaser-pro@2.11.2: goreleaser-pro not found in mise tool registry
+#39 172.5 mise WARN  failed to resolve toolset: [/app/mise.toml] goreleaser-pro@2.11.2: goreleaser-pro not found in mise tool registry
+#39 DONE 172.5s
+
+#40 [prestate-build 1/2] COPY --from=cannon-build /app/cannon/bin/cannon /app/cannon
+#40 DONE 0.0s
+
+#41 [prestate-build 2/2] RUN cd /app/rust && just generate-kona-prestates /app/cannon /app/elf /app/out
+#41 0.213 mise WARN  unknown field in /app/mise.toml: tool_alias
+#41 0.215 mise WARN  failed to resolve toolset: [/app/mise.toml] goreleaser-pro@2.11.2: goreleaser-pro not found in mise tool registry
+#41 0.217 mise WARN  failed to resolve toolset: [/app/mise.toml] goreleaser-pro@2.11.2: goreleaser-pro not found in mise tool registry
+#41 0.233 === Generating prestate for kona-client ===
+#41 0.411 level=INFO msg="Loaded input state" module=vm version=multithreaded64-5
+#41 0.411 level=INFO msg="Using cannon multithreaded VM" module=vm is32=false
+#41 0.837 level=INFO msg=processing module=vm step=0 pc=20172a50 insn=67bdfe50 ips=0 pages=1175 mem="4.6 MiB" name=_start
+#41 0.892 level=INFO msg="Reached stop at" module=vm
+#41 0.892 level=INFO msg="Execution stopped" module=vm exited=false code=0
+#41 0.918 Prestate for kona-client: 0x03baf2ca282158397f27afca67c1efad9274d37b8b50a5cae65e17760684721f
+#41 0.919 === Generating prestate for kona-client-int ===
+#41 1.085 level=INFO msg="Loaded input state" module=vm version=multithreaded64-5
+#41 1.085 level=INFO msg="Using cannon multithreaded VM" module=vm is32=false
+#41 1.498 level=INFO msg=processing module=vm step=0 pc=201a3df8 insn=67bdee10 ips=0 pages=1245 mem="4.9 MiB" name=_start
+#41 1.557 level=INFO msg="Reached stop at" module=vm
+#41 1.557 level=INFO msg="Execution stopped" module=vm exited=false code=0
+#41 1.575 Prestate for kona-client-int: 0x0370ab3906895c20e44a1d77be96b9b8330092cce4a9f53a416d4c15c7670c51
+#41 DONE 1.6s
+
+#42 [export-stage 1/1] COPY --from=prestate-build /app/out/ .
+#42 DONE 0.0s
+
+#43 exporting to client directory
+#43 copying files 9.34MB 0.0s done
+#43 DONE 0.0s

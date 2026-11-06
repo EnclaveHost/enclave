@@ -1,0 +1,606 @@
+{
+  "kind": "enclave.l2-posting-costs",
+  "version": 1,
+  "measuredAt": "2026-11-06T00:49:37.952Z",
+  "l1ChainId": 11155111,
+  "assumptions": {
+    "ethUsd": 2261,
+    "tipGwei": 0,
+    "blobPrice": "EIP-7918 reserve: 8192 x base fee per blob"
+  },
+  "batcher": {
+    "txs": 26,
+    "firstBlock": 12073040,
+    "lastBlock": 12073109,
+    "spanSeconds": 852,
+    "gasUsed": {
+      "min": 15000,
+      "max": 15000,
+      "mean": 15000
+    },
+    "blobsPerTx": 1,
+    "paidOnThisL1Wei": "390000015162544",
+    "mainnet": {
+      "0.05gwei": {
+        "ethPerTx": 0.0000011596000000000007,
+        "usdPerTx": 0.0026218556000000017
+      },
+      "1gwei": {
+        "ethPerTx": 0.000023192,
+        "usdPerTx": 0.052437112
+      }
+    }
+  },
+  "proposer": {
+    "txs": 1,
+    "firstBlock": 12073033,
+    "lastBlock": 12073033,
+    "spanSeconds": 0,
+    "gasUsed": {
+      "min": 1163650,
+      "max": 1163650,
+      "mean": 1163650
+    },
+    "blobsPerTx": 0,
+    "paidOnThisL1Wei": "1163650015127450",
+    "mainnet": {
+      "0.05gwei": {
+        "ethPerTx": 0.0000581825,
+        "usdPerTx": 0.13155063250000001
+      },
+      "1gwei": {
+        "ethPerTx": 0.00116365,
+        "usdPerTx": 2.63101265
+      }
+    }
+  },
+  "channels": {
+    "count": 26,
+    "outputBytes": {
+      "min": 84,
+      "max": 30190
+    },
+    "blocksPerChannel": {
+      "min": 42,
+      "max": 2203
+    },
+    "all": [
+      {
+        "blocks": 1765,
+        "frames": 1,
+        "inputBytes": 2037,
+        "outputBytes": 233
+      },
+      {
+        "blocks": 1908,
+        "frames": 1,
+        "inputBytes": 212,
+        "outputBytes": 134
+      },
+      {
+        "blocks": 2036,
+        "frames": 1,
+        "inputBytes": 195,
+        "outputBytes": 129
+      },
+      {
+        "blocks": 2167,
+        "frames": 1,
+        "inputBytes": 199,
+        "outputBytes": 141
+      },
+      {
+        "blocks": 2173,
+        "frames": 1,
+        "inputBytes": 56,
+        "outputBytes": 84
+      },
+      {
+        "blocks": 2179,
+        "frames": 1,
+        "inputBytes": 56,
+        "outputBytes": 84
+      },
+      {
+        "blocks": 2185,
+        "frames": 1,
+        "inputBytes": 56,
+        "outputBytes": 84
+      },
+      {
+        "blocks": 2197,
+        "frames": 1,
+        "inputBytes": 64,
+        "outputBytes": 92
+      },
+      {
+        "blocks": 2203,
+        "frames": 1,
+        "inputBytes": 56,
+        "outputBytes": 84
+      },
+      {
+        "blocks": 42,
+        "frames": 1,
+        "inputBytes": 56,
+        "outputBytes": 84
+      },
+      {
+        "blocks": 48,
+        "frames": 1,
+        "inputBytes": 64,
+        "outputBytes": 92
+      },
+      {
+        "blocks": 48,
+        "frames": 1,
+        "inputBytes": 56,
+        "outputBytes": 84
+      },
+      {
+        "blocks": 54,
+        "frames": 1,
+        "inputBytes": 56,
+        "outputBytes": 84
+      },
+      {
+        "blocks": 60,
+        "frames": 1,
+        "inputBytes": 64,
+        "outputBytes": 92
+      },
+      {
+        "blocks": 54,
+        "frames": 1,
+        "inputBytes": 56,
+        "outputBytes": 84
+      },
+      {
+        "blocks": 54,
+        "frames": 1,
+        "inputBytes": 56,
+        "outputBytes": 84
+      },
+      {
+        "blocks": 54,
+        "frames": 1,
+        "inputBytes": 56,
+        "outputBytes": 84
+      },
+      {
+        "blocks": 48,
+        "frames": 1,
+        "inputBytes": 64,
+        "outputBytes": 92
+      },
+      {
+        "blocks": 42,
+        "frames": 1,
+        "inputBytes": 64,
+        "outputBytes": 92
+      },
+      {
+        "blocks": 42,
+        "frames": 1,
+        "inputBytes": 56,
+        "outputBytes": 84
+      },
+      {
+        "blocks": 48,
+        "frames": 1,
+        "inputBytes": 64,
+        "outputBytes": 92
+      },
+      {
+        "blocks": 54,
+        "frames": 1,
+        "inputBytes": 56,
+        "outputBytes": 84
+      },
+      {
+        "blocks": 54,
+        "frames": 1,
+        "inputBytes": 56,
+        "outputBytes": 84
+      },
+      {
+        "blocks": 47,
+        "frames": 1,
+        "inputBytes": 3806,
+        "outputBytes": 2102
+      },
+      {
+        "blocks": 121,
+        "frames": 1,
+        "inputBytes": 72875,
+        "outputBytes": 30190
+      },
+      {
+        "blocks": 120,
+        "frames": 1,
+        "inputBytes": 185,
+        "outputBytes": 143
+      }
+    ]
+  },
+  "txs": [
+    {
+      "role": "batcher",
+      "hash": "0x994b730a0381def4f566c323eff1222cd67ba9caa985c6fb34129ceed198d8ab",
+      "block": 12073040,
+      "time": 1793925132,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x07066e5feb8da7aa7bbbfa5a04a3b29c5a44f8694f5a946484a11d2828a7ae18",
+      "block": 12073041,
+      "time": 1793925144,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0xc13149f0b2428344e9ef3bacaaea9629759a7d743a90fd7af1e3f2d3662266c8",
+      "block": 12073042,
+      "time": 1793925156,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x71261ee05e444289ecc1a6c0cef01aa0eb145cdabda8ca3007a858477fc304b5",
+      "block": 12073043,
+      "time": 1793925168,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0xf67074432ad5cdb355172a9d06e3ead2fabfa4e66bdd5592461efa2ca5587f9f",
+      "block": 12073044,
+      "time": 1793925180,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x273d02fe3fea27068664f67e3468443503a562afb9fbc0884fd9a3cc210a0d8f",
+      "block": 12073046,
+      "time": 1793925204,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x71414bc935b72546723ad7aa55711f33931962c607b501f6c8be9e08291aeba3",
+      "block": 12073048,
+      "time": 1793925228,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0xb2b282fea13ad43b89dcb15f7faa69d22d8991c3fe356256e362471451d73129",
+      "block": 12073049,
+      "time": 1793925240,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x668d256724b82ed5c00d1370341b982b74fcd2860c36a0ef58a71965c8d6bb01",
+      "block": 12073050,
+      "time": 1793925252,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x65224f79ea33521ef3379b61017b63e5262cffcf613f88591f9a609d615e691e",
+      "block": 12073051,
+      "time": 1793925264,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x96e3012b7916211e868459aa35ff9bd756e9a8dc281522f941691de90a331eff",
+      "block": 12073052,
+      "time": 1793925276,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x87840923cf2866e20d940dde1c72d878d593193a80e4b30068e57e38408b69fd",
+      "block": 12073053,
+      "time": 1793925300,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x6189fb8dc9d714a51e6f97de0c2d0c7f668484a89f6ff351f720a2c5722caf6c",
+      "block": 12073054,
+      "time": 1793925312,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0xe4faf393ac481e7918dcc95ec1d0f7105fb7387d55f5b76ac94becfe88088f10",
+      "block": 12073055,
+      "time": 1793925324,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x7d076bbdc45636fdad6508fff0c45dccd7a315c87765ff8882518a68dc703158",
+      "block": 12073056,
+      "time": 1793925336,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "4",
+      "l1BaseFee": "13",
+      "paidWei": "15000000719288"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x7334c255843063df02753d5c9ed972be0a11a573620854c526fe8c8d7a7254ed",
+      "block": 12073058,
+      "time": 1793925360,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x4712878da9e6e7ae489f00cecd2a0bf95f3af48fcc013b0d5eac3f0404ace497",
+      "block": 12073060,
+      "time": 1793925384,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x5c23e45f092c700c2647932a159570f3d9dbf72ff5cd346431556473f411b015",
+      "block": 12073062,
+      "time": 1793925408,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0xe31b9bba879d37cb110d67463467d766c688cb1bc1c5046755a2a8eede57c858",
+      "block": 12073063,
+      "time": 1793925420,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0xa0c57529e012147c80164cc95b145750f23c81802ed01744b2569fbfef48b6af",
+      "block": 12073064,
+      "time": 1793925432,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x4ec4a42651424981c1e9245276e618575a03cc05197e3bf712b8569aaca09b07",
+      "block": 12073065,
+      "time": 1793925444,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0xd374baa9ac003982f67293e888b1f91a63c46a0a86040d9cfe777c704b1456fe",
+      "block": 12073066,
+      "time": 1793925456,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x706f34763f50bb32e7abb17a25c312d97b47564bb076a1e742381a70a2083cbc",
+      "block": 12073067,
+      "time": 1793925468,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0xcb4ea010008b4479cb4e2542670f23bdf344e245a1f602ad5f48d2765485620f",
+      "block": 12073070,
+      "time": 1793925504,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "3",
+      "l1BaseFee": "13",
+      "paidWei": "15000000588216"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x9b818cd4add305b33f4cd5715dd8f44851e57878f1e88ada3a2350dc53d4fbaf",
+      "block": 12073089,
+      "time": 1793925744,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "2",
+      "l1BaseFee": "13",
+      "paidWei": "15000000457144"
+    },
+    {
+      "role": "batcher",
+      "hash": "0x86f4cc9df42d987532debbc987991995e8d5247e48427d0dffac180d6f605f3b",
+      "block": 12073109,
+      "time": 1793925984,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "2",
+      "l1BaseFee": "13",
+      "paidWei": "15000000457144"
+    },
+    {
+      "role": "proposer",
+      "hash": "0x8a84bd3c6f53bd093cef357e1da11809157815632b720f2116feddb07f6b6df9",
+      "block": 12073033,
+      "time": 1793925036,
+      "status": "success",
+      "gasUsed": 1163650,
+      "blobs": 0,
+      "blobGasUsed": 0,
+      "effectiveGasPrice": "1000000013",
+      "blobGasPrice": "0",
+      "l1BaseFee": "13",
+      "paidWei": "1163650015127450"
+    }
+  ]
+}

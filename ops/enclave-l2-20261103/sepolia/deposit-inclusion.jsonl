@@ -1,0 +1,5 @@
+{"l1Block":12073047,"l1Time":1793925216}
+{"l1Block":12073048,"l1Time":1793925228}
+{"l1Block":12073049,"l1Time":1793925240}
+{"l1Block":12073052,"l1Time":1793925276}
+{"kind":"steady-state deposit","l1Hash":"0x9b69550a05cc641f618a83ce2167e5a699f6d612ca0d10d7600586298f3b9dae","l1Block":"12073117","wallSecondsSendToL1Receipt":14,"wallSecondsL1ReceiptToL2Balance":52,"l2HeadWhenSeen":2669}

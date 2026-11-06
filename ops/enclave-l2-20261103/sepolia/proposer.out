@@ -1,0 +1,22 @@
+t=2026-11-06T00:29:41+0000 lvl=info msg="Initializing L2Output Submitter"
+t=2026-11-06T00:29:44+0000 lvl=warn msg="failed to dial address, but may connect later" addr=http://seq-node:8547
+t=2026-11-06T00:29:46+0000 lvl=warn msg="failed to dial address, but may connect later" addr=http://seq-node:8547
+t=2026-11-06T00:29:48+0000 lvl=warn msg="failed to dial address, but may connect later" addr=http://seq-node:8547
+t=2026-11-06T00:29:50+0000 lvl=warn msg="failed to dial address, but may connect later" addr=http://seq-node:8547
+t=2026-11-06T00:29:52+0000 lvl=warn msg="failed to dial address, but may connect later" addr=http://seq-node:8547
+t=2026-11-06T00:29:54+0000 lvl=warn msg="failed to dial address, but may connect later" addr=http://seq-node:8547
+t=2026-11-06T00:29:56+0000 lvl=info msg="Metrics disabled"
+t=2026-11-06T00:29:56+0000 lvl=info msg="Connected to DisputeGameFactory" address=0x6D3Afe7C0c75a908bD048ff1db6B6Ed2AAD1D471 version=1.6.1
+t=2026-11-06T00:29:56+0000 lvl=info msg="Starting JSON-RPC server"
+t=2026-11-06T00:29:56+0000 lvl=info msg="Started RPC server" endpoint=http://[::]:8560
+t=2026-11-06T00:29:56+0000 lvl=info msg="Starting Proposer"
+t=2026-11-06T00:29:56+0000 lvl=info msg="Starting Proposer"
+t=2026-11-06T00:29:56+0000 lvl=info msg="Proposer started"
+t=2026-11-06T00:30:26+0000 lvl=info msg="No proposals found for at least proposal interval, submitting proposal now" proposalInterval=1h0m0s
+t=2026-11-06T00:30:26+0000 lvl=info msg="Proposing output root" output=0x4cdce460e9980ad33997db7e81fc98e033399ac01c125f50880fb6a435ddadea sequenceNum=1793920812 extraData="\x01\x00\x00\x00\x00j\xed\x0f,\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00@1Ep\xb2#'+\x98\xbe\xb9\xea6\xb0\n\xf6NW1\xd9C\xe9!,\xf3\xf9J3\xfbv9\xd6\xfdO\xf5"
+t=2026-11-06T00:30:27+0000 lvl=info msg="Estimated gas fees & tip caps" service=proposer gasTipCap=1000000000 baseFee=13 blobTipCap=1000000000 blobBaseFee=4 dynamicBlobTipCap=false
+t=2026-11-06T00:30:27+0000 lvl=info msg="Publishing transaction" service=proposer tx=0x8a84bd3c6f53bd093cef357e1da11809157815632b720f2116feddb07f6b6df9 nonce=0 gasTipCap=1000000000 gasFeeCap=3000000000 gasLimit=1184457
+t=2026-11-06T00:30:27+0000 lvl=info msg="Transaction successfully published" service=proposer tx=0x8a84bd3c6f53bd093cef357e1da11809157815632b720f2116feddb07f6b6df9 nonce=0 gasTipCap=1000000000 gasFeeCap=3000000000 gasLimit=1184457 tx=0x8a84bd3c6f53bd093cef357e1da11809157815632b720f2116feddb07f6b6df9
+t=2026-11-06T00:30:39+0000 lvl=info msg="Publishing transaction" service=proposer tx=0x8a84bd3c6f53bd093cef357e1da11809157815632b720f2116feddb07f6b6df9 nonce=0 gasTipCap=1000000000 gasFeeCap=3000000000 gasLimit=1184457
+t=2026-11-06T00:30:39+0000 lvl=info msg="Transaction confirmed" service=proposer tx=0x8a84bd3c6f53bd093cef357e1da11809157815632b720f2116feddb07f6b6df9 block=0x2a3bc5e59c080089289b5101e62812a0a74cb3e9faa7b9e555b654e12b551904:12073033 effectiveGasPrice=1000000013
+t=2026-11-06T00:30:39+0000 lvl=info msg="Proposer tx successfully published" tx_hash=0x8a84bd3c6f53bd093cef357e1da11809157815632b720f2116feddb07f6b6df9 l1blocknum=12072674 l1blockhash=0x4eabaa060bc237c3e641cc23cd57128cf3a9e2dcb1c9ea934076d4c47a17db14

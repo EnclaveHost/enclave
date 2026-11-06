@@ -1,0 +1,11 @@
+{
+  "kind": "proposal gas replay under pre-repricing rules",
+  "sepoliaTx": "0x8a84bd3c6f53bd093cef357e1da11809157815632b720f2116feddb07f6b6df9",
+  "sepoliaBlock": 12073033,
+  "sepoliaGasUsed": 1163650,
+  "replay": {
+    "tool": "anvil 1.7.1 --fork-block-number 12073032 --hardfork osaka --gas-limit 16777216, proposer impersonated, same to/input/value",
+    "status": "0x1",
+    "gasUsed": 252492
+  }
+}

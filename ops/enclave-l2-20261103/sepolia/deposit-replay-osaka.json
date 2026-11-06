@@ -1,0 +1,10 @@
+{
+  "kind": "portal deposit gas replay under pre-repricing rules",
+  "sepoliaTx": "0x9b69550a05cc641f618a83ce2167e5a699f6d612ca0d10d7600586298f3b9dae",
+  "sepoliaBlock": 12073117,
+  "sepoliaGasUsed": 129014,
+  "replay": {
+    "tool": "anvil 1.7.1 --hardfork osaka, sender impersonated, same to/input/value",
+    "gasUsed": 128489
+  }
+}

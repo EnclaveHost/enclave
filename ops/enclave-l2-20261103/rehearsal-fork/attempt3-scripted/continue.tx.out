@@ -1,0 +1,4 @@
+t=2026-11-03T04:04:38-0700 lvl=info msg="Estimated gas fees & tip caps" service=transactor gasTipCap=5000000000 baseFee=10 blobTipCap=5000000000 blobBaseFee=1 dynamicBlobTipCap=false
+t=2026-11-03T04:04:39-0700 lvl=info msg="Publishing transaction" service=transactor tx=0x70cb56a1ba4fb8e0c93ec087023a04f3dec81410c339fe5fa851ba6c88af9b10 nonce=10 gasTipCap=5000000000 gasFeeCap=7000000000 gasLimit=8968443
+t=2026-11-03T04:04:47-0700 lvl=info msg="Transaction confirmed" service=transactor tx=0x70cb56a1ba4fb8e0c93ec087023a04f3dec81410c339fe5fa851ba6c88af9b10 block=0xa61fbef5415f023ab0978af0bd881d90725ce1b2e0b16ffc1355700dcfcdc563:12054874 effectiveGasPrice=5000000007
+t=2026-11-03T04:04:47-0700 lvl=info msg="transaction confirmed" id=0x29ba8aba7892e1a0fef6635122a9fb7bd5e9d1d21acbd146946d7f0c299e0e8b completed=1 total=1 hash=0x70cb56a1ba4fb8e0c93ec087023a04f3dec81410c339fe5fa851ba6c88af9b10 nonce=10 creation=0x0000000000000000000000000000000000000000

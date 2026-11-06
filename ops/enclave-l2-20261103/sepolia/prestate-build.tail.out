@@ -1,0 +1,40 @@
+#39 132.0   |
+#39 132.0   = note: `#[warn(linker_messages)]` on by default
+#39 132.0 
+#39 132.1 warning: `kona-client` (bin "kona-client-int") generated 1 warning
+#39 132.1     Finished `release-client-lto` profile [optimized] target(s) in 2m 06s
+#39 132.1 mise WARN  unknown field in /app/mise.toml: tool_alias
+#39 132.1 mise WARN  failed to resolve toolset: [/app/mise.toml] goreleaser-pro@2.11.2: goreleaser-pro not found in mise tool registry
+#39 132.1 mise WARN  failed to resolve toolset: [/app/mise.toml] goreleaser-pro@2.11.2: goreleaser-pro not found in mise tool registry
+#39 DONE 132.2s
+
+#40 [prestate-build 1/2] COPY --from=cannon-build /app/cannon/bin/cannon /app/cannon
+#40 DONE 0.1s
+
+#41 [prestate-build 2/2] RUN cd /app/rust && just generate-kona-prestates /app/cannon /app/elf /app/out
+#41 0.322 mise WARN  unknown field in /app/mise.toml: tool_alias
+#41 0.324 mise WARN  failed to resolve toolset: [/app/mise.toml] goreleaser-pro@2.11.2: goreleaser-pro not found in mise tool registry
+#41 0.327 mise WARN  failed to resolve toolset: [/app/mise.toml] goreleaser-pro@2.11.2: goreleaser-pro not found in mise tool registry
+#41 0.343 === Generating prestate for kona-client ===
+#41 0.526 level=INFO msg="Loaded input state" module=vm version=multithreaded64-5
+#41 0.526 level=INFO msg="Using cannon multithreaded VM" module=vm is32=false
+#41 0.974 level=INFO msg=processing module=vm step=0 pc=20172a50 insn=67bdfe50 ips=0 pages=1175 mem="4.6 MiB" name=_start
+#41 1.031 level=INFO msg="Reached stop at" module=vm
+#41 1.031 level=INFO msg="Execution stopped" module=vm exited=false code=0
+#41 1.067 Prestate for kona-client: 0x0329914a99cfb5dbf1f927f4a331744d29566636b947e59b45f9f40b64db52c0
+#41 1.069 === Generating prestate for kona-client-int ===
+#41 1.261 level=INFO msg="Loaded input state" module=vm version=multithreaded64-5
+#41 1.261 level=INFO msg="Using cannon multithreaded VM" module=vm is32=false
+#41 1.713 level=INFO msg=processing module=vm step=0 pc=201a3df8 insn=67bdee10 ips=0 pages=1245 mem="4.9 MiB" name=_start
+#41 1.773 level=INFO msg="Reached stop at" module=vm
+#41 1.773 level=INFO msg="Execution stopped" module=vm exited=false code=0
+#41 1.803 Prestate for kona-client-int: 0x03bb8afa5abb8758bda046d243c0e99630446e3015ac1ad4c88310d4ff5f4988
+#41 DONE 1.8s
+
+#42 [export-stage 1/1] COPY --from=prestate-build /app/out/ .
+#42 DONE 0.0s
+
+#43 exporting to client directory
+#43 copying files 9.34MB 0.0s done
+#43 DONE 0.0s
+prestate build seconds: 135

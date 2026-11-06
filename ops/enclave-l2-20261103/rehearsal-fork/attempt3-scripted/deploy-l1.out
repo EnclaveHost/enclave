@@ -1,0 +1,81 @@
+deployer 0x5f2957Af397902cF53141314dB12Bd7D3cbfdb5b balance 99883974364847604439 wei at start
+[2026-11-03T11:03:27Z] creating the 1-of-1 Safe that owns the L1 ProxyAdmins (admin key stands in for the Trezor)
+{"safe":"0x2AEB9329F0E0d523Eb0Db68569E98ED4a19F36E5","owners":["0x7039e6C7d95ba957a5ae1b57CdAbB0762c3991A2"],"threshold":1,"chainId":11155111,"tx":"0xaa160c98b12864ad1f2daaf8b092da4bb4915afc5d73cefa76557dffd30c1839","gasUsed":258895}
+== stage safe done
+[2026-11-03T11:03:40Z] bootstrapping an Enclave-owned SuperchainConfig (guardian = admin; OP's Sepolia guardian has no power here)
+{
+  "superchainConfigImplAddress": "0x5570b1f2b97b1e35b5c6f9ee76f6cf02c9917504",
+  "superchainConfigProxyAddress": "0x313e58dbea971c49d3cfdd1c780503fc1c996c2b",
+  "proxyAdminAddress": "0x82fcec4d36690aab28af3381c4d0666322554b82"
+}
+
+== stage superchain done
+Successfully initialized op-deployer intent in directory: .deployer
+configType = "standard-overrides"
+opDeployerVersion = "0.8.1-319e3da9-2026-10-13T15:43:02Z"
+l1ChainID = 11155111
+opcmAddress = "0x6abfabbc793883add5fa308a97163e8225a9f4ca"
+fundDevAccounts = false
+l1ContractsLocator = "embedded"
+l2ContractsLocator = "embedded"
+useInterop = false
+superchainConfigProxy = "0x313e58dbea971c49d3cfdd1c780503fc1c996c2b"
+
+[[chains]]
+  id = "0x0000000000000000000000000000000000000000000000000000000000403145"
+  baseFeeVaultRecipient = "0x7039e6C7d95ba957a5ae1b57CdAbB0762c3991A2"
+  l1FeeVaultRecipient = "0x7039e6C7d95ba957a5ae1b57CdAbB0762c3991A2"
+  sequencerFeeVaultRecipient = "0x7039e6C7d95ba957a5ae1b57CdAbB0762c3991A2"
+  operatorFeeVaultRecipient = "0x7039e6C7d95ba957a5ae1b57CdAbB0762c3991A2"
+  eip1559DenominatorCanyon = 250
+  eip1559Denominator = 50
+  eip1559Elasticity = 6
+  gasLimit = 60000000
+  operatorFeeScalar = 0
+  operatorFeeConstant = 0
+  minBaseFee = 0
+  daFootprintGasScalar = 0
+  [chains.roles]
+    l1ProxyAdminOwner = "0x2AEB9329F0E0d523Eb0Db68569E98ED4a19F36E5"
+    l2ProxyAdminOwner = "0x7039e6C7d95ba957a5ae1b57CdAbB0762c3991A2"
+    systemConfigOwner = "0x7039e6C7d95ba957a5ae1b57CdAbB0762c3991A2"
+    unsafeBlockSigner = "0xdA06d5bf9f8dE0eDc8FC180a6a51a8310bc199EE"
+    batcher = "0x3221c0f96F99323Ab1fE3f988dC7Cca87dEE8F2D"
+    proposer = "0x0c97CC002182572c35b7dB58648bfbEbf2772F87"
+    challenger = "0xA43e1a374506c7A26e641C4F47778cf33a016a8B"
+  [chains.customGasToken]
+    liquidityControllerOwner = "0x0000000000000000000000000000000000000000"
+
+
+  [chains.deployOverrides]
+    respectedGameType = 5
+== stage intent done
+== stage prepare done
+[2026-11-03T11:04:38Z] broadcasting OPCM.deploy
+t=2026-11-03T04:04:47-0700 lvl=info msg="transaction confirmed" id=0x29ba8aba7892e1a0fef6635122a9fb7bd5e9d1d21acbd146946d7f0c299e0e8b completed=1 total=1 hash=0x70cb56a1ba4fb8e0c93ec087023a04f3dec81410c339fe5fa851ba6c88af9b10 nonce=10 creation=0x0000000000000000000000000000000000000000
+== stage continue done
+[2026-11-03T11:04:47Z] building the reproducible kona-client prestate with this chain's rollup config embedded
+wrote kona-configs/{chainList,configs,depsets}.json for chain 4206917 (sepolia/enclave-devnet)
+prestate build seconds: 122
+0x035d9881833eb0ed68ea6f49b6b7dbbd4896c4e3579e5d20576236cb3c85b1b1
+== stage prestate-build done
+{"safe":"0x2AEB9329F0E0d523Eb0Db68569E98ED4a19F36E5","tx":"0x7d72fce19c2032fa9650cd32d5b19e4ac882a5d6a2ca804953ddc18893762edb","gasUsed":1525323,"operation":"delegatecall"}
+== stage add-game done
+{
+  "transactionHash": "0x7b58aa589e33abd961ca5775e9c9b6c4e0c7ab04c18922f4d99d12922daf7798",
+  "gasUsed": "0xd8bb",
+  "status": "0x1"
+}
+== stage respected done
+{
+  "l1ProxyAdminOwnerSafe": "0x2AEB9329F0E0d523Eb0Db68569E98ED4a19F36E5",
+  "proxyAdminOwnerOnChain": "0x2AEB9329F0E0d523Eb0Db68569E98ED4a19F36E5",
+  "anchorStateRegistry": "0x4697912fab729ede882b6eaa5001f65d8ee3cba7",
+  "disputeGameFactory": "0x45ce41b2c1b59baf94190f31e177ae467568f5a3",
+  "respectedGameType": 9,
+  "superPermissionedImpl": "0x5C3eb47cB0174aea522a2a9Ae79487139A53D691",
+  "superCannonKonaImpl": "0x19AF533Cc2A2A55786DCB8672aA5717e64213208",
+  "superCannonKonaInitBondWei": "1000000000000000",
+  "superCannonKonaAbsolutePrestate": "0x035d9881833eb0ed68ea6f49b6b7dbbd4896c4e3579e5d20576236cb3c85b1b1"
+}
+deployer balance 99812790944769951535 wei at end

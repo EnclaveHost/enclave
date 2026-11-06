@@ -7,7 +7,9 @@
 #      SEQ_L1_RPC, SEQ_L1_BEACON, REPLICA_L1_RPC, REPLICA_L1_BEACON,
 #      BATCHER_MAX_CHANNEL_DURATION (L1 blocks, default 25 = ~5 min),
 #      PROPOSAL_INTERVAL (default 1h), SEQ_L1_CONFS (default 4),
-#      PROPOSER_GAME_TYPE (5 until the anchor is real, then 9).
+#      PROPOSER_GAME_TYPE (5 until the anchor is real, then 9),
+#      TXMGR_MIN_TIP_GWEI (default 0.001; op-batcher/op-proposer default to 1 gwei,
+#      which is 20x a 0.05 gwei base fee and would dominate the posting bill).
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 : "${WORK:?}" "${KEYS:?}" "${DEVNET:?}" "${SEQ_L1_RPC:?}" "${SEQ_L1_BEACON:?}" "${REPLICA_L1_RPC:?}" "${REPLICA_L1_BEACON:?}"
@@ -36,6 +38,7 @@ SEQ_L1_CONFS=${SEQ_L1_CONFS:-4}
 BATCHER_MAX_CHANNEL_DURATION=${BATCHER_MAX_CHANNEL_DURATION:-25}
 PROPOSAL_INTERVAL=${PROPOSAL_INTERVAL:-1h}
 PROPOSER_GAME_TYPE=${PROPOSER_GAME_TYPE:-5}
+TXMGR_MIN_TIP_GWEI=${TXMGR_MIN_TIP_GWEI:-0.001}
 DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy "$WORK/chain-addresses.json")
 EOF
 chmod 600 "$DEVNET"/*.env

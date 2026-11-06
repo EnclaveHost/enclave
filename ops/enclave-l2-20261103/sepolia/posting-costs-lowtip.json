@@ -1,0 +1,70 @@
+{
+  "kind": "enclave.l2-posting-costs",
+  "version": 1,
+  "measuredAt": "2026-11-06T00:52:58.207Z",
+  "l1ChainId": 11155111,
+  "assumptions": {
+    "ethUsd": 2261,
+    "tipGwei": 0,
+    "blobPrice": "EIP-7918 reserve: 8192 x base fee per blob"
+  },
+  "batcher": {
+    "txs": 1,
+    "firstBlock": 12073130,
+    "lastBlock": 12073130,
+    "spanSeconds": 0,
+    "gasUsed": {
+      "min": 15000,
+      "max": 15000,
+      "mean": 15000
+    },
+    "blobsPerTx": 1,
+    "paidOnThisL1Wei": "15000326072",
+    "mainnet": {
+      "0.05gwei": {
+        "ethPerTx": 0.0000011596,
+        "usdPerTx": 0.0026218556000000004
+      },
+      "1gwei": {
+        "ethPerTx": 0.000023192,
+        "usdPerTx": 0.052437112
+      }
+    }
+  },
+  "proposer": null,
+  "channels": {
+    "count": 1,
+    "outputBytes": {
+      "min": 130,
+      "max": 130
+    },
+    "blocksPerChannel": {
+      "min": 131,
+      "max": 131
+    },
+    "all": [
+      {
+        "blocks": 131,
+        "frames": 1,
+        "inputBytes": 199,
+        "outputBytes": 130
+      }
+    ]
+  },
+  "txs": [
+    {
+      "role": "batcher",
+      "hash": "0x9e78cc1f562cf8e083c361aec22b6fda30aa28999014a3689b1250d4cdf59edd",
+      "block": 12073130,
+      "time": 1793926248,
+      "status": "success",
+      "gasUsed": 15000,
+      "blobs": 1,
+      "blobGasUsed": 131072,
+      "effectiveGasPrice": "1000013",
+      "blobGasPrice": "1",
+      "l1BaseFee": "13",
+      "paidWei": "15000326072"
+    }
+  ]
+}

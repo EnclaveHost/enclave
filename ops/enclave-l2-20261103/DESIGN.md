@@ -26,7 +26,10 @@ everything else is an estimate and says so.
 - **Contracts.** Enclave's Ledger and Catalog sources on `main` compile to
   **exactly** the runtime code Base runs. Registry on `main` is one schema newer
   than production. The flows harness deploys all three unchanged and runs
-  publish/create/claim/renew/release (`l2/enclave-flows.mjs`).
+  publish/create/claim/renew/release (`l2/enclave-flows.mjs`). *Measured on
+  the Sepolia devnet*: all 41 transactions succeeded on the L2, and an
+  independent replica derived the same chain from Sepolia alone
+  (`sepolia/RESULTS.md`).
 - **Leases live in the Ledger, not the Registry.** `EnclaveDeployments.renew`
   is the 30-minute traffic, and `claim` calls `registry.get` in the same
   transaction. So "Registry leases first, then the Ledger" cannot work as
@@ -42,10 +45,13 @@ everything else is an estimate and says so.
   the funding path (Base → CCTP → L1 → L2) and the 7-day exit for host payouts
   are real friction, and it needs Circle's cooperation to become native.
 - **Costs.** An L2's L1 bill is a fixed cost of the chain, not a per-host cost.
-  At 0.05 gwei, with 15-minute batches and daily proposals, it is roughly
-  $10–12 a month whatever the number of hosts. At 1 gwei it is roughly
-  $200–230 (§4). Against Base's ~$2/host/month for leases, the fee case
-  breaks even at roughly 6 hosts at 0.05 gwei and ~115 hosts at 1 gwei. The
+  Pricing the *measured* batch and proposal gas (§4) with 15-minute batches and
+  daily proposals gives **$10.4 a month at 0.05 gwei and $207 at 1 gwei**,
+  whatever the number of hosts. Two conditions: the batcher's and proposer's
+  minimum tip must be lowered from op's 1 gwei default, and the bill rises to
+  $11.5 / $230 if mainnet adopts Sepolia's state-growth repricing. Against
+  Base's ~$2/host/month for leases, the fee case breaks even at about 5 hosts
+  at 0.05 gwei and about 104 hosts at 1 gwei. The
   stronger reason for the L2 is the node: a replica stores only Enclave's chain
   plus whatever L1 access it uses (§7), not 1.7 TB of Base.
 
@@ -202,7 +208,9 @@ derivation:
 - **While the sequencer runs,** it must keep its L1 origin within
   `max_sequencer_drift` (600 s) of wall-clock time, and every L1 origin it
   adopts forces that block's deposits into the next L2 block. So a censored
-  deposit lands in **≈ 10 min plus L1 confirmation depth**.
+  deposit lands in **≈ 10 min plus L1 confirmation depth**. *Measured* with a
+  cooperating sequencer and 4-block confirmation depth: a portal deposit
+  reached the L2 **52 s** after its L1 receipt (`sepolia/deposit-inclusion.jsonl`).
 - **If the sequencer withholds batches or goes offline,** derivation
   auto-generates blocks with the deposits once the **sequencing window (3,600
   L1 blocks ≈ 12 h)** passes. Worst case ≈ 12 h.
@@ -211,8 +219,11 @@ derivation:
   sequencer, or it accepts takeover risk. This is one of the reasons to raise
   `leaseSec` (§6).
 
-Forced inclusion costs one L1 deposit (~60–90k L1 gas, estimate). That is an
-escape hatch, not the normal path.
+Forced inclusion costs one L1 deposit. *Measured*: 129,014 gas on Sepolia
+and 128,489 when replayed under mainnet's current (Osaka) rules, which is
+$0.0145 at 0.05 gwei and $0.29 at 1 gwei (`sepolia/deposit-replay-osaka.json`).
+That is an escape hatch, not the normal path. The sequencer-down case (the
+12 h window) is not yet exercised: a release gate (§9).
 
 **Exit.** Withdrawals need a resolved, respected game: 3.5 d clock plus 3.5 d
 finality delay, plus 7 d proof maturity running in parallel, ≈ 7 days. They
@@ -241,7 +252,10 @@ are trustless only once game 9 is respected (§1 and the release gates).
 
 - ETH = $2,261.
 - Execution gas price at **0.05 gwei** and at **1 gwei**, priority fee
-  ignored.
+  ignored. That requires `--txmgr.min-tip-cap` well below op-batcher's and
+  op-proposer's **1 gwei default**. *Measured*: with the default, the devnet
+  batcher paid 1.44e-5 ETH per post, almost all tip, which is 10× the floor
+  cost of a post at 0.05 gwei. The devnet now runs 0.001 gwei (`l2/devnet/up.sh`).
 - **Blob fee.** Since Fusaka (EIP-7918) the blob base fee does not usefully
   fall below its reserve price, `base_fee × 8192 / 131072`. So one blob costs
   at least `8192 × base_fee` in execution-gas terms:
@@ -251,21 +265,30 @@ are trustless only once game 9 is respected (§1 and the release gates).
   The table uses that floor. If the blob market is congested above it, add
   131,072 × (blob base fee) per blob. At 1 gwei of blob base fee that is
   1.3e-4 ETH ($0.30) per blob.
-- **Batch transaction.** One type-3 transaction with one blob costs 21,000
-  execution gas (no calldata) plus the blob. An Enclave-only chain fits a
-  whole posting period of 2 s blocks in one blob: span batches plus brotli
-  compress empty blocks to a few bytes each. *Measured on the devnet*:
-  `sepolia/RESULTS.md`.
-- **Proposal.** One `DisputeGameFactory.create` of a super-root game, plus
-  resolution and bond reclaim. Estimate **600k L1 gas per proposal, all in**;
-  the devnet measures it (`sepolia/RESULTS.md`).
+- **Batch transaction.** One type-3 transaction with one blob, no calldata.
+  *Measured*: every one of 26 devnet posts carried exactly 1 blob and used
+  **15,000** execution gas. That is Sepolia's lowered intrinsic cost; mainnet
+  today charges 21,000, and the table uses 21,000. One blob holds far more
+  than a posting period: idle 2 s blocks compress to 84–143 bytes per channel
+  of 42–121 blocks, and the burst of all 41 flow transactions (5 contract
+  deployments included) compressed to 30,190 bytes, 23% of one blob
+  (`sepolia/posting-costs.json`).
+- **Proposal.** One `DisputeGameFactory.create` of a super-root game.
+  *Measured*: **1,163,650** gas on Sepolia. Replaying the same transaction
+  under mainnet's current (Osaka) rules gives **252,492**
+  (`sepolia/proposal-replay-osaka.json`). The difference is Sepolia's
+  state-growth repricing of the game clone it creates. The table uses 252,492
+  and gives the repriced figure separately. Resolution and bond reclaim are
+  not yet measured: no game has reached the end of its 3.5-day clock.
 
-### Per-post cost
+### Per-post cost (measured gas, mainnet rules)
 
 | | 0.05 gwei | 1 gwei |
 |---|---|---|
-| batch (21k + 1 blob at floor) | 1.46e-6 ETH = $0.0033 | 2.92e-5 ETH = $0.066 |
-| proposal (≈600k, estimate) | 3.0e-5 ETH = $0.068 | 6.0e-4 ETH = $1.36 |
+| batch (21,000 + 1 blob at floor) | 1.46e-6 ETH = $0.0033 | 2.92e-5 ETH = $0.066 |
+| proposal (252,492) | 1.26e-5 ETH = $0.029 | 2.52e-4 ETH = $0.57 |
+| *if mainnet adopts the repricing:* batch (15,000 + blob) | $0.0026 | $0.052 |
+| *if mainnet adopts the repricing:* proposal (1,163,650) | $0.13 | $2.63 |
 
 ### Monthly (30 d)
 
@@ -278,12 +301,15 @@ are trustless only once game 9 is respected (§1 and the release gates).
 
 | proposal interval | posts/mo | 0.05 gwei | 1 gwei |
 |---|---|---|---|
-| 1 h | 720 | $48.8 | $977 |
-| 24 h | 30 | $2.0 | $40.7 |
-| on demand (withdrawals only) | ~0–5 | ≤ $0.3 | ≤ $7 |
+| 1 h | 720 | $20.6 | $411 |
+| 24 h | 30 | $0.86 | $17.1 |
+| on demand (withdrawals only) | ~0–5 | ≤ $0.15 | ≤ $2.9 |
 
 **Recommended start: 15-minute batches and daily proposals.** That is
-≈ $11.5/mo at 0.05 gwei and ≈ $231/mo at 1 gwei, regardless of host count.
+**$10.4/mo at 0.05 gwei and $207/mo at 1 gwei** from the measured gas,
+regardless of host count; $11.5 and $230 under Sepolia's repricing. The devnet
+itself runs 5-minute batches and hourly proposals ($49 / $981 a month on
+mainnet) so that the evidence accumulates quickly.
 Bonds (0.001 ETH on the devnet; OP standard 0.08 ETH) are locked about 7 d per
 game and returned. Proposals are the dominant cost lever and matter only for
 L1 withdrawals and for advancing the anchor. Nothing on the L2 itself waits
@@ -316,8 +342,25 @@ on them.
 
 Leases on L1 directly cost about $17/host/mo at 0.052 gwei (brief), and on
 Base about $2/host/mo. The L2's L1 bill is fixed, so it beats Base on fees
-above ~6 hosts at 0.05 gwei and above ~115 hosts at 1 gwei. Below that, the L2
-is justified by node size and control, not by fees.
+above ~5 hosts at 0.05 gwei and above ~104 hosts at 1 gwei. Below that, the L2
+is justified by node size and control, not by fees. L2 execution itself is
+negligible: the flow transactions paid 269–1,060 wei of L1 data fee each on
+Sepolia, whose blob base fee was 1–4 wei.
+
+### L1 deployment under state-growth repricing
+
+Sepolia's current fork (forkId `0x6c1d9423`) charges about 1,540 gas per byte
+of new contract code and about 186k gas for a new account. Two things follow:
+
+- **One-off L1 deployment costs ~6× more.** OPCM.deploy measured
+  **54,770,633** gas on Sepolia against 8,968,443 under the old rules. At
+  0.05 gwei that is still only $6.2, but the Safe, SuperchainConfig and game
+  registration grow similarly.
+- **op-deployer 0.8.1 cannot deploy on such an L1 through public RPCs.**
+  Their 50M `eth_estimateGas` cap is below the 54.8M the deploy needs.
+  `l2/deploy-l1.sh` works around this (fork-recorded state, identical calldata
+  checked against the live chain, explicit gas limit). It should be reported
+  upstream before mainnet adopts the same pricing.
 
 ## 5. USDC: Bridged USDC Standard vs keeping payments on Base
 
@@ -445,8 +488,10 @@ that decision.
   - Hosts without L1 use the light-client proxy. It is a *new component*: a
     release gate below.
 
-A replica's own footprint is just Enclave's L2 state. Measured devnet sizes
-are in `sepolia/RESULTS.md`.
+A replica's own footprint is just Enclave's L2 state. *Measured*: the
+replica's op-reth datadir was 8.5 MB after about 2,700 blocks (1.5 h)
+including the Enclave contracts, against Base's 1.7 TB. Growth under real
+traffic is not yet measured (`sepolia/RESULTS.md`).
 
 **Independence on the devnet.** The replica uses a different Sepolia execution
 RPC and a different beacon provider (Lodestar / ethpandaops vs publicnode),
@@ -479,7 +524,7 @@ derived from Sepolia. The challenger plays games against the replica's view.
    detectable by replicas and recoverable by L1 derivation, but it is a
    liveness lever for the hosting operator.
 8. **Fee volatility.** The L1 bill scales linearly with the L1 gas price. At
-   10 gwei, a sustained spike, the recommended settings cost ~$2,300/mo.
+   10 gwei, a sustained spike, the recommended settings cost ~$2,070/mo.
    Lengthen the intervals automatically when the L1 base fee is high: the
    batcher's throttle and channel duration, and the proposer's interval.
 
@@ -518,3 +563,8 @@ derived from Sepolia. The challenger plays games against the replica's view.
 | Bridged USDC: has Circle agreed to a future takeover? | Ask Circle before building the bridge. Until then keep payments on Base (§5). |
 | An on-chain SNP quote verifier for permissionless sequencer rotation: the cost of verifying an AMD chain in EVM. | Spike it: measure the gas of the ECDSA P-384 VCEK check on L2 (cheap there); fall back to an optimistic veto window. |
 | Blob archive for late-joining replicas. | Let replicas serve the blobs they derived. Measure the size on the devnet. |
+| op-challenger v1.11.0 has no `super-permissioned` game type, so nothing defends type-5 games (only the proposer can create them). | Acceptable while game 5 is permissioned. Confirm with OP whether a later release adds it; game 9 is the type that needs challengers. |
+| op-deployer cannot estimate OPCM.deploy above the 50M RPC cap on a repriced L1. | Report upstream with `sepolia/RESULTS.md` attempt 1; keep the fork-assisted path in `deploy-l1.sh` until op-deployer takes a gas-limit flag. |
+| Resolution and bond-reclaim gas of a game, and the full 7-day exit path. | Let the devnet run past 2026-11-13; resolve the first type-5 game, move the anchor, then make game 9 respected (`deploy-l1.sh` re-run) and measure. |
+| Forced inclusion with the sequencer withholding (the 12 h window). | Stop the batcher on the devnet for > 12 h with a pending deposit-path `renew`, and record when derivation forces it. |
+| The batch interval: the measured burst used 23% of a blob, so hourly batches fit in one blob even under load. | Re-measure with a realistic renew load (one multicall per host per period) before choosing 15 min vs 1 h. |
