@@ -261,3 +261,21 @@ r11, so pruning of the origin no longer blocks restarts. The file is on the host
 like the rest of the L2 state (REVIEW.md (d)); it changes only how the trie is computed, not the root reth checks.
 Guest restarted 01:10Z, attested 01:11:44Z; public Ethereum was down 01:09:22–01:14:10Z.
 - Follow-up: have the guest set `[stages.merkle]` itself in the next image rather than rely on the disk's copy.
+
+**That change was wrong; the rebuild resumes instead (2026-11-07 04:35–04:59Z).** From 01:32Z MerkleExecute
+held at 53658729 with the Base disk reading ~26 MiB/s; from ~02:15Z Base's RPC timed out intermittently, and by
+04:28Z the guest re-read its root image at 1.75 GB/s with the Base disk idle and qemu at 674% CPU: Base was
+pinned at its 30 GiB MemoryHigh, refaulting its executables. Cause, from `merkle.rs` at reth 7134be3: the
+00:45–01:09Z pass had taken the rebuild path, which clears `AccountsTrie`/`StoragesTrie` and commits each
+progress step, so the trie tables held only that partial rebuild. The incremental path then recomputed most of the
+trie from hashed state inside one uncommitted transaction. The rebuild path resumes from its saved
+`MerkleCheckpoint` when its target is unchanged; reth resumes the unfinished pipeline at 54082270, so it is.
+Guest stopped 04:35:32–04:36:30Z (clean). `/data/reth.toml` now has `rebuild_threshold = 420000`,
+`incremental_threshold = 2000` (same owner and mode; the 5000000 copy kept as `/data/reth.toml.incremental-5m`);
+`e2fsck -fn` clean. Restarted 04:37:01Z, attested with HOST_DATA = the deployment.
+- 04:58:52Z: "Committed stage progress … MerkleExecute … stage_progress=7.09%", one commit every ~4 s, reth ETA
+  ~7.5–8 h; root image reads 0, Base disk 25 MiB/s read and 3.6 MiB/s write.
+- 420000 sits just under this gap (423540 blocks), so this run rebuilds. The next run's gap (54082270 to the tip
+  when this run's Finish commits, ~300k blocks if that is ~16:00Z) takes the incremental path in 2000-block
+  chunks. It would rebuild again only if Finish commits after ~22:30Z.
+- Public Ethereum was down from 04:35:32Z to at most 04:43:25Z. Public Base stays on the fallbacks, current.
