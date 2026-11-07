@@ -279,3 +279,18 @@ Guest stopped 04:35:32–04:36:30Z (clean). `/data/reth.toml` now has `rebuild_t
   when this run's Finish commits, ~300k blocks if that is ~16:00Z) takes the incremental path in 2000-block
   chunks. It would rebuild again only if Finish commits after ~22:30Z.
 - Public Ethereum was down from 04:35:32Z to at most 04:43:25Z. Public Base stays on the fallbacks, current.
+
+**Enclave Base at the tip (2026-11-07 14:11Z).** The rebuild ran at ~11.6%/h with no thrash (root image reads 0)
+and MerkleExecute finished ~12:40Z. The indexing stages took minutes, and Finish committed 54082270 at ~12:49Z.
+The next pipeline run (target 54325392, a 243k gap) took the incremental path as planned:
+- Execution: 12:49–~13:10Z.
+- MerkleExecute in 2000-block chunks: ~13:12–13:58Z, Base disk reads up to ~50 MiB/s, root reads still 0.
+- Finish committed 54325392 at ~14:00Z; the engine then reached 54350163 at 14:07Z.
+
+At 14:09Z the rollup node walked back through the sequencing window to find its safe head ("Searching for L2 safe
+block beyond sequencing window"), so the head held for ~3 min. From 14:11:28Z it followed every block at 0 s lag
+(`/health` base `syncing: false`). The gateway's journal shows Base upstream 0 (the enclave) `upstream-stale` from
+the cutover at 2026-11-06 23:09:21Z, then `upstream-fresh` at 14:06:31Z. It was stale again 14:09:02–14:10:53Z
+(the safe-head walk), then fresh. Public `/rpc/base` is served by the attested enclave again.
+- The disk keeps `rebuild_threshold = 420000`, `incremental_threshold = 2000`. The next image should set these
+  itself (incremental for any gap a restart can produce).
