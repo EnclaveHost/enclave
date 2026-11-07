@@ -292,5 +292,8 @@ block beyond sequencing window"), so the head held for ~3 min. From 14:11:28Z it
 (`/health` base `syncing: false`). The gateway's journal shows Base upstream 0 (the enclave) `upstream-stale` from
 the cutover at 2026-11-06 23:09:21Z, then `upstream-fresh` at 14:06:31Z. It was stale again 14:09:02–14:10:53Z
 (the safe-head walk), then fresh. Public `/rpc/base` is served by the attested enclave again.
-- The disk keeps `rebuild_threshold = 420000`, `incremental_threshold = 2000`. The next image should set these
-  itself (incremental for any gap a restart can produce).
+- The disk keeps `rebuild_threshold = 420000`, `incremental_threshold = 2000`. In source since 2026-11-07:
+  `rpc/snp/base_merkle_patch.py` (applied by `build_image.py` after `base_restart_patch.py`) makes the guest set
+  `[stages.merkle]` to incremental 2000 / rebuild 5000000 in Base's `reth.toml` on every start, before reth runs.
+  It takes effect with the next image; r11 is unchanged. Before that image starts on this disk, confirm Base's
+  MerkleExecute is not mid-rebuild.
