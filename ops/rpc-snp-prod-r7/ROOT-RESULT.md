@@ -246,3 +246,18 @@ the drop-in is unchanged. See `release-r11/gateway-50-attested-l1.conf`.
 timed out at 23:15:48Z. At 23:16:31Z `/rpc/ethereum` was 10 s behind and `/rpc/base` 0 s, from the fallbacks.
 
 **Base:** the guest's Base RPC answered from boot (`syncing: true`, head 53658729, the r10 stall point).
+- 23:16–01:09Z: Base's pipeline downloaded and executed the 424k-block gap to 54082270 (Headers, Bodies,
+  SenderRecovery, Execution, Account/StorageHashing all at 54082270 by 00:45Z), then sat in MerkleExecute. The
+  Base disk's `/data/reth.toml` (from the snapshot) keeps reth's Ethereum defaults, `[stages.merkle]
+  incremental_threshold = 7000, rebuild_threshold = 100000`: a gap over 100k blocks rebuilds the whole state trie.
+  On Base (5 blocks/s) 100k blocks is 5.5 h, so a rebuild longer than that would leave a gap that triggers another.
+
+**Base trie: incremental instead of a full rebuild (2026-11-07 01:09–01:14Z).** Guest stopped (clean, 43 s);
+with the qcow2 exposed through a `qemu-storage-daemon` FUSE export, `debugfs` set `rebuild_threshold = 5000000`
+(~11 days of Base) in `/data/reth.toml`, owner 994:985, mode 0640, previous file kept as
+`/data/reth.toml.pre-incremental`; `e2fsck -fn` clean. The same read showed `/data/enclave-origin-served.json`
+= {l1Block 26262339, blobSlot 15501577, toBlock 26292338, snapshotBlock 53048526}: Base passed its first start on
+r11, so pruning of the origin no longer blocks restarts. The file is on the host disk, outside the measurement,
+like the rest of the L2 state (REVIEW.md (d)); it changes only how the trie is computed, not the root reth checks.
+Guest restarted 01:10Z, attested 01:11:44Z; public Ethereum was down 01:09:22–01:14:10Z.
+- Follow-up: have the guest set `[stages.merkle]` itself in the next image rather than rely on the disk's copy.
