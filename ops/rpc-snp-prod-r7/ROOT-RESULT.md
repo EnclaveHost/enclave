@@ -297,3 +297,25 @@ the cutover at 2026-11-06 23:09:21Z, then `upstream-fresh` at 14:06:31Z. It was 
   `[stages.merkle]` to incremental 2000 / rebuild 5000000 in Base's `reth.toml` on every start, before reth runs.
   It takes effect with the next image; r11 is unchanged. Before that image starts on this disk, confirm Base's
   MerkleExecute is not mid-rebuild.
+
+## Gateway retries Base admission reads (2026-11-08 07:37Z)
+
+**Symptom.** From the catch-up (2026-11-07 14:15Z) to 2026-11-08 05:47Z the gateway logged 23
+`upstream-error` events on the enclave (Base upstream 0): `chain refuses enclave: eth_call failed`, about one
+every 40 min. The enclave itself stayed at the tip.
+- Cause: every 60 s the gateway re-reads the deployment and catalog version from each configured Base RPC
+  (`rpc/snp/chain-policy.mjs`), and all of them must answer. One refused read (the public RPCs rate-limit; the
+  journal shows 341 HTTP 429s over the same period) dropped the enclave's pin and failed that request over to
+  the fallback providers until the next request re-read the chain.
+
+**Fix b1c8ca472.** Each `eth_call` gets one retry after 500 ms. Every RPC must still answer and agree, and every
+chain fact is still required. A failure now names the HTTP status, never the RPC URL (provider URLs carry keys).
+- Tests: `test/rpc-snp/chain-policy.test.mjs` (7) and `test/rpc-gateway.test.mjs` pass. The live attested-fetch
+  tests (6) pass against r11 at `https://127.0.0.1:18443`.
+- Before switching, the release's `resolveDeploymentPolicy` admitted the production deployment on the control
+  VM from its real config: 2 RPCs, version 1.1.0, measurement 75f488ef…, 268 ms.
+- Deployed: `/opt/enclave-rpc/releases/b1c8ca472/` (root:root, files hash-checked against the commit; the
+  deployed 184ee05a5 files were identical to source before the change). The drop-in
+  `50-attested-l1.conf` now points there; the previous one is `/etc/enclave-rpc/50-attested-l1.conf.pre-b1c8ca472`.
+  Gateway restarted at 07:37:21Z; public `/rpc/base` and `/rpc/ethereum` answered at the tip at 07:37:40Z, with
+  no enclave upstream events after the restart.
