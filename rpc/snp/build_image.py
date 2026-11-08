@@ -121,6 +121,17 @@ def seed_config(owner_pub, coverage=None):
     add('/opt/enclave-rpc-build/base_restart_patch.py', (HERE/'base_restart_patch.py').read_bytes(), '0700')
     # Base's merkle stage goes incremental instead of rebuilding the trie; see base_merkle_patch.py.
     add('/opt/enclave-rpc-build/base_merkle_patch.py', (HERE/'base_merkle_patch.py').read_bytes(), '0700')
+    # Base keeps a rolling window of history instead of everything since historyFromBlock; see base_history_patch.py.
+    # reth fixes its prune flags at start, so a weekly restart of Base alone advances the floor (Base replays a few
+    # minutes of blocks; the gateway serves public Base from its fallbacks meanwhile).
+    add('/opt/enclave-rpc-build/base_history_patch.py', (HERE/'base_history_patch.py').read_bytes(), '0700')
+    add('/etc/systemd/system/enclave-rpc-base-history.service', (
+        b'[Unit]\nDescription=Restart Base so its history floor advances (base_history_patch.py)\n'
+        b'[Service]\nType=oneshot\nExecStart=/usr/bin/systemctl try-restart enclave-rpc-base.service\n'))
+    add('/etc/systemd/system/enclave-rpc-base-history.timer', (
+        b'[Unit]\nDescription=Weekly Base restart for its history floor\n'
+        b'[Timer]\nOnCalendar=Sun *-*-* 06:00:00 UTC\nRandomizedDelaySec=1h\n'
+        b'[Install]\nWantedBy=timers.target\n'))
     add('/opt/enclave-rpc/front.py', (HERE/'front.py').read_bytes(), '0755')
     add('/etc/initramfs-tools/hooks/enclave-verity', (HERE/'enclave-verity-hook').read_bytes(), '0755')
     add('/etc/initramfs-tools/scripts/local-top/enclave-verity', (HERE/'enclave-verity-local-top').read_bytes(), '0755')
@@ -173,6 +184,8 @@ def seed_config(owner_pub, coverage=None):
         'python3 -I /opt/enclave-rpc-build/l1_identity_patch.py /opt/enclave-rpc/chain_service.py',
         'python3 -I /opt/enclave-rpc-build/base_restart_patch.py /opt/enclave-rpc/chain_service.py',
         'python3 -I /opt/enclave-rpc-build/base_merkle_patch.py /opt/enclave-rpc/chain_service.py',
+        'python3 -I /opt/enclave-rpc-build/base_history_patch.py /opt/enclave-rpc/chain_service.py',
+        'systemctl enable enclave-rpc-base-history.timer',
         'rm -r /opt/enclave-rpc-build',
         'python3 -I -c "%s"' % REPIN_IDENTITY,
         'python3 -I -c "%s"' % CHECK_PINS,
@@ -266,7 +279,8 @@ def main(out, coverage=None):
              'artifacts': {n: {'bytes': (out/n).stat().st_size, 'sha256': sha(out/n)}
                            for n in ('vmlinuz', 'initrd.img', 'root.img', 'root.verity')},
              'sources': {n: sha(HERE/n) for n in ('front.py', 'enclave-verity-hook', 'enclave-verity-local-top', 'build_image.py',
-                                                    'l1_identity_patch.py', 'base_restart_patch.py', 'base_merkle_patch.py')},
+                                                    'l1_identity_patch.py', 'base_restart_patch.py', 'base_merkle_patch.py',
+                                                    'base_history_patch.py')},
              'coverage': {n: sha(coverage/n) for n in COVERAGE_FILES + ('base-bootstrap.json', 'blob-patch.json')
                           if (coverage/n).exists()} if coverage else None}
     (out/'IMAGE.json').write_text(json.dumps(image, indent=1)+'\n')
