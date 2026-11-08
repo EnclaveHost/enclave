@@ -44,24 +44,37 @@ export function decodeTuple(data, fields) {
   return out;
 }
 
-async function ethCall(fetchImpl, rpc, to, data, timeoutMs) {
+async function ethCallOnce(fetchImpl, rpc, to, data, timeoutMs) {
   const r = await fetchImpl(rpc, { method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to, data }, 'latest'] }),
     signal: AbortSignal.timeout(timeoutMs) });
-  const j = await r.json();
-  if (!j || typeof j.result !== 'string' || j.error) throw new Error('eth_call failed');
+  let j;
+  try { j = await r.json(); } catch { j = null; }
+  // The status only, never the RPC URL: provider URLs carry API keys.
+  if (!j || typeof j.result !== 'string' || j.error) throw new Error('eth_call failed' + (r.status && r.status !== 200 ? ': HTTP ' + r.status : ''));
   return j.result;
 }
 
-export async function resolveDeploymentPolicy(p, { fetchImpl = fetch, now = Date.now(), timeoutMs = 10000 } = {}) {
+// One retry per read after a short pause. The public Base RPCs rate-limit (HTTP 429) now and then,
+// and a single refused read dropped the enclave from the gateway about every 40 min (prod r11,
+// 2026-11-07/08). Every RPC must still answer and agree; a retry only gives each one a second chance.
+async function ethCall(fetchImpl, rpc, to, data, timeoutMs, retryMs) {
+  try { return await ethCallOnce(fetchImpl, rpc, to, data, timeoutMs); }
+  catch {
+    await new Promise((resolve) => setTimeout(resolve, retryMs));
+    return ethCallOnce(fetchImpl, rpc, to, data, timeoutMs);
+  }
+}
+
+export async function resolveDeploymentPolicy(p, { fetchImpl = fetch, now = Date.now(), timeoutMs = 10000, retryMs = 500 } = {}) {
   const { rpcs, ledger, catalog, deployment, owner, appId, versionIndex } = p;
   if (!Array.isArray(rpcs) || rpcs.length < 2) throw new Error('deployment policy needs at least two Base RPCs');
   if (!H32.test(deployment) || !H32.test(appId) || !Number.isInteger(versionIndex) || versionIndex < 0)
     throw new Error('deployment policy malformed');
   const idx = versionIndex.toString(16).padStart(64, '0');
   const reads = await Promise.all(rpcs.map(async (rpc) => [
-    await ethCall(fetchImpl, rpc, ledger, SEL_GET + deployment.slice(2), timeoutMs),
-    await ethCall(fetchImpl, rpc, catalog, SEL_VERSION + appId.slice(2) + idx, timeoutMs)]));
+    await ethCall(fetchImpl, rpc, ledger, SEL_GET + deployment.slice(2), timeoutMs, retryMs),
+    await ethCall(fetchImpl, rpc, catalog, SEL_VERSION + appId.slice(2) + idx, timeoutMs, retryMs)]));
   if (reads.some(([d, v]) => d !== reads[0][0] || v !== reads[0][1])) throw new Error('Base RPCs disagree on the deployment');
   const d = decodeTuple(reads[0][0], DEPLOYMENT), v = decodeTuple(reads[0][1], VERSION);
   const lower = (s) => String(s).toLowerCase();
