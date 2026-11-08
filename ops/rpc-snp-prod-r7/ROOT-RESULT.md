@@ -319,3 +319,5 @@ chain fact is still required. A failure now names the HTTP status, never the RPC
   `50-attested-l1.conf` now points there; the previous one is `/etc/enclave-rpc/50-attested-l1.conf.pre-b1c8ca472`.
   Gateway restarted at 07:37:21Z; public `/rpc/base` and `/rpc/ethereum` answered at the tip at 07:37:40Z, with
   no enclave upstream events after the restart.
+- Watch 07:37:21–10:38:37Z (every 15 min): no enclave upstream events of any kind (the old rate would have
+  given ~4–5 drops); public `/rpc/base` 0–1 s behind and `/rpc/ethereum` 2–14 s throughout.
