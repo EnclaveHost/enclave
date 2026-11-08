@@ -348,3 +348,42 @@ first weekly fstrim (2026-11-09 00:00Z) had not run. The guest has no shell, so 
   Public Base stayed up on the fallbacks; the enclave Base caught up ~14 min of blocks and the gateway marked it
   fresh at 17:57:41Z.
 - The guest's weekly fstrim still runs; it now has little to free.
+
+## Keeping /vm from filling: guard, guest discard, Base history window (2026-11-08 20:00–20:40Z)
+
+**The guest's weekly fstrim never reached the chain disks.** r11's `fstrim.service` runs
+`fstrim --listed-in /etc/fstab:/proc/self/mountinfo`. fstrim stops at the first non-empty file, and `/etc/fstab`
+names only the read-only root; the chain disks are mounted by systemd units (`Options=rw,noatime`). The
+2026-11-09 trim this record expected would therefore have freed nothing. After the offline trim, L1's qcow2
+regrew 376 → 392 GiB and Base's 1693 → 1699 GiB in ~2.5 h with their filesystems' usage unchanged: rewrites
+landed in the punched holes.
+
+**Host guard, live since 20:23:17Z (48564a41a).**
+- `disk_guard.py` logs free space, loss rate, days to the floor and each disk's reclaimable space every 10 min.
+  Reclaimable is the qcow2 allocation minus the ext4 superblock's usage, read with `qemu-io -r -U`; L1's
+  backing chain holds ~35 GiB of its data, so its estimate runs low. It warns under 250 GiB or 7 days. Under
+  150 GiB with ≥50 GiB reclaimable it starts `enclave-rpc-snp-offline-trim-r11`; under 100 GiB otherwise it
+  stops the guest as before.
+- `offline_trim.py` is the 2026-11-08 procedure with its checks enforced (details in its docstring): at most
+  daily, never after a failed run, the guest held stopped if a check fails after a punch began.
+  `~/.local/state/enclave-rpc-snp/offline-trim-r11.json` was seeded with the manual run (result ok, 17:38:53Z).
+- The free-range parser used at 17:38Z read dumpe2fs's unindented header count (`Free blocks: N`) as block N.
+  Ranges merge only with the previous entry, and that entry came first, so it could only join a range starting
+  at N+1. N was 864625149 (L1) and 519951077 (Base), and group 0 holds blocks below 32768, so it stayed one
+  block, which whole-cluster alignment always drops. Fixed and tested in `offline_trim.py`.
+- First status: 462.8 GiB free; L1 392.3 GiB allocated / 426.9 GiB used, Base 1699.4 / 1744.2.
+
+**Next image: guest discard and daily fstrim (53ef2d18a).** Drop-ins give both chain mounts
+`rw,noatime,discard` (the build refuses if the seed's mount units change). `fstrim.service` reads
+`/proc/self/mountinfo` and runs daily, catching frees smaller than a 64 KiB cluster. QMP shows r11's chain
+devices already advertise discard.
+
+**Next image: Base history window (0eacf8edc).** `base_history_patch.py` keeps the reviewed absolute `before`
+mode and raises its block at each Base start: the newest headers file's first block minus 7,000,000, whole
+files, never below 48,000,000. A weekly guest timer restarts Base alone (Sunday 06:00 UTC + ≤1 h) so the floor
+advances. State history (from 52.5M), coverage checks and chain.json (bound by `chainConfigSha256`) are
+unchanged, and the first start prunes nothing new. Base on r11, by size: MDBX 1060 GiB, transactions
+289 GiB, receipts 207 GiB, storage changesets 83 GiB, rocksdb 62 GiB, headers 31 GiB, account changesets 9 GiB.
+
+Not yet verified: the guest-side changes run only in a new image (owner-signed release); after it boots,
+confirm the qcow2 allocations track filesystem usage and the first weekly Base restart prunes to the floor.
