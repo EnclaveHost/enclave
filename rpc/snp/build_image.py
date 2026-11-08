@@ -77,6 +77,22 @@ CHECK_PINS = (
     "assert not bad, bad")
 
 
+def discard_mounts(writes):
+    """The seed's chain-disk mount units, which the image gives `discard`; their options must be exactly rw,noatime."""
+    mounts = []
+    for w in writes:
+        if not (w['path'].startswith('/etc/systemd/system/srv-enclave') and w['path'].endswith('.mount')):
+            continue
+        text = base64.b64decode(w['content']).decode() if w.get('encoding') == 'b64' else w['content']
+        options = [l.split('=', 1)[1] for l in text.splitlines() if l.startswith('Options=')]
+        if options != ['rw,noatime'] or 'Type=ext4' not in text.splitlines():
+            raise ValueError('chain mount %s changed: Options %s' % (w['path'], options))
+        mounts.append(w['path'])
+    if len(mounts) != 2:
+        raise ValueError('expected the L1 and Base chain mounts, found %s' % mounts)
+    return mounts
+
+
 def seed_config(owner_pub, coverage=None):
     raw = (PRIVATE_SEED/'files/user-data').read_text()
     writes = [w for w in json.loads(raw.split('\n', 1)[1])['write_files'] if not w['path'].startswith('/etc/ssh/')]
@@ -133,6 +149,17 @@ def seed_config(owner_pub, coverage=None):
         b'[Unit]\nStartLimitIntervalSec=0\n[Service]\nRestart=always\nRestartSec=60\n')
     add('/etc/systemd/system/enclave-rpc-clients.slice.d/limits.conf',
         b'[Slice]\nMemoryHigh=59392M\nMemoryMax=61440M\n')
+    # The chain disks hand freed blocks back to the host as they are freed. The qcow2 on /vm otherwise keeps
+    # every block the clients ever wrote: L1 held 673 GiB for 427 GiB of data and regrew 16 GiB in 2.5 h after
+    # an offline trim (prod r11, 2026-11-08). The stock fstrim.service never reached these disks: it trims
+    # only /etc/fstab, which names just the read-only root. A daily fstrim over every mount catches what
+    # online discard misses (frees smaller than a 64 KiB qcow2 cluster); the read-only root is skipped.
+    chain_mounts = discard_mounts(writes)
+    for path in chain_mounts:
+        add(path + '.d/discard.conf', b'[Mount]\nOptions=rw,noatime,discard\n')
+    add('/etc/systemd/system/fstrim.service.d/chain-disks.conf',
+        b'[Service]\nExecStart=\nExecStart=/sbin/fstrim --listed-in /proc/self/mountinfo --verbose --quiet-unsupported\n')
+    add('/etc/systemd/system/fstrim.timer.d/daily.conf', b'[Timer]\nOnCalendar=\nOnCalendar=daily\nRandomizedDelaySec=1h\n')
     script = '\n'.join([
         'set -eux',
         'export DEBIAN_FRONTEND=noninteractive',
