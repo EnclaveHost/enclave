@@ -321,3 +321,30 @@ chain fact is still required. A failure now names the HTTP status, never the RPC
   no enclave upstream events after the restart.
 - Watch 07:37:21–10:38:37Z (every 15 min): no enclave upstream events of any kind (the old rate would have
   given ~4–5 drops); public `/rpc/base` 0–1 s behind and `/rpc/ethereum` 2–14 s throughout.
+
+## Offline trim of the r11 chain disks (2026-11-08 17:38–17:58Z)
+
+**Why.** `/vm` had 117 GiB free and was losing ~7 GiB/day against the disk guard's 100 GiB floor. Space the
+guest's filesystems had freed (mostly pruned L1 data) was still allocated in the qcow2 files, and the guest's
+first weekly fstrim (2026-11-09 00:00Z) had not run. The guest has no shell, so the trim was done offline.
+
+**Method** (scripts and log: `offline-trim-20261108/`):
+- e2fsck's own `-E discard` issued no discards through a FUSE export (rehearsed on a scratch qcow2), so
+  `punchfree.py` punches holes over exactly the ranges the ext4 block bitmaps mark free, shrunk inward to the
+  64 KiB qcow2 cluster. It refuses a filesystem that is not clean or whose journal needs recovery.
+- Rehearsal on a scratch overlay with a backing file: the freed space was returned exactly, kept files were
+  byte-identical, `e2fsck -fn` and `qemu-img check` clean, backing file unchanged.
+- Production, per disk: writable `qemu-storage-daemon` FUSE export with `discard=unmap` on both nodes;
+  `e2fsck -fn` clean; punch; `e2fsck -fn` clean (same block and inode counts); close; `qemu-img check`.
+
+**Result.**
+- Guest stopped 17:38:53–17:39:34Z (clean shutdown), started 17:47:03Z.
+- Base disk: 1766 → 1693 GiB, check clean.
+- L1 disk: 673 → 376 GiB (its backing chain is opened read-only). Check reported 24 leaked clusters (1.5 MiB,
+  0 corruptions), repaired with `qemu-img check -r leaks`, then clean.
+- `/vm` free: 117 → 485 GiB.
+- The guest attested with measurement 75f488ef… and HOST_DATA = the deployment.
+- Public Ethereum (no fallback provider) was down from 17:38:53Z to 17:49:51Z, current again from 17:50:38Z.
+  Public Base stayed up on the fallbacks; the enclave Base caught up ~14 min of blocks and the gateway marked it
+  fresh at 17:57:41Z.
+- The guest's weekly fstrim still runs; it now has little to free.
