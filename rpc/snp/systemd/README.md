@@ -36,3 +36,9 @@ the image path in the launch config; give the units the new revision's name.
 r11 replaced r10 on 2026-11-06 23:08Z on the same chain disks. The r10 units stay installed in
 `~/.config/systemd/user/` but disabled (their source is at the parent of the r11 commit) for rollback,
 which also needs `runner-prod.json.pre-r11` and the gateway's `config.deployment.json.pre-r11`.
+
+The `-r12` units are prepared for image r12 (Enclave RPC 1.2.0, measurement 220e5ec0…1159) and are not
+installed until its cutover: after the owner publishes version 3 and creates its deployment, write
+`prod-r12.json` (r11's config with the r12 image, run directory and the new deployment as `hostData`), move
+`runner-prod.json` and the gateway's `config.deployment.json` to the new deployment, confirm Base's
+MerkleExecute is not mid-rebuild, then stop and disable the r11 units and enable and start these.

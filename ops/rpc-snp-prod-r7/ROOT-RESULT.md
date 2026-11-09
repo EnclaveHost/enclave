@@ -387,3 +387,50 @@ unchanged, and the first start prunes nothing new. Base on r11, by size: MDBX 10
 
 Not yet verified: the guest-side changes run only in a new image (owner-signed release); after it boots,
 confirm the qcow2 allocations track filesystem usage and the first weekly Base restart prunes to the floor.
+
+## Image r12 (Enclave RPC 1.2.0) built and qualified, awaiting the owner (2026-11-09 04:40–05:20Z)
+
+**Why now.** With the guard live, `/vm` lost ~220 GiB/day overnight (462.8 → 389.4 GiB, 20:23–04:23Z): the L1
+qcow2 grew 59 GiB while its ext4 usage held at ~428 GiB, Base's 14 GiB. The guard would run its first offline
+trim at 150 GiB (~2026-11-10 06:30Z) and then about daily, each an ~11 min public Ethereum outage. r12 makes the
+guest return freed blocks itself.
+
+**Build.** `build_image.py /vm/enclave-volumes/rpc-snp-image-r12 ops/rpc-base-coverage-r1/activation-r4` at
+main 44356ac2a (126 s), as r11 was. Root hash 3d3e94be…0d29. Compared with r11 it adds e4363d333 (Base
+`[stages.merkle]` set at each start), 53ef2d18a (chain mounts `discard`, daily fstrim over mountinfo) and
+0eacf8edc (Base history window). `release.py --version 1.2.0 --vcpus 8 --mem-mib 65536`: measurement
+**220e5ec06282a00b9bbaefc2e43f4b4729da37ee79692422392bf34ecdf4b15dd72ba15ee7bde72aadb97f86bcb91159**,
+manifest CID bafkreigcdalt2wtxwqrf2pvn2mjgit3yfod7aytpiwmju6yifn26z6flmi (pinned). Records: `release-r12/`.
+
+**Static checks of root.img** (debugfs): both mount drop-ins `Options=rw,noatime,discard`; the fstrim
+overrides; `enclave-rpc-base-history.timer` enabled; `chain.json` byte-identical to r11's (so the coverage
+receipt still binds it); `identity.json` pins the shipped `chain_service.py`; its diff from r11's is exactly the
+merkle and history patches.
+
+**Base history on the real disk.** Read-only (`qemu-storage-daemon`, force-share) the Base disk's
+`/data/reth.toml` and static-file list: newest headers file 55000000, so the floor is 48000000 and r12's prune
+flags equal r11's. That holds while the newest file starts at 55.0M (until Base passes 55.5M, ~2026-11-10
+06:00Z); a later first start prunes 48.0–48.5M, as designed. The disk's `[stages.merkle]` is still
+incremental 2000 / rebuild 420000; r12 sets rebuild 5000000.
+
+**SNP smoke boot** (8 GiB, scratch 4 GiB chain disks with the production filesystem UUIDs, `discard: true`):
+the live VCEK-signed report carried measurement 220e5ec0…1159. Both chain mounts succeeded with the drop-ins;
+the chain clients failed on the empty disks, as expected. A 256 MiB orphan inode seeded on the scratch L1 disk
+was freed at mount without a discard (ext4's mount-time orphan cleanup does not issue one; fstrim covers it).
+QEMU's `unmap_operations` stays 0 even when discards do reach the image, so qcow2 allocation is the measure.
+
+**Plain-KVM functional test** (not SNP; same kernel, initrd, root.img and root.verity, cmdline plus
+`systemd.debug_shell=/dev/ttyS1`): `findmnt` showed both chain disks `rw,noatime,discard`, DropInPaths the
+discard.conf, `discard_max_bytes` 2 GiB. Writing and deleting 300 MiB on the L1 disk shrank its qcow2 260 → 104
+MiB. With `nodiscard` remounted on the Base disk, a deleted 300 MiB stayed allocated (305 MiB) until
+`systemctl start fstrim.service` (Result=success; "3.6 GiB trimmed on /dev/vdc", "3.9 GiB trimmed on /dev/vdd"),
+which took it to 4.8 MiB. `list-timers`: fstrim daily (next 00:30Z), base-history Sun ~06:00Z.
+
+**Owner page.** `enclave-rpc-owner-sign-r12` serves `release-r12/PLAN.json` on 127.0.0.1:42290 (the r11 page,
+all steps done, was still running there and is stopped). Fund and payout already apply (runner 0.00086 ETH,
+registered); publish (catalog version index 3) and create remain.
+
+**Cutover after signing** (host units `rpc/snp/systemd/*-r12.service`, prepared, not installed): runner and
+gateway to the new deployment, check Base MerkleExecute is not mid-rebuild, stop r11 and start r12 on the same
+disks (public Ethereum down ~6–11 min). Then verify the qcow2 allocations stop growing beyond ext4 usage and
+the first daily fstrim returns the L1 disk's free space.

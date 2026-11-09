@@ -1,0 +1,19 @@
+# Installed to ~/.config/systemd/user/ (user manager, Linger=yes). See rpc/snp/systemd/README.md.
+[Unit]
+Description=Enclave RPC 1.2.0 SEV-SNP enclave (image r12)
+After=network-online.target
+StartLimitIntervalSec=1h
+StartLimitBurst=4
+
+[Service]
+ExecStart=/usr/bin/python3 -I %h/.local/share/enclave-rpc-snp/launch.py %h/.local/share/enclave-rpc-snp/prod-r12.json
+# SIGTERM goes to launch.py, which powers the guest off through QMP; the chain clients need minutes
+# to close their databases before QEMU is killed.
+KillMode=mixed
+TimeoutStopSec=7min
+# launch.py exits 0 after a requested stop (including the disk guard's), non-zero if the guest died.
+Restart=on-failure
+RestartSec=2min
+
+[Install]
+WantedBy=default.target

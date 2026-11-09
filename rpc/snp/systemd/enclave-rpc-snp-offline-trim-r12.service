@@ -1,0 +1,14 @@
+# Installed to ~/.config/systemd/user/ (user manager, Linger=yes). See rpc/snp/systemd/README.md.
+# Started by the disk guard, or by hand (`systemctl --user start`); not enabled. Not PartOf the guest unit,
+# because it stops the guest itself.
+[Unit]
+Description=Offline trim of the Enclave RPC (r12) chain disks: stop the guest, return freed blocks to /vm, start it
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I %h/.local/share/enclave-rpc-snp/offline_trim.py enclave-rpc-snp-prod-r12.service \
+  %h/.local/share/enclave-rpc-snp/prod-r12.json %h/.local/state/enclave-rpc-snp/offline-trim-r12.json
+# The guest's own stop takes up to 7 min; each disk's two e2fsck passes and punch took ~6 min on 2026-11-08.
+TimeoutStartSec=3h
+MemoryMax=4G
+NoNewPrivileges=yes
