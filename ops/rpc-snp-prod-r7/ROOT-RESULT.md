@@ -457,7 +457,8 @@ the restart gap (~1k blocks) is far under the merkle rebuild threshold.
 
 **Serving.** Public Ethereum returned at 07:57:19Z, 7 s behind (down ~3.5 min). Public Base stayed at the tip
 through the provider fallbacks while the enclave's Base starts; with newest headers file 55500000 its
-history floor is now 48500000, so this first start prunes 48.0–48.5M as designed.
+history floor is now 48500000, so this first start prunes 48.0–48.5M as designed. The gateway marked the enclave's Base fresh
+again by 08:06:50Z (~12 min after the guest start); public Base then 7 s and Ethereum 14 s behind.
 
 **Disk baseline** (07:55Z): /vm 258 GiB free; L1 qcow2 562.0 GiB and Base 1730.1 GiB allocated. Next: check the
 allocations track ext4 usage and that the first daily guest fstrim (~00:30Z plus up to 1 h) frees the L1
