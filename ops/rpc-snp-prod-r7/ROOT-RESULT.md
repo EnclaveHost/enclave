@@ -434,3 +434,31 @@ registered); publish (catalog version index 3) and create remain.
 gateway to the new deployment, check Base MerkleExecute is not mid-rebuild, stop r11 and start r12 on the same
 disks (public Ethereum down ~6–11 min). Then verify the qcow2 allocations stop growing beyond ext4 usage and
 the first daily fstrim returns the L1 disk's free space.
+
+## Production on Enclave RPC 1.2.0 (image r12), deployment 0x5ff56a4d…454f (2026-11-10 07:50–07:57Z)
+
+**Owner transactions.** The first publish request (09 21:26Z page click) was dropped when MetaMask reloaded at
+20:25Z; a second was sent at 21:27Z. The owner signed at 07:50Z: publish `0xa0beb644…3195` (block 55533092,
+catalog version index 3) succeeded; two queued duplicates, `0xa0763e44…d528` and `0x3964669c…393b`, reverted
+(version 3 already present; gas only, nothing published twice). Create `0x0f531018…c624` (block 55533535)
+made deployment `0x5ff56a4d600191f13ac43e1c600965673555f229472846a9da201785d396454f`. The runner claimed it
+at 07:53:09Z (`0x60b59c76…897d`) and, restarted on the updated `runner-prod.json` (r11 copy `.pre-r12`),
+registered the r12 measurement (`0xae134306…5536`, block 55534304) and holds the lease. Record:
+`release-r12/DEPLOYMENT.json`.
+
+**Cutover.** `prod-r12.json` is r11's with image r12, run dir `rpc-snp-prod-r12` and the new HOST_DATA; same
+two chain disks (discard, Base writeback), 64 GiB, 8 vCPU. 07:53:09 r11 disk guard and local proxy stopped;
+07:53:09–07:53:54 r11 guest stopped (clean); the r11 units disabled, the `-r12` units from
+`rpc/snp/systemd/` installed and enabled (FragmentPath checked; offline-trim stays static). 07:54:22Z port
+18443 attested measurement 220e5ec0…1159, HOST_DATA 5ff56a4d…454f. The control VM's
+`config.deployment.json` moved to the new deployment, version index 3 (r11 copy `.pre-r12`), and the gateway
+restarted at 07:54:35Z (`release-r12/gateway-50-attested-l1.conf`). Base was at the tip before the stop, so
+the restart gap (~1k blocks) is far under the merkle rebuild threshold.
+
+**Serving.** Public Ethereum returned at 07:57:19Z, 7 s behind (down ~3.5 min). Public Base stayed at the tip
+through the provider fallbacks while the enclave's Base starts; with newest headers file 55500000 its
+history floor is now 48500000, so this first start prunes 48.0–48.5M as designed.
+
+**Disk baseline** (07:55Z): /vm 258 GiB free; L1 qcow2 562.0 GiB and Base 1730.1 GiB allocated. Next: check the
+allocations track ext4 usage and that the first daily guest fstrim (~00:30Z plus up to 1 h) frees the L1
+backlog; the r11 deployment's lease lapses unrenewed.

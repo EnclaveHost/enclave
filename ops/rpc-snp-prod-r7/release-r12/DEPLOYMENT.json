@@ -1,0 +1,69 @@
+{
+ "format": "enclave-rpc-snp-deployment/1",
+ "chainId": 8453,
+ "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+ "app": {
+  "id": "0x0f628585d36c4272ae23c55b4f9ec6d5805f25e26d4744474710e46e4edbb537",
+  "versionIndex": 3,
+  "version": "1.2.0",
+  "cid": "bafkreigcdalt2wtxwqrf2pvn2mjgit3yfod7aytpiwmju6yifn26z6flmi"
+ },
+ "measurement": "220e5ec06282a00b9bbaefc2e43f4b4729da37ee79692422392bf34ecdf4b15dd72ba15ee7bde72aadb97f86bcb91159",
+ "deployment": "0x5ff56a4d600191f13ac43e1c600965673555f229472846a9da201785d396454f",
+ "host": {
+  "enclaveId": "0x71ca90ceda24c5cd1492969ecc29d63697f71076a86b2db56d3669640c2bb93b",
+  "endpoint": "snp-rpc-warden.enclave.host",
+  "runner": "0x4D815cB2247675e00bAEd401D1dF2aBb8F3D0497",
+  "payoutWallet": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61"
+ },
+ "ownerTransactions": [
+  {
+   "step": "publish",
+   "hash": "0xa0beb644a93384a363eeea00c3225aaa7a41faf2265760bf659da77030023195",
+   "at": "2026-11-10T07:50:34.743Z",
+   "block": 55533092
+  },
+  {
+   "step": "create",
+   "hash": "0x0f5310187eda147f1e3c483380f7b6cd4395e6a68c56670a7ce4d65c229bc624",
+   "at": "2026-11-10T07:51:22.353Z",
+   "block": 55533535
+  }
+ ],
+ "runnerTransactions": [
+  {
+   "step": "claim",
+   "hash": "0x60b59c765b364670fb75de45ea9467923a6008dd0965100f477055fece0c897d",
+   "block": 55534067
+  },
+  {
+   "step": "register",
+   "hash": "0xae134306a18226637b35e7286c476e8bfdb74d59948d5747d7e5825a70205536",
+   "block": 55534304
+  }
+ ],
+ "attestation": {
+  "checkedAt": "2026-11-10T07:54Z",
+  "reportMeasurement": "220e5ec0…1159",
+  "reportHostData": "5ff56a4d600191f13ac43e1c600965673555f229472846a9da201785d396454f",
+  "policy": "0x30000"
+ },
+ "supersedes": {
+  "deployment": "0x694d872e5b4a9c0f02b6076efcc45384a00768f3b9c489ae7b7f5be89d8b5510",
+  "versionIndex": 2,
+  "note": "still active on Base; its lease lapses unrenewed"
+ },
+ "revertedOwnerTransactions": {
+  "note": "duplicate publish requests left in MetaMask from an earlier attempt, signed after the first; reverted (version 3 already published), gas only",
+  "hashes": [
+   {
+    "hash": "0xa0763e44088f2bf785edb702bcc9eba4d805203dd7d800a4001bb561fb77d528",
+    "block": 55533127
+   },
+   {
+    "hash": "0x3964669c9a1c1817392f44e974486fab17dcb94742d82f6ee8d8f4d172b5393b",
+    "block": 55533160
+   }
+  ]
+ }
+}
