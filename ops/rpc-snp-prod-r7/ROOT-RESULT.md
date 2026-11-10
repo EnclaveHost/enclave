@@ -463,3 +463,10 @@ again by 08:06:50Z (~12 min after the guest start); public Base then 7 s and Eth
 **Disk baseline** (07:55Z): /vm 258 GiB free; L1 qcow2 562.0 GiB and Base 1730.1 GiB allocated. Next: check the
 allocations track ext4 usage and that the first daily guest fstrim (~00:30Z plus up to 1 h) frees the L1
 backlog; the r11 deployment's lease lapses unrenewed.
+
+**Disk after r12 (2026-11-10 16:57Z).** Within the first hour of the r12 guest /vm went from 254 to 498 GiB free:
+the L1 qcow2 from 564.9 to 379.1 GiB allocated (ext4 used 430 GiB) and Base from 1730.1 to 1672.1 GiB. The
+first-hour timing suggests the fstrim timer's catch-up run, which cannot be confirmed from the host. Since
+08:53Z the allocations track ext4 usage (L1 379→381, Base 1672→1678 GiB) and /vm went 498→490 GiB in 8 h,
+~24 GiB/day of real chain growth instead of ~220 GiB/day of churn. The disk guard reports 0 GiB reclaimable,
+so its offline trim is no longer due.
