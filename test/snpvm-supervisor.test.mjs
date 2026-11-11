@@ -14,7 +14,7 @@ const SRC = fs.readFileSync(path.join(ROOT, "supervisor.js"), "utf8");
 const between = (src, a, b) => { const i = src.indexOf(a); const j = src.indexOf(b, i); assert.ok(i >= 0 && j > i, `markers ${a.slice(0, 30)}`); return src.slice(i, j); };
 const RELEASE = JSON.parse(fs.readFileSync(path.join(ROOT, "ops/rpc-snp-prod-r7/release-r12/release.json"), "utf8"));
 const DEP = "0x5ff56a4d600191f13ac43e1c600965673555f229472846a9da201785d396454f";
-const APPREF = "catalog://0x0f628585d97e6bc2d26a0e4a9a3a06a3ec1c27e6f63c9ec6d5805f25e26d4744/3";
+const APPREF = "catalog://0x0f628585d36c4272ae23c55b4f9ec6d5805f25e26d4744474710e46e4edbb537/3";
 
 function sandbox(over = {}) {
   const calls = { tryClaim: [], req: [] };
