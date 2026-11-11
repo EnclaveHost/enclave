@@ -2,6 +2,18 @@
 
 Status, October 29: the scoped USDC-to-gas path and app-card self-host Top up are deployed. The complete unified funding objective is still in progress: automatic refill, fully backed ETH service settlement, eligible closed-loop credit and replacement-lifecycle funding are not production complete. Existing sessions authorize only the actions and targets in their actual contracts and signed grants.
 
+Status, November 11: the relay's gas.fund intake is off (`/v1/sessions/funding/config` answers `funding_disabled`: no activation manifest). The October 29 intake manifest and fee policy were prepared with a 24-hour `notAfter` and were not renewed, so neither the Dashboard Top up nor the refiller below can quote until the relay is re-activated.
+
+### Automatic refill (source; not activated)
+
+`cli/gas-refill.mjs` with `sdk/funding-node/refill.mjs` and `sdk/funding-node/node-store.mjs` (Node only, outside the browser bundle's `sdk/funding` closure) refills self-hosted apps' lease-gas reserves from the owner's USDC without a click:
+
+- `open CONFIG` builds a refill grant (exactly `gas.fund`, at most 8 apps, terms bounded by `REFILL_LIMITS`; default 10 USDC budget, 3 USDC and 12 refills per day, 0.0002 ETH and 1 USDC + 0.10 USDC fee per refill, 5,000 USDC/ETH price cap, 90 days) for a fresh session key, and serves a local page where the owner's wallet signs the grant and the EIP-3009 deposit of the budget. The relay's `/funding/open` submits it; the open is proven on chain.
+- `run CONFIG` (user unit `cli/systemd/enclave-gas-refill.service`) re-verifies the runtime each pass, reconciles any unresolved refill read-only, then refills at most one app: the lowest runway below `lowDays` (default 2) up to `targetDays` (default 7), capped by the grant's `maxEthPerOp`. Quote and execution are the existing `gas-execution.mjs` successor path, so an unknown outcome is never resent.
+- The session key's PKCS#8 lives in its own 0600 file in a 0700 store and is re-imported non-extractable on each load. Its spending is bounded on chain by the grant; the owner can end the session from the Dashboard.
+
+Activation needs, in order: the relay's funding intake re-activated (a fresh activation manifest and fee policy, and a way to keep them fresh past 24 hours); the owner signing `open` (grant + USDC deposit); the unit installed on the owner's machine. Nothing has been activated or spent.
+
 ### Deployed self-host Top up
 
 On Dashboard, open a zero-runtime-rate app's **Top up** panel. The panel checks the current rate, owner, runtime and finite gas grant, then quotes an exact 0.0002 ETH reserve deposit with a maximum USDC debit. **Pay from session** submits only the current quote after the user's explicit click. The amount field is a spending ceiling, not a requested runtime duration. Positive-rate apps retain runtime funding. Restricted compute credit cannot pay this withdrawable gas reserve; a missing grant must not be silently replaced or enlarged.
