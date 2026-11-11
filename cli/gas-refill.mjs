@@ -44,7 +44,7 @@ export const FUNDING_RUNTIME_PINS = Object.freeze({
     "0xc9ab30f239ceffac08344577b6238a4c16e65fcf36a59dde6c714abc098efc29", "0x9c0328c93b8c28c6c78a5bf94a9b7482aa5eca7034469a78634ff88ae60dbaad"],
     reviewedBy: "root: four deployed receipts verified; public live funding runtime pins verified 2026-10-29T01:57:05Z" },
 });
-const DEFAULTS = { relayBase: "https://api.enclave.host", rpcs: ["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org"],
+const DEFAULTS = { relayBase: "https://api.enclave.host", rpcs: ["https://api.enclave.host/rpc/base", "https://mainnet.base.org", "https://base.drpc.org"],
   book: "0xab214342d5A490150A4A977063A2f88E21F80907", reserve: "0x12A3f873041Dec436DaA0085B766a399A6fA3639" };
 const LEDGER_ABI = [{ type: "function", name: "leaseSec", stateMutability: "view", inputs: [], outputs: [{ type: "uint64" }] },
   { type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: [
