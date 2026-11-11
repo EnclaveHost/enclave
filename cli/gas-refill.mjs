@@ -44,7 +44,7 @@ export const FUNDING_RUNTIME_PINS = Object.freeze({
     "0xc9ab30f239ceffac08344577b6238a4c16e65fcf36a59dde6c714abc098efc29", "0x9c0328c93b8c28c6c78a5bf94a9b7482aa5eca7034469a78634ff88ae60dbaad"],
     reviewedBy: "root: four deployed receipts verified; public live funding runtime pins verified 2026-10-29T01:57:05Z" },
 });
-const DEFAULTS = { relayBase: "https://api.enclave.host", rpcs: ["https://mainnet.base.org", "https://base-rpc.publicnode.com"],
+const DEFAULTS = { relayBase: "https://api.enclave.host", rpcs: ["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org"],
   book: "0xab214342d5A490150A4A977063A2f88E21F80907", reserve: "0x12A3f873041Dec436DaA0085B766a399A6fA3639" };
 const LEDGER_ABI = [{ type: "function", name: "leaseSec", stateMutability: "view", inputs: [], outputs: [{ type: "uint64" }] },
   { type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: [
@@ -65,8 +65,35 @@ export function loadConfig(file) {
   return c;
 }
 
+/**
+ * One RPC function over several providers. A provider that fails to answer (transport error, non-JSON body, a missing
+ * `result`, or a rate-limit/capacity error) is skipped for the next one; an answer that IS an error from the chain
+ * (a revert, a bad parameter) is returned to the caller as is, never retried elsewhere. The provider that last
+ * answered is asked first next time, so a pinned block and its recheck usually go to the same node.
+ */
+export function failoverRpc(urls, make = jsonRpc) {
+  const rpcs = urls.map((u) => make(u));
+  let at = 0;
+  return async function rpc(method, params = []) {
+    let last;
+    for (let k = 0; k < rpcs.length; k++) {
+      const i = (at + k) % rpcs.length;
+      try {
+        const r = await rpcs[i](method, params);
+        if (r === undefined) throw new Error(`${new URL(urls[i]).host}: ${method} returned no result`);
+        at = i;
+        return r;
+      } catch (e) {
+        if (e?.code === "rpc_error" && !/rate|limit|429|timeout|unavailable|capacity|overload|busy/i.test(e.message)) throw e;
+        last = e;
+      }
+    }
+    throw last;
+  };
+}
+
 async function context(c) {
-  const rpc = jsonRpc(c.rpcs[0]);
+  const rpc = failoverRpc(c.rpcs);
   const relay = relayClient(c.relayBase);
   const runtime = await verifyRuntime({ pins: FUNDING_RUNTIME_PINS, rpc, relay, owner: c.owner, now: nowS() });
   const store = new FileV2Store(c.store);

@@ -12,6 +12,7 @@ import { gasRecordId, newGasRecord, signerFor } from "../sdk/funding/v2-store.mj
 import { FileV2Store } from "../sdk/funding-node/node-store.mjs";
 import { buildRefillGrant, refillNeed, refillOnce, refillTerms, REFILL_LIMITS } from "../sdk/funding-node/refill.mjs";
 import { EXEC_SCHEMA } from "../sdk/funding/gas-execution.mjs";
+import { failoverRpc } from "../cli/gas-refill.mjs";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "refill-"));
 const A = (n) => `0x${n.toString(16).padStart(40, "0")}`;
@@ -161,4 +162,23 @@ test("refillOnce: apps outside the grant and a refused quote pay nothing", async
   const refused = await pass(store, record, { [H(1)]: R(0n) }, api);
   assert.deepEqual([refused.action, refused.stage, refused.code], ["refused", "quote", "quote_exceeds_budget"]);
   assert.equal((await pass(store, { ...record, status: "reviewed" }, { [H(1)]: R(0n) }, api)).action, "blocked");
+});
+
+test("failoverRpc: a provider with no answer is skipped, a chain error is not retried elsewhere", async () => {
+  const calls = [];
+  const fake = (name, behave) => async (method) => { calls.push(name); return behave(method); };
+  const rateLimited = Object.assign(new Error("rpc_error: eth_call: over rate limit"), { code: "rpc_error" });
+  const reverted = Object.assign(new Error("rpc_error: eth_call: execution reverted"), { code: "rpc_error" });
+  const makers = { "https://a.test": fake("a", () => undefined), "https://b.test": fake("b", () => { throw rateLimited; }), "https://c.test": fake("c", () => "0x01") };
+  const rpc = failoverRpc(Object.keys(makers), (u) => makers[u]);
+  assert.equal(await rpc("eth_call"), "0x01");
+  assert.deepEqual(calls, ["a", "b", "c"]);
+  calls.length = 0;
+  assert.equal(await rpc("eth_call"), "0x01");
+  assert.deepEqual(calls, ["c"]);                                // the provider that answered is asked first
+  makers["https://c.test"] = fake("c", () => { throw reverted; });
+  const rpc2 = failoverRpc(["https://c.test", "https://a.test"], (u) => makers[u]);
+  calls.length = 0;
+  await assert.rejects(rpc2("eth_call"), /execution reverted/);
+  assert.deepEqual(calls, ["c"]);
 });
