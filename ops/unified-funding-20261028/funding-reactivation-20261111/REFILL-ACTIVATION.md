@@ -15,3 +15,11 @@ At these prices one refill (~0.48 USDC) buys ~3 days for one app, so seven apps 
 - 21:22:22Z: a second refill session for metal0's two apps (eyesoff-ai 0x9eb4e600, 0xda09d0f2; 3 USDC budget, 2 USDC and 6 refills per day) opened (tx 0x9c5c6a4f9baeaa5518e1b531521427870818186cd069a5a5742a20804582800f), run by `enclave-gas-refill@metal0`. First refill 21:23:02Z: 0x9eb4e600, 0.0002 ETH for 0.475592 USDC (tx 0x5afbc89e7e7c19ba05801eb87c84f8f9c0434b7c363dfb528477690de6926800).
 
 Every metal0 reboot still needs one operator-paid `setProofKey`; paying it from a sponsor (as lease gas is) or persisting the proof key needs a new metal0 image.
+
+## Routing the recovered apps (same day, 21:30–22:35Z)
+
+- metal0's app guests died at start (`Could not open '/dev/vhost-vsock': No such device`): Warden runs kernel 7.2.11 but the 2026-11-06 upgrade to 7.2.14 removed its module tree. The owner `insmod`ed vhost_iotlb, vhost and vhost_vsock taken from the signature-verified cached `linux-7.2.11.arch1-1` package; guests then started (0xda09d0f2 serving 22:03Z, sia-s3 0xef514ed3 claimed by metal0 22:14Z). A reboot into 7.2.14 (which has nvidia, zfs, kvm-amd, vfio-pci, vhost_vsock) is still due.
+- The NucBox privacy agent's `privacy-config.json` (written 10-27) also pointed at the native router 127.0.0.1:8097/8098; repointed to 8091/8092 at 22:09Z (backup `.before-legacy-manager-20261111`) and the Network task restarted. The relay's `/v1/network/routes` then routed all eight apps (previously the NucBox ones were `private_routes_unavailable`).
+- 0x7ae476a3 was sticky in the NucBox's `blocked` list from a fence-era start failure; cleared with the node's forced claim-hint.
+- Public Base RPCs rate-limited the hosts' shared address; the refiller now asks `https://api.enclave.host/rpc/base` first (2a000e456).
+- 22:35Z: 0xda09d0f2, 0x7ae476a3, 0xd9798e4c, 0xa77d0c57, 0xa69dcbba and 0xef514ed3 answer 200 publicly. enclave-cron 0x38f368d6 and depot 0xc13d4b6a answer 503 "storage unavailable" (their storage is sia-s3, which now answers S3); 0x59f1273d needs a gas grant; 0x9a28642b needs the held native Windows manager; eyesoff-ai stays down (49.6 GiB guest).
