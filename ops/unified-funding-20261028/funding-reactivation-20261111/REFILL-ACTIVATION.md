@@ -1,0 +1,8 @@
+# Automatic gas refill activated, November 11 2026 UTC
+
+- 20:02Z: `cli/gas-refill.mjs open` (release 17c84a55e1c6) offered the owner a refill grant over the owner's 7 NucBox deployments' 7 catalog apps: 10 USDC budget, 3 USDC and 12 refills per day, at most 0.0002 ETH and 1 USDC + 0.10 USDC fee per refill, 5,000 USDC/ETH cap, expiry 2027-02-09. Grant digest 0xcd307c13…bd6fe4.
+- 20:07:51Z: the owner signed the grant and the 10 USDC deposit in the wallet; the relay's `/funding/open` landed tx 0xf51381fc82348e6dd3c645c526a3ca08c761cdcdf9271e80bc03136c41b13f02, proven on chain (session 0x7aef21e3…02ca6b, vault 0x86960ED8…F055a).
+- 20:11:42Z: the user unit `enclave-gas-refill` (warden-host, release 37af082d2) paid its first refill: deployment 0xd9798e4c, 0.0002 ETH for 0.415733 USDC swap + 0.059873 USDC fee (tx 0x7ddc737121fa035a381efa9ec6abffca2faa1286941dc6bc3d95788e68f19ee9). The reserve read 0.000200591 ETH afterwards (~3 days of renewals); the session held 9.524394 USDC.
+- The next refill waits until the previous one is final on Base: the first was proven final at 20:29:35Z (~18 minutes after it landed) and the service paid the second unattended at 20:29:50Z, deployment 0xa77d0c57, 0.0002 ETH for 0.415871 + 0.059860 USDC (tx 0xaa00b1f3d3f940317a10c66a61935da02b71421a5e12dfc8961acdf316720701). Refills therefore land about one per 20–25 minutes; the service checks every 5 minutes (`policy.intervalSec` 300).
+
+At these prices one refill (~0.48 USDC) buys ~3 days for one app, so seven apps use ~1.1 USDC a day and the 10 USDC budget lasts about nine days. The owner extends it with a session top-up from the Dashboard (owner op `topUp`); the grant's daily caps are unchanged by a top-up.
