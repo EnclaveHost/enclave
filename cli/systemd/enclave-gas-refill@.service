@@ -1,0 +1,18 @@
+# One more refill session (cli/gas-refill.mjs run) beside enclave-gas-refill: a grant names at most 8 apps, so further
+# apps get their own instance with its own config and 0700 store, e.g. enclave-gas-refill@metal0 reads
+# ~/.config/enclave/gas-refill-metal0.json. Install like enclave-gas-refill.service, then enable --now enclave-gas-refill@NAME.
+[Unit]
+Description=Enclave automatic lease-gas refill (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/node %h/.local/share/enclave-gas-refill/current/cli/gas-refill.mjs run %h/.config/enclave/gas-refill-%i.json
+Restart=on-failure
+RestartSec=60
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=default.target
