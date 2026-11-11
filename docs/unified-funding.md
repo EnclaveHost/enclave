@@ -2,7 +2,7 @@
 
 Status, October 29: the scoped USDC-to-gas path and app-card self-host Top up are deployed. The complete unified funding objective is still in progress: automatic refill, fully backed ETH service settlement, eligible closed-loop credit and replacement-lifecycle funding are not production complete. Existing sessions authorize only the actions and targets in their actual contracts and signed grants.
 
-Status, November 11: the relay's gas.fund intake is off (`/v1/sessions/funding/config` answers `funding_disabled`: no activation manifest). The October 29 intake manifest and fee policy were prepared with a 24-hour `notAfter` and were not renewed, so neither the Dashboard Top up nor the refiller below can quote until the relay is re-activated.
+Status, November 11: the relay's gas.fund intake was off from October 29 22:21Z (its activation manifest and fee policy carried a 24-hour `notAfter`) until it was re-activated on November 11 at 20:00Z with the same pins and `notAfter` 2027-02-09 ([record](../ops/unified-funding-20261028/funding-reactivation-20261111/ROOT-RESULT.md)).
 
 ### Automatic refill (source; not activated)
 
@@ -12,7 +12,7 @@ Status, November 11: the relay's gas.fund intake is off (`/v1/sessions/funding/c
 - `run CONFIG` (user unit `cli/systemd/enclave-gas-refill.service`) re-verifies the runtime each pass, reconciles any unresolved refill read-only, then refills at most one app: the lowest runway below `lowDays` (default 2) up to `targetDays` (default 7), capped by the grant's `maxEthPerOp`. Quote and execution are the existing `gas-execution.mjs` successor path, so an unknown outcome is never resent.
 - The session key's PKCS#8 lives in its own 0600 file in a 0700 store and is re-imported non-extractable on each load. Its spending is bounded on chain by the grant; the owner can end the session from the Dashboard.
 
-Activation needs, in order: the relay's funding intake re-activated (a fresh activation manifest and fee policy, and a way to keep them fresh past 24 hours); the owner signing `open` (grant + USDC deposit); the unit installed on the owner's machine. Nothing has been activated or spent.
+Activation needs: the owner signing `open` (grant + USDC deposit) and the unit installed on the owner's machine. `run` warns when fewer than 14 days of the relay's funding activation remain.
 
 ### Deployed self-host Top up
 

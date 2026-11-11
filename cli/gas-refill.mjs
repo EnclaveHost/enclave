@@ -99,6 +99,10 @@ async function cmdRun(file, { once }) {
       const c = loadConfig(file);
       wait = Number(c.policy.intervalSec);
       const ctx = await context(c);
+      const left = ctx.runtime.intake ? Number(ctx.runtime.intake.notAfter) - Number(nowS()) : null;
+      if (left !== null && left < 14 * 86_400) {
+        out({ warn: `the relay's funding activation expires in ${Math.floor(left / 86_400)} days (notAfter ${ctx.runtime.intake.notAfter}); renew it on the control VM` });
+      }
       if (!ctx.runtime.intake) { out({ action: "blocked", why: `the relay's gas.fund intake is off: ${ctx.runtime.intakeWhy}` }); }
       else {
         const record = await openRecord(ctx.store, c.owner);
@@ -125,7 +129,7 @@ async function cmdStatus(file) {
     apps.push({ id, appId: d.appId, granted: !!record?.grant?.apps?.map(lower).includes(d.appId), balanceWei: f.balanceWei, runwayDays: n.runwayDays, due: n.due });
   }
   const view = record ? await ctx.relay("GET", `/funding/session/${ctx.runtime.cfg.vault}/${record.sid}`).catch((e) => ({ error: e.message })) : null;
-  out({ intake: ctx.runtime.intake ? "on" : `off: ${ctx.runtime.intakeWhy}`, vault: ctx.runtime.cfg.vault,
+  out({ intake: ctx.runtime.intake ? `on until ${new Date(Number(ctx.runtime.intake.notAfter) * 1000).toISOString()}` : `off: ${ctx.runtime.intakeWhy}`, vault: ctx.runtime.cfg.vault,
     session: record ? { sid: record.sid, expiresAt: record.grant.expiresAt, relay: view } : null,
     unresolved: record ? executionBlockers(await ctx.store.listJournal(), record).map((b) => ({ id: b.id, status: b.status })) : [], apps });
 }
