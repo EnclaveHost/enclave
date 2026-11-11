@@ -377,6 +377,24 @@ const ISOLATION_BACKENDS = ["snp-guest-per-app", "hyperv-partition-per-app"];
 // launched by a fallback.
 const ISOLATION_DIRECT_ONLY = /^(1|true|on)$/i.test(process.env.ISOLATION_DIRECT_ONLY || "");
 const VMMGR_URL = (process.env.VMMGR_URL || "http://127.0.0.1:8091").replace(/\/+$/, "");
+// SNPVM_URL: the host's manager for whole-VM SEV-SNP apps (catalog runtime "sev-snp-vm", rpc/snp/vm-manager.mjs), reached
+// like guestd over guestd-control/1 with guestd's pairing key. On the SNP per-app tier it defaults to the host side of the
+// user network (10.0.2.2:8099); a host without that manager simply refuses snpVm deployments at claim. Its instances
+// are never listed with guestd's (GET /vms), so the orphan sweep cannot reap a VM that holds terabytes of chain state.
+const SNPVM_URL = String(process.env.SNPVM_URL ?? (ISOLATION_BACKEND === "snp-guest-per-app" ? "http://10.0.2.2:8099" : "")).trim().replace(/\/+$/, "");
+const SNPVM_VM_ID = /^sv[0-9a-f]{16}$/;
+let _snpVmTransport = null;
+function snpVmReq(method, path, body, timeoutMs = 120000) {
+  if (!SNPVM_URL) return Promise.reject(new Error("this host has no snp-vm manager (SNPVM_URL)"));
+  if (!_snpVmTransport) {
+    _snpVmTransport = import(new URL("./isolation/m4/guestd/supervisor-transport.mjs", import.meta.url))
+      .then((m) => m.openGuestdTransport({ url: SNPVM_URL, keyFile: process.env.GUESTD_KEY_FILE || "" }))
+      .catch((e) => { _snpVmTransport = null; throw e; });
+  }
+  return _snpVmTransport.then((t) => t.request(method, path, body, timeoutMs));
+}
+const snpVmRoute = (method, path, body) => !!SNPVM_URL && (/^\/vms\/sv[0-9a-f]{16}(?:[/?]|$)/.test(String(path))
+  || (method === "POST" && path === "/vms" && !!body && !!body.snpVm));
 function mgrReq(method, path, body, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
     const u = new URL(WORKER_MGR_URL + path);
@@ -448,6 +466,7 @@ function isolationSplice() {
 const isolationSpliceCounts = new Map();   // "<outcome>:<kind or why>" -> count, for logs
 let _isolationSpliceObserver = null;       // ISOLATION_DATAPATH_SELFTEST only
 function vmReq(method, path, body, timeoutMs = 120000) {
+  if (snpVmRoute(method, path, body)) return snpVmReq(method, path, body, timeoutMs);
   if (ISOLATION_BACKEND) return guestdTransport().then((t) => t.request(method, path, body, timeoutMs));
   return new Promise((resolve, reject) => {
     const u = new URL(VMMGR_URL + path);
@@ -2409,12 +2428,13 @@ function parseDepOptions(raw, gpuMilli) {
   // deployment that is already serving here - with a message that says what the deployment asked for.
   if ("isolation" in o && !ISOLATION_BACKEND)
     throw new Error(`this deployment requires per-app hardware isolation (isolation.require=${JSON.stringify(o.isolation && o.isolation.require)}), which this runner does not provide`);
-  const known = ["waf", "config", "configCid", "gpu", "network", "placement", ...(ISOLATION_BACKEND ? ["isolation"] : []), ...(ISOLATION_BACKEND === "snp-guest-per-app" ? ["guestBootstrap"] : []), "access"];
+  const known = ["waf", "config", "configCid", "gpu", "network", "placement", ...(ISOLATION_BACKEND ? ["isolation"] : []), ...(ISOLATION_BACKEND === "snp-guest-per-app" ? ["guestBootstrap"] : []), "access", ...(SNPVM_URL ? ["snpVm"] : [])];
   const unknown = Object.keys(o).filter((k) => !known.includes(k));
   if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: ${known.join(", ")})`);
   const opts = ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND } : {};
   const pin = pinnedHost(raw); if (pin) opts.pinnedHost = pin;
   if ("guestBootstrap" in o) opts.guestBootstrap = bootstrapIntent(s);
+  if ("snpVm" in o) opts.snpVm = parseSnpVmOption(o.snpVm);
   if ("isolation" in o) {
     const iso = o.isolation;
     if (!iso || Array.isArray(iso) || typeof iso !== "object")
@@ -4740,6 +4760,56 @@ if (process.env.LAUNCH_SPEC_SELFTEST) {
   })));
   process.exit(0);
 }
+// ---- whole-VM SEV-SNP apps (snpVm) --------------------------------------------------------------------------
+// {"snpVm":{"app":"<name>","measurementsFrom":"catalog://<appId>/<index>"}}: the deployment runs its catalog version's
+// own measured VM. measurementsFrom must name the deployment's own version: the measurement allowlist is that version's.
+function parseSnpVmOption(v) {
+  if (!v || Array.isArray(v) || typeof v !== "object") throw new Error("snpVm must be a JSON object");
+  const bad = Object.keys(v).filter((k) => !["app", "measurementsFrom"].includes(k));
+  if (bad.length) throw new Error(`unknown snpVm option ${JSON.stringify(bad[0])}`);
+  if (typeof v.app !== "string" || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(v.app)) throw new Error("snpVm.app must be a short lowercase name");
+  if (!/^catalog:\/\/0x[0-9a-fA-F]{64}\/\d+$/.test(String(v.measurementsFrom))) throw new Error("snpVm.measurementsFrom must be catalog://<appId>/<index>");
+  return { app: v.app, measurementsFrom: v.measurementsFrom };
+}
+// The launch plan, from the APPROVED catalog version gateAppReference just read: what the manager must match on disk.
+function snpVmPlanOf(g, appRef) {
+  let c; try { c = JSON.parse(g.config || ""); } catch { throw new Error("the version's config is not JSON"); }
+  if (!c || c.runtime !== "sev-snp-vm") throw new Error("the catalog version is not a sev-snp-vm runtime");
+  const ms = c.snp && c.snp.measurements;
+  const keys = ms && typeof ms === "object" ? Object.keys(ms) : [];
+  if (keys.length !== 1 || !/^\d+$/.test(keys[0])) throw new Error("the version must publish its launch measurement for exactly one vCPU count");
+  const m = [].concat(ms[keys[0]]).map((x) => String(x).toLowerCase());
+  const im = c.image || {};
+  const memMiB = Number(g.min && g.min.memMb);
+  if (!Number.isSafeInteger(memMiB) || memMiB < 1024) throw new Error("the version declares no memory size");
+  return { appRef, vcpus: Number(keys[0]), memMiB, measurements: m, vcpuType: String(c.snp.vcpuType || ""),
+           image: { rootHash: String(im.rootHash || "").toLowerCase(), ovmfSha256: String(im.ovmfSha256 || "").toLowerCase(),
+                    cmdlineSha256: String(im.cmdlineSha256 || "").toLowerCase() } };
+}
+async function snpVmConsider(d, g, opt, { resume = false, hinted = false } = {}) {
+  if (opt.measurementsFrom !== d.appRef) return "snpVm.measurementsFrom must name this deployment's own catalog version";
+  let plan; try { plan = snpVmPlanOf(g, d.appRef); } catch (e) { return "snpVm: " + e.message; }
+  let h = null;
+  try { const r = await snpVmReq("GET", "/health", null, 5000); h = r.status === 200 ? r.body : null; } catch { h = null; }
+  if (!h || h.backend !== "snp-vm") return "this host has no whole-VM SEV-SNP manager (snp-vm) answering";
+  if (!(h.bindings || []).map(lc).includes(lc(d.id))) return "this host has no snp-vm binding (image, chain disks) for this deployment";
+  const firewall = parseFirewall({ ports: g.ports ? String(g.ports).split(",") : [] });
+  return await tryClaim(d, { ...g, wasmRef: "snpvm:" + d.appRef, _snpVm: plan }, firewall,
+                        { cpu: true, cpuShare: 0, gpuShare: 0 }, { hinted, resume });
+}
+async function snpVmSpawn(deploymentId, plan) {
+  const r = await snpVmReq("POST", "/vms", { name: lc(deploymentId), snpVm: plan }, SPAWN_TIMEOUT_MS);
+  // the VM outlives this node CVM: one already running for this deployment is this record's launch, adopted by name
+  if (r.status === 409 && r.body && SNPVM_VM_ID.test(String(r.body.id || ""))) {
+    console.log(`[snp-vm] ${deploymentId.slice(0, 10)}: adopted VM ${r.body.id}, already running on this host`);
+    return { internalPort: 0, vmId: r.body.id, hostPort: 0 };
+  }
+  if (r.status !== 201 || !SNPVM_VM_ID.test(String(r.body && r.body.id || "")))
+    throw new Error(`the snp-vm manager refused the launch (HTTP ${r.status}): ${(r.body && r.body.error) || JSON.stringify(r.body)}`);
+  console.log(`[snp-vm] ${deploymentId.slice(0, 10)}: VM ${r.body.id} launching (${plan.vcpus} vCPU, ${plan.memMiB} MiB, ${plan.appRef})`);
+  return { internalPort: 0, vmId: r.body.id, hostPort: 0 };
+}
+
 async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVramGb, gpuCardsHeld, image, appPort, ports, config, configCid, secrets, secretsStaged, hosts, catalogRef, versionMemMb, bootstrap, bootstrapManifest }) {
   // Two backends. "vm": hand the app reference to the app manager on VMMGR_URL
   // (the wasm-manager runs it as a `wasmtime serve` process; cpuShare is its
@@ -4754,6 +4824,7 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     console.log(`[mock] ${PROVISION_BACKEND} tenant ${deploymentId}`);
     return { internalPort: 0 };
   }
+  { const sv = deploymentId && deployments.get(deploymentId); if (sv && sv._snpVm) return await snpVmSpawn(deploymentId, sv._snpVm); }
 
   if (PROVISION_BACKEND === "vm" && ISOLATION_BACKEND) {
     // Per-app guest tier: guestd derives the bundle from the catalog version and runs it in its OWN SNP guest. It
@@ -11937,6 +12008,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
       g = {...g,_bootstrap:pkg,config:pkg.manifest.configText,configCid:""};
     } catch(e) { return "startup package unavailable: " + e.message; }
   }
+  if (claimOpts.snpVm) return await snpVmConsider(d, g, claimOpts.snpVm, { resume, hinted });
 
   // One /health serves the sizing, the GPU readiness check and volumeGate
   // below. Fetched only when one of them will actually want it, so a plain CPU
@@ -12367,6 +12439,7 @@ async function adopt(d, g, firewall, slice, { resume = false } = {}) {
     _onchain: true, _ledger: DEPLOYMENTS_ADDRESS, _leaseUntil: Number(d.leaseUntil), _renewing: false,
     _gpu: gpu, _gpuSpec: gpu.cpu ? null : { cardId: gpu.cardId, cardUuid: gpuCards[gpu.cardId]?.uuid || null, vramCapGb: gpu.vramGb, computeShare: gpu.computeShare },
     _port: 0, _payTimer: null,
+    ...(g._snpVm ? { _snpVm: g._snpVm } : {}),
   };
   deployments.set(rec.id, rec); saveStateSoon();
   // Start the certificate NOW, in parallel with the launch below. On a move the
