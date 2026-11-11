@@ -2,6 +2,7 @@
 //
 //   node rpc/snp/runner.mjs CONFIG.json            run: register, claim, renew until stopped
 //   node rpc/snp/runner.mjs CONFIG.json --status   print the registry entry and deployment state
+//   node rpc/snp/runner.mjs CONFIG.json --release  hand this runner's lease back (stop the unit first; claims nothing)
 //
 // CONFIG: {"keyFile": hot operator key (0x hex, mode 0600), "rpcs": [two or more Base RPCs],
 //          "registry", "ledger", "endpoint", "repo", "measurement": 96 hex (SNP launch measurement),
@@ -34,6 +35,7 @@ const REGISTRY_ABI = [
 const LEDGER_ABI = [
   { type: 'function', name: 'claim', stateMutability: 'nonpayable', inputs: [{ name: 'id', type: 'bytes32' }, { name: 'enclaveId', type: 'bytes32' }], outputs: [] },
   { type: 'function', name: 'renew', stateMutability: 'nonpayable', inputs: [{ name: 'id', type: 'bytes32' }], outputs: [] },
+  { type: 'function', name: 'release', stateMutability: 'nonpayable', inputs: [{ name: 'id', type: 'bytes32' }], outputs: [] },
   { type: 'function', name: 'rateFor', stateMutability: 'view', inputs: [{ name: 'id', type: 'bytes32' }, { name: 'enclaveId', type: 'bytes32' }], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'get', stateMutability: 'view', inputs: [{ name: 'id', type: 'bytes32' }], outputs: [{ type: 'tuple', components: [
     { name: 'id', type: 'bytes32' }, { name: 'owner', type: 'address' }, { name: 'appRef', type: 'string' }, { name: 'ports', type: 'string' },
@@ -108,6 +110,15 @@ async function main(configPath, flag) {
     console.log(JSON.stringify({ operator: wallet.account.address, balanceWei: String(bal), enclaveId,
       entry: e, measurement32: registryMeasurement(c.measurement) }, (k, v) => typeof v === 'bigint' ? String(v) : v, 1));
     return;
+  }
+  if (flag === '--release') {
+    // Hand the lease back so another host (a fleet host running the same deployment) can claim it now instead of
+    // when the lease runs out. Only a lease THIS runner holds; it claims nothing. Stop the runner unit first.
+    const deployment = JSON.parse(fs.readFileSync(c.configPath, 'utf8')).deployment;
+    const d = await pub.readContract({ address: c.ledger, abi: LEDGER_ABI, functionName: 'get', args: [deployment] });
+    if (d.runner !== enclaveId || d.runnerOperator.toLowerCase() !== wallet.account.address.toLowerCase())
+      return log('release-skipped', { deployment, runner: d.runner, why: 'this runner does not hold the lease' });
+    return send(pub, wallet, { address: c.ledger, abi: LEDGER_ABI, functionName: 'release', args: [deployment] }, 'released');
   }
   let stop = false;
   for (const s of ['SIGTERM', 'SIGINT']) process.on(s, () => { stop = true; });

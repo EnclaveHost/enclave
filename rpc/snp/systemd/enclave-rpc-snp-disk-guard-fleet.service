@@ -1,0 +1,14 @@
+[Unit]
+Description=Enclave RPC disk guard for the fleet-run guest (enclave-rpc-snp-guest, launched by metal0 through the snp-vm manager)
+After=enclave-snpvm-manager.service
+
+[Service]
+# The same chain disks as prod-r12.json. No offline trim: the guest's lifecycle belongs to metal0 now, and r12's online
+# discard and daily fstrim keep the qcow2s compact. Under the floor it still stops the guest once (QMP powerdown).
+ExecStart=/usr/bin/python3 -I %h/.local/share/enclave-rpc-snp/disk_guard.py enclave-rpc-snp-guest.service /vm 100 \
+  --launch-config %h/.local/share/enclave-rpc-snp/prod-r12.json --warn-at 250
+Restart=always
+RestartSec=30s
+
+[Install]
+WantedBy=default.target
