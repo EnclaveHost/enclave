@@ -15,6 +15,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import { webcrypto } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { createPublicClient, fallback, http as viemHttp, recoverTypedDataAddress } from "viem";
 import { base } from "viem/chains";
 import { freshRecoveryScope, jsonRpc, relayClient, submitGasOpen, usdcDomain, depositTypedData, grantBody, verifyRuntime }
@@ -223,7 +224,7 @@ async function cmdOpen(file, { port }) {
   setTimeout(() => { if (!done) { out({ action: "open_expired", why: "the signing window passed unused; nothing was sent" }); server.close(); } }, 905_000);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [cmd, file, ...rest] = process.argv.slice(2);
   const flag = (n, d) => { const i = rest.indexOf(n); return i < 0 ? d : (rest[i + 1] ?? true); };
   const run = { open: () => cmdOpen(file, { port: flag("--port", "42291") }), run: () => cmdRun(file, { once: rest.includes("--once") }),

@@ -1,15 +1,14 @@
 # Automatic lease-gas refill (cli/gas-refill.mjs run). A user unit on the owner's own machine:
 #   install -D -m 644 cli/systemd/enclave-gas-refill.service ~/.config/systemd/user/enclave-gas-refill.service
 #   systemctl --user daemon-reload && systemctl --user enable --now enclave-gas-refill
-# ENCLAVE_SRC is a release checkout (git archive + npm ci), not a working tree; the config names the 0700 store directory.
+# ~/.local/share/enclave-gas-refill/current is a release (git archive + pinned viem), not a working tree; the config names the 0700 store.
 [Unit]
 Description=Enclave automatic lease-gas refill from the owner's USDC session
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-Environment=ENCLAVE_SRC=%h/.local/share/enclave-gas-refill/current
-ExecStart=/usr/bin/node ${ENCLAVE_SRC}/cli/gas-refill.mjs run %h/.config/enclave/gas-refill.json
+ExecStart=/usr/bin/node %h/.local/share/enclave-gas-refill/current/cli/gas-refill.mjs run %h/.config/enclave/gas-refill.json
 Restart=on-failure
 RestartSec=60
 UMask=0077
