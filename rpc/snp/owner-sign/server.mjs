@@ -2,7 +2,8 @@
 // RPC app: node rpc/snp/owner-sign/server.mjs PLAN.json [PORT]
 //
 // PLAN.json (rpc/snp/owner-sign/plan.mjs writes it for a first release, upgrade-plan.mjs for a new
-// version of a running deployment) lists each owner transaction with its exact calldata and the
+// version of a running deployment, topup-plan.mjs for ETH to a host's operator key) lists each owner
+// transaction with its exact calldata and the
 // decoded arguments shown to the owner. The page sends a step only when the
 // owner clicks it, from the owner's own wallet; this server signs and sends nothing. /status
 // reads Base so the page can show which steps are already done and which are ready.
@@ -11,9 +12,10 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createPublicClient, fallback, http as viemHttp } from 'viem';
+import { createPublicClient, fallback, formatEther, http as viemHttp } from 'viem';
 import { base } from 'viem/chains';
 import { CATALOG_ABI, LEDGER_ABI } from './abi.mjs';
+import { simulateTopup } from './topup.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const [planPath, port = '42290'] = process.argv.slice(2);
@@ -87,13 +89,34 @@ async function upgradeStatus() {
   return { ...done, ready, blocked, appRef: d.appRef, active: d.active, leased, leaseUntil: String(d.leaseUntil), versions: String(versions), journal };
 }
 
+// A top-up plan: one transaction. It is done once a submitted one is included, and is offered again only if every
+// submitted one failed or none was, so a second click cannot send it twice. Before it is offered it is simulated
+// again: the operator's balance must rise by exactly the amount.
+async function topupStatus() {
+  const s = plan.status, step = plan.steps[0];
+  const journal = fs.existsSync(plan.journal) ? fs.readFileSync(plan.journal, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
+  const [operatorBal, ownerBal, receipts] = await Promise.all([
+    pub.getBalance({ address: s.operator }), pub.getBalance({ address: plan.owner }),
+    Promise.all(journal.filter((j) => j.step === step.id).map((j) => pub.getTransactionReceipt({ hash: j.hash }).catch(() => null)))]);
+  const done = receipts.some((r) => r?.status === 'success'), pending = receipts.some((r) => r === null);
+  let blocked = pending ? 'sent, waiting for it to be included' : ownerBal <= BigInt(step.value) ? `your wallet holds ${formatEther(ownerBal)} ETH on Base` : null;
+  if (!done && !blocked) {
+    await simulateTopup(plan.rpcs, plan.owner, s.operator, { ...(step.to ? { to: step.to } : {}), data: step.data, value: step.value })
+      .catch((e) => { blocked = 'the simulation refuses it: ' + String(e.shortMessage || e.message).slice(0, 160); });
+  }
+  return { [step.id]: done, ready: { [step.id]: !done && !blocked }, blocked: { [step.id]: blocked },
+    note: { [step.id]: `The operator key holds ${formatEther(operatorBal)} ETH now.` }, operatorBalanceWei: String(operatorBal), journal };
+}
+
+const STATUS = { upgrade: upgradeStatus, topup: topupStatus };
+
 http.createServer(async (req, res) => {
   const send = (code, body, type = 'application/json') => { res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store' }); res.end(type === 'application/json' ? JSON.stringify(body) : body); };
   try {
     if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) return send(200, fs.readFileSync(path.join(HERE, 'index.html')), 'text/html; charset=utf-8');
     if (req.method === 'GET' && req.url === '/app.js') return send(200, fs.readFileSync(path.join(HERE, 'app.js')), 'text/javascript');
     if (req.method === 'GET' && req.url === '/plan') return send(200, { chainId: plan.chainId, owner: plan.owner, steps: plan.steps, title: plan.title, lead: plan.lead });
-    if (req.method === 'GET' && req.url === '/status') return send(200, await (plan.kind === 'upgrade' ? upgradeStatus() : status()));
+    if (req.method === 'GET' && req.url === '/status') return send(200, await (STATUS[plan.kind] || status)());
     if (req.method === 'POST' && req.url === '/submitted') {
       let body = ''; for await (const c of req) { body += c; if (body.length > 4096) throw new Error('too large'); }
       const { step, hash } = JSON.parse(body);

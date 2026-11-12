@@ -616,3 +616,7 @@ catalog version 4, with site release r6 on the four edges.
 - *Open.* The operator key holds 1.6e-7 ETH: the next start of metal0 stops at the same transaction unless the key is
   funded first (the operator's step). The proof-of-time checkpoints spend from the same key, emptied it, and have
   failed since 03:51Z.
+- *Funding it.* A plain transfer to that key reverts (it is EIP-7702-delegated to the lease executor, which has no
+  payable entry). The owner signing page has a top-up plan (`rpc/snp/owner-sign/topup-plan.mjs`): one contract
+  creation whose init code is `73 <operator> ff`, simulated on both RPCs and executed on a local fork;
+  `release-r13/TOPUP-PLAN.json` is prepared for 0.001 ETH and waits for the owner's signature.

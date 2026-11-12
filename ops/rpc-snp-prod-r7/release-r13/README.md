@@ -84,6 +84,17 @@ then) to be accepted, and the claim loop then claimed the deployment and adopted
 1.6e-7 ETH. **Open:** the next start of metal0 needs the same transaction and will stop in the same place unless the
 key is funded first, and the proof-of-time checkpoints keep failing meanwhile.
 
+**Funding the key (prepared 17:10Z, the owner's signature pending).** A plain transfer to the key reverts: it is
+delegated (EIP-7702) to EnclaveLeaseExecutor `0x8900baca…d343`, which has no payable entry (two Base RPCs and a local
+fork agree). `rpc/snp/owner-sign/topup-plan.mjs` therefore writes the owner one contract creation carrying the amount
+whose whole init code is `73 <operator> ff` (PUSH20, SELFDESTRUCT): the amount reaches the key as the destroyed
+contract's balance without running the key's code, nothing stays deployed, and the key's delegation, nonce and
+storage are untouched. `TOPUP-PLAN.json` is that plan for 0.001 ETH; both RPCs simulate the key's balance rising by
+exactly 1e15 wei at 60,957 gas, and an impersonated send on an Anvil fork of Base (block 56577614) gave the same:
+balance 162890534565 → 1000162890534565, code and nonce 23863 unchanged, no code at the created address. The page is
+`node rpc/snp/owner-sign/server.mjs TOPUP-PLAN.json 42292` (loopback only); it offers the step only while that
+simulation still holds and does not offer it again once a submitted one is included.
+
 `control-image.sh apply` did not notice: it waited for the relay's acceptance, the policy admission and the lease,
 and the lease was still the one renewed at 14:34Z. It now also waits for the registration and says so when it does not
 land. The operator key's balance should have been checked before a restart was asked for.

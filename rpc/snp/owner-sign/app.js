@@ -11,8 +11,9 @@ function render(status) {
     const tag = done ? '<span class="tag done">Done on chain</span>' : ready ? '<span class="tag ready">Ready</span>'
       : `<span class="tag">${esc(status?.blocked?.[s.id] ? 'Waiting: ' + status.blocked[s.id] : 'Waiting for an earlier step')}</span>`;
     const rows = Object.entries(s.show).map(([k, v]) => `<tr><td>${esc(k)}</td><td><code>${esc(v)}</code></td></tr>`).join('');
-    return `<section class="step"><h2>${i + 1}. ${esc(s.title)} ${tag}</h2><p class="why">${esc(s.why)}</p>
-      <table>${rows}<tr><td>To</td><td><code>${esc(s.to)}</code></td></tr><tr><td>Value</td><td><code>${esc(s.valueEth)} ETH</code></td></tr></table>
+    const note = status?.note?.[s.id] ? `<p class="why">${esc(status.note[s.id])}</p>` : '';
+    return `<section class="step"><h2>${i + 1}. ${esc(s.title)} ${tag}</h2><p class="why">${esc(s.why)}</p>${note}
+      <table>${rows}<tr><td>To</td><td><code>${esc(s.to || 'none: a contract creation')}</code></td></tr><tr><td>Value</td><td><code>${esc(s.valueEth)} ETH</code></td></tr></table>
       <button data-step="${esc(s.id)}" ${!account || done || !ready ? 'disabled' : ''}>Sign step ${i + 1}</button><div class="msg" id="msg-${esc(s.id)}"></div></section>`;
   }).join('');
   for (const b of document.querySelectorAll('button[data-step]')) b.onclick = () => sign(b.dataset.step);
@@ -36,7 +37,9 @@ async function sign(id) {
   msg.className = 'msg'; msg.textContent = 'Confirm on the Trezor…';
   try {
     if (parseInt(await provider.request({ method: 'eth_chainId' }), 16) !== plan.chainId) throw new Error('wallet is not on Base');
-    const hash = await provider.request({ method: 'eth_sendTransaction', params: [{ from: account, to: s.to, data: s.data, value: s.value }] });
+    // a step without `to` is a contract creation; a step may fix its gas limit
+    const tx = { from: account, data: s.data, value: s.value, ...(s.to ? { to: s.to } : {}), ...(s.gas ? { gas: s.gas } : {}) };
+    const hash = await provider.request({ method: 'eth_sendTransaction', params: [tx] });
     await getJson('/submitted', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ step: id, hash }) });
     msg.textContent = 'Sent: ' + hash + ' — waiting for it to be included…';
     for (let i = 0; i < 40; i++) { await new Promise((r) => setTimeout(r, 3000)); const st = await getJson('/status'); if (st[id]) break; }

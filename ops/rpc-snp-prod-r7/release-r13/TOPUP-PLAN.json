@@ -1,0 +1,37 @@
+{
+ "kind": "topup",
+ "title": "Top up the operator key of metal0",
+ "lead": "One transaction from your wallet on Base. Check the amount and the data on the Trezor screen before confirming. This page never signs or sends anything by itself.",
+ "chainId": 8453,
+ "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+ "rpcs": [
+  "https://mainnet.base.org",
+  "https://base-rpc.publicnode.com"
+ ],
+ "journal": "/home/steven/.local/share/enclave-rpc-snp/owner-sign-journal-metal0-topup.jsonl",
+ "status": {
+  "operator": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB"
+ },
+ "steps": [
+  {
+   "id": "topup",
+   "title": "Send 0.001 ETH to the operator key",
+   "why": "The host’s operator key pays the registry transaction that every start of its supervisor needs (until it lands the host neither claims nor renews its apps) and the proof-of-time checkpoints. It only ever pays gas. Lease claims and renewals are paid from the apps’ gas, not from this key. The key is delegated (EIP-7702) to the lease executor, which refuses a plain transfer, so the wallet will show a contract creation instead: its data is 73, then the recipient’s address, then ff, which hands the amount to that address and leaves nothing deployed.",
+   "to": null,
+   "data": "0x73c9d0835cd8ebc7eae84304d9db0a76253eebe6abff",
+   "value": "0x38d7ea4c68000",
+   "valueEth": "0.001",
+   "gas": "0x1652b",
+   "show": {
+    "Host": "https://api.enclave.host/t/metal0",
+    "Host id": "0x4dde6d1b33034333dd86f1f4cd5528b0118ad99c3f903e270ebeaf4533e068be",
+    "Recipient": "0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB (the operator the registry records for this host)",
+    "Amount": "0.001 ETH",
+    "Network": "Base (chain 8453)",
+    "Delegate": "0x8900baca2167873ba2f8a8bae8b4876e6396d343 (no payable entry: a plain transfer reverts)",
+    "Data": "0x73c9d0835cd8ebc7eae84304d9db0a76253eebe6abff",
+    "Simulated": "on 2 RPCs the recipient’s balance rises by exactly the amount; 60957 gas"
+   }
+  }
+ ]
+}
