@@ -624,3 +624,50 @@ catalog version 4, with site release r6 on the four edges.
   18:13:11Z.
 - *Open.* A checkpoint costs the key about 9e-7 ETH, about 2.6e-4 ETH a day, so the top-up lasts about 3.8 days at
   this fee and nothing refills the key by itself. Before any restart of metal0, read the key's balance first.
+
+## Operator key drain: checkpoints for a free lease; control image 66335ab built, not active (2026-11-12 18:20–19:00Z)
+
+Detail: `control-image-66335ab/README.md`.
+
+- *Cause.* Enclave RPC is leased at rate 0 (the owner's host, the owner's app). The ledger credits rate x proven
+  time, so its proof-of-time checkpoints credit nothing, yet metal0's supervisor posted one every 300 s from the
+  operator key: about 9e-7 ETH each, 2.6e-4 ETH a day. That is what emptied the key before the 15:04Z outage, and
+  what would empty the 18:09Z top-up about 2026-11-16.
+- *Source.* Main 1186ab801: `supervisor.js` proves no lease whose mirrored rate is exactly 0 (steady and final
+  period), names it once (`[proof] no checkpoints for <id>: a free lease (rate 0) has nothing to credit`), and
+  measures the operator key's runway (`[gas] operator key … is low`, `operatorGas` on the host record).
+  `metal/free-lease-proof-patch.py` applies the same text to the supervisor generation metal0's image overlays;
+  `test/free-lease-proof.test.mjs` (8 tests).
+- *Image.* `~/enclave-prod/dist-snpvm-66335ab`: 16520ea plus that patch; initramfs 1a6e0cf0…9ae1, measurement
+  5d91b402…536a. Only `/app/supervisor.js` and the added `/app/windows/node/gas-runway.mjs` differ. The measurement
+  is computed with the command line the host launches with (`metal.mode=snp` in place of the `cmdline` file's
+  `${MODE}`); the same command reproduces b4446c3 and 16520ea as the relay accepted them.
+- *Not active.* metal0 runs 16520ea and still posts the checkpoints (key 9.93e-4 ETH at 18:53Z). Activation is the
+  operator's: `control-image-66335ab/control-image.sh apply` reads the key's balance before the restart, lists the
+  measurement on the relay, switches the image with rollback, and waits for registration, adoption, the free-lease
+  line, a renewal and the app address.
+
+## Enclave RPC after a host boot: what brings it back (read 2026-11-12, not exercised)
+
+Read from the host's units and configuration; the host was not rebooted (up since 2026-11-01 19:28 MST).
+
+- *The chain of starts.* User units start without a login (`Linger=yes`). Enabled: `enclave-metal` (metal0's control
+  VM, after `enclave-guestd`), `enclave-snpvm-manager`, `enclave-rpc-snp-local-proxy-r13`, `enclave-network-agent`,
+  `enclave-network-reconcile.timer`, `enclave-rpc-snp-lan-forward-r1`, `enclave-rpc-snp-disk-guard-fleet`,
+  `enclave-gas-refill` and its instances. The guest unit `enclave-rpc-snp-guest` is transient: the manager creates
+  it with `systemd-run` when metal0's supervisor asks. So the guest returns only after metal0 has attested to the
+  relay, been admitted, registered (one transaction from the operator key), claimed or resumed the deployment and
+  called the manager (`POST /vms`, 201). That launch path ran once in production, at the r13 cutover (10:14:59Z);
+  the restarts since then adopted the running VM (409) instead.
+- *Disks.* `/vm` (image, chain disks) is a LUKS volume opened from a key file by `systemd-cryptsetup@cryptvm`, no
+  prompt. The root volume is LUKS too (`rd.luks.name=…=cryptroot`, no TPM option on the kernel command line); at the
+  last boot its unlock took 28 s, which is a passphrase typed at the console. **After a power cycle the host, and
+  with it Enclave RPC, stays down until someone types that passphrase.** That is the machine's design, not changed.
+- *Kernel.* The host runs 7.2.11 with only 7.2.14 (and older) modules on disk, so the next boot is a kernel change.
+  None of the three running guests uses vhost-vsock. SEV-SNP launch under 7.2.14 is not tested.
+- *Gas.* Each boot costs the operator key one registration. With the checkpoints stopped (above) the key lasts; with
+  them it is empty about 2026-11-16 and a boot after that leaves metal0 unregistered and the guest never asked for.
+- *Lease.* If the host is down past the lease end (30 minutes at most), the address, the agent and the gateway
+  refuse the app until metal0 claims again; the chain data needs no resync beyond the downtime.
+- *Not exercised.* A reboot of this host with Enclave RPC as a fleet app. The first certificate delivery after a
+  fresh guest boot gets no answer in image r13 (fixed in source bdacc0f1a); the manager's retry a minute later lands.
