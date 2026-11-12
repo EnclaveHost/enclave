@@ -3,7 +3,7 @@ Description=Enclave whole-VM SEV-SNP app manager (snp-vm; metal0's supervisor la
 After=network-online.target
 
 [Service]
-ExecStart=/usr/bin/node %h/.local/share/enclave-rpc-snp/releases/51b949df5292/rpc/snp/vm-manager.mjs %h/.config/enclave/snpvm.json
+ExecStart=/usr/bin/node %h/.local/share/enclave-rpc-snp/releases/19572bf2c/rpc/snp/vm-manager.mjs %h/.config/enclave/snpvm.json
 Restart=always
 RestartSec=10s
 UMask=0077

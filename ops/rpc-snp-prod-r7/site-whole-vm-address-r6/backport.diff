@@ -1,0 +1,53 @@
+--- a/site/components/deployments/deployments.js
++++ b/site/components/deployments/deployments.js
+@@ -64,24 +64,33 @@
+ // right value for attestation/registry, not for how the user reaches the app.
+ export function appEndpoint(d){
+   if (!d || !d.id) return (d && d.network && d.network.endpoint) || "";
+-  if (isWholeVm((d.image && d.image.reference) || d.appRef)) return "";   // it has no origin of either kind
++  if (wholeVmWithoutAddress((d.image && d.image.reference) || d.appRef)) return "";   // it has no origin of either kind
+   const root = Enclave.base.replace(/\/v1\/?$/, "");
+   if (/(^|\/\/)api\.(enclave|nan)\.host/i.test(root))
+     return "https://" + appLabel(d.id) + "." + APP_DOMAIN;
+   return root + "/x/" + d.id;                              // direct-to-enclave override
+ }
+ // A WHOLE-VM app (catalog runtime "sev-snp-vm", e.g. Enclave RPC) is its own measured SEV-SNP VM, launched by the
+-// host's snp-vm manager. It ends TLS on a certificate bound to its attestation report, which no public CA signs, and
+-// its host publishes no Enclave-network route for it: <label>.app.enclave.host does not resolve and there is no /x/<id>
+-// path either. Such a row therefore offers no address, no Open link and no phone pairing. An Open link there could
+-// only ever show "no answer" on an app that is running exactly as designed; the row says what is true instead.
+-export function isWholeVm(ref){
++// host's snp-vm manager, and it ends TLS itself on a key bound to its attestation report.
++//  - A version whose config declares a browser address (endpoints.web) asks its host for a publicly trusted
++//    certificate for <label>.app.enclave.host on that same key, and the host routes the name to the VM once the VM
++//    serves it: the row is an ordinary one, with its address and Open link.
++//  - A version that declares none serves only the report-bound certificate, which no public CA signs, and has no
++//    route: <label>.app.enclave.host does not resolve and there is no /x/<id> path either. Such a row offers no
++//    address, no Open link and no phone pairing. An Open link there could only ever show "no answer" on an app that
++//    is running exactly as designed; the row says what is true instead.
++function versionConfigOf(ref){
+   try {
+     const cr = parseCatalogRef(ref);
+     const app = cr && STORE.byId[cr.appId];
+     const ver = app && app.versions ? app.versions[cr.index] : null;
+-    return !!ver && (JSON.parse(ver.config || "{}") || {}).runtime === "sev-snp-vm";
+-  } catch { return false; }
++    return (ver && JSON.parse(ver.config || "{}")) || {};
++  } catch { return {}; }
++}
++export function isWholeVm(ref){ return versionConfigOf(ref).runtime === "sev-snp-vm"; }
++export function wholeVmWithoutAddress(ref){
++  const c = versionConfigOf(ref), web = c.endpoints && c.endpoints.web;
++  return c.runtime === "sev-snp-vm" && !(typeof web === "string" && web.startsWith("/"));
+ }
+ const WHOLE_VM_NOTE = '<div class="enc-eprow"><span class="enc-epnote" style="font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim)" title="This app runs as a whole SEV-SNP VM and serves an API on a certificate bound to its attestation report. Browsers do not trust that certificate without checking the report, so the app has no app.enclave.host address and no page to open. Its host reports it running only after verifying the VM’s launch measurement.">'
+   + 'no app address · an API served on the VM’s own attested certificate</span></div>';
+@@ -903,7 +912,7 @@
+         (st === "queued" ? '<div class="enc-why" data-why="' + esc(d.id) + '" role="status" aria-live="polite" hidden></div>' : '') +
+         (ep ? '<div class="enc-eprow"><button class="enc-ep" data-ep="' + esc(ep) + '">' + esc(ep) + ' ⧉</button>'
+               + openCtl(d, ep, this._tls && this._tls.get(d.id)) + '</div>'
+-            : isWholeVm((d.image && d.image.reference) || d.appRef) ? WHOLE_VM_NOTE : '') +
++            : wholeVmWithoutAddress((d.image && d.image.reference) || d.appRef) ? WHOLE_VM_NOTE : '') +
+         // panel tabs (develop-page idiom): each button toggles its panel below;
+         // aria-expanded doubles as the active-tab style hook. Transfer lives
+         // here - it opens a panel and does not belong beside Cancel.

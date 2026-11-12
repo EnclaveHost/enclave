@@ -569,3 +569,22 @@ refused every report. The agent now seeds both.
 *Not exercised.* The relay issuing a certificate for the app name, and the chain manager → guest install →
 `route.json` → reconciler → agent admission, need a real lease on the name: they first run at the production
 cutover. Nothing here is live: production is still r12 (1.2.0) with no app address.
+
+## r12 → r13 cutover: prepared, waiting for the operator and the owner (2026-11-12)
+
+Everything the move needs is built and checked without touching production; `release-r13/README.md` has the order,
+the scripts, the rollback and what first runs live.
+
+- *Owner.* `rpc/snp/owner-sign/upgrade-plan.mjs` builds the three transactions from the release record (publish
+  version 4; stop; set the version, the config and start in one multicall); the signing page offers a step only
+  when the chain and the host's manager binding are ready for it, and simulates it from the owner address first.
+- *Host.* `release-r13/host-prepare.sh`: the network agent and reconciler with the whole-VM path on the deployed
+  tree (266c98d1f, whose rebuild equals the deployed bundles byte for byte), and the manager on release 19572bf2c
+  with the certificate service and the r13 binding. Each swap is verified and undone if its check fails.
+  `release-r13/finish.sh`: after the start, the host-local proxy and the gateway's chain policy follow to r13 and
+  version 4, then the certificate, the route and the app address are waited for.
+- *Site.* `site-whole-vm-address-r6/` (CID bafybeihcq2…e5ia), built on r5 and preflighted: the row shows its
+  address and Open link once its version declares `endpoints.web`.
+
+The production steps are the operator's (`release-r13/run-cutover.sh`) and the three signatures the owner's.
+Production is unchanged until then: r12, catalog version 3, no app address, site r5.

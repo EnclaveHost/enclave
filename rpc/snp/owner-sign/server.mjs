@@ -1,8 +1,9 @@
 // Local signing page for the owner's wallet (Trezor via the browser wallet) to release the SNP
 // RPC app: node rpc/snp/owner-sign/server.mjs PLAN.json [PORT]
 //
-// PLAN.json (rpc/snp/owner-sign/plan.mjs writes it) lists each owner transaction with its exact
-// calldata and the decoded arguments shown to the owner. The page sends a step only when the
+// PLAN.json (rpc/snp/owner-sign/plan.mjs writes it for a first release, upgrade-plan.mjs for a new
+// version of a running deployment) lists each owner transaction with its exact calldata and the
+// decoded arguments shown to the owner. The page sends a step only when the
 // owner clicks it, from the owner's own wallet; this server signs and sends nothing. /status
 // reads Base so the page can show which steps are already done and which are ready.
 // Listens on 127.0.0.1 only. Submitted hashes are appended to PLAN.json's journal file.
@@ -12,6 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPublicClient, fallback, http as viemHttp } from 'viem';
 import { base } from 'viem/chains';
+import { CATALOG_ABI, LEDGER_ABI } from './abi.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const [planPath, port = '42290'] = process.argv.slice(2);
@@ -43,13 +45,55 @@ async function status() {
   };
 }
 
+// Is the host set up to launch the image the new version measures? The stop is offered only then: a host still
+// bound to the old image would refuse the new version's claim and leave the deployment down.
+function hostReady(s) {
+  try {
+    const b = JSON.parse(fs.readFileSync(s.managerConfig, 'utf8')).bindings?.[s.deployment];
+    if (!b) return 'the host’s VM manager has no binding for this deployment';
+    const root = JSON.parse(fs.readFileSync(path.join(b.image, 'IMAGE.json'), 'utf8')).rootHash;
+    return root === s.imageRootHash ? null : 'the host’s VM manager is still bound to another image; run the host preparation first';
+  } catch (e) { return 'the host’s VM manager config could not be read: ' + e.code; }
+}
+
+// An upgrade plan: publish, stop, start. A step is ready only while the chain is in the state it expects and the
+// transaction simulates from the owner's address.
+async function upgradeStatus() {
+  const s = plan.status, now = BigInt(Math.floor(Date.now() / 1000));
+  const [versions, d] = await Promise.all([
+    pub.readContract({ address: s.catalog, abi: CATALOG_ABI, functionName: 'numVersions', args: [s.appId] }),
+    pub.readContract({ address: s.ledger, abi: LEDGER_ABI, functionName: 'get', args: [s.deployment] })]);
+  const published = versions > BigInt(s.versionIndex);
+  const v = published ? await pub.readContract({ address: s.catalog, abi: CATALOG_ABI, functionName: 'getVersion', args: [s.appId, BigInt(s.versionIndex)] }) : null;
+  const versionProblem = !published ? `version ${s.versionIndex} is not published yet`
+    : v.cid !== s.cid || v.config !== s.versionConfig ? `version ${s.versionIndex} on chain is not this release`
+    : v.approval !== 1 || v.yanked ? `version ${s.versionIndex} is not approved` : null;
+  const onNew = d.appRef === s.newAppRef, leased = !/^0x0+$/.test(d.runner) && d.leaseUntil > now;
+  const host = hostReady(s);
+  const blocked = {
+    publish: null,
+    stop: versionProblem || host || (d.appRef !== s.oldAppRef ? `the deployment runs ${d.appRef}` : !d.active ? (leased ? 'stopping: the host is shutting the VM down and releasing its lease' : null) : null),
+    start: versionProblem || host || (onNew ? null : d.active ? 'the deployment is still switched on' : leased ? 'the host still holds the lease; it releases it once the VM has stopped' : null),
+  };
+  const done = { publish: published, stop: onNew || (!d.active && !leased), start: onNew && d.active };
+  const ready = {};
+  for (const step of plan.steps) {
+    ready[step.id] = !done[step.id] && !blocked[step.id];
+    if (!ready[step.id]) continue;
+    try { await pub.call({ account: plan.owner, to: step.to, data: step.data }); }
+    catch (e) { ready[step.id] = false; blocked[step.id] = 'it would revert: ' + String(e.shortMessage || e.message).slice(0, 160); }
+  }
+  const journal = fs.existsSync(plan.journal) ? fs.readFileSync(plan.journal, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
+  return { ...done, ready, blocked, appRef: d.appRef, active: d.active, leased, leaseUntil: String(d.leaseUntil), versions: String(versions), journal };
+}
+
 http.createServer(async (req, res) => {
   const send = (code, body, type = 'application/json') => { res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store' }); res.end(type === 'application/json' ? JSON.stringify(body) : body); };
   try {
     if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) return send(200, fs.readFileSync(path.join(HERE, 'index.html')), 'text/html; charset=utf-8');
     if (req.method === 'GET' && req.url === '/app.js') return send(200, fs.readFileSync(path.join(HERE, 'app.js')), 'text/javascript');
-    if (req.method === 'GET' && req.url === '/plan') return send(200, { chainId: plan.chainId, owner: plan.owner, steps: plan.steps });
-    if (req.method === 'GET' && req.url === '/status') return send(200, await status());
+    if (req.method === 'GET' && req.url === '/plan') return send(200, { chainId: plan.chainId, owner: plan.owner, steps: plan.steps, title: plan.title, lead: plan.lead });
+    if (req.method === 'GET' && req.url === '/status') return send(200, await (plan.kind === 'upgrade' ? upgradeStatus() : status()));
     if (req.method === 'POST' && req.url === '/submitted') {
       let body = ''; for await (const c of req) { body += c; if (body.length > 4096) throw new Error('too large'); }
       const { step, hash } = JSON.parse(body);

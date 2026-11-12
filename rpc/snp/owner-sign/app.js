@@ -8,7 +8,8 @@ async function getJson(url, init) { const r = await fetch(url, init); return r.j
 function render(status) {
   $('steps').innerHTML = plan.steps.map((s, i) => {
     const done = status?.[s.id] === true, ready = status?.ready?.[s.id] === true;
-    const tag = done ? '<span class="tag done">Done on chain</span>' : ready ? '<span class="tag ready">Ready</span>' : '<span class="tag">Waiting for an earlier step</span>';
+    const tag = done ? '<span class="tag done">Done on chain</span>' : ready ? '<span class="tag ready">Ready</span>'
+      : `<span class="tag">${esc(status?.blocked?.[s.id] ? 'Waiting: ' + status.blocked[s.id] : 'Waiting for an earlier step')}</span>`;
     const rows = Object.entries(s.show).map(([k, v]) => `<tr><td>${esc(k)}</td><td><code>${esc(v)}</code></td></tr>`).join('');
     return `<section class="step"><h2>${i + 1}. ${esc(s.title)} ${tag}</h2><p class="why">${esc(s.why)}</p>
       <table>${rows}<tr><td>To</td><td><code>${esc(s.to)}</code></td></tr><tr><td>Value</td><td><code>${esc(s.valueEth)} ETH</code></td></tr></table>
@@ -44,5 +45,7 @@ async function sign(id) {
 }
 
 plan = await getJson('/plan');
+if (plan.title) { document.title = plan.title; $('title').textContent = plan.title; }
+if (plan.lead) $('lead').textContent = plan.lead;
 $('connect').onclick = () => connect().catch((e) => { $('who').textContent = 'Wallet error: ' + e.message; });
 refresh(); setInterval(refresh, 15000);
