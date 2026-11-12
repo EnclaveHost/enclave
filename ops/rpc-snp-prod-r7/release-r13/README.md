@@ -1,8 +1,11 @@
 # Enclave RPC r13 (1.3.0): the cutover from r12
 
-Status: **OWNER STEPS DONE, HOST CLAIM PENDING** (2026-11-12 10:05Z). The deployment is on catalog version 4 and
-switched on, but metal0 has not claimed it: see "The run" below. Until it does there is no guest, the app address
-does not answer and public Ethereum is down (Base is served by the gateway's providers).
+Status: **r13 RUNNING WITH ITS ADDRESS; GATEWAY AND CONTROL IMAGE PENDING** (2026-11-12 10:21Z). metal0 claimed the
+deployment 10:14:55Z and runs the r13 guest; `https://5ff56a4d.app.enclave.host` answers 200 on a publicly trusted
+certificate and the dashboard row shows RUNNING with its address and Open link. Two operator steps remain (see "The
+run"): the gateway's chain policy still names version 3, so public Ethereum through the gateway is down until
+`finish.sh` moves it, and metal0 still runs the control image whose policy quorum rarely answers
+(`control-image.sh apply` does both).
 
 What r13 gives the deployment `0x5ff56a4d…454f`: the address `https://5ff56a4d.app.enclave.host`, a page behind it
 served by the VM itself, and with site release r6 (`../site-whole-vm-address-r6/`) the dashboard row's address and
@@ -46,6 +49,26 @@ back is a further owner transaction to version 3 with the r12 binding.
 | 09:10:04 | owner: stop, `0xdc8383bd3ab2d544d0d796f15a70cafcead4c0bfd3a06e0d82b4893b53e9c204`; metal0 shut the r12 guest down and released the lease (`0x3897fe633ee6ee1693d5274a251860e5d25b3223c9f6c3f4e6ce050e1a6a07d8`, block 56421520) |
 | 09:29:16 | owner: start on version 4, `0x15ef8577e69feed0d618793d44d4d11aecd413a408e1a783f8e1811fb51c9db3` |
 | 09:59 | `finish.sh` gave up waiting for metal0's claim (30 minutes) |
+| 10:14:35 | metal0 admitted on one readable policy round (still the old control image) |
+| 10:14:55 | metal0: claim, `0xf0e76ba4679a1d00939fb2beba8069e913f57190c55515ae069ac15a9998fd7d`; VM launched 10:14:59, lease until 10:44:53 |
+| 10:15 | guest front ready 13 s after launch, measurement f3e72089…4b5c; the relay issued the certificate (ZeroSSL ECC DV, not after 2027-02-10) |
+| 10:17 | the manager's second delivery of the chain was confirmed and it wrote the route record; the reconciler's timer run (10:17:35) enrolled the app and reloaded the agent |
+| 10:17:22 | host-local proxy moved to r13; `eth_blockNumber` answers through it (the guest attests) |
+| 10:18:41 | `https://5ff56a4d.app.enclave.host/` 200, certificate verified, served through the edges; page, `/health` and the attestation panel render |
+| 10:19 | dashboard (owner's browser): `enclave-rpc:1.3.0`, RUNNING, on metal0, Open link "TLS verified by this browser", address |
+
+**Still to do (operator).** The gateway on the control VM names version 3 and refuses the enclave ("chain refuses
+enclave: deployment runs a different app version"): `finish.sh` sets `versionIndex` 4 and restarts it; every other
+part of `finish.sh` is done and is skipped. metal0 is still on `dist-snpvm-b4446c3`: its admission at 10:14:35 was one
+lucky read, and while it is not serving it neither claims nor renews. `control-image.sh apply` switches the image and
+then runs `finish.sh`.
+
+**The first certificate delivery failed inside the guest.** `front.py` took the chain and then raised on its own log
+line (`stage('certificate', name=…)` against `def stage(name, **fields)`), so the manager's POST got no answer. The
+chain was already being served; the manager's retry a minute later was answered `installed` (same chain, nothing
+newer) and the route record followed. Cost: one minute and a second ask of the certificate service. Fixed in source
+(`def stage(event, /, **fields)`; the test now runs the real function instead of a stub); image r13 carries the bug
+and behaves the same way on every fresh boot.
 
 **Why metal0 did not claim.** Not the deployment and not the new version: metal0 was not serving at all. A host takes
 work only while its platform host policy gate can read the policy, and the gate reads through its own quorum, 3 of
@@ -116,10 +139,10 @@ certificate for catalog://…/3 yet; skipped".
 The manager's launch check was run offline against the candidate config: the r13 binding accepts the plan the
 supervisor derives from version 4 (8 vCPU, 65536 MiB).
 
-## Not yet exercised
+## First exercised in this run
 
-These need the live lease on the name and first run in e: the relay issuing a certificate for
-`5ff56a4d.app.enclave.host` (the endpoint exists; an empty request is refused 422), the manager installing it in
-the guest and writing the route record, the reconciler enrolling the app from that record, the agent admitting the
-VM on its report, and the edges resolving and routing the name. `finish.sh` says at which of them it stops and
-prints the journal that explains it; r13 serves the RPC on its attested certificate either way.
+The relay issuing a certificate for `5ff56a4d.app.enclave.host`, the manager installing it in the guest and writing
+the route record, the reconciler enrolling the app from that record, the agent admitting the VM on its report, and
+the edges resolving and routing the name: all worked on the first live run, with the one retry described above.
+r13's L1 execution client started on r12's disks about an hour behind and its beacon node caught up at about 30 slots
+a minute; Base starts once the L1 head is fresh.

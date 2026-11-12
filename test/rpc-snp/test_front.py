@@ -3,9 +3,11 @@
 python3 -m unittest test/rpc-snp/test_front.py
 """
 import base64
+import contextlib
 import hashlib
 import http.client
 import http.server
+import io
 import json
 from pathlib import Path
 import re
@@ -62,7 +64,13 @@ class FrontTest(unittest.TestCase):
         cls.dir = Path(tempfile.mkdtemp(prefix='front-test-'))
         F.STATE = cls.dir/'state'
         F.tsm_report = fake_report
-        F.stage = lambda *a, **k: None
+        # the real function, quietly: a stage whose fields the function cannot take must fail here as it would in the guest
+        cls.stages, real = [], F.stage
+        def stage(*a, **k):
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                real(*a, **k)
+            cls.stages.append(json.loads(out.getvalue()))
+        F.stage = stage
         F.journal = lambda unit, lines: ('%s %d' % (unit, lines)).encode()
         cls.node = http.server.HTTPServer(('127.0.0.1', 0), Node)
         threading.Thread(target=cls.node.serve_forever, daemon=True).start()
@@ -177,6 +185,7 @@ class FrontTest(unittest.TestCase):
         # accepted: leaf + intermediate under the trusted root
         status, _, body, _ = post(self.issue(csr) + mid)
         self.assertEqual((status, json.loads(body)['installed']), (200, True))
+        self.assertIn({'event': 'front-certificate', 'name': APP, 'notAfter': self.front.app_not_after}, self.stages)
         with self.connect(APP, ca=str(self.dir/'root.pem')) as s:   # full WebPKI-style validation, name included
             self.assertEqual(F.spki_of(ssl.DER_cert_to_PEM_cert(s.getpeercert(True)).encode()), self.front.spki)
         # the local name is still the boot certificate, on the same key

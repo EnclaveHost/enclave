@@ -382,8 +382,8 @@ class Server(socketserver.ThreadingMixIn, HTTPServer):
             super().handle_error(request, client_address)
 
 
-def stage(name, **fields):
-    print(json.dumps({'event': 'front-'+name, **fields}), flush=True)
+def stage(event, /, **fields):
+    print(json.dumps({'event': 'front-'+event, **fields}), flush=True)
 
 
 def serve(front, address):
