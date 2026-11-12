@@ -15,6 +15,9 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { platformPolicyWorld, BOOK, REGISTRY, OWNERSHIP } from "./helpers/platform-policy-world.mjs";
 import { POLICY_FORMAT, policyTypedData, policyDigest, encodeAnchor } from "../network/platform-host-policy.mjs";
 import * as B from "../windows/node/host-admission.bundle.mjs";
+import { PRODUCTION_RPCS } from "../network/platform-host-policy-config.mjs";
+// the default read quorum of the installed bundle 6bef372d (the parity test below)
+const INSTALLED_PRODUCTION_RPCS = ["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.public.blockpi.network/v1/rpc/public"];
 
 const EP = "https://api.enclave.host/t/carrier-test", HOST = keccak256(toBytes(EP)).toLowerCase();
 const OP = "0x" + "44".repeat(20), Z32 = "0x" + "00".repeat(32), ZA = "0x" + "00".repeat(20);
@@ -200,7 +203,12 @@ test("parity: with NO carrier setting the candidate resolves exactly what the in
     envOf(w, null), envOf(w, null, { ENCLAVE_PLATFORM_HOST_POLICY_MIRRORS: "https://policy.operator.example/platform-policy" })];
   for (const env of envs) {
     const a = B.createHostServiceGate({ env, chainId: 8453, book: null, endpoint: EP, log: () => {} }), b = live.createHostServiceGate({ env, chainId: 8453, book: null, endpoint: EP, log: () => {} });
-    assert.equal(a.enabled, b.enabled); assert.deepEqual(a.runtime?.config ?? null, b.runtime?.config ?? null);
+    // the one deliberate difference in what resolves: the production read quorum's endpoints. Two of the installed bundle's
+    // four stopped answering keyless reads (2026-11-12), so the default is now five that do; the majority (3), the book, the
+    // mirrors and an operator's own quorum (ENCLAVE_PLATFORM_HOST_POLICY_RPCS) resolve as before
+    const ca = a.runtime?.config ?? null; let cb = b.runtime?.config ?? null;
+    if (cb?.rpcs?.join() === INSTALLED_PRODUCTION_RPCS.join()) { assert.deepEqual(ca.rpcs, [...PRODUCTION_RPCS]); assert.equal(ca.minAgree, 3); cb = { ...cb, rpcs: ca.rpcs }; }
+    assert.equal(a.enabled, b.enabled); assert.deepEqual(ca, cb);
     // the one additive status field: 14d1e495 (A 437d6ced6) reports which chain authority the gate reads through; with no
     // verifier configured it must say the legacy provider quorum, and everything the installed bundle reports is identical
     const sa = a.status(), sb = b.status();

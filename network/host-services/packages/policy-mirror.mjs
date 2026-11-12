@@ -18297,7 +18297,7 @@ var MAX_POLICY_RESPONSE = 256 * 1024;
 var PRODUCTION_BOOK = "0xab214342d5a490150a4a977063a2f88e21f80907";
 var PRODUCTION_HOST_OWNERSHIP = "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7";
 var PRODUCTION_MIRRORS = Object.freeze([]);
-var PRODUCTION_RPCS = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.public.blockpi.network/v1/rpc/public"]);
+var PRODUCTION_RPCS = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base-mainnet.public.blastapi.io", "https://base.gateway.tenderly.co", "https://api.zan.top/base-mainnet"]);
 var PRODUCTION_HOST_POLICY = Object.freeze({
   chainId: 8453,
   book: PRODUCTION_BOOK,

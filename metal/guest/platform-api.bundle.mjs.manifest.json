@@ -1,8 +1,8 @@
 {
   "bundle": "metal/guest/platform-api.bundle.mjs",
   "entry": "metal/guest/platform-api-entry.mjs",
-  "sha256": "e85de39ac7ef709c03d7f1c832bfe979578aa660b646bbc049585eae0a3edaad",
-  "bytes": 9476239,
+  "sha256": "82db3ecacbdc8001e448ca07d694d7347c3a4aaadae66e4b88d8d43b89d70b3c",
+  "bytes": 9476350,
   "inputs": {
     "custody/hpke.mjs": "1806a74c947db89db0e410c370ad7963eac9fa30d1807d8f55846690fafc0c03",
     "custody/v2/quorum.mjs": "5464a7a97916186121e367984fdc0610a769f93f7b69a26a6b40c6b8098c7a47",
@@ -29,7 +29,7 @@
     "network/network-authorities.mjs": "fbe3141976ef22a87173fb56def5d5545520c13667f61355d5a889b82f497448",
     "network/network-policy-core.mjs": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
     "network/network-policy.mjs": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
-    "network/platform-host-policy-config.mjs": "a7c1d8bf55ba2031b93622861a12a0638e38eb97c5f1c631127835d609e0078e",
+    "network/platform-host-policy-config.mjs": "7269a6ac2e1859e8bd8d907c8bc8f3fbae95d6a626b263df2f471dfcb731dedc",
     "network/platform-host-policy.mjs": "8198228d436f144a8d62126adc479df21649e098e076153939937e6eaf70dde2",
     "network/policy-carriers.mjs": "04177c61aeb07b082f4cab93e3c0f90a11c3e17978ecc18a4a448dcb23d92782",
     "network/provider-directory.mjs": "88d3bbf0bcc5ffb922f8a97c858238ef589bb5cff7d3c0c27cbc45e051e6f6db",
@@ -487,7 +487,7 @@
     "relay/mcp.js": "bbeb0cea0d0825a4698a41bee6840d0d17b7977a2372e54ec31ac97943a6cf06",
     "relay/measurement-predict.mjs": "d65fba4aca1858007e62cfb43269f12f7723e1e6bfb56cfcfe3e2559dcad6cc3",
     "relay/net-guard.mjs": "d61c6d64e760ffe09d38736551fd67c934315f26ed349ca91610c3712c2373af",
-    "relay/network-runtime.bundle.mjs": "140461738b84203dea765a6d8c7376d5ef3c8a2c11b339ea4c3792874d66ff6e",
+    "relay/network-runtime.bundle.mjs": "b7191a43c79496b84a23033bc1c45d26783c984f33ab570b65b7251f014f54e1",
     "relay/node_modules/@hexagon/base64/src/base64.js": "c81768c67f6f461b01d10ec24c6c4da71e2f12b3c96e32c62146c98c69685101",
     "relay/node_modules/@levischuck/tiny-cbor/esm/cbor/cbor.js": "05fb423e2662d96d4c7cc3984e537b1e8da16e9620a4b9e8e996482b11e2b2d7",
     "relay/node_modules/@levischuck/tiny-cbor/esm/cbor/cbor_internal.js": "67aaaf7f485ebd50624fe577a60eb63c55f8e7402abcde872a81466df6e07cda",

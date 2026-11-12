@@ -32985,7 +32985,7 @@ var init_platform_host_policy_config = __esm({
     PRODUCTION_BOOK = "0xab214342d5a490150a4a977063a2f88e21f80907";
     PRODUCTION_HOST_OWNERSHIP = "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7";
     PRODUCTION_MIRRORS = Object.freeze([]);
-    PRODUCTION_RPCS = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.public.blockpi.network/v1/rpc/public"]);
+    PRODUCTION_RPCS = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base-mainnet.public.blastapi.io", "https://base.gateway.tenderly.co", "https://api.zan.top/base-mainnet"]);
     PRODUCTION_HOST_POLICY = Object.freeze({
       chainId: 8453,
       book: PRODUCTION_BOOK,
@@ -186286,7 +186286,7 @@ ${ch(l3)}`), super(t.shortMessage, { cause: t, docsPath: o, metaMessages: [...t.
         y0 = "0xab214342d5a490150a4a977063a2f88e21f80907";
         m6 = "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7";
         h6 = Object.freeze([]);
-        b6 = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.public.blockpi.network/v1/rpc/public"]);
+        b6 = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base-mainnet.public.blastapi.io", "https://base.gateway.tenderly.co", "https://api.zan.top/base-mainnet"]);
         O8 = Object.freeze({ chainId: 8453, book: y0, hostOwnership: m6, mirrors: h6, rpcs: b6, minAgree: 3, activation: "anchor" });
         p6 = (e) => String(e || "").split(",").map((t) => t.trim()).filter(Boolean);
         x0 = (e) => String(e || "").toLowerCase();
@@ -189968,7 +189968,7 @@ ${canonical6(q32)}`;
     PRODUCTION_BOOK2 = "0xab214342d5a490150a4a977063a2f88e21f80907";
     PRODUCTION_HOST_OWNERSHIP2 = "0xbbd885d3e9bc33609387bb9710e91c1905fe6ee7";
     PRODUCTION_MIRRORS2 = Object.freeze([]);
-    PRODUCTION_RPCS2 = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.public.blockpi.network/v1/rpc/public"]);
+    PRODUCTION_RPCS2 = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base-mainnet.public.blastapi.io", "https://base.gateway.tenderly.co", "https://api.zan.top/base-mainnet"]);
     PRODUCTION_HOST_POLICY2 = Object.freeze({
       chainId: 8453,
       book: PRODUCTION_BOOK2,

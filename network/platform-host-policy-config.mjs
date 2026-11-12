@@ -20,8 +20,10 @@ export const PRODUCTION_HOST_OWNERSHIP = "0xbbd885d3e9bc33609387bb9710e91c1905fe
 // bundle (6bef372d) already names none. An anchored document reaches a gate through an operator-chosen mirror or a policy
 // CARRIER (an imported directory, a policy-mirror store, a peer, the service index); see network/policy-carriers.mjs.
 export const PRODUCTION_MIRRORS = Object.freeze([]);
-// The policy's own read quorum (distinct public Base RPCs; majority 3 of 4), independent of a component's single RPC.
-export const PRODUCTION_RPCS = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://base.public.blockpi.network/v1/rpc/public"]);
+// The policy's own read quorum (distinct public Base RPCs; majority 3 of 5), independent of a component's single RPC.
+// Keyless endpoints, each answering the block-hash-pinned reads on 2026-11-12. Two may fail without the policy becoming
+// unreadable: with four, one closed endpoint and one that rate-limited keyless traffic left every host unadmitted.
+export const PRODUCTION_RPCS = Object.freeze(["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base-mainnet.public.blastapi.io", "https://base.gateway.tenderly.co", "https://api.zan.top/base-mainnet"]);
 export const PRODUCTION_HOST_POLICY = Object.freeze({ chainId: 8453, book: PRODUCTION_BOOK, hostOwnership: PRODUCTION_HOST_OWNERSHIP,
   mirrors: PRODUCTION_MIRRORS, rpcs: PRODUCTION_RPCS, minAgree: 3, activation: "anchor" });
 

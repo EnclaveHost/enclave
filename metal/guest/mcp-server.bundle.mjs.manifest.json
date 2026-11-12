@@ -2,8 +2,8 @@
   "bundle": "metal/guest/mcp-server.bundle.mjs",
   "entry": "mcp/server.mjs",
   "bundleEntry": "metal/guest/mcp-server-entry.mjs",
-  "sha256": "c92d0cf8af0d1b20d81f1b34373fb25990f37b7d0a247d483ae5e1144bfa5212",
-  "bytes": 4813904,
+  "sha256": "0cc4bfb38e80a999599bdd899126dd1c6620962a938ba96d8e0ad8bfb77f6ea6",
+  "bytes": 4813978,
   "inputs": {
     "cli/independent-capacity.mjs": "02d7b65fbaccd4927c6f3aa39d4bf53c21ac7011bd3b7db791e7eecc22d608a5",
     "cli/independent-host.mjs": "2efd94d8dc0dd33c717f41c07165cd17080b3b2145f36be3a40819268b01d101",
@@ -58,7 +58,7 @@
     "network/network-policy-core.mjs": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
     "network/network-policy.mjs": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
     "network/owner-signature.mjs": "54c4670074acc1100c204f0830b9c1adcd48bea355bb8c43de64a09e20794a50",
-    "network/platform-host-policy-config.mjs": "a7c1d8bf55ba2031b93622861a12a0638e38eb97c5f1c631127835d609e0078e",
+    "network/platform-host-policy-config.mjs": "7269a6ac2e1859e8bd8d907c8bc8f3fbae95d6a626b263df2f471dfcb731dedc",
     "network/platform-host-policy.mjs": "8198228d436f144a8d62126adc479df21649e098e076153939937e6eaf70dde2",
     "network/provider-directory.mjs": "88d3bbf0bcc5ffb922f8a97c858238ef589bb5cff7d3c0c27cbc45e051e6f6db",
     "network/provider-qualification.mjs": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9",
@@ -2551,7 +2551,7 @@
     "site/js/core/upload-auth.js": "e72157590a00d634f7301e5bba2741901f0ec107235d7298ccccace12a265d23",
     "windows/node/chain-reader.mjs": "bb2cad4c268c74305f9b5f83908988f42e47e9db57108e1472e26c299554cf41",
     "windows/node/chain-selection.mjs": "aa2edb574a67366ddab5e862cf08fbd98de279c7daef7ab00741e3216cec6031",
-    "windows/node/host-admission.bundle.mjs": "dd99e9e2bf61dd38c0631fd32bc7d000e256cd79c78abf92fcf0a8a6804b40ee",
+    "windows/node/host-admission.bundle.mjs": "be92d4652e46e16f4d9882fede01fb5b4d9d08bc1ac3f529c5d478c0bba20ac1",
     "windows/node/host-identity.mjs": "58a20c3bef7505b27c2bf3257af1a66630d2031dd5b4cdef9131fa085f658591",
     "windows/node/lease-gas-runtime.bundle.mjs": "21fece1ffd9d3500763dad7b5aa8f1dd61babd987612f93d720b887664276252",
     "windows/node/session-api-auth.mjs": "48cf482cef24519045b398a26885a34ba1bb9a8d32cc66d731a0b2d9ed012929"
