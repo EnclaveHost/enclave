@@ -24,6 +24,7 @@ import {validateStoragePlan} from "./sdk/bootstrap/storage.mjs";
 import {bootstrapIntent,fetchPackage,verifyPackage,parseUniqueJSON} from "./sdk/bootstrap/package.mjs";
 import {createLeaseExpiryReader, leaseExpiryVerdict} from "./network/lease-expiry-reconcile.mjs";
 import { planCheckpoints } from "./windows/node/verification-checkpoints.mjs";
+import { gasRunway } from "./windows/node/gas-runway.mjs";
 import {hostAdmissionFromEnv,hostAdmissionConfigured,createHostServiceGate} from './windows/node/host-admission.bundle.mjs';
 import cors from "cors";
 import http from "node:http";
@@ -6098,6 +6099,10 @@ app.get("/v1/health", (_req, res) => res.json({ status: "ok", deployments: deplo
     intervalSec: PROOF_INTERVAL_SEC,
     lastRoundAt: _proof.at ? new Date(_proof.at).toISOString() : null,
     proved: _proof.proved, rejected: _proof.rejected, lastError: _proof.lastError } : null,
+  // the operator key's gas: what this box's own transactions are paid from (operatorGasTick)
+  operatorGas: _gas.wei === null ? null : {
+    wei: String(_gas.wei), hoursLeft: _gas.hoursLeft === null ? null : Math.round(_gas.hoursLeft), low: _gas.low,
+    checkedAt: new Date(_gas.at).toISOString() },
   // The anti-sybil gate's state on THIS box. `ok: false` is the honest reason a
   // seller's enclave has gone quiet: the ledger asks a bond it is not willing
   // (CLAIM_BOND_MAX6) or not able to post, so it stops claiming rather than
@@ -12750,6 +12755,46 @@ const PROOF_READY = () => CLAIM_READY && !!PROOF_OF_TIME_ADDRESS && !!PROOF_ACCO
 
 let _proof = { at: 0, proved: 0, rejected: 0, lastError: null };
 
+// A checkpoint earns the runner its lease seconds: the ledger credits rate x proven time, and nothing else reads the
+// watermark of a lease that pays nothing. At rate 0 (a free self-hosted lease: the owner's own host runs the owner's app)
+// there is nothing to earn and nothing to meter, so proving it would spend this box's operator gas, every
+// PROOF_INTERVAL_SEC, to move a number that is multiplied by zero (metal0 and Enclave RPC, 2026-11-12: 151k gas each,
+// about 2.6e-4 ETH a day, from the key every start's registration needs). The Windows node follows the same rule
+// (windows/node/host.mjs proveAll). Skipped and said, once per deployment, not silently dropped. Only an exact zero is
+// free: an unknown rate is proven, and a lease that becomes paid (the audit mirrors d.rate every pass) is proven again.
+const _freeProofSaid = new Set();
+function freeLease(rec) {
+  if (rec.rate !== 0) { _freeProofSaid.delete(rec.id); return false; }
+  if (!_freeProofSaid.has(rec.id)) {
+    _freeProofSaid.add(rec.id);
+    console.log(`[proof] no checkpoints for ${rec.id}: a free lease (rate 0) has nothing to credit`);
+  }
+  return true;
+}
+
+// The operator key pays this box's own transactions: the registration every start needs (register / setProofKey), status
+// and price writes, and paid leases' checkpoints. Nothing refills it, and an empty one does not fail loudly: checkpoints
+// stop landing and the next start stalls at registration with the claim loop locked (metal0, 2026-11-12: no lease for
+// 74 minutes). Measured the way the other host agents measure it (windows/node/gas-runway.mjs: the balance's fall over
+// the last hours), said hourly while low, and reported on the host record (operatorGas).
+const OPERATOR_GAS_CHECK_SEC = parseInt(process.env.OPERATOR_GAS_CHECK_SEC || "600", 10);
+let _gas = { at: 0, warnedAt: 0, samples: [], wei: null, hoursLeft: null, low: false };
+async function operatorGasTick() {
+  if (!CLAIM_READY) return;
+  if (Date.now() - _gas.at < OPERATOR_GAS_CHECK_SEC * 1000) return;
+  _gas.at = Date.now();
+  const address = claimSigner().account.address;
+  const wei = await chainClient.getBalance({ address });
+  const { renews, burnPerHour, hoursLeft, low } = gasRunway(_gas.samples, wei, _gas.at);
+  Object.assign(_gas, { wei, hoursLeft, low });
+  if (!low || _gas.at - _gas.warnedAt < 3600_000) return;
+  _gas.warnedAt = _gas.at;
+  console.warn(`[gas] operator key ${address} is low: ${(Number(wei) / 1e18).toFixed(6)} ETH`
+    + (hoursLeft !== null ? `, about ${Math.round(hoursLeft)} hours at the measured ${(burnPerHour / 1e18).toFixed(6)} ETH/h`
+                          : `, about ${renews} lease transactions' worth`)
+    + `; once it is empty this box's registry writes and checkpoints stop and its next start cannot register`);
+}
+
 // Is this deployment's app REALLY serving right now? instanceAlive only asks the
 // manager whether the process exists; this also opens a socket to the port the
 // tenant's traffic goes to, which is the closest thing this supervisor can
@@ -12893,7 +12938,8 @@ async function proofTick() {
   _proof.at = Date.now();
   const mine = [...deployments.values()].filter(r =>
     r._onchain && r.status === "running" && r._leaseUntil * 1000 > Date.now()
-    && (!r._ledger || r._ledger.toLowerCase() === DEPLOYMENTS_ADDRESS.toLowerCase()));
+    && (!r._ledger || r._ledger.toLowerCase() === DEPLOYMENTS_ADDRESS.toLowerCase())
+    && !freeLease(r));
   if (!mine.length) return;
   try { await proveAllLeases(mine, "steady"); }
   catch (e) {
@@ -12923,6 +12969,7 @@ async function proveFinalPeriod(rec, why) {
   // never provisioned" — the latter releases with nothing proven, which is
   // exactly right: the tenant gets the whole lease back and we earn nothing.
   if (!rec.startedAt) return;
+  if (freeLease(rec)) return;   // nothing to settle: release() returns the whole lease either way
   try {
     // Deliberately NOT gated on tenantServing: the app is already gone by the
     // time most teardown paths reach here. What we are proving is the time up
@@ -13040,6 +13087,7 @@ function startClaimLoop() {
     // pass can stall for minutes inside audit/sweep — the same reason renewals
     // were moved off it. Self-throttled to PROOF_INTERVAL_SEC.
     await stage("proof", proofTick);
+    await stage("gas", operatorGasTick);          // self-throttled to OPERATOR_GAS_CHECK_SEC
     await stage("earnings", payoutTick);          // self-throttled to EARNINGS_CHECK_SEC; no-op unless PAYOUT_ADDRESS
   }, 60_000);
   if (rt.unref) rt.unref();
