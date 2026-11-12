@@ -1,6 +1,20 @@
 # Site release r5: no Open link on a whole-VM app's dashboard row
 
-Status: **BUILT, NOT ACTIVATED** (2026-11-12 06:20Z). No edge has been changed.
+Status: **ACTIVE on all four edges** since 2026-11-12 06:38Z. Built 06:20Z; the operator ran `run-activate.py`
+06:35Z to 06:38Z. It is the base for the next additive site release.
+
+| edge | verified over HTTPS | result |
+| --- | --- | --- |
+| us-west | 06:36:01Z | apex-switched, 1570 files verified, 2 roots changed, r4 tree preserved |
+| ca-east | 06:36:28Z | same |
+| ap-southeast | 06:37:22Z | same |
+| eu-central | 06:38:29Z | same |
+
+`activation/` holds each edge's intent, result and served-file verification (87 files each: the 81 of the delta and
+six preserved ones). Checked again from outside at 06:45Z: every edge address and public DNS serve a `js/boot.js`
+that loads `js/boot-whole-vm-row-r5.js`, and r4's entry file is still served. In a signed-in browser the Enclave RPC
+row shows "no app address · an API served on the VM's own attested certificate", no Open control, with no console
+errors; the other rows keep their address and Open link.
 
 The dashboard row for Enclave RPC (deployment `0x5ff56a4d…454f`) showed its Open control in pulsing amber. The
 dashboard derives `https://5ff56a4d.app.enclave.host` for every running row and probes it; a whole-VM app (catalog
@@ -31,8 +45,8 @@ from it by far more than this fix. So this release repeats r4's method with one 
   failure and never retries an edge by itself.
 
 The working copy with the build output, the composite tree and the captures is
-`../unified-funding-20261028/whole-vm-row-site-r5` beside the source checkout (outside the repository). Activation is
-`python3 run-activate.py` there.
+`../unified-funding-20261028/whole-vm-row-site-r5` beside the source checkout (outside the repository). Activation was
+`python3 run-activate.py` there; it skips an edge that already has its verification file.
 
 Rollback of an edge: the journal directory holds `before.json` and `before.Caddyfile`; put the Caddyfile back and
 PATCH `/config/` with `before.json` (the two roots point at the r4 tree again). Nothing of r4 is modified.

@@ -519,8 +519,10 @@ its host publishes no app-zone route, so nothing can answer there. Main c2b36aa6
 runtime `sev-snp-vm` has no address, no Open link and no phone pairing, and says so (catalog version 3's inline
 config, read off chain, carries the runtime). The live site is the additive composite r4, built from the
 reconstructed graph and not from main, so the fix reaches it as its own additive release:
-`site-whole-vm-row-r5/` (CID bafybeigmmb…slyaq, built and checked against all four edges, **not activated**; see its
-README). Until it is activated the live row keeps the amber control; the RPC itself is unaffected.
+`site-whole-vm-row-r5/` (CID bafybeigmmb…slyaq). The operator activated it on the four edges 2026-11-12 06:35Z to
+06:38Z (each edge: 1570 files verified, two roots switched, r4 tree kept; evidence in its `activation/`). The live
+row now reads "no app address · an API served on the VM's own attested certificate" with no Open control, seen in a
+signed-in browser with no console errors.
 
 *Not done.* A whole-VM app has no browser address at all. Giving it one needs a publicly trusted certificate held
 by the guest (a new image and catalog version) or a measured terminator in front of it, plus route proofs for
