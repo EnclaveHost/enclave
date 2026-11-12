@@ -54,7 +54,8 @@ def main():
     m = measure(image, meta['cmdline'], a.vcpus)
     snp = {'measurements': {str(a.vcpus): m}, 'vcpuType': 'EPYC-v4', 'policy': '0x30000',
            'hostData': 'EnclaveDeployments id of the serving deployment',
-           'reportData': 'sha256(served TLS SubjectPublicKeyInfo) then 32 zero bytes'}
+           'reportData': 'sha256(served TLS SubjectPublicKeyInfo) then 32 zero bytes; for ?nonce=<64 hex>, '
+                         'sha256(SubjectPublicKeyInfo then the 32 nonce bytes) then 32 zero bytes'}
     img = {'rootHash': meta['rootHash'], 'cmdline': meta['cmdline'], 'kernel': meta['kernel'],
            'ovmfSha256': sha(OVMF), 'artifacts': {n: r['sha256'] for n, r in meta['artifacts'].items()}}
     manifest = {'format': 'enclave-rpc-snp-release/1', 'app': {'id': APP_ID, 'slug': SLUG}, 'version': a.version,
@@ -63,7 +64,7 @@ def main():
                                               'cpu': 'EPYC-v4', 'cbitpos': 51, 'kernelHashes': True,
                                               'launcher': 'rpc/snp/launch.py'},
                 'endpoints': {'attestation': '/.well-known/enclave-attestation', 'ethereum': '/l1', 'base': '/base',
-                              'beacon': '/beacon/'}}
+                              'beacon': '/beacon/', 'web': '/'}}
     (out/'RELEASE-MANIFEST.json').write_text(json.dumps(manifest, indent=1, sort_keys=True)+'\n')
     media = json.loads(Path(a.media).read_text()).get('_media')
     config = {'schema': 'enclave-rpc-snp/1', 'runtime': 'sev-snp-vm', 'rpcReady': True, 'chains': {'ethereum': 1, 'base': 8453},
