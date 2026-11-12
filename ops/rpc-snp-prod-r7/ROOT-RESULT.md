@@ -619,4 +619,8 @@ catalog version 4, with site release r6 on the four edges.
 - *Funding it.* A plain transfer to that key reverts (it is EIP-7702-delegated to the lease executor, which has no
   payable entry). The owner signing page has a top-up plan (`rpc/snp/owner-sign/topup-plan.mjs`): one contract
   creation whose init code is `73 <operator> ff`, simulated on both RPCs and executed on a local fork;
-  `release-r13/TOPUP-PLAN.json` is prepared for 0.001 ETH and waits for the owner's signature.
+  `release-r13/TOPUP-PLAN.json` is that plan for 0.001 ETH. The owner signed it at 18:09:41Z (`0xbdeff637…4717`,
+  block 56583032): the key holds 0.001 ETH more, delegation and nonce unchanged, and the checkpoints land again since
+  18:13:11Z.
+- *Open.* A checkpoint costs the key about 9e-7 ETH, about 2.6e-4 ETH a day, so the top-up lasts about 3.8 days at
+  this fee and nothing refills the key by itself. Before any restart of metal0, read the key's balance first.

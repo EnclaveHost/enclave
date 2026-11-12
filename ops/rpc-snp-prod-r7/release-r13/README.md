@@ -3,7 +3,7 @@
 Status: **r13 IN PRODUCTION** (2026-11-12 16:19Z). r13 guest, certificate, app address, dashboard row with its
 Open link, gateway on version 4, metal0 on the control image whose policy quorum answers. One outage on the way,
 15:04:39Z to 16:18:34Z: after its restart metal0 could not pay its registry transaction and did not renew (see "The
-run"). Open: the operator key is left with 1.6e-7 ETH, less than the next start's transaction costs.
+run"). The operator key was topped up with 0.001 ETH at 18:09Z; at the measured checkpoint cost that lasts about four days.
 
 What r13 gives the deployment `0x5ff56a4d…454f`: the address `https://5ff56a4d.app.enclave.host`, a page behind it
 served by the VM itself, and with site release r6 (`../site-whole-vm-address-r6/`) the dashboard row's address and
@@ -84,7 +84,7 @@ then) to be accepted, and the claim loop then claimed the deployment and adopted
 1.6e-7 ETH. **Open:** the next start of metal0 needs the same transaction and will stop in the same place unless the
 key is funded first, and the proof-of-time checkpoints keep failing meanwhile.
 
-**Funding the key (prepared 17:10Z, the owner's signature pending).** A plain transfer to the key reverts: it is
+**Funding the key (prepared 17:10Z, signed 18:09Z).** A plain transfer to the key reverts: it is
 delegated (EIP-7702) to EnclaveLeaseExecutor `0x8900baca…d343`, which has no payable entry (two Base RPCs and a local
 fork agree). `rpc/snp/owner-sign/topup-plan.mjs` therefore writes the owner one contract creation carrying the amount
 whose whole init code is `73 <operator> ff` (PUSH20, SELFDESTRUCT): the amount reaches the key as the destroyed
@@ -94,6 +94,17 @@ exactly 1e15 wei at 60,957 gas, and an impersonated send on an Anvil fork of Bas
 balance 162890534565 → 1000162890534565, code and nonce 23863 unchanged, no code at the created address. The page is
 `node rpc/snp/owner-sign/server.mjs TOPUP-PLAN.json 42292` (loopback only); it offers the step only while that
 simulation still holds and does not offer it again once a submitted one is included.
+
+The owner signed it at 18:09:41Z: `0xbdeff637f9e63198bb1e16795b5f7bd97bcd217eb614c40a8301aac982b54717`, block
+56583032, success on both RPCs, 60,957 gas. The key went from 162890534565 to 1000162890534565 wei; its code is
+still the delegation to `0x8900baca…d343` and its nonce was still 23863 afterwards. The proof-of-time checkpoints,
+failing since 03:51Z (last refusal 18:08:09Z), landed again at 18:13:11Z and 18:18:11Z (`[proof] 1/1 checkpoint(s)
+landed`). The deployment stayed leased throughout (renewed 18:02Z until 18:32:14Z) and the app address answered 200.
+
+Measured: the two checkpoints cost the key 1.01e-6 and 9.1e-7 ETH (gas price 0.006 gwei), about three times a
+registration. At one every 300 s that is about 2.6e-4 ETH a day, so 0.001 ETH lasts about 3.8 days at this fee.
+When it runs out the checkpoints fail again (the leases do not depend on them, as 03:51Z to 18:13Z showed), and a
+restart of metal0 in that state stops at its registration as on 2026-11-12. Nothing refills this key by itself.
 
 `control-image.sh apply` did not notice: it waited for the relay's acceptance, the policy admission and the lease,
 and the lease was still the one renewed at 14:34Z. It now also waits for the registration and says so when it does not
