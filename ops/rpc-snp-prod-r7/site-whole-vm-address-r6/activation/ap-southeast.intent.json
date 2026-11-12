@@ -1,0 +1,10 @@
+{
+  "host": "ap-southeast",
+  "cid": "bafybeihcq2ckylienfbs3tg6smcucmagz3hcavl4sda44ogjmfz5dze5ia",
+  "state": "REQUESTED_NO_AUTOMATIC_RETRY",
+  "scriptSha256": "742e1957ded50cc4588c266213788ae9c34179751a75cee2d2f654d995ccce8a",
+  "semanticChanges": [
+    "apps/http/servers/srv1/errors/routes/0/handle/0/routes/0/handle/0/routes/0/handle/0/root",
+    "apps/http/servers/srv1/routes/4/handle/0/routes/4/handle/0/routes/0/handle/0/root"
+  ]
+}

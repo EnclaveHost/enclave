@@ -1,6 +1,16 @@
 # Site release r6: a whole-VM app's dashboard row shows its address once its version declares one
 
-Status: **BUILT, NOT ACTIVATED** (built and preflighted 2026-11-12 08:23Z against the four edges serving r5).
+Status: **ACTIVE on all four edges** since 2026-11-12 08:49Z. Built and preflighted 08:23Z against the four edges
+serving r5; the operator's `../release-r13/run-cutover.sh` ran `run-activate.py` 08:47Z to 08:49Z.
+
+| edge | verified over HTTPS | result |
+| --- | --- | --- |
+| us-west | 08:47:38Z | apex-switched, 1650 files verified, 2 roots changed, r5 tree preserved, `js/boot.js` the only existing path replaced |
+| ca-east | 08:48:07Z | same |
+| ap-southeast | 08:48:52Z | same |
+| eu-central | 08:49:38Z | same |
+
+`activation/` holds each edge's intent, result and served-file verification.
 
 r5 (`../site-whole-vm-row-r5/`) made the row of a whole-VM app (catalog runtime `sev-snp-vm`) show no address and no
 Open link, because such an app had none. Enclave RPC r13 (`../release-r13/`) gives it one: its catalog version

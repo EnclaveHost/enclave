@@ -1,8 +1,8 @@
 # Enclave RPC r13 (1.3.0): the cutover from r12
 
-Status: **PREPARED, NOT RUN** (2026-11-12 08:45Z). Production is r12 (1.2.0, catalog version 3) with no app
-address. Image r13 is built and qualified (`IMAGE-r13.json`, `release.json`, `RELEASE-MANIFEST.json`; see
-`../ROOT-RESULT.md`). Nothing on the host, the control VM, the edges or the chain has been changed for it.
+Status: **OWNER STEPS DONE, HOST CLAIM PENDING** (2026-11-12 10:05Z). The deployment is on catalog version 4 and
+switched on, but metal0 has not claimed it: see "The run" below. Until it does there is no guest, the app address
+does not answer and public Ethereum is down (Base is served by the gateway's providers).
 
 What r13 gives the deployment `0x5ff56a4d…454f`: the address `https://5ff56a4d.app.enclave.host`, a page behind it
 served by the VM itself, and with site release r6 (`../site-whole-vm-address-r6/`) the dashboard row's address and
@@ -37,6 +37,45 @@ lease's version names). The running r12 guest is not touched, but a restart of i
 Rollback before d: `host-prepare.sh rollback-manager`, then the owner's `setActive(true)` alone. After d the way
 back is a further owner transaction to version 3 with the r12 binding.
 
+## The run (2026-11-12)
+
+| time (Z) | |
+|---|---|
+| 08:44 to 08:49 | `run-cutover.sh`: `host-prepare.sh all` (agent, reconciler, manager on the r13 binding), site release r6 active on the four edges |
+| 09:09:51 | owner: publish version 4, `0x5ef95a9ddb50b3b5c8759352749346fa699ba120742f54b082fc5480eaa2aed9` |
+| 09:10:04 | owner: stop, `0xdc8383bd3ab2d544d0d796f15a70cafcead4c0bfd3a06e0d82b4893b53e9c204`; metal0 shut the r12 guest down and released the lease (`0x3897fe633ee6ee1693d5274a251860e5d25b3223c9f6c3f4e6ce050e1a6a07d8`, block 56421520) |
+| 09:29:16 | owner: start on version 4, `0x15ef8577e69feed0d618793d44d4d11aecd413a408e1a783f8e1811fb51c9db3` |
+| 09:59 | `finish.sh` gave up waiting for metal0's claim (30 minutes) |
+
+**Why metal0 did not claim.** Not the deployment and not the new version: metal0 was not serving at all. A host takes
+work only while its platform host policy gate can read the policy, and the gate reads through its own quorum, 3 of
+the 4 public Base RPCs compiled into the measured control image. Of those, `base.public.blockpi.network` no longer
+answers without a key and `base.drpc.org` rate-limits keyless traffic, so any slow answer from the other two made the
+policy unreadable. The journal: `[host-policy] this host is not serving: policy unreadable: only 2 RPCs answered
+(need 3)`, every minute from 09:26Z (the last admitted reads were 08:04Z and 09:00Z), and the claim sweep skips every
+deployment while the host is not serving. The dashboard's line under the queued row ("its options carry snpVm, which
+this host does not apply") is a different host type declining the deployment, as it should; it is not metal0's reason.
+The gate fails closed and the image carries no unmeasured override, so the remedy is an image whose quorum answers.
+
+**The control image.** Main 5b292efce makes the quorum five keyless endpoints that answer (majority still 3).
+`~/enclave-prod/dist-snpvm-16520ea` is the running image's tree (`dist-snpvm-b4446c3`, see `../ROOT-RESULT.md`) with
+that one change: of the 40 overlay files only `/app/windows/node/host-admission.bundle.mjs` and
+`/opt/metal/host-policy.bundle.mjs` differ, same kernel, initramfs sha256
+`a6b7e1a7694087ef2e00c1f8d53d90923bd68aaaf1b55d7891a6451b7e3d51e0`, launch measurement
+`a74528dc6910b64656f5c9e5126e2f4eb04b39232a5358c1248c206ea03a9fbe10c0a4d509f2d8d22ed08cea3e0ee1e8` (the same
+`sev-snp-measure` invocation reproduces the running image's c9fe2438…12d5). The real policy decision for metal0,
+read through the new list from this host, was readable in 28 of 30 rounds 20 s apart (`admit=true
+status=not-activated`); a host keeps serving for 15 minutes after its last admitted read.
+
+`control-image.sh apply` puts it in service: the measurement is added to the relay's `METAL_ALLOWED_MEASUREMENTS`
+(previous file kept as `linux-leasegas-measurements.env.before-snpvm-16520ea`), metal0's config is pointed at the new
+image (kept as `config.json.before-snpvm-16520ea`) and `enclave-metal` restarted; unless the relay accepts the new
+measurement within five minutes the previous image is put back. It then waits for the host to be admitted, for the
+claim, and runs `finish.sh`. `control-image.sh rollback` returns to the previous image.
+
+The same four endpoints are compiled into every component built before 5b292efce that enforces the platform host
+policy, and into the custodian's measured RPC list (`custody/v2`, a separate measured configuration, not changed).
+
 ## Files
 
 - `PLAN.json`: the three owner transactions and what the signing page checks before offering each. Built by
@@ -48,6 +87,7 @@ back is a further owner transaction to version 3 with the r12 binding.
   state (r12 serving): `start=False leased=True`, guest up, proxy answers, gateway serves Ethereum, no route record,
   app address does not answer.
 - `agent-whole-vm.patch`: the network agent and reconciler change as deployed (below).
+- `control-image.sh`: metal0 onto the control image whose policy read quorum answers (above), then `finish.sh`.
 
 On the host, not in the repository: `/vm/enclave-volumes/rpc-snp-release-r13/` (the plan, the agent bundles, the
 control VM ssh wrapper), `~/.config/enclave/snpvm.r13.json` (the manager config b installs; it names the operator
