@@ -527,3 +527,45 @@ signed-in browser with no console errors.
 *Not done.* A whole-VM app has no browser address at all. Giving it one needs a publicly trusted certificate held
 by the guest (a new image and catalog version) or a measured terminator in front of it, plus route proofs for
 whole-VM apps in the network agent, the relay and the checkers. Separate work.
+
+## Image r13 (Enclave RPC 1.3.0): a browser address for the whole-VM app, built and qualified (2026-11-12)
+
+*Why.* The row said "no app address". The owner asked for what every other app has: a URL, an Open control and a
+page behind it. Main 154f4f458 and 6b8079c10 give a whole-VM app that address without moving its key out of the VM:
+the guest's front serves a page at `/`, answers `?nonce=` attestation bound to the key it serves, and writes a CSR
+for `<8 hex>.app.enclave.host` on that key; the manager has the relay's certificate service issue for the name
+(the host must hold the live lease) and installs the chain in the guest, which refuses any certificate that is not
+for its own key; the host agent admits the VM on a fresh AMD-signed report (measurement listed by the lease's
+catalog version, HOST_DATA the deployment, report_data the served key and the nonce) and then routes the name to
+the VM's port byte for byte.
+
+*Build.* `rpc/snp/build_image.py` at main 6b8079c10 into `/vm/enclave-volumes/rpc-snp-image-r13` (110 s). Root
+hash `34e4b48c…7a00`, kernel 6.8.0-147, 8 vCPU launch measurement `f3e72089…4b5c`, manifest
+`bafkreid6dijafkq5nndcy2hhwoe4xygi6zwvwgcgsv3akbffckz2ghhofi` (pinned on this host). Records in `release-r13/`.
+`chain.json` is byte-identical to r12's: the chain clients and their data layout do not change.
+
+*Qualified by an SNP boot* on a scratch deployment id with empty scratch chain disks
+(`/vm/enclave-volumes/rpc-snp-smoke-r13`, since stopped):
+
+| Check | Result |
+|---|---|
+| live report's measurement | equals the offline one |
+| `GET /` on the app name | 200, the page, hash-pinned CSP |
+| `/l1`, `/base`, `/beacon/`, attestation | as r12 |
+| CSR | CN and SAN the app name, on the served key |
+| report with a nonce, judged by `relay/snp-verify.mjs` with this host's VCEK and chain | accepted |
+| same report: other deployment, other nonce, other key, r12's measurement list, no VCEK, microcode floor 255, empty policy | each refused |
+| agent probe against the boot (self-signed) certificate | refused: not a WebPKI chain for the name |
+| installing a certificate for another key | 422 |
+| guest clock | synchronised, skew 0 |
+
+The accepted report and its refusals are kept as a test (`test/fixtures/snp-vm/r13-smoke.json`,
+`test/snp-vm-app.test.mjs`).
+
+*Found by the qualification.* metal0's agent names its own verifier module for its other guests, so the AMD chain
+was seeded into that copy only; the verifier the whole-VM path bundles held none and, judging offline, would have
+refused every report. The agent now seeds both.
+
+*Not exercised.* The relay issuing a certificate for the app name, and the chain manager → guest install →
+`route.json` → reconciler → agent admission, need a real lease on the name: they first run at the production
+cutover. Nothing here is live: production is still r12 (1.2.0) with no app address.

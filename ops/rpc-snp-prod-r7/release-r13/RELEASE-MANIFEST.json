@@ -1,0 +1,94 @@
+{
+ "app": {
+  "id": "0x0f628585d36c4272ae23c55b4f9ec6d5805f25e26d4744474710e46e4edbb537",
+  "slug": "enclave-rpc"
+ },
+ "endpoints": {
+  "attestation": "/.well-known/enclave-attestation",
+  "base": "/base",
+  "beacon": "/beacon/",
+  "ethereum": "/l1",
+  "web": "/"
+ },
+ "format": "enclave-rpc-snp-release/1",
+ "image": {
+  "artifacts": {
+   "initrd.img": "285d539745c531478cb96caad3ba35e8c5a221390c8719799d3326b1ed79f61b",
+   "root.img": "70b6eac292086e319092ce52d5410989b12b5453d4d657bf6ec4070c6a47ed0c",
+   "root.verity": "5f4f0557aab98b70cfc940f34fc112394114c103fa00d6f7e8e59f38d5b92f38",
+   "vmlinuz": "41ba36d860aa0b0cd995f4ca8856d80249b244577e704929b55be13fbd1ebd2f"
+  },
+  "cmdline": "root=/dev/mapper/vroot ro enclave.roothash=34e4b48c48d67080aaffd2aaae8968db9eca7dfa05ab7e092a4108aa1fc97a00 overlayroot=tmpfs console=ttyS0 panic=-1",
+  "kernel": "vmlinuz-6.8.0-147-generic",
+  "ovmfSha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+  "rootHash": "34e4b48c48d67080aaffd2aaae8968db9eca7dfa05ab7e092a4108aa1fc97a00"
+ },
+ "imageJson": {
+  "artifacts": {
+   "initrd.img": {
+    "bytes": 48181419,
+    "sha256": "285d539745c531478cb96caad3ba35e8c5a221390c8719799d3326b1ed79f61b"
+   },
+   "root.img": {
+    "bytes": 5367643648,
+    "sha256": "70b6eac292086e319092ce52d5410989b12b5453d4d657bf6ec4070c6a47ed0c"
+   },
+   "root.verity": {
+    "bytes": 42270720,
+    "sha256": "5f4f0557aab98b70cfc940f34fc112394114c103fa00d6f7e8e59f38d5b92f38"
+   },
+   "vmlinuz": {
+    "bytes": 15083912,
+    "sha256": "41ba36d860aa0b0cd995f4ca8856d80249b244577e704929b55be13fbd1ebd2f"
+   }
+  },
+  "bootImageSha256": "a76940c926985b91590ab5916c7996c23d7812ccc2277fe8188bb21f11a0ae2c",
+  "buildSeconds": 110,
+  "cmdline": "root=/dev/mapper/vroot ro enclave.roothash=34e4b48c48d67080aaffd2aaae8968db9eca7dfa05ab7e092a4108aa1fc97a00 overlayroot=tmpfs console=ttyS0 panic=-1",
+  "coverage": {
+   "base-bootstrap.json": "7ad5e898d8724976c2b691262b1a4a0703eee3b937b0017d8241e50ce49e34ca",
+   "blob-patch.json": "8bad515d53ebadfd3aaaa292c8178813403ebca79d5e51b63df6f7f85c765b8a",
+   "origin.json": "b13d9bbd8a8269cfa71b9d9b9f4b242abedae495736857690fa0aa0636b6dfe4",
+   "receipt.json": "4cc8e1a426456e30630c1d0ba08464b742e4434b93583290c2002cc97d110dbf",
+   "snapshot-manifest.json": "1f0c4e6c259d4353f598a94ac75a0540321ced2b52b464fb4e11c2ec34c649f2",
+   "verdict.json": "6abb91dd28f7d7ef836c12601348cf05a0e506110fd3cdada5f12e192c010577"
+  },
+  "kernel": "vmlinuz-6.8.0-147-generic",
+  "rootHash": "34e4b48c48d67080aaffd2aaae8968db9eca7dfa05ab7e092a4108aa1fc97a00",
+  "schema": "enclave-rpc-snp-image/1",
+  "sources": {
+   "base_history_patch.py": "303d1e182927e4e542fecd5408df9a1493f2671265195e2b9b2ed7ae650e18e7",
+   "base_merkle_patch.py": "4e6c61cfb9f03d298afe00de472f3ad779cdd6ee8aceb0033abcfe7f660f883c",
+   "base_restart_patch.py": "dc97c183b59498b2b79313778ef2a87bc6188d99b771e15c862c4f2515c1e957",
+   "build_image.py": "2e3ccc87983f1db3e2dda680d7427e13ba7cf74d38f30dd8176f98514ac75fef",
+   "enclave-verity-hook": "cb93bfdccb9697f469bc8b4d6c9b7b7d50d44c2e34d537e5395e53b3cc352085",
+   "enclave-verity-local-top": "57024c1ec992fa4417f59b2d240e472ac62dcc7fa8498e533461dd033aae482f",
+   "front.html": "770257a742a13b895b3e22344ff078901d7447f513e2f72e63c0d0a98a8cfc28",
+   "front.py": "4f0072b1d60f9135410230ed6ddf242f1b7acf835a07f59c0636d426ea8f535a",
+   "l1_identity_patch.py": "212ed37ec237da250a178e2f299f7abd6cef83dae81defb8bd01606a386a3e3a"
+  }
+ },
+ "launch": {
+  "cbitpos": 51,
+  "cpu": "EPYC-v4",
+  "kernelHashes": true,
+  "launcher": "rpc/snp/launch.py",
+  "machine": "q35",
+  "memoryMiB": 65536,
+  "vcpus": 8
+ },
+ "snp": {
+  "hostData": "EnclaveDeployments id of the serving deployment",
+  "measurements": {
+   "8": "f3e72089fcfba499b1063d99c6e2b05316e71082c4d5ad9b4bb40097e6898f49a793de16aae7f797c45111acb04a4b5c"
+  },
+  "policy": "0x30000",
+  "reportData": "sha256(served TLS SubjectPublicKeyInfo) then 32 zero bytes; for ?nonce=<64 hex>, sha256(SubjectPublicKeyInfo then the 32 nonce bytes) then 32 zero bytes",
+  "vcpuType": "EPYC-v4"
+ },
+ "source": {
+  "commit": "6b8079c10297a20924dae3e256806c9c65386d67",
+  "repo": "EnclaveHost/enclave"
+ },
+ "version": "1.3.0"
+}

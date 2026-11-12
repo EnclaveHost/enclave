@@ -41,7 +41,7 @@ import {pvmAppPort,openPvmApp,pvmForwarder} from './pvm-app-transport.mjs';
 import {probeGuest} from './guest-probe.mjs';
 import {createProbeScheduler} from './probe-scheduler.mjs';
 import {GuestdIngress} from './guestd-ingress.mjs';
-import {SnpVmIngress,validSnpVmExpectation} from './snp-vm-app.mjs';
+import {SnpVmIngress,validSnpVmExpectation,seedSnpVmCertChain} from './snp-vm-app.mjs';
 import {ShieldIngress} from './shield-ingress.mjs';
 import {guardedFetch} from './guarded-fetch.mjs';
 import {delegatedIPNS} from './discovery-http.mjs';
@@ -242,7 +242,10 @@ export async function runPrivacy(configFile){
   }
   if(linux&&cfg.linux.certChainFile){
     const seedModule=cfg.linux.snpModule?await import(pathToFileURL(cfg.linux.snpModule).href):await import('../relay/snp-verify.mjs');
-    seedModule.seedCertChain(cfg.linux.product,await fs.readFile(cfg.linux.certChainFile,'utf8'));
+    const chain=await fs.readFile(cfg.linux.certChainFile,'utf8');
+    seedModule.seedCertChain(cfg.linux.product,chain);
+    // a whole-VM app's report is judged by this build's own verifier, whatever module judges the host's other guests
+    if(cfg.linux.snpModule)seedSnpVmCertChain(cfg.linux.product,chain);
   }
   let agent,networkHost=null;
   if(windows&&cfg.guestd)throw new Error('Linux guest manager configuration on Windows');

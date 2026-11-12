@@ -9,13 +9,16 @@
 // to the nonce just sent.
 import net from 'node:net';
 import {createHash} from 'node:crypto';
-import {verifyQuote} from '../relay/snp-verify.mjs';
+import {verifyQuote,seedCertChain} from '../relay/snp-verify.mjs';
 import {vcekTable} from '../isolation/m2/judge.mjs';
 
 export const SNP_VM_RUNTIME='sev-snp-vm',SNP_VM_FORMAT='sev-snp-vm-v1';
 const HEX64=/^[0-9a-f]{64}$/,HEX96=/^[0-9a-f]{96}$/;
 const validPort=port=>Number.isInteger(port)&&port>=1024&&port<=65535;
 
+// Reports are judged offline (kds:false), so this module's verifier needs the AMD chain the host already holds. A host
+// that names its own verifier module for its other guests seeds that copy; this one is seeded here.
+export const seedSnpVmCertChain=seedCertChain;
 // The runtime identity of a whole-VM app is its set of admissible launch measurements.
 export function snpVmRuntimeId(measurements){
   if(!Array.isArray(measurements)||!measurements.length||measurements.length>16||measurements.some(m=>typeof m!=='string'||!HEX96.test(m))||new Set(measurements).size!==measurements.length)

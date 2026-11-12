@@ -10,7 +10,7 @@ import {execFileSync} from 'node:child_process';
 import {createHash,X509Certificate} from 'node:crypto';
 import {probeGuest} from '../network/guest-probe.mjs';
 import {reconcileApps} from '../network/reconcile-apps.mjs';
-import {SNP_VM_FORMAT,SnpVmIngress,snpVmExpectation,snpVmRoute,snpVmRuntimeId,validSnpVmExpectation,verifySnpVmProof} from '../network/snp-vm-app.mjs';
+import {SNP_VM_FORMAT,SnpVmIngress,seedSnpVmCertChain,snpVmExpectation,snpVmRoute,snpVmRuntimeId,validSnpVmExpectation,verifySnpVmProof} from '../network/snp-vm-app.mjs';
 
 // A whole-VM app (catalog runtime "sev-snp-vm") is admitted on its own front's report and routed to its loopback port.
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'snp-vm-app-'));
@@ -205,4 +205,26 @@ test('the reconciler enrolls a whole-VM app from the chain once its VM serves a 
   // a version that publishes no usable measurement is refused, not guessed
   versions[next].config=versionConfig({snp:{measurements:{}}});
   assert.equal((await reconcileApps({...opts,snpVmState})).changed,false);assert(lines.some(l=>/whole-VM version refused/.test(l)));
+});
+
+// A report the r13 image produced under SEV-SNP on a scratch deployment id, judged by the real verifier offline.
+test('a live report from the image is accepted with the host\'s AMD chain, and refused on any other footing',async()=>{
+  const f=JSON.parse(fs.readFileSync(new URL('./fixtures/snp-vm/r13-smoke.json',import.meta.url),'utf8'));
+  const spki=Buffer.from(f.spki,'base64'),nonce=Buffer.from(f.nonce,'hex'),vcek=Buffer.from(f.vcek,'base64');
+  const expected=snpVmExpectation(JSON.stringify(f.versionConfig));
+  const judge=(o={},key=spki,challenge=nonce)=>verifySnpVmProof(f.doc,key,challenge,{deploymentId:f.deploymentId,expected,minTcb:f.minTcb,vcek,...o});
+  // offline, and without the chain the host holds, nothing is accepted
+  assert.match((await judge()).reason,/no AMD chain held/);
+  seedSnpVmCertChain(f.product,fs.readFileSync(new URL('./fixtures/amd/Turin-cert_chain.pem',import.meta.url),'utf8'));
+  assert.deepEqual(await judge(),{ok:true,measurement:f.versionConfig.snp.measurements['8']});
+  assert.equal((await judge({deploymentId:'0x'+'5f'.repeat(32)})).reason,'HOST_DATA is not this deployment');
+  assert.match((await judge({},spki,Buffer.alloc(32,7))).reason,/does not bind/);
+  assert.match((await judge({},Buffer.alloc(91,1))).reason,/does not bind/);
+  assert.match((await judge({vcek:undefined})).reason,/no VCEK/);
+  assert.match((await judge({minTcb:{Turin:{...f.minTcb.Turin,microcode:255}}})).reason,/below policy/);
+  assert.match((await judge({minTcb:{}})).reason,/malformed/);
+  const other=['ab'.repeat(48)];
+  assert.match((await judge({expected:{...expected,measurements:other,runtimeId:snpVmRuntimeId(other)}})).reason,/not on the .*allowlist/);
+  const tampered=Buffer.from(f.doc.report,'base64');tampered[0xc0]^=1;
+  assert.equal((await verifySnpVmProof({...f.doc,report:tampered.toString('base64')},spki,nonce,{deploymentId:f.deploymentId,expected,minTcb:f.minTcb,vcek})).ok,false);
 });
