@@ -18,10 +18,18 @@
 // a launch measurement from the version's allowlist and HOST_DATA equal to the deployment id. Until then it is
 // "starting"; a unit that ended is "failed". Nothing here reaps on silence: an RPC with terabytes of state is stopped
 // only by an explicit DELETE.
+//
+// The app's address. With CONFIG.certs set, an attested guest also gets the certificate for its name in the app zone
+// (<first 8 hex of the deployment id>.app.enclave.host), so a browser reaches it like any other app. The guest made the
+// key and the request; this manager reads the request over the attested, pinned connection, checks it is for that very
+// key and name, has the platform's certificate service issue for it (the host operator signs the ask, exactly as the
+// supervisor does for guestd's apps: the relay checks the signature, the live lease and the host), and hands the chain
+// back to the guest, which serves it only if it verifies there. No key is here at any point. What it then writes to
+// <stateDir>/<deployment id>.route.json is the host network agent's cue to admit and route the app.
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, X509Certificate } from "node:crypto";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ControlServer, parseKey } from "../../windows/vbslike/manager/control.mjs";
@@ -32,6 +40,8 @@ const ID32 = /^0x[0-9a-f]{64}$/, HEX = (n) => new RegExp(`^[0-9a-f]{${n}}$`);
 const sha256 = (b) => createHash("sha256").update(b).digest("hex");
 export const OVMF_DEFAULT = "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd";   // launch.py's OVMF
 export const ATTEST_EVERY_MS = 5 * 60_000;
+export const APP_ZONE = "app.enclave.host";
+const CERT_RETRY_MIN_MS = 60_000, CERT_RETRY_MAX_MS = 60 * 60_000;
 
 export const idFor = (name) => "sv" + sha256(String(name).toLowerCase()).slice(0, 16);
 const fail = (status, message, extra = {}) => Object.assign(new Error(message), { status, ...extra });
@@ -77,7 +87,31 @@ export function validateConfig(c) {
   }
   const disks = Object.values(c.bindings || {}).flatMap((b) => b.disks.map((d) => path.resolve(d.path)));
   if (new Set(disks).size !== disks.length) throw new Error("a disk is bound to more than one deployment");
+  if (c.certs !== undefined) {
+    const k = c.certs;
+    if (!k || typeof k !== "object") throw new Error("certs must be an object");
+    for (const f of ["relay", "endpoint"]) if (!/^https:\/\/[^\s/]+(\/[^\s]*)?$/.test(String(k[f])) || String(k[f]).endsWith("/")) throw new Error(`certs.${f} must be an https URL without a trailing slash`);
+    if (!!k.operatorKeyFile === !!k.operatorConfigFile) throw new Error("certs needs exactly one of operatorKeyFile and operatorConfigFile");
+  }
   return c;
+}
+
+/** The app-zone name a deployment is reached at. */
+export const appNameFor = (name, zone = APP_ZONE) => `${String(name).toLowerCase().slice(2, 10)}.${zone}`;
+
+/** Signs as the host operator, with the key the host's supervisor and network agent already use. The key is read on
+ *  first use, kept inside the signer, and never logged or returned. */
+export function operatorSigner(certs, { readFile = fs.readFileSync } = {}) {
+  let account = null;
+  return async (message) => {
+    if (!account) {
+      const key = certs.operatorKeyFile ? String(readFile(certs.operatorKeyFile, "utf8")).trim()
+        : JSON.parse(readFile(certs.operatorConfigFile, "utf8")).registryKey;
+      const { privateKeyToAccount } = await import("viem/accounts");
+      account = privateKeyToAccount(/^0x/.test(key) ? key : "0x" + key);
+    }
+    return account.signMessage({ message });
+  };
 }
 
 const execP = (cmd, args) => new Promise((resolve) => execFile(cmd, args, { timeout: 600_000 },
@@ -86,12 +120,16 @@ const execP = (cmd, args) => new Promise((resolve) => execFile(cmd, args, { time
 /** The manager's state and routes, with the host effects injected so tests can drive it. */
 export class SnpVmManager {
   constructor(cfg, { exec = execP, attest = null, now = () => Date.now(), readFile = fs.readFileSync, writeFile = fs.writeFileSync,
-                     launcher = path.join(HERE, "launch.py"), ovmf = OVMF_DEFAULT, diskUsers = processesWithArgs } = {}) {
+                     launcher = path.join(HERE, "launch.py"), ovmf = OVMF_DEFAULT, diskUsers = processesWithArgs,
+                     fetch = globalThis.fetch, sign = null, csr = null } = {}) {
     this.cfg = validateConfig(cfg); this.exec = exec; this.now = now; this.readFile = readFile; this.writeFile = writeFile;
     this.diskUsers = diskUsers;
     this.launcher = launcher; this.ovmf = ovmf;
     this.attest = attest || ((name, b, plan) => defaultAttest(b.attestOrigin, plan.measurements, name.slice(2)));
-    this.instances = new Map();   // id -> { id, name, unit, plan, status, startedAt, attestedAt, error }
+    this.instances = new Map();   // id -> { id, name, unit, plan, status, startedAt, attestedAt, error, channel, cert }
+    this.fetch = fetch; this.sign = sign || (cfg.certs ? operatorSigner(cfg.certs, { readFile }) : null);
+    // the certificate service's own request parser and signed text (relay/certs.js), so this cannot drift from what it accepts
+    this.csr = csr || (() => import("../../relay/certs.js").then((m) => ({ parse: m.parseCsr, message: m.issueMessage })));
     this.stateDir = cfg.stateDir || path.join(HERE, "state");
   }
 
@@ -119,10 +157,12 @@ export class SnpVmManager {
       return inst;
     }
     if (!inst.plan) { inst.status = "starting"; inst.error = "plan unknown since this manager restarted; waiting for the supervisor to re-launch"; return inst; }
-    if (inst.status === "running" && this.now() - (inst.attestedAt || 0) < ATTEST_EVERY_MS) return inst;
+    if (inst.status === "running" && this.now() - (inst.attestedAt || 0) < ATTEST_EVERY_MS) { this.certifySoon(inst, b); return inst; }
     try {
-      await this.attest(inst.name, b, inst.plan);
+      const channel = await this.attest(inst.name, b, inst.plan);
       inst.status = "running"; inst.attestedAt = this.now(); inst.error = null;
+      inst.channel = channel && typeof channel.fetch === "function" ? channel : null;
+      this.certifySoon(inst, b);
     } catch (e) {
       inst.status = inst.status === "running" ? "starting" : inst.status;   // a lost attestation demotes; it never fails a live VM
       inst.error = `not attested yet: ${e.message}`;
@@ -130,10 +170,64 @@ export class SnpVmManager {
     return inst;
   }
 
+  /** The certificate pass never holds up a status answer; it paces itself (inst.cert.nextAt) and reports into inst.cert. */
+  certifySoon(inst, b) {
+    if (!this.cfg.certs || !inst.channel) return null;
+    const c = inst.cert ||= { name: appNameFor(inst.name, this.cfg.certs.zone), failures: 0 };
+    if (c.busy || this.now() < (c.nextAt || 0)) return null;
+    c.busy = true;
+    return (c.pass = this.certify(inst, b, c).then(() => { c.failures = 0; c.error = null; }, (e) => {
+      c.failures += 1; c.error = e.message;
+      c.nextAt = this.now() + (e.retryMs || Math.min(CERT_RETRY_MAX_MS, CERT_RETRY_MIN_MS * 2 ** (c.failures - 1)));
+    }).finally(() => { c.busy = false; }));
+  }
+
+  /** One pass: nothing to do while the guest's key has a certificate short of 2/3 of its life; otherwise ask and deliver. */
+  async certify(inst, b, c) {
+    const { relay, endpoint } = this.cfg.certs, ch = inst.channel, origin = b.attestOrigin;
+    const got = await ch.fetch(origin + "/.well-known/enclave-csr", { signal: AbortSignal.timeout(20_000) });
+    if (got.status === 404) throw Object.assign(new Error("this guest image asks for no certificate"), { retryMs: CERT_RETRY_MAX_MS });
+    if (!got.ok) throw new Error(`the guest's certificate request answered ${got.status}`);
+    const pem = await got.text(), spki = ch.spki();   // the key the attested report names, pinned on this very connection
+    if (c.spki === spki && this.now() < c.renewAt) return;
+    const { parse, message } = await this.csr();
+    const req = parse(pem, c.name);   // exactly CN == SAN == the app name, or it throws
+    if (!spki || req.spkiHash !== spki) throw new Error("the guest's certificate request is not for its attested key");
+    const ts = Math.floor(this.now() / 1000);
+    const opSig = await this.sign(message(c.name, endpoint, req.spkiHash, ts));
+    const r = await this.fetch(relay + "/v1/certs/issue", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: c.name, csr: pem, endpoint, ts, opSig }), signal: AbortSignal.timeout(120_000) });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 202) { c.state = "ordered"; c.nextAt = this.now() + Math.max(5, Number(j.retryAfterSec) || 60) * 1000; return; }
+    if (r.status !== 200 || typeof j.certPem !== "string") throw new Error(`the certificate service answered ${r.status}${j.code ? ` (${j.code})` : ""}`);
+    const leaf = new X509Certificate(j.certPem);
+    if (sha256(leaf.publicKey.export({ type: "spki", format: "der" })) !== spki) throw new Error("the issued certificate is not for the guest's key");
+    // The guest checks the chain itself (its key, its name, a root its image trusts, in date) before it serves it.
+    const put = await ch.fetch(origin + "/.well-known/enclave-cert", { method: "POST", headers: { "content-type": "application/x-pem-file", "content-length": String(Buffer.byteLength(j.certPem)) },
+      body: j.certPem, signal: AbortSignal.timeout(30_000) });
+    const ans = await put.json().catch(() => ({}));
+    if (put.status !== 200 || ans.installed !== true) throw new Error(`the guest refused the chain: ${ans.error || put.status}`);
+    const from = Date.parse(leaf.validFrom), to = Date.parse(leaf.validTo);
+    Object.assign(c, { spki, state: "installed", notAfter: to, renewAt: from + (to - from) * 2 / 3, nextAt: this.now() + CERT_RETRY_MIN_MS });
+    this.persistRoute(inst, b, c);
+  }
+
+  /** What the host's network agent needs to admit and route this app: written only once the guest serves its certificate. */
+  persistRoute(inst, b, c) {
+    fs.mkdirSync(this.stateDir, { recursive: true, mode: 0o700 });
+    this.writeFile(path.join(this.stateDir, inst.name + ".route.json"), JSON.stringify({
+      deploymentId: inst.name, name: c.name, port: Number(new URL(b.attestOrigin).port), appRef: inst.plan.appRef,
+      measurements: inst.plan.measurements, rootHash: inst.plan.image.rootHash, certNotAfter: c.notAfter }) + "\n", { mode: 0o600 });
+  }
+
+  dropRoute(name) { fs.rmSync(path.join(this.stateDir, name + ".route.json"), { force: true }); }
+
   view(i) {
     return { id: i.id, name: i.name, status: i.status, kind: "snp-vm", unit: i.unit, appRef: i.plan?.appRef ?? null,
              measurements: i.plan?.measurements ?? null, startedAt: i.startedAt ?? null, attestedAt: i.attestedAt ?? null,
-             ...(i.error ? { error: i.error } : {}), ...(i.recovered ? { recovered: true } : {}) };
+             ...(i.error ? { error: i.error } : {}), ...(i.recovered ? { recovered: true } : {}),
+             ...(i.cert ? { certificate: { name: i.cert.name, state: i.cert.state ?? "pending", notAfter: i.cert.notAfter ?? null,
+                                           ...(i.cert.error ? { error: i.cert.error } : {}) } } : {}) };
   }
 
   async spawn(body) {
@@ -146,6 +240,8 @@ export class SnpVmManager {
     if (await this.unitActive(b.unit)) {
       const cur = this.instances.get(id);
       if (cur && !cur.plan) { cur.plan = plan; this.persistPlan(name, plan); }   // a recovered VM, re-launched from the same record
+      // adoptable only as the version it was launched as: a record for another version must stop this VM first
+      if (cur?.plan && sha256(JSON.stringify(cur.plan)) !== sha256(JSON.stringify(plan))) throw fail(409, `${name} runs here as ${cur.plan.appRef}; stop it before launching another version`);
       throw fail(409, `${name} already runs here`, { id });
     }
     const launch = launchConfigFor(name, b, plan, { readFile: this.readFile, ovmf: this.ovmf });
@@ -155,6 +251,7 @@ export class SnpVmManager {
     const cfgPath = path.join(this.stateDir, name + ".launch.json");
     this.writeFile(cfgPath, JSON.stringify(launch, null, 2) + "\n", { mode: 0o600 });
     this.persistPlan(name, plan);
+    this.dropRoute(name);   // a new VM has a new key: no route until it serves its own certificate
     await this.exec("systemctl", ["--user", "reset-failed", b.unit + ".service"]);
     const r = await this.exec("systemd-run", ["--user", "--unit=" + b.unit, "--collect", "-p", "KillMode=mixed", "-p", "TimeoutStopSec=7min",
       "-p", "Description=Enclave SNP VM app " + name.slice(0, 10), "/usr/bin/python3", "-I", this.launcher, cfgPath]);
@@ -178,6 +275,7 @@ export class SnpVmManager {
     const r = await this.exec("systemctl", ["--user", "stop", i.unit + ".service"]);
     if (r.code !== 0 && (await this.unitActive(i.unit))) throw fail(500, `stopping ${i.unit} failed: ${r.stderr.trim().slice(0, 200)}`, { id });
     this.instances.delete(id);
+    this.dropRoute(i.name);
     return { absent: false };
   }
 
@@ -209,12 +307,13 @@ export function processesWithArgs(paths) {
   return out;
 }
 
-/** The gateway's own attestation check against this host's forward of the guest's front. */
+/** The gateway's own attestation check against this host's forward of the guest's front. Returns the attested channel:
+ *  a fetch pinned to the key the report names, and that key's SPKI SHA-256. */
 export async function defaultAttest(origin, measurements, hostData) {
   const f = createAttestedFetch({ attested: { [origin]: { allowedMeasurements: measurements, hostData } } });
   const r = await f(origin + "/health", { signal: AbortSignal.timeout(20_000) });
   if (!r.ok) throw new Error(`front /health answered ${r.status}`);
-  return true;
+  return { fetch: f, spki: () => f.pins.get(origin)?.spki ?? null };
 }
 
 export function serve(manager, key) {

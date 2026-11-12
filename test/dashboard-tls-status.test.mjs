@@ -133,7 +133,7 @@ const wholeStart = src.indexOf('export function appEndpoint(');
 const wholeEnd = src.indexOf('// appEndpoint can derive from server-supplied', wholeStart);   // through appLabel
 function endpointsWith(byId) {
   return new Function('Enclave', 'APP_DOMAIN', 'STORE', 'parseCatalogRef',
-    `${src.slice(wholeStart, wholeEnd).replace(/export function/g, 'function')}; return { appEndpoint, isWholeVm };`)(
+    `${src.slice(wholeStart, wholeEnd).replace(/export function/g, 'function')}; return { appEndpoint, isWholeVm, wholeVmWithoutAddress };`)(
     { base: 'https://api.enclave.host/v1' }, 'app.enclave.host', { byId },
     ref => { const m = /^catalog:\/\/(0x[0-9a-f]{64})\/(\d+)$/.exec(String(ref || '')); return m ? { appId: m[1], index: Number(m[2]) } : null; });
 }
@@ -155,5 +155,23 @@ test('a whole-VM app gets no app address, so no Open link and no probe; every ot
   }
   assert.equal(appEndpoint({ ...rpc, image: { reference: 'ipfs://bafy' } }), 'https://5ff56a4d.app.enclave.host');
   assert.equal(endpointsWith({}).appEndpoint(rpc), 'https://5ff56a4d.app.enclave.host', 'an unloaded catalog decides nothing');
-  assert.match(src, /: isWholeVm\(\(d\.image && d\.image\.reference\) \|\| d\.appRef\) \? WHOLE_VM_NOTE : ''\)/);
+  assert.match(src, /: wholeVmWithoutAddress\(\(d\.image && d\.image\.reference\) \|\| d\.appRef\) \? WHOLE_VM_NOTE : ''\)/);
+});
+test('a whole-VM version that declares a browser address is an ordinary row: its address, Open link and probe', () => {
+  const rpcApp = '0x0f628585d36c4272ae23c55b4f9ec6d5805f25e26d4744474710e46e4edbb537';
+  const r12 = JSON.parse(fs.readFileSync(new URL('../ops/rpc-snp-prod-r7/release-r12/release.json', import.meta.url), 'utf8')).config;
+  const withWeb = web => ({ config: JSON.stringify({ ...r12, endpoints: { ...r12.endpoints, web } }) });
+  const versions = [withWeb('/'), withWeb(''), withWeb(true), withWeb('https://elsewhere.example/'), { config: JSON.stringify(r12) }];
+  const { appEndpoint, isWholeVm, wholeVmWithoutAddress } = endpointsWith({ [rpcApp]: { versions } });
+  const row = index => ({ id: '0x5ff56a4d600191f13ac43e1c600965673555f229472846a9da201785d396454f', status: 'running', public: true,
+    image: { reference: `catalog://${rpcApp}/${index}` } });
+  assert.equal(isWholeVm(row(0).image.reference), true);
+  assert.equal(wholeVmWithoutAddress(row(0).image.reference), false);
+  assert.equal(appEndpoint(row(0)), 'https://5ff56a4d.app.enclave.host');
+  assert.match(render(row(0), appEndpoint(row(0)), undefined), /href="https:\/\/5ff56a4d\.app\.enclave\.host\/"/);
+  // only a path on the app's own origin counts; anything else is the address-less row
+  for (const index of [1, 2, 3, 4]) {
+    assert.equal(wholeVmWithoutAddress(row(index).image.reference), true);
+    assert.equal(appEndpoint(row(index)), '');
+  }
 });

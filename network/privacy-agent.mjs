@@ -41,6 +41,7 @@ import {pvmAppPort,openPvmApp,pvmForwarder} from './pvm-app-transport.mjs';
 import {probeGuest} from './guest-probe.mjs';
 import {createProbeScheduler} from './probe-scheduler.mjs';
 import {GuestdIngress} from './guestd-ingress.mjs';
+import {SnpVmIngress,validSnpVmExpectation} from './snp-vm-app.mjs';
 import {ShieldIngress} from './shield-ingress.mjs';
 import {guardedFetch} from './guarded-fetch.mjs';
 import {delegatedIPNS} from './discovery-http.mjs';
@@ -193,6 +194,8 @@ export function hostServicesPreflight({block,workerModule,runner,endpoint,exists
   return {config};
 }
 
+// A whole-VM app's connections go to its VM; every other app's go where they always did.
+const wholeVmForward=(snpVm,forward)=>snpVm?(socket,id)=>(snpVm.handles(id)?snpVm.forward:forward)(socket,id):forward;
 export async function runPrivacy(configFile){
   const cfg=JSON.parse(await fs.readFile(configFile,'utf8'));
   // an EMPTY app list runs only for this host's own public service roles (below: a valid hostServices block and the platform
@@ -215,6 +218,7 @@ export async function runPrivacy(configFile){
     validateAppNames(item.deploymentId,item.names);
     if(item.publishToMirror!==undefined&&typeof item.publishToMirror!=='boolean')throw new Error('publishToMirror must be true or false');
     if(item.startupEgress===true&&(expected.requiresConfigSocketServer!==true||expected.requiresSecretsV1!==true))throw new Error('startup egress needs a configured secret command');
+    if(expected.snpVm!==undefined&&!validSnpVmExpectation(expected))throw new Error('a whole-VM app needs its port, image and launch measurements');
     return {...item,expected};
   };
   const apps=[];
@@ -245,6 +249,8 @@ export async function runPrivacy(configFile){
   if(!windows&&cfg.shield?.ingress)throw new Error('Windows partition ingress configuration on Linux');
   const guestd=cfg.guestd?new GuestdIngress({...cfg.guestd,expected:id=>apps.find(a=>a.deploymentId===id)?.expected}):
     cfg.shield?.ingress?new ShieldIngress({...cfg.shield.ingress,expected:id=>apps.find(a=>a.deploymentId===id)?.expected,key:id=>agent?.admission.proofs.get(id)?.spkiSha256}):null;
+  // a whole-VM app (snp-vm-app.mjs) is its own SEV-SNP VM on this host: routed to the loopback port its expectation names
+  const snpVm=linux?new SnpVmIngress({expected:id=>apps.find(a=>a.deploymentId===id)?.expected}):null;
   const scheduleProbe=createProbeScheduler();
   // the node agent's host-wallet allows (enclaveNetwork.walletAdmission.file, written by windows/node/host.mjs): an app is
   // admitted only while its entry is current; a block that is not exactly {file: an absolute path} refuses to start
@@ -361,7 +367,7 @@ export async function runPrivacy(configFile){
     leaseReader,providerReader,directory:cfg.directory,log,fetch:networkFetch,
     authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),
     // owner-name routing pins the key of the CURRENT attested local proof (enclave-network-host.mjs direct.ownerNames)
-    attestedKey:id=>!agent?.closed&&agent?.admission.allows(id)?agent.admission.proofs.get(id)?.spkiSha256||null:null,forward:pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream)});
+    attestedKey:id=>!agent?.closed&&agent?.admission.allows(id)?agent.admission.proofs.get(id)?.spkiSha256||null:null,forward:wholeVmForward(snpVm,pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream))});
   networkHost=network;
   // a stop that arrived while the host was being created, or a step below that fails, must not leave its listeners open
   if(stopping)throw new StartupCancelled();
@@ -423,8 +429,8 @@ export async function runPrivacy(configFile){
       if(circuit&&!agent?.admission.allows(id))throw new Error('no current local guest proof');
       return probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
       ...(circuit&&agent?.admission.allows(id)?{pinnedSpkiSha256:agent.admission.proofs.get(id).spkiSha256}:{}),
-      ...(!circuit&&pvm?{pvm}:!circuit&&windows?{shield,hostSession:await hostProof.get()}:!circuit?{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}:{}),
-      ...(circuit?{address:circuit.address,direct:circuit.transport==='direct',proxy:circuit.transport==='direct'?undefined:circuit.isolation.guardAddress,domainIndependent:circuit.transport!=='direct'&&apps.find(a=>a.deploymentId===id)?.startupEgress===true}:apps.find(a=>a.deploymentId===id)?.startupEgress===true?{openApp:starting,startupEgress:true}:guestd?{openApp:id=>guestd.open(id)}:pvm?{openApp:()=>openPvmApp(pvm.appPort)}:{localUpstream:cfg.upstream})});
+      ...(!circuit&&pvm?{pvm}:!circuit&&windows?{shield,hostSession:await hostProof.get()}:!circuit&&snpVm?.handles(id)?{snpVm:{minTcb:linux.minTcb,vcek:linux.vcek}}:!circuit?{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}:{}),
+      ...(circuit?{address:circuit.address,direct:circuit.transport==='direct',proxy:circuit.transport==='direct'?undefined:circuit.isolation.guardAddress,domainIndependent:circuit.transport!=='direct'&&apps.find(a=>a.deploymentId===id)?.startupEgress===true}:apps.find(a=>a.deploymentId===id)?.startupEgress===true?{openApp:starting,startupEgress:true}:snpVm?.handles(id)?{openApp:id=>snpVm.open(id)}:guestd?{openApp:id=>guestd.open(id)}:pvm?{openApp:()=>openPvmApp(pvm.appPort)}:{localUpstream:cfg.upstream})});
     })});
   await agent.start();
   }catch(e){await unwind(e);}

@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Enclave RPC</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%231f6feb'/%3E%3Cpath d='M4 8.2l2.6 2.6L12 5.4' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --ink: #14181f; --soft: #5b6472; --line: #dfe3ea; --accent: #1f6feb;
+  --ok: #1a7f4b; --okbg: #e3f5ea; --warn: #9a6400; --warnbg: #fdf1d6; --bad: #b3261e; --badbg: #fde7e5; --code: #f0f2f6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1116; --card: #161b22; --ink: #e8ebf0; --soft: #98a2b3; --line: #2a313c; --accent: #6ea8ff;
+    --ok: #57d08c; --okbg: #12301f; --warn: #f0b849; --warnbg: #3a2c0c; --bad: #ff8a80; --badbg: #3d1614; --code: #0b0e13;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 920px; margin: 0 auto; padding: 32px 16px 56px; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 6px; }
+h1 { font-size: 26px; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 16px; margin: 0 0 12px; }
+p { margin: 0 0 10px; }
+.lead { color: var(--soft); margin-bottom: 24px; max-width: 64ch; }
+.pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--code); color: var(--soft); }
+.pill.ok { background: var(--okbg); color: var(--ok); }
+.pill.warn { background: var(--warnbg); color: var(--warn); }
+.pill.bad { background: var(--badbg); color: var(--bad); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+.grid section { margin-bottom: 0; }
+.grid { margin-bottom: 16px; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.top h2 { margin: 0; }
+.num { font-size: 30px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.sub { color: var(--soft); font-size: 13px; min-height: 20px; }
+.url { display: flex; gap: 8px; margin-top: 12px; }
+code, pre, input, select, textarea { font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.url code { flex: 1; min-width: 0; background: var(--code); border-radius: 8px; padding: 7px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button { font: 600 13px system-ui, sans-serif; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.go { background: var(--accent); border-color: var(--accent); color: #fff; }
+@media (prefers-color-scheme: dark) { button.go { color: #0e1116; } }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+select, input { color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+input { flex: 1; min-width: 180px; }
+pre { margin: 0; background: var(--code); border-radius: 8px; padding: 12px; overflow: auto; max-height: 340px; white-space: pre-wrap; word-break: break-word; }
+pre + pre { margin-top: 8px; }
+label { font-size: 13px; color: var(--soft); display: block; margin: 12px 0 4px; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0 0 12px; }
+dt { color: var(--soft); font-size: 13px; }
+dd { margin: 0; min-width: 0; }
+dd code { word-break: break-all; }
+a { color: var(--accent); }
+footer { color: var(--soft); font-size: 13px; margin-top: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Enclave RPC</h1>
+    <span id="state" class="pill">checking</span>
+  </header>
+  <p class="lead">Ethereum and Base JSON-RPC, answered by full nodes running inside an AMD SEV-SNP confidential VM.
+    This page is served by that VM, on a key that never leaves its memory.</p>
+
+  <div class="grid">
+    <section>
+      <div class="top"><h2>Ethereum</h2><span id="l1-state" class="pill">checking</span></div>
+      <div id="l1-head" class="num">&ndash;</div>
+      <div id="l1-sub" class="sub"></div>
+      <div id="l1-beacon" class="sub"></div>
+      <div class="url"><code id="l1-url"></code><button type="button" data-copy="l1-url">Copy</button></div>
+    </section>
+    <section>
+      <div class="top"><h2>Base</h2><span id="base-state" class="pill">checking</span></div>
+      <div id="base-head" class="num">&ndash;</div>
+      <div id="base-sub" class="sub"></div>
+      <div class="sub">&nbsp;</div>
+      <div class="url"><code id="base-url"></code><button type="button" data-copy="base-url">Copy</button></div>
+    </section>
+  </div>
+
+  <section>
+    <h2>Try a request</h2>
+    <div class="row">
+      <select id="net" aria-label="Network"><option value="ethereum">Ethereum</option><option value="base">Base</option></select>
+      <select id="method" aria-label="Method"></select>
+      <input id="params" aria-label="Parameters, a JSON array" spellcheck="false" autocomplete="off">
+      <button type="button" class="go" id="send">Send</button>
+    </div>
+    <pre id="out">The answer appears here.</pre>
+    <label for="curl">The same request from a terminal</label>
+    <pre id="curl"></pre>
+    <p class="sub">Query methods are served: <code>eth_*</code> reads, <code>net_version</code>, <code>web3_clientVersion</code>.
+      The VM holds no account and signs nothing for you; <code>eth_sendRawTransaction</code> relays a transaction you signed yourself.</p>
+  </section>
+
+  <section>
+    <h2>Attestation</h2>
+    <dl>
+      <dt>Launch measurement</dt><dd><code id="measurement">&ndash;</code></dd>
+      <dt>Deployment</dt><dd><code id="deployment">&ndash;</code></dd>
+      <dt>Key fingerprint</dt><dd><code id="keyhash">&ndash;</code></dd>
+    </dl>
+    <p>At boot the VM asked the AMD security processor for a signed report that names its launch measurement, the deployment
+      it was started for, and the SHA-256 of the public key this connection is encrypted to. Check the report against AMD's
+      certificate chain and the published measurement, and you know which code answers here without trusting the host.</p>
+    <p><a href="/.well-known/enclave-attestation">Attestation document</a> &middot; <a href="/health">Health (JSON)</a></p>
+    <p class="sub">For a report made against your own challenge, request
+      <code>/.well-known/enclave-attestation?nonce=&lt;64 hex&gt;</code>: its report data is SHA-256(public key || nonce).</p>
+  </section>
+
+  <footer>Refreshes every 10 seconds. <span id="stamp"></span></footer>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const METHODS = {
+  eth_blockNumber: "[]",
+  eth_chainId: "[]",
+  eth_gasPrice: "[]",
+  eth_getBlockByNumber: '["latest", false]',
+  eth_getBalance: '["0x0000000000000000000000000000000000000000", "latest"]',
+  eth_getTransactionCount: '["0x0000000000000000000000000000000000000000", "latest"]',
+  eth_getCode: '["0x4200000000000000000000000000000000000006", "latest"]',
+  eth_syncing: "[]",
+  net_version: "[]",
+  web3_clientVersion: "[]",
+};
+const endpoint = (net) => location.origin + "/" + net;
+const pill = (el, kind, text) => { el.className = "pill" + (kind ? " " + kind : ""); el.textContent = text; };
+const age = (s) => s < 90 ? s + " s ago" : s < 5400 ? Math.round(s / 60) + " min ago" : s < 172800 ? Math.round(s / 3600) + " h ago" : Math.round(s / 86400) + " days ago";
+
+function chain(key, h) {
+  const state = $(key + "-state"), head = $(key + "-head"), sub = $(key + "-sub");
+  if (!h || h.error) { pill(state, "bad", "unreachable"); head.textContent = "–"; sub.textContent = "the node did not answer"; return "bad"; }
+  const behind = Math.max(0, Math.floor(Date.now() / 1000) - h.headTimestamp);
+  head.textContent = h.head.toLocaleString("en-US");
+  sub.textContent = "head block, " + age(behind);
+  // A node is live when it says it is not syncing and its head is recent; a quiet minute is not an outage.
+  const kind = h.syncing || behind > 300 ? "warn" : "ok";
+  pill(state, kind, kind === "ok" ? "live" : h.syncing ? "syncing" : "behind");
+  return kind;
+}
+
+async function refresh() {
+  let h = null;
+  try { const r = await fetch("/health", { cache: "no-store" }); if (r.ok) h = await r.json(); } catch { h = null; }
+  if (!h) {
+    pill($("state"), "bad", "unreachable");
+    for (const k of ["l1", "base"]) chain(k, null);
+    $("l1-beacon").textContent = "";
+    return;
+  }
+  const kinds = [chain("l1", h.l1), chain("base", h.base)];
+  const b = h.beacon || {};
+  $("l1-beacon").textContent = b.error ? "consensus client did not answer"
+    : "consensus " + (b.is_syncing ? "syncing" : "in sync") + (b.head_slot ? ", slot " + Number(b.head_slot).toLocaleString("en-US") : "");
+  const worst = kinds.includes("bad") ? "bad" : kinds.includes("warn") ? "warn" : "ok";
+  pill($("state"), worst, worst === "ok" ? "live" : worst === "warn" ? "catching up" : "degraded");
+  $("stamp").textContent = "Last checked " + new Date().toLocaleTimeString() + ".";
+}
+
+async function attestation() {
+  try {
+    const doc = await (await fetch("/.well-known/enclave-attestation")).json();
+    const report = Uint8Array.from(atob(doc.report), (c) => c.charCodeAt(0));
+    const hex = (a, b) => Array.from(report.subarray(a, b), (x) => x.toString(16).padStart(2, "0")).join("");
+    $("measurement").textContent = hex(0x90, 0xc0);
+    const host = hex(0xc0, 0xe0);
+    $("deployment").textContent = /^0+$/.test(host) ? "none (not launched for a deployment)" : "0x" + host;
+    $("keyhash").textContent = "sha256:" + hex(0x50, 0x70);
+  } catch { $("measurement").textContent = "unavailable"; }
+}
+
+function request() {
+  let params;
+  try { params = JSON.parse($("params").value || "[]"); } catch { params = null; }
+  return { net: $("net").value, body: { jsonrpc: "2.0", id: 1, method: $("method").value, params } };
+}
+function showCurl() {
+  const { net, body } = request();
+  $("curl").textContent = body.params === null ? "The parameters must be a JSON array."
+    : "curl -s " + endpoint(net) + " \\\n  -H 'content-type: application/json' \\\n  -d '" + JSON.stringify(body) + "'";
+}
+async function send() {
+  const { net, body } = request();
+  const out = $("out");
+  if (!Array.isArray(body.params)) { out.textContent = "The parameters must be a JSON array, for example [\"latest\", false]."; return; }
+  out.textContent = "Sending…";
+  const t = performance.now();
+  try {
+    const r = await fetch("/" + net, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const text = await r.text();
+    let shown = text;
+    try { shown = JSON.stringify(JSON.parse(text), null, 2); } catch { /* not JSON: show it as it came */ }
+    if (shown.length > 20000) shown = shown.slice(0, 20000) + "\n… (" + (shown.length - 20000) + " more characters)";
+    out.textContent = shown + "\n\n" + Math.round(performance.now() - t) + " ms";
+  } catch (e) { out.textContent = "The request did not complete: " + e.message; }
+}
+
+for (const m of Object.keys(METHODS)) { const o = document.createElement("option"); o.value = o.textContent = m; $("method").append(o); }
+$("params").value = METHODS[$("method").value];
+$("method").addEventListener("change", () => { $("params").value = METHODS[$("method").value]; showCurl(); });
+$("net").addEventListener("change", showCurl);
+$("params").addEventListener("input", showCurl);
+$("params").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+$("send").addEventListener("click", send);
+$("l1-url").textContent = endpoint("ethereum");
+$("base-url").textContent = endpoint("base");
+for (const b of document.querySelectorAll("button[data-copy]")) b.addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($(b.dataset.copy).textContent); b.textContent = "Copied"; } catch { b.textContent = "Select it"; }
+  setTimeout(() => { b.textContent = "Copy"; }, 1500);
+});
+showCurl();
+attestation();
+refresh();
+setInterval(() => { if (!document.hidden) refresh(); }, 10000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+</script>
+</body>
+</html>

@@ -133,6 +133,7 @@ def seed_config(owner_pub, coverage=None):
         b'[Timer]\nOnCalendar=Sun *-*-* 06:00:00 UTC\nRandomizedDelaySec=1h\n'
         b'[Install]\nWantedBy=timers.target\n'))
     add('/opt/enclave-rpc/front.py', (HERE/'front.py').read_bytes(), '0755')
+    add('/opt/enclave-rpc/front.html', (HERE/'front.html').read_bytes(), '0644')
     add('/etc/initramfs-tools/hooks/enclave-verity', (HERE/'enclave-verity-hook').read_bytes(), '0755')
     add('/etc/initramfs-tools/scripts/local-top/enclave-verity', (HERE/'enclave-verity-local-top').read_bytes(), '0755')
     add('/etc/modules-load.d/enclave-snp.conf', b'tsm\nsev-guest\n')
@@ -278,7 +279,7 @@ def main(out, coverage=None):
              'buildSeconds': round(time.time()-t), 'bootImageSha256': BOOT_SHA256,
              'artifacts': {n: {'bytes': (out/n).stat().st_size, 'sha256': sha(out/n)}
                            for n in ('vmlinuz', 'initrd.img', 'root.img', 'root.verity')},
-             'sources': {n: sha(HERE/n) for n in ('front.py', 'enclave-verity-hook', 'enclave-verity-local-top', 'build_image.py',
+             'sources': {n: sha(HERE/n) for n in ('front.py', 'front.html', 'enclave-verity-hook', 'enclave-verity-local-top', 'build_image.py',
                                                     'l1_identity_patch.py', 'base_restart_patch.py', 'base_merkle_patch.py',
                                                     'base_history_patch.py')},
              'coverage': {n: sha(coverage/n) for n in COVERAGE_FILES + ('base-bootstrap.json', 'blob-patch.json')
