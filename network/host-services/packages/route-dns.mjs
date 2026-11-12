@@ -1220,22 +1220,22 @@ var init_abi = __esm({
       }
     };
     AbiDecodingDataSizeInvalidError = class extends BaseError2 {
-      constructor({ data, size: size6 }) {
+      constructor({ data: data2, size: size6 }) {
         super([
           `Data size of ${size6} bytes is invalid.`,
           "Size must be in increments of 32 bytes (size % 32 === 0)."
         ].join("\n"), {
-          metaMessages: [`Data: ${data} (${size6} bytes)`],
+          metaMessages: [`Data: ${data2} (${size6} bytes)`],
           name: "AbiDecodingDataSizeInvalidError"
         });
       }
     };
     AbiDecodingDataSizeTooSmallError = class extends BaseError2 {
-      constructor({ data, params, size: size6 }) {
+      constructor({ data: data2, params, size: size6 }) {
         super([`Data size of ${size6} bytes is too small for given parameters.`].join("\n"), {
           metaMessages: [
             `Params: (${formatAbiParams(params, { includeName: true })})`,
-            `Data:   ${data} (${size6} bytes)`
+            `Data:   ${data2} (${size6} bytes)`
           ],
           name: "AbiDecodingDataSizeTooSmallError"
         });
@@ -1257,7 +1257,7 @@ var init_abi = __esm({
           writable: true,
           value: void 0
         });
-        this.data = data;
+        this.data = data2;
         this.params = params;
         this.size = size6;
       }
@@ -1424,13 +1424,13 @@ var init_abi = __esm({
       }
     };
     DecodeLogDataMismatch = class extends BaseError2 {
-      constructor({ abiItem, data, params, size: size6 }) {
+      constructor({ abiItem, data: data2, params, size: size6 }) {
         super([
           `Data size of ${size6} bytes is too small for non-indexed event parameters.`
         ].join("\n"), {
           metaMessages: [
             `Params: (${formatAbiParams(params, { includeName: true })})`,
-            `Data:   ${data} (${size6} bytes)`
+            `Data:   ${data2} (${size6} bytes)`
           ],
           name: "DecodeLogDataMismatch"
         });
@@ -1459,7 +1459,7 @@ var init_abi = __esm({
           value: void 0
         });
         this.abiItem = abiItem;
-        this.data = data;
+        this.data = data2;
         this.params = params;
         this.size = size6;
       }
@@ -1651,21 +1651,21 @@ var init_encoding = __esm({
 
 // relay/node_modules/viem/_esm/utils/data/trim.js
 function trim(hexOrBytes, { dir = "left" } = {}) {
-  let data = typeof hexOrBytes === "string" ? hexOrBytes.replace("0x", "") : hexOrBytes;
+  let data2 = typeof hexOrBytes === "string" ? hexOrBytes.replace("0x", "") : hexOrBytes;
   let sliceLength = 0;
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[dir === "left" ? i : data.length - i - 1].toString() === "0")
+  for (let i = 0; i < data2.length - 1; i++) {
+    if (data2[dir === "left" ? i : data2.length - i - 1].toString() === "0")
       sliceLength++;
     else
       break;
   }
-  data = dir === "left" ? data.slice(sliceLength) : data.slice(0, data.length - sliceLength);
+  data2 = dir === "left" ? data2.slice(sliceLength) : data2.slice(0, data2.length - sliceLength);
   if (typeof hexOrBytes === "string") {
-    if (data.length === 1 && dir === "right")
-      data = `${data}0`;
-    return `0x${data.length % 2 === 1 ? `0${data}` : data}`;
+    if (data2.length === 1 && dir === "right")
+      data2 = `${data2}0`;
+    return `0x${data2.length % 2 === 1 ? `0${data2}` : data2}`;
   }
-  return data;
+  return data2;
 }
 var init_trim = __esm({
   "relay/node_modules/viem/_esm/utils/data/trim.js"() {
@@ -2020,11 +2020,11 @@ function utf8ToBytes(str) {
     throw new Error("string expected");
   return new Uint8Array(new TextEncoder().encode(str));
 }
-function toBytes2(data) {
-  if (typeof data === "string")
-    data = utf8ToBytes(data);
-  abytes(data);
-  return data;
+function toBytes2(data2) {
+  if (typeof data2 === "string")
+    data2 = utf8ToBytes(data2);
+  abytes(data2);
+  return data2;
 }
 function concatBytes(...arrays) {
   let sum = 0;
@@ -2171,16 +2171,16 @@ var init_sha3 = __esm({
         this.posOut = 0;
         this.pos = 0;
       }
-      update(data) {
+      update(data2) {
         aexists(this);
-        data = toBytes2(data);
-        abytes(data);
+        data2 = toBytes2(data2);
+        abytes(data2);
         const { blockLen, state } = this;
-        const len = data.length;
+        const len = data2.length;
         for (let pos = 0; pos < len; ) {
           const take = Math.min(blockLen - this.pos, len - pos);
           for (let i = 0; i < take; i++)
-            state[this.pos++] ^= data[pos++];
+            state[this.pos++] ^= data2[pos++];
           if (this.pos === blockLen)
             this.keccak();
         }
@@ -2683,16 +2683,16 @@ function encodeArray(value, { length, param }) {
     preparedParams.push(preparedParam);
   }
   if (dynamic || dynamicChild) {
-    const data = encodeParams(preparedParams);
+    const data2 = encodeParams(preparedParams);
     if (dynamic) {
       const length2 = numberToHex(preparedParams.length, { size: 32 });
       return {
         dynamic: true,
-        encoded: concatHex([length2, data])
+        encoded: concatHex([length2, data2])
       };
     }
     if (dynamicChild)
-      return { dynamic: true, encoded: data };
+      return { dynamic: true, encoded: data2 };
   }
   return {
     dynamic: false,
@@ -3115,8 +3115,8 @@ function encodeFunctionData(parameters) {
   })();
   const abiItem = abi3[0];
   const signature = functionName;
-  const data = "inputs" in abiItem && abiItem.inputs ? encodeAbiParameters(abiItem.inputs, args ?? []) : void 0;
-  return concatHex([signature, data ?? "0x"]);
+  const data2 = "inputs" in abiItem && abiItem.inputs ? encodeAbiParameters(abiItem.inputs, args ?? []) : void 0;
+  return concatHex([signature, data2 ?? "0x"]);
 }
 var init_encodeFunctionData = __esm({
   "relay/node_modules/viem/_esm/utils/abi/encodeFunctionData.js"() {
@@ -3418,16 +3418,16 @@ var init_fromBytes = __esm({
 });
 
 // relay/node_modules/viem/_esm/utils/abi/decodeAbiParameters.js
-function decodeAbiParameters(params, data) {
-  const bytes = typeof data === "string" ? hexToBytes(data) : data;
+function decodeAbiParameters(params, data2) {
+  const bytes = typeof data2 === "string" ? hexToBytes(data2) : data2;
   const cursor = createCursor(bytes);
   if (size(bytes) === 0 && params.length > 0)
     throw new AbiDecodingZeroDataError();
-  if (size(data) && size(data) < 32)
+  if (size(data2) && size(data2) < 32)
     throw new AbiDecodingDataSizeTooSmallError({
-      data: typeof data === "string" ? data : bytesToHex(data),
+      data: typeof data2 === "string" ? data2 : bytesToHex(data2),
       params,
-      size: size(data)
+      size: size(data2)
     });
   let consumed = 0;
   const values = [];
@@ -3435,11 +3435,11 @@ function decodeAbiParameters(params, data) {
     const param = params[i];
     if (consumed < bytes.length)
       cursor.setPosition(consumed);
-    const [data2, consumed_] = decodeParameter(cursor, param, {
+    const [data3, consumed_] = decodeParameter(cursor, param, {
       staticPosition: 0
     });
     consumed += consumed_;
-    values.push(data2);
+    values.push(data3);
   }
   return values;
 }
@@ -3481,11 +3481,11 @@ function decodeArray(cursor, param, { length, staticPosition }) {
     const value2 = [];
     for (let i = 0; i < length2; ++i) {
       cursor.setPosition(startOfData + (dynamicChild ? i * 32 : consumed2));
-      const [data, consumed_] = decodeParameter(cursor, param, {
+      const [data2, consumed_] = decodeParameter(cursor, param, {
         staticPosition: startOfData
       });
       consumed2 += consumed_;
-      value2.push(data);
+      value2.push(data2);
       if (consumed_ === 0) {
         cursor.assertReadLimit();
         cursor._touch();
@@ -3500,10 +3500,10 @@ function decodeArray(cursor, param, { length, staticPosition }) {
     const value2 = [];
     for (let i = 0; i < length; ++i) {
       cursor.setPosition(start + i * 32);
-      const [data] = decodeParameter(cursor, param, {
+      const [data2] = decodeParameter(cursor, param, {
         staticPosition: start
       });
-      value2.push(data);
+      value2.push(data2);
     }
     cursor.setPosition(staticPosition + 32);
     return [value2, 32];
@@ -3511,11 +3511,11 @@ function decodeArray(cursor, param, { length, staticPosition }) {
   let consumed = 0;
   const value = [];
   for (let i = 0; i < length; ++i) {
-    const [data, consumed_] = decodeParameter(cursor, param, {
+    const [data2, consumed_] = decodeParameter(cursor, param, {
       staticPosition: staticPosition + consumed
     });
     consumed += consumed_;
-    value.push(data);
+    value.push(data2);
     if (consumed_ === 0) {
       cursor.assertReadLimit();
       cursor._touch();
@@ -3536,9 +3536,9 @@ function decodeBytes(cursor, param, { staticPosition }) {
       cursor.setPosition(staticPosition + 32);
       return ["0x", 32];
     }
-    const data = cursor.readBytes(length);
+    const data2 = cursor.readBytes(length);
     cursor.setPosition(staticPosition + 32);
-    return [bytesToHex(data), 32];
+    return [bytesToHex(data2), 32];
   }
   const value = bytesToHex(cursor.readBytes(Number.parseInt(size6, 10), 32));
   return [value, 32];
@@ -3562,21 +3562,21 @@ function decodeTuple(cursor, param, { staticPosition }) {
     for (let i = 0; i < param.components.length; ++i) {
       const component = param.components[i];
       cursor.setPosition(start + consumed);
-      const [data, consumed_] = decodeParameter(cursor, component, {
+      const [data2, consumed_] = decodeParameter(cursor, component, {
         staticPosition: start
       });
       consumed += consumed_;
-      value[hasUnnamedChild ? i : component?.name] = data;
+      value[hasUnnamedChild ? i : component?.name] = data2;
     }
     cursor.setPosition(staticPosition + 32);
     return [value, 32];
   }
   for (let i = 0; i < param.components.length; ++i) {
     const component = param.components[i];
-    const [data, consumed_] = decodeParameter(cursor, component, {
+    const [data2, consumed_] = decodeParameter(cursor, component, {
       staticPosition
     });
-    value[hasUnnamedChild ? i : component?.name] = data;
+    value[hasUnnamedChild ? i : component?.name] = data2;
     consumed += consumed_;
   }
   return [value, consumed];
@@ -3590,8 +3590,8 @@ function decodeString(cursor, { staticPosition }) {
     cursor.setPosition(staticPosition + 32);
     return ["", 32];
   }
-  const data = cursor.readBytes(length, 32);
-  const value = bytesToString(trim(data));
+  const data2 = cursor.readBytes(length, 32);
+  const value = bytesToString(trim(data2));
   cursor.setPosition(staticPosition + 32);
   return [value, 32];
 }
@@ -3630,8 +3630,8 @@ var init_decodeAbiParameters = __esm({
 
 // relay/node_modules/viem/_esm/utils/abi/decodeErrorResult.js
 function decodeErrorResult(parameters) {
-  const { abi: abi3, data, cause } = parameters;
-  const signature = slice(data, 0, 4);
+  const { abi: abi3, data: data2, cause } = parameters;
+  const signature = slice(data2, 0, 4);
   if (signature === "0x")
     throw new AbiDecodingZeroDataError({ cause });
   const abi_ = [...abi3 || [], solidityError, solidityPanic];
@@ -3643,7 +3643,7 @@ function decodeErrorResult(parameters) {
     });
   return {
     abiItem,
-    args: "inputs" in abiItem && abiItem.inputs && abiItem.inputs.length > 0 ? decodeAbiParameters(abiItem.inputs, slice(data, 4)) : void 0,
+    args: "inputs" in abiItem && abiItem.inputs && abiItem.inputs.length > 0 ? decodeAbiParameters(abiItem.inputs, slice(data2, 4)) : void 0,
     errorName: abiItem.name
   };
 }
@@ -3711,12 +3711,12 @@ function formatUnits(value, decimals) {
   if (negative)
     display = display.slice(1);
   display = display.padStart(decimals, "0");
-  let [integer, fraction] = [
+  let [integer2, fraction] = [
     display.slice(0, display.length - decimals),
     display.slice(display.length - decimals)
   ];
   fraction = fraction.replace(/(0+)$/, "");
-  return `${negative ? "-" : ""}${integer || "0"}${fraction ? `.${fraction}` : ""}`;
+  return `${negative ? "-" : ""}${integer2 || "0"}${fraction ? `.${fraction}` : ""}`;
 }
 var init_formatUnits = __esm({
   "relay/node_modules/viem/_esm/utils/unit/formatUnits.js"() {
@@ -3902,13 +3902,13 @@ var init_transaction = __esm({
       }
     };
     TransactionExecutionError = class extends BaseError2 {
-      constructor(cause, { account, docsPath: docsPath10, chain, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, to: to4, value }) {
+      constructor(cause, { account, docsPath: docsPath10, chain, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, to: to4, value }) {
         const prettyArgs = prettyPrint({
           chain: chain && `${chain?.name} (id: ${chain?.id})`,
           from: account?.address,
           to: to4,
           value: typeof value !== "undefined" && `${formatEther(value)} ${chain?.nativeCurrency?.symbol || "ETH"}`,
-          data,
+          data: data2,
           gas,
           gasPrice: typeof gasPrice !== "undefined" && `${formatGwei(gasPrice)} gwei`,
           maxFeePerGas: typeof maxFeePerGas !== "undefined" && `${formatGwei(maxFeePerGas)} gwei`,
@@ -4036,13 +4036,13 @@ var init_contract = __esm({
     init_transaction();
     init_utils3();
     CallExecutionError = class extends BaseError2 {
-      constructor(cause, { account: account_, docsPath: docsPath10, chain, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, to: to4, value, stateOverride }) {
+      constructor(cause, { account: account_, docsPath: docsPath10, chain, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, to: to4, value, stateOverride }) {
         const account = account_ ? parseAccount(account_) : void 0;
         let prettyArgs = prettyPrint({
           from: account?.address,
           to: to4,
           value: typeof value !== "undefined" && `${formatEther(value)} ${chain?.nativeCurrency?.symbol || "ETH"}`,
-          data,
+          data: data2,
           gas,
           gasPrice: typeof gasPrice !== "undefined" && `${formatGwei(gasPrice)} gwei`,
           maxFeePerGas: typeof maxFeePerGas !== "undefined" && `${formatGwei(maxFeePerGas)} gwei`,
@@ -4149,14 +4149,14 @@ ${prettyStateOverride(stateOverride)}`;
       }
     };
     ContractFunctionRevertedError = class extends BaseError2 {
-      constructor({ abi: abi3, data, functionName, message: message2, cause: error }) {
+      constructor({ abi: abi3, data: data2, functionName, message: message2, cause: error }) {
         let cause;
         let decodedData;
         let metaMessages;
         let reason;
-        if (data && data !== "0x") {
+        if (data2 && data2 !== "0x") {
           try {
-            decodedData = decodeErrorResult({ abi: abi3, data, cause: error });
+            decodedData = decodeErrorResult({ abi: abi3, data: data2, cause: error });
             const { abiItem, errorName, args: errorArgs } = decodedData;
             if (errorName === "Error") {
               reason = errorArgs[0];
@@ -4223,7 +4223,7 @@ ${prettyStateOverride(stateOverride)}`;
           value: void 0
         });
         this.data = decodedData;
-        this.raw = data;
+        this.raw = data2;
         this.reason = reason;
         this.signature = signature;
       }
@@ -4255,7 +4255,7 @@ ${prettyStateOverride(stateOverride)}`;
       }
     };
     RawContractError = class extends BaseError2 {
-      constructor({ data, message: message2 }) {
+      constructor({ data: data2, message: message2 }) {
         super(message2 || "", { name: "RawContractError" });
         Object.defineProperty(this, "code", {
           enumerable: true,
@@ -4269,7 +4269,7 @@ ${prettyStateOverride(stateOverride)}`;
           writable: true,
           value: void 0
         });
-        this.data = data;
+        this.data = data2;
       }
     };
   }
@@ -4884,14 +4884,14 @@ var init_rpc = __esm({
 // relay/node_modules/viem/_esm/utils/errors/getContractError.js
 function getContractError(err2, { abi: abi3, address: address3, args, docsPath: docsPath10, functionName, sender }) {
   const error = err2 instanceof RawContractError ? err2 : err2 instanceof BaseError2 ? err2.walk((err3) => "data" in err3) || err2.walk() : {};
-  const { code, data, details, message: message2, shortMessage } = error;
+  const { code, data: data2, details, message: message2, shortMessage } = error;
   const cause = (() => {
     if (err2 instanceof AbiDecodingZeroDataError)
       return new ContractFunctionZeroDataError({ functionName, cause: err2 });
-    if ([EXECUTION_REVERTED_ERROR_CODE, InternalRpcError.code].includes(code) && (data || details || message2 || shortMessage) || code === InvalidInputRpcError.code && details === "execution reverted" && data) {
+    if ([EXECUTION_REVERTED_ERROR_CODE, InternalRpcError.code].includes(code) && (data2 || details || message2 || shortMessage) || code === InvalidInputRpcError.code && details === "execution reverted" && data2) {
       return new ContractFunctionRevertedError({
         abi: abi3,
-        data: typeof data === "object" ? data.data : data,
+        data: typeof data2 === "object" ? data2.data : data2,
         functionName,
         message: error instanceof RpcRequestError ? details : shortMessage ?? message2,
         cause: err2
@@ -4969,21 +4969,21 @@ var init_md = __esm({
         this.buffer = new Uint8Array(blockLen);
         this.view = createView(this.buffer);
       }
-      update(data) {
+      update(data2) {
         aexists(this);
-        data = toBytes2(data);
-        abytes(data);
+        data2 = toBytes2(data2);
+        abytes(data2);
         const { view, buffer: buffer3, blockLen } = this;
-        const len = data.length;
+        const len = data2.length;
         for (let pos = 0; pos < len; ) {
           const take = Math.min(blockLen - this.pos, len - pos);
           if (take === blockLen) {
-            const dataView = createView(data);
+            const dataView = createView(data2);
             for (; blockLen <= len - pos; pos += blockLen)
               this.process(dataView, pos);
             continue;
           }
-          buffer3.set(data.subarray(pos, pos + take), this.pos);
+          buffer3.set(data2.subarray(pos, pos + take), this.pos);
           this.pos += take;
           pos += take;
           if (this.pos === blockLen) {
@@ -4991,7 +4991,7 @@ var init_md = __esm({
             this.pos = 0;
           }
         }
-        this.length += data.length;
+        this.length += data2.length;
         this.roundClean();
         return this;
       }
@@ -7186,29 +7186,29 @@ var init_weierstrass = __esm({
       Err: DERErr,
       // Basic building block is TLV (Tag-Length-Value)
       _tlv: {
-        encode: (tag, data) => {
+        encode: (tag, data2) => {
           const { Err: E } = DER;
           if (tag < 0 || tag > 256)
             throw new E("tlv.encode: wrong tag");
-          if (data.length & 1)
+          if (data2.length & 1)
             throw new E("tlv.encode: unpadded data");
-          const dataLen = data.length / 2;
+          const dataLen = data2.length / 2;
           const len = numberToHexUnpadded(dataLen);
           if (len.length / 2 & 128)
             throw new E("tlv.encode: long form length too big");
           const lenLen = dataLen > 127 ? numberToHexUnpadded(len.length / 2 | 128) : "";
           const t = numberToHexUnpadded(tag);
-          return t + lenLen + len + data;
+          return t + lenLen + len + data2;
         },
         // v - value, l - left bytes (unparsed)
-        decode(tag, data) {
+        decode(tag, data2) {
           const { Err: E } = DER;
           let pos = 0;
           if (tag < 0 || tag > 256)
             throw new E("tlv.encode: wrong tag");
-          if (data.length < 2 || data[pos++] !== tag)
+          if (data2.length < 2 || data2[pos++] !== tag)
             throw new E("tlv.decode: wrong tlv");
-          const first = data[pos++];
+          const first = data2[pos++];
           const isLong = !!(first & 128);
           let length = 0;
           if (!isLong)
@@ -7219,7 +7219,7 @@ var init_weierstrass = __esm({
               throw new E("tlv.decode(long): indefinite length not supported");
             if (lenLen > 4)
               throw new E("tlv.decode(long): byte length is too big");
-            const lengthBytes = data.subarray(pos, pos + lenLen);
+            const lengthBytes = data2.subarray(pos, pos + lenLen);
             if (lengthBytes.length !== lenLen)
               throw new E("tlv.decode: length bytes not complete");
             if (lengthBytes[0] === 0)
@@ -7230,10 +7230,10 @@ var init_weierstrass = __esm({
             if (length < 128)
               throw new E("tlv.decode(long): not minimal encoding");
           }
-          const v = data.subarray(pos, pos + length);
+          const v = data2.subarray(pos, pos + length);
           if (v.length !== length)
             throw new E("tlv.decode: wrong value length");
-          return { v, l: data.subarray(pos + length) };
+          return { v, l: data2.subarray(pos + length) };
         }
       },
       // https://crypto.stackexchange.com/a/57734 Leftmost bit of first byte is 'negative' flag,
@@ -7252,19 +7252,19 @@ var init_weierstrass = __esm({
             throw new E("unexpected DER parsing assertion: unpadded hex");
           return hex;
         },
-        decode(data) {
+        decode(data2) {
           const { Err: E } = DER;
-          if (data[0] & 128)
+          if (data2[0] & 128)
             throw new E("invalid signature integer: negative");
-          if (data[0] === 0 && !(data[1] & 128))
+          if (data2[0] === 0 && !(data2[1] & 128))
             throw new E("invalid signature integer: unnecessary leading zero");
-          return bytesToNumberBE(data);
+          return bytesToNumberBE(data2);
         }
       },
       toSig(hex) {
         const { Err: E, _int: int, _tlv: tlv3 } = DER;
-        const data = ensureBytes("signature", hex);
-        const { v: seqBytes, l: seqLeftBytes } = tlv3.decode(48, data);
+        const data2 = ensureBytes("signature", hex);
+        const { v: seqBytes, l: seqLeftBytes } = tlv3.decode(48, data2);
         if (seqLeftBytes.length)
           throw new E("invalid signature: left bytes after parsing");
         const { v: rBytes, l: rLeftBytes } = tlv3.decode(2, seqBytes);
@@ -7898,12 +7898,12 @@ var init_estimateGas = __esm({
     init_base();
     init_transaction();
     EstimateGasExecutionError = class extends BaseError2 {
-      constructor(cause, { account, docsPath: docsPath10, chain, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, to: to4, value }) {
+      constructor(cause, { account, docsPath: docsPath10, chain, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, to: to4, value }) {
         const prettyArgs = prettyPrint({
           from: account?.address,
           to: to4,
           value: typeof value !== "undefined" && `${formatEther(value)} ${chain?.nativeCurrency?.symbol || "ETH"}`,
-          data,
+          data: data2,
           gas,
           gasPrice: typeof gasPrice !== "undefined" && `${formatGwei(gasPrice)} gwei`,
           maxFeePerGas: typeof maxFeePerGas !== "undefined" && `${formatGwei(maxFeePerGas)} gwei`,
@@ -9016,8 +9016,8 @@ var init_blob2 = __esm({
 // relay/node_modules/viem/_esm/utils/blob/toBlobs.js
 function toBlobs(parameters) {
   const to4 = parameters.to ?? (typeof parameters.data === "string" ? "hex" : "bytes");
-  const data = typeof parameters.data === "string" ? hexToBytes(parameters.data) : parameters.data;
-  const size_ = size(data);
+  const data2 = typeof parameters.data === "string" ? hexToBytes(parameters.data) : parameters.data;
+  const size_ = size(data2);
   if (!size_)
     throw new EmptyBlobError();
   if (size_ > maxBytesPerTransaction)
@@ -9032,7 +9032,7 @@ function toBlobs(parameters) {
     const blob = createCursor(new Uint8Array(bytesPerBlob));
     let size6 = 0;
     while (size6 < fieldElementsPerBlob) {
-      const bytes = data.slice(position, position + (bytesPerFieldElement - 1));
+      const bytes = data2.slice(position, position + (bytesPerFieldElement - 1));
       blob.pushByte(0);
       blob.pushBytes(bytes);
       if (bytes.length < 31) {
@@ -9060,8 +9060,8 @@ var init_toBlobs = __esm({
 
 // relay/node_modules/viem/_esm/utils/blob/toBlobSidecars.js
 function toBlobSidecars(parameters) {
-  const { data, kzg, to: to4 } = parameters;
-  const blobs = parameters.blobs ?? toBlobs({ data, to: to4 });
+  const { data: data2, kzg, to: to4 } = parameters;
+  const blobs = parameters.blobs ?? toBlobs({ data: data2, to: to4 });
   const commitments = parameters.commitments ?? blobsToCommitments({ blobs, kzg, to: to4 });
   const proofs = parameters.proofs ?? blobsToProofs({ blobs, commitments, kzg, to: to4 });
   const sidecars = [];
@@ -9141,7 +9141,7 @@ var init_getChainId = __esm({
 
 // relay/node_modules/viem/_esm/actions/public/fillTransaction.js
 async function fillTransaction(client, parameters) {
-  const { account = client.account, accessList, authorizationList, chain = client.chain, blobVersionedHashes, blobs, data, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce_, nonceManager: nonceManager3, to: to4, type: type3, value, ...rest } = parameters;
+  const { account = client.account, accessList, authorizationList, chain = client.chain, blobVersionedHashes, blobs, data: data2, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce_, nonceManager: nonceManager3, to: to4, type: type3, value, ...rest } = parameters;
   const nonce3 = await (async () => {
     if (!account)
       return nonce_;
@@ -9168,7 +9168,7 @@ async function fillTransaction(client, parameters) {
     authorizationList,
     blobs,
     blobVersionedHashes,
-    data,
+    data: data2,
     gas,
     gasPrice,
     maxFeePerBlobGas,
@@ -9523,7 +9523,7 @@ async function estimateGas(client, args) {
         });
       return void 0;
     })();
-    const { accessList, authorizationList, blobs, blobVersionedHashes, blockNumber, blockTag, data, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, value, stateOverride, ...rest } = prepare ? await prepareTransactionRequest(client, {
+    const { accessList, authorizationList, blobs, blobVersionedHashes, blockNumber, blockTag, data: data2, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, value, stateOverride, ...rest } = prepare ? await prepareTransactionRequest(client, {
       ...args,
       parameters,
       to: to4
@@ -9544,7 +9544,7 @@ async function estimateGas(client, args) {
       authorizationList,
       blobs,
       blobVersionedHashes,
-      data,
+      data: data2,
       gasPrice,
       maxFeePerBlobGas,
       maxFeePerGas,
@@ -9587,14 +9587,14 @@ var init_estimateGas2 = __esm({
 // relay/node_modules/viem/_esm/actions/public/estimateContractGas.js
 async function estimateContractGas(client, parameters) {
   const { abi: abi3, address: address3, args, functionName, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, ...request } = parameters;
-  const data = encodeFunctionData({
+  const data2 = encodeFunctionData({
     abi: abi3,
     args,
     functionName
   });
   try {
     const gas = await getAction(client, estimateGas, "estimateGas")({
-      data: `${data}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
+      data: `${data2}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
       to: address3,
       ...request
     });
@@ -9656,7 +9656,7 @@ var init_log2 = __esm({
 
 // relay/node_modules/viem/_esm/utils/abi/decodeEventLog.js
 function decodeEventLog(parameters) {
-  const { abi: abi3, data, strict: strict_, topics } = parameters;
+  const { abi: abi3, data: data2, strict: strict_, topics } = parameters;
   const strict = strict_ ?? true;
   const [signature, ...argTopics] = topics;
   if (!signature)
@@ -9689,9 +9689,9 @@ function decodeEventLog(parameters) {
   const nonIndexedInputs = inputs.filter((x) => !("indexed" in x && x.indexed));
   const inputsToDecode = strict ? nonIndexedInputs : [...missingIndexedInputs.map(([param]) => param), ...nonIndexedInputs];
   if (inputsToDecode.length > 0) {
-    if (data && data !== "0x") {
+    if (data2 && data2 !== "0x") {
       try {
-        const decodedData = decodeAbiParameters(inputsToDecode, data);
+        const decodedData = decodeAbiParameters(inputsToDecode, data2);
         if (decodedData) {
           let dataIndex = 0;
           if (!strict) {
@@ -9712,9 +9712,9 @@ function decodeEventLog(parameters) {
           if (err2 instanceof AbiDecodingDataSizeTooSmallError || err2 instanceof PositionOutOfBoundsError)
             throw new DecodeLogDataMismatch({
               abiItem,
-              data,
+              data: data2,
               params: inputsToDecode,
-              size: size(data)
+              size: size(data2)
             });
           throw err2;
         }
@@ -9946,7 +9946,7 @@ var init_getContractEvents = __esm({
 
 // relay/node_modules/viem/_esm/utils/abi/decodeFunctionResult.js
 function decodeFunctionResult(parameters) {
-  const { abi: abi3, args, functionName, data } = parameters;
+  const { abi: abi3, args, functionName, data: data2 } = parameters;
   let abiItem = abi3[0];
   if (functionName) {
     const item = getAbiItem({ abi: abi3, args, name: functionName });
@@ -9958,7 +9958,7 @@ function decodeFunctionResult(parameters) {
     throw new AbiFunctionNotFoundError(void 0, { docsPath: docsPath4 });
   if (!abiItem.outputs)
     throw new AbiFunctionOutputsNotFoundError(abiItem.name, { docsPath: docsPath4 });
-  const values = decodeAbiParameters(abiItem.outputs, data);
+  const values = decodeAbiParameters(abiItem.outputs, data2);
   if (values && values.length > 1)
     return values;
   if (values && values.length === 1)
@@ -10181,16 +10181,16 @@ function pad2(bytes, options = {}) {
 }
 function trim2(value, options = {}) {
   const { dir = "left" } = options;
-  let data = value;
+  let data2 = value;
   let sliceLength = 0;
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[dir === "left" ? i : data.length - i - 1].toString() === "0")
+  for (let i = 0; i < data2.length - 1; i++) {
+    if (data2[dir === "left" ? i : data2.length - i - 1].toString() === "0")
       sliceLength++;
     else
       break;
   }
-  data = dir === "left" ? data.slice(sliceLength) : data.slice(0, data.length - sliceLength);
-  return data;
+  data2 = dir === "left" ? data2.slice(sliceLength) : data2.slice(0, data2.length - sliceLength);
+  return data2;
 }
 var charCodeMap2;
 var init_bytes = __esm({
@@ -10247,20 +10247,20 @@ function pad3(hex_, options = {}) {
 }
 function trim3(value, options = {}) {
   const { dir = "left" } = options;
-  let data = value.replace("0x", "");
+  let data2 = value.replace("0x", "");
   let sliceLength = 0;
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[dir === "left" ? i : data.length - i - 1].toString() === "0")
+  for (let i = 0; i < data2.length - 1; i++) {
+    if (data2[dir === "left" ? i : data2.length - i - 1].toString() === "0")
       sliceLength++;
     else
       break;
   }
-  data = dir === "left" ? data.slice(sliceLength) : data.slice(0, data.length - sliceLength);
-  if (data === "0")
+  data2 = dir === "left" ? data2.slice(sliceLength) : data2.slice(0, data2.length - sliceLength);
+  if (data2 === "0")
     return "0x";
-  if (dir === "right" && data.length % 2 === 1)
-    return `0x${data}0`;
-  return `0x${data}`;
+  if (dir === "right" && data2.length % 2 === 1)
+    return `0x${data2}0`;
+  return `0x${data2}`;
 }
 var init_hex = __esm({
   "relay/node_modules/ox/_esm/core/internal/hex.js"() {
@@ -12835,8 +12835,8 @@ function encodeDeployData(parameters) {
     throw new AbiConstructorParamsNotFoundError({ docsPath: docsPath5 });
   if (!description.inputs || description.inputs.length === 0)
     throw new AbiConstructorParamsNotFoundError({ docsPath: docsPath5 });
-  const data = encodeAbiParameters(description.inputs, args);
-  return concatHex([bytecode, data]);
+  const data2 = encodeAbiParameters(description.inputs, args);
+  return concatHex([bytecode, data2]);
 }
 var docsPath5;
 var init_encodeDeployData = __esm({
@@ -12917,12 +12917,12 @@ function createBatchScheduler({ fn: fn3, id: id3, shouldSplitBatch, wait: wait3 
     const args = scheduler.map(({ args: args2 }) => args2);
     if (args.length === 0)
       return;
-    fn3(args).then((data) => {
-      if (sort && Array.isArray(data))
-        data.sort(sort);
+    fn3(args).then((data2) => {
+      if (sort && Array.isArray(data2))
+        data2.sort(sort);
       for (let i = 0; i < scheduler.length; i++) {
         const { resolve: resolve3 } = scheduler[i];
-        resolve3?.([data[i], data]);
+        resolve3?.([data2[i], data2]);
       }
     }).catch((err2) => {
       for (let i = 0; i < scheduler.length; i++) {
@@ -12969,7 +12969,7 @@ var init_ccip = __esm({
     init_base();
     init_utils3();
     OffchainLookupError = class extends BaseError2 {
-      constructor({ callbackSelector, cause, data, extraData, sender, urls }) {
+      constructor({ callbackSelector, cause, data: data2, extraData, sender, urls }) {
         super(cause.shortMessage || "An error occurred while fetching for an offchain result.", {
           cause,
           metaMessages: [
@@ -12981,7 +12981,7 @@ var init_ccip = __esm({
               ...urls.map((url) => `    ${getUrl(url)}`)
             ],
             `  Sender: ${sender}`,
-            `  Data: ${data}`,
+            `  Data: ${data2}`,
             `  Callback selector: ${callbackSelector}`,
             `  Extra data: ${extraData}`
           ].flat(),
@@ -13016,8 +13016,8 @@ var init_ccip = __esm({
 
 // relay/node_modules/viem/_esm/utils/abi/decodeFunctionData.js
 function decodeFunctionData(parameters) {
-  const { abi: abi3, data } = parameters;
-  const signature = slice(data, 0, 4);
+  const { abi: abi3, data: data2 } = parameters;
+  const signature = slice(data2, 0, 4);
   const description = abi3.find((x) => x.type === "function" && signature === toFunctionSelector(formatAbiItem2(x)));
   if (!description)
     throw new AbiFunctionSignatureNotFoundError(signature, {
@@ -13025,7 +13025,7 @@ function decodeFunctionData(parameters) {
     });
   return {
     functionName: description.name,
-    args: "inputs" in description && description.inputs && description.inputs.length > 0 ? decodeAbiParameters(description.inputs, slice(data, 4)) : void 0
+    args: "inputs" in description && description.inputs && description.inputs.length > 0 ? decodeAbiParameters(description.inputs, slice(data2, 4)) : void 0
   };
 }
 var init_decodeFunctionData = __esm({
@@ -13052,13 +13052,13 @@ function encodeErrorResult(parameters) {
     throw new AbiErrorNotFoundError(void 0, { docsPath: docsPath6 });
   const definition = formatAbiItem2(abiItem);
   const signature = toFunctionSelector(definition);
-  let data = "0x";
+  let data2 = "0x";
   if (args && args.length > 0) {
     if (!abiItem.inputs)
       throw new AbiErrorInputsNotFoundError(abiItem.name, { docsPath: docsPath6 });
-    data = encodeAbiParameters(abiItem.inputs, args);
+    data2 = encodeAbiParameters(abiItem.inputs, args);
   }
-  return concatHex([signature, data]);
+  return concatHex([signature, data2]);
 }
 var docsPath6;
 var init_encodeErrorResult = __esm({
@@ -13110,8 +13110,8 @@ var init_encodeFunctionResult = __esm({
 
 // relay/node_modules/viem/_esm/utils/ens/localBatchGatewayRequest.js
 async function localBatchGatewayRequest(parameters) {
-  const { data, ccipRequest: ccipRequest3 } = parameters;
-  const { args: [queries] } = decodeFunctionData({ abi: batchGatewayAbi, data });
+  const { data: data2, ccipRequest: ccipRequest3 } = parameters;
+  const { args: [queries] } = decodeFunctionData({ abi: batchGatewayAbi, data: data2 });
   const failures = [];
   const responses = [];
   await Promise.all(queries.map(async (query, i) => {
@@ -13162,9 +13162,9 @@ __export(ccip_exports, {
   offchainLookupAbiItem: () => offchainLookupAbiItem,
   offchainLookupSignature: () => offchainLookupSignature
 });
-async function offchainLookup(client, { blockNumber, blockTag, data, requestOptions, to: to4 }) {
+async function offchainLookup(client, { blockNumber, blockTag, data: data2, requestOptions, to: to4 }) {
   const { args } = decodeErrorResult({
-    data,
+    data: data2,
     abi: [offchainLookupAbiItem]
   });
   const [sender, urls, callData, callbackSelector, extraData] = args;
@@ -13196,24 +13196,24 @@ async function offchainLookup(client, { blockNumber, blockTag, data, requestOpti
     throw new OffchainLookupError({
       callbackSelector,
       cause: err2,
-      data,
+      data: data2,
       extraData,
       sender,
       urls
     });
   }
 }
-async function ccipRequest({ data, requestOptions, sender, urls }) {
+async function ccipRequest({ data: data2, requestOptions, sender, urls }) {
   let error = new Error("An unknown error occurred.");
   for (let i = 0; i < urls.length; i++) {
     if (requestOptions?.signal?.aborted)
       throw getAbortError(requestOptions.signal);
     const url = urls[i];
     const method = url.includes("{data}") ? "GET" : "POST";
-    const body2 = method === "POST" ? { data, sender } : void 0;
+    const body2 = method === "POST" ? { data: data2, sender } : void 0;
     const headers = method === "POST" ? { "Content-Type": "application/json" } : {};
     try {
-      const response = await fetch(url.replace("{sender}", sender.toLowerCase()).replace("{data}", data), {
+      const response = await fetch(url.replace("{sender}", sender.toLowerCase()).replace("{data}", data2), {
         body: JSON.stringify(body2),
         headers,
         method,
@@ -13312,7 +13312,7 @@ async function call(client, args) {
   const deploylessCallViaBytecode = code && data_;
   const deploylessCallViaFactory = factory && factoryData && to4 && data_;
   const deploylessCall = deploylessCallViaBytecode || deploylessCallViaFactory;
-  const data = (() => {
+  const data2 = (() => {
     if (deploylessCallViaBytecode)
       return toDeploylessCallViaBytecodeData({
         code,
@@ -13346,7 +13346,7 @@ async function call(client, args) {
       account,
       authorizationList,
       blobs,
-      data,
+      data: data2,
       gas,
       gasPrice,
       maxFeePerBlobGas,
@@ -13404,13 +13404,13 @@ async function call(client, args) {
       throw getAbortError(requestOptions.signal);
     if (isAbortError(err2))
       throw err2;
-    const data2 = getRevertErrorData(err2);
+    const data3 = getRevertErrorData(err2);
     const { offchainLookup: offchainLookup3, offchainLookupSignature: offchainLookupSignature3 } = await Promise.resolve().then(() => (init_ccip2(), ccip_exports));
-    if (client.ccipRead !== false && data2?.slice(0, 10) === offchainLookupSignature3 && to4)
+    if (client.ccipRead !== false && data3?.slice(0, 10) === offchainLookupSignature3 && to4)
       return {
-        data: await offchainLookup3(client, { data: data2, requestOptions, to: to4 })
+        data: await offchainLookup3(client, { data: data3, requestOptions, to: to4 })
       };
-    if (deploylessCall && data2?.slice(0, 10) === "0x101bb98d")
+    if (deploylessCall && data3?.slice(0, 10) === "0x101bb98d")
       throw new CounterfactualDeploymentFailedError({ factory });
     throw getCallError(err2, {
       ...args,
@@ -13420,10 +13420,10 @@ async function call(client, args) {
   }
 }
 function shouldPerformMulticall({ request }) {
-  const { data, to: to4, ...request_ } = request;
-  if (!data)
+  const { data: data2, to: to4, ...request_ } = request;
+  if (!data2)
     return false;
-  if (data.startsWith(aggregate3Signature))
+  if (data2.startsWith(aggregate3Signature))
     return false;
   if (!to4)
     return false;
@@ -13443,7 +13443,7 @@ function getRequestOptionsId(requestOptions) {
 }
 async function scheduleMulticall(client, args) {
   const { batchSize = 1024, deployless = false, wait: wait3 = 0 } = typeof client.batch?.multicall === "object" ? client.batch.multicall : {};
-  const { blockHash, blockNumber, blockTag = client.experimental_blockTag ?? "latest", requireCanonical, data, multicallAddress: multicallAddress_, requestOptions, rpcStateOverride, to: to4 } = args;
+  const { blockHash, blockNumber, blockTag = client.experimental_blockTag ?? "latest", requireCanonical, data: data2, multicallAddress: multicallAddress_, requestOptions, rpcStateOverride, to: to4 } = args;
   const multicallAddress = multicallAddress_ !== void 0 ? multicallAddress_ : getMulticallAddress(client, {
     blockNumber,
     deployless
@@ -13460,7 +13460,7 @@ async function scheduleMulticall(client, args) {
     id: `${client.uid}.${blockId}.${getRequestOptionsId(requestOptions)}${stateOverrideKey}`,
     wait: wait3,
     shouldSplitBatch(args2) {
-      const size6 = args2.reduce((size7, { data: data2 }) => size7 + (data2.length - 2), 0);
+      const size6 = args2.reduce((size7, { data: data3 }) => size7 + (data3.length - 2), 0);
       return size6 > batchSize * 2;
     },
     fn: async (requests) => {
@@ -13482,7 +13482,7 @@ async function scheduleMulticall(client, args) {
           })
         } : { to: multicallAddress, data: calldata }
       };
-      const data2 = await client.request({
+      const data3 = await client.request({
         method: "eth_call",
         params: rpcStateOverride ? [multicallRequest, block, rpcStateOverride] : [multicallRequest, block]
       }, requestOptions);
@@ -13490,11 +13490,11 @@ async function scheduleMulticall(client, args) {
         abi: multicall3Abi,
         args: [calls],
         functionName: "aggregate3",
-        data: data2 || "0x"
+        data: data3 || "0x"
       });
     }
   });
-  const [{ returnData, success }] = await schedule({ data, to: to4 });
+  const [{ returnData, success }] = await schedule({ data: data2, to: to4 });
   if (!success)
     throw new RawContractError({ data: returnData });
   if (returnData === "0x")
@@ -13519,19 +13519,19 @@ function hasStateOverrideForAddress(rpcStateOverride, address3) {
   return Object.keys(rpcStateOverride).some((stateOverrideAddress) => isAddressEqual(stateOverrideAddress, address3));
 }
 function toDeploylessCallViaBytecodeData(parameters) {
-  const { code, data } = parameters;
+  const { code, data: data2 } = parameters;
   return encodeDeployData({
     abi: parseAbi(["constructor(bytes, bytes)"]),
     bytecode: deploylessCallViaBytecodeBytecode,
-    args: [code, data]
+    args: [code, data2]
   });
 }
 function toDeploylessCallViaFactoryData(parameters) {
-  const { data, factory, factoryData, to: to4 } = parameters;
+  const { data: data2, factory, factoryData, to: to4 } = parameters;
   return encodeDeployData({
     abi: parseAbi(["constructor(address, bytes, address, bytes)"]),
     bytecode: deploylessCallViaFactoryBytecode,
-    args: [to4, data, factory, factoryData]
+    args: [to4, data2, factory, factoryData]
   });
 }
 function getRevertErrorData(err2) {
@@ -13579,7 +13579,7 @@ async function readContract(client, parameters) {
     functionName
   });
   try {
-    const { data } = await getAction(client, call, "call")({
+    const { data: data2 } = await getAction(client, call, "call")({
       ...rest,
       data: calldata,
       to: address3
@@ -13588,7 +13588,7 @@ async function readContract(client, parameters) {
       abi: abi3,
       args,
       functionName,
-      data: data || "0x"
+      data: data2 || "0x"
     });
   } catch (error) {
     throw getContractError(error, {
@@ -13616,7 +13616,7 @@ async function simulateContract(client, parameters) {
   const account = callRequest.account ? parseAccount(callRequest.account) : client.account;
   const calldata = encodeFunctionData({ abi: abi3, args, functionName });
   try {
-    const { data } = await getAction(client, call, "call")({
+    const { data: data2 } = await getAction(client, call, "call")({
       batch: false,
       data: `${calldata}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
       to: address3,
@@ -13627,7 +13627,7 @@ async function simulateContract(client, parameters) {
       abi: abi3,
       args,
       functionName,
-      data: data || "0x"
+      data: data2 || "0x"
     });
     const minimizedAbi = abi3.filter((abiItem) => "name" in abiItem && abiItem.name === parameters.functionName);
     return {
@@ -13753,10 +13753,10 @@ function poll(fn3, { emitOnBegin, initialWaitTime, interval }) {
   let active = true;
   const unwatch = () => active = false;
   const watch = async () => {
-    let data;
+    let data2;
     if (emitOnBegin)
-      data = await fn3({ unpoll: unwatch });
-    const initialWait = await initialWaitTime?.(data) ?? interval;
+      data2 = await fn3({ unpoll: unwatch });
+    const initialWait = await initialWaitTime?.(data2) ?? interval;
     await wait(initialWait);
     const poll4 = async () => {
       if (!active)
@@ -13781,7 +13781,7 @@ function getCache(cacheKey3) {
   const buildCache = (cacheKey4, cache2) => ({
     clear: () => cache2.delete(cacheKey4),
     get: () => cache2.get(cacheKey4),
-    set: (data) => cache2.set(cacheKey4, data)
+    set: (data2) => cache2.set(cacheKey4, data2)
   });
   const promise = buildCache(cacheKey3, promiseCache);
   const response = buildCache(cacheKey3, responseCache);
@@ -13808,9 +13808,9 @@ async function withCache(fn3, { cacheKey: cacheKey3, cacheTime = Number.POSITIVE
     cache2.promise.set(promise);
   }
   try {
-    const data = await promise;
-    cache2.response.set({ created: /* @__PURE__ */ new Date(), data });
-    return data;
+    const data2 = await promise;
+    cache2.response.set({ created: /* @__PURE__ */ new Date(), data: data2 });
+    return data2;
   } finally {
     cache2.promise.clear();
   }
@@ -14002,10 +14002,10 @@ function watchContractEvent(client, parameters) {
           }) : [];
           const { unsubscribe: unsubscribe_ } = await transport.subscribe({
             params: ["logs", { address: address3, topics }],
-            onData(data) {
+            onData(data2) {
               if (!active)
                 return;
-              const log = data.result;
+              const log = data2.result;
               try {
                 const { eventName: eventName2, args: args2 } = decodeEventLog({
                   abi: abi3,
@@ -14125,7 +14125,7 @@ var init_sendRawTransaction = __esm({
 
 // relay/node_modules/viem/_esm/actions/wallet/sendTransaction.js
 async function sendTransaction(client, parameters) {
-  const { account: account_ = client.account, assertChainId = true, chain = client.chain, accessList, authorizationList, blobs, data, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, type: type3, value, ...rest } = parameters;
+  const { account: account_ = client.account, assertChainId = true, chain = client.chain, accessList, authorizationList, blobs, data: data2, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, type: type3, value, ...rest } = parameters;
   if (typeof account_ === "undefined")
     throw new AccountNotFoundError({
       docsPath: "/docs/actions/wallet/sendTransaction"
@@ -14167,7 +14167,7 @@ async function sendTransaction(client, parameters) {
         authorizationList,
         blobs,
         chainId,
-        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
+        data: dataSuffix ? concat([data2 ?? "0x", dataSuffix]) : data2,
         gas,
         gasPrice,
         maxFeePerBlobGas,
@@ -14226,7 +14226,7 @@ async function sendTransaction(client, parameters) {
         authorizationList,
         blobs,
         chain,
-        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
+        data: dataSuffix ? concat([data2 ?? "0x", dataSuffix]) : data2,
         gas,
         gasPrice,
         maxFeePerBlobGas,
@@ -14314,14 +14314,14 @@ var init_writeContract = __esm({
             docsPath: "/docs/contract/writeContract"
           });
         const account = account_ ? parseAccount(account_) : null;
-        const data = encodeFunctionData({
+        const data2 = encodeFunctionData({
           abi: abi3,
           args,
           functionName
         });
         try {
           return await getAction(client, actionFn, name)({
-            data,
+            data: data2,
             to: address3,
             account,
             ...request
@@ -14567,8 +14567,8 @@ function withRetry(fn3, { delay: delay_ = 100, retryCount = 2, shouldRetry: shou
         attemptRetry({ count: count + 1 });
       };
       try {
-        const data = await fn3();
-        resolve3(data);
+        const data2 = await fn3();
+        resolve3(data2);
       } catch (err2) {
         if (signal?.aborted) {
           reject(getAbortError(signal));
@@ -14651,13 +14651,13 @@ async function sendCalls(client, parameters) {
   }
   const calls = parameters.calls.map((call_) => {
     const call3 = call_;
-    const data = call3.abi ? encodeFunctionData({
+    const data2 = call3.abi ? encodeFunctionData({
       abi: call3.abi,
       functionName: call3.functionName,
       args: call3.args
     }) : call3.data;
     return {
-      data: call3.dataSuffix && data ? concat([data, call3.dataSuffix]) : data,
+      data: call3.dataSuffix && data2 ? concat([data2, call3.dataSuffix]) : data2,
       to: call3.to,
       value: call3.value ? numberToHex(call3.value) : void 0
     };
@@ -15195,18 +15195,18 @@ async function getEnsAddress(client, parameters) {
     throw err2;
   }
 }
-function decodeAddress2({ coinType, data, args }) {
+function decodeAddress2({ coinType, data: data2, args }) {
   try {
     return decodeFunctionResult({
       abi: addressResolverAbi,
       args,
       functionName: "addr",
-      data
+      data: data2
     });
   } catch (err2) {
     if (coinType == null)
       throw err2;
-    const address3 = trim(data);
+    const address3 = trim(data2);
     if (size(address3) === 20)
       return getAddress(address3);
     throw err2;
@@ -15237,12 +15237,12 @@ var init_ens = __esm({
   "relay/node_modules/viem/_esm/errors/ens.js"() {
     init_base();
     EnsAvatarInvalidMetadataError = class extends BaseError2 {
-      constructor({ data }) {
+      constructor({ data: data2 }) {
         super("Unable to extract image from metadata. The metadata may be malformed or invalid.", {
           metaMessages: [
             "- Metadata must be a JSON object with at least an `image`, `image_url` or `image_data` property.",
             "",
-            `Provided data: ${JSON.stringify(data)}`
+            `Provided data: ${JSON.stringify(data2)}`
           ],
           name: "EnsAvatarInvalidMetadataError"
         });
@@ -15352,11 +15352,11 @@ function resolveAvatarUri({ uri, gatewayUrls }) {
   }
   throw new EnsAvatarUriResolutionError({ uri });
 }
-function getJsonImage(data) {
-  if (typeof data !== "object" || !("image" in data) && !("image_url" in data) && !("image_data" in data)) {
-    throw new EnsAvatarInvalidMetadataError({ data });
+function getJsonImage(data2) {
+  if (typeof data2 !== "object" || !("image" in data2) && !("image_url" in data2) && !("image_data" in data2)) {
+    throw new EnsAvatarInvalidMetadataError({ data: data2 });
   }
-  return data.image || data.image_url || data.image_data;
+  return data2.image || data2.image_url || data2.image_data;
 }
 async function getMetadataAvatarUri({ gatewayUrls, uri }) {
   try {
@@ -15685,7 +15685,7 @@ var init_getEnsResolver = __esm({
 
 // relay/node_modules/viem/_esm/actions/public/createAccessList.js
 async function createAccessList(client, args) {
-  const { account: account_ = client.account, blockNumber, blockTag = "latest", blobs, data, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, to: to4, value, ...rest } = args;
+  const { account: account_ = client.account, blockNumber, blockTag = "latest", blobs, data: data2, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, to: to4, value, ...rest } = args;
   const account = account_ ? parseAccount(account_) : void 0;
   try {
     assertRequest(args);
@@ -15698,7 +15698,7 @@ async function createAccessList(client, args) {
       ...extract(rest, { format: chainFormat }),
       account,
       blobs,
-      data,
+      data: data2,
       gas,
       gasPrice,
       maxFeePerBlobGas,
@@ -15832,7 +15832,7 @@ async function getBalance(client, { address: address3, blockHash, blockNumber, b
       functionName: "getEthBalance",
       args: [address3]
     });
-    const { data } = await getAction(client, call, "call")({
+    const { data: data2 } = await getAction(client, call, "call")({
       to: multicall3Address,
       data: calldata,
       blockHash,
@@ -15844,7 +15844,7 @@ async function getBalance(client, { address: address3, blockHash, blockNumber, b
       abi: multicall3Abi,
       functionName: "getEthBalance",
       args: [address3],
-      data: data || "0x"
+      data: data2 || "0x"
     });
   }
   const balance = await client.request({
@@ -15992,7 +15992,7 @@ var init_eip712 = __esm({
 async function getEip712Domain(client, parameters) {
   const { address: address3, factory, factoryData } = parameters;
   try {
-    const [fields2, name, version5, chainId, verifyingContract, salt, extensions] = await getAction(client, readContract, "readContract")({
+    const [fields4, name, version5, chainId, verifyingContract, salt, extensions] = await getAction(client, readContract, "readContract")({
       abi,
       address: address3,
       functionName: "eip712Domain",
@@ -16008,7 +16008,7 @@ async function getEip712Domain(client, parameters) {
         salt
       },
       extensions,
-      fields: fields2
+      fields: fields4
     };
   } catch (e) {
     const error = e;
@@ -16108,13 +16108,13 @@ function encodePacked(types3, values) {
       expectedLength: types3.length,
       givenLength: values.length
     });
-  const data = [];
+  const data2 = [];
   for (let i = 0; i < types3.length; i++) {
     const type3 = types3[i];
     const value = values[i];
-    data.push(encode(type3, value));
+    data2.push(encode(type3, value));
   }
-  return concatHex(data);
+  return concatHex(data2);
 }
 function encode(type3, value, isArray = false) {
   if (type3 === "address") {
@@ -16153,13 +16153,13 @@ function encode(type3, value, isArray = false) {
   const arrayMatch = type3.match(arrayRegex);
   if (arrayMatch && Array.isArray(value)) {
     const [_type, childType] = arrayMatch;
-    const data = [];
+    const data2 = [];
     for (let i = 0; i < value.length; i++) {
-      data.push(encode(childType, value[i], true));
+      data2.push(encode(childType, value[i], true));
     }
-    if (data.length === 0)
+    if (data2.length === 0)
       return "0x";
-    return concatHex(data);
+    return concatHex(data2);
   }
   throw new UnsupportedPackedAbiType(type3);
 }
@@ -16355,7 +16355,7 @@ function serializeTransaction(transaction, signature) {
   return serializeTransactionLegacy(transaction, signature);
 }
 function serializeTransactionEIP7702(transaction, signature) {
-  const { authorizationList, chainId, gas, nonce: nonce3, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { authorizationList, chainId, gas, nonce: nonce3, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP7702(transaction);
   const serializedAccessList = serializeAccessList(accessList);
   const serializedAuthorizationList = serializeAuthorizationList(authorizationList);
@@ -16369,7 +16369,7 @@ function serializeTransactionEIP7702(transaction, signature) {
       gas ? numberToHex(gas) : "0x",
       to4 ?? "0x",
       value ? numberToHex(value) : "0x",
-      data ?? "0x",
+      data2 ?? "0x",
       serializedAccessList,
       serializedAuthorizationList,
       ...toYParitySignatureArray(transaction, signature)
@@ -16377,7 +16377,7 @@ function serializeTransactionEIP7702(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP4844(transaction, signature) {
-  const { chainId, gas, nonce: nonce3, to: to4, value, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { chainId, gas, nonce: nonce3, to: to4, value, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP4844(transaction);
   let blobVersionedHashes = transaction.blobVersionedHashes;
   let sidecars = transaction.sidecars;
@@ -16406,7 +16406,7 @@ function serializeTransactionEIP4844(transaction, signature) {
     gas ? numberToHex(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     maxFeePerBlobGas ? numberToHex(maxFeePerBlobGas) : "0x",
     blobVersionedHashes ?? [],
@@ -16434,7 +16434,7 @@ function serializeTransactionEIP4844(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP1559(transaction, signature) {
-  const { chainId, gas, nonce: nonce3, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { chainId, gas, nonce: nonce3, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP1559(transaction);
   const serializedAccessList = serializeAccessList(accessList);
   const serializedTransaction = [
@@ -16445,7 +16445,7 @@ function serializeTransactionEIP1559(transaction, signature) {
     gas ? numberToHex(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     ...toYParitySignatureArray(transaction, signature)
   ];
@@ -16455,7 +16455,7 @@ function serializeTransactionEIP1559(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP2930(transaction, signature) {
-  const { chainId, gas, data, nonce: nonce3, to: to4, value, accessList, gasPrice } = transaction;
+  const { chainId, gas, data: data2, nonce: nonce3, to: to4, value, accessList, gasPrice } = transaction;
   assertTransactionEIP2930(transaction);
   const serializedAccessList = serializeAccessList(accessList);
   const serializedTransaction = [
@@ -16465,7 +16465,7 @@ function serializeTransactionEIP2930(transaction, signature) {
     gas ? numberToHex(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     ...toYParitySignatureArray(transaction, signature)
   ];
@@ -16475,7 +16475,7 @@ function serializeTransactionEIP2930(transaction, signature) {
   ]);
 }
 function serializeTransactionLegacy(transaction, signature) {
-  const { chainId = 0, gas, data, nonce: nonce3, to: to4, value, gasPrice } = transaction;
+  const { chainId = 0, gas, data: data2, nonce: nonce3, to: to4, value, gasPrice } = transaction;
   assertTransactionLegacy(transaction);
   let serializedTransaction = [
     nonce3 ? numberToHex(nonce3) : "0x",
@@ -16483,7 +16483,7 @@ function serializeTransactionLegacy(transaction, signature) {
     gas ? numberToHex(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex(value) : "0x",
-    data ?? "0x"
+    data2 ?? "0x"
   ];
   if (signature) {
     const v = (() => {
@@ -16814,10 +16814,10 @@ var init_buildRequest = __esm({
 // relay/node_modules/viem/_esm/utils/ccipTunnel.js
 function ccipReadTunnel({ batchGateways, ccipRequest: ccipRequest3 = ccipRequest }) {
   return {
-    async request({ data, sender, urls }) {
+    async request({ data: data2, sender, urls }) {
       if (urls.includes(localBatchGatewayUrl)) {
         return ccipRequest3({
-          data,
+          data: data2,
           sender,
           urls: batchGateways
         });
@@ -16829,7 +16829,7 @@ function ccipReadTunnel({ batchGateways, ccipRequest: ccipRequest3 = ccipRequest
             data: encodeFunctionData({
               abi: batchGatewayAbi,
               functionName: "query",
-              args: [[{ sender, data, urls }]]
+              args: [[{ sender, data: data2, urls }]]
             }),
             sender,
             urls: batchGateways
@@ -17353,34 +17353,34 @@ function getHttpRpcClient(url_, options = {}) {
         });
         if (onResponse)
           await onResponse(response);
-        let data;
+        let data2;
         const responseBody = await readResponseBody(response, {
           maxResponseBodySize
         });
         if (response.headers.get("Content-Type")?.startsWith("application/json"))
-          data = JSON.parse(responseBody);
+          data2 = JSON.parse(responseBody);
         else {
-          data = responseBody;
+          data2 = responseBody;
           try {
-            data = JSON.parse(data || "{}");
+            data2 = JSON.parse(data2 || "{}");
           } catch (err2) {
             if (response.ok)
               throw err2;
-            data = { error: data };
+            data2 = { error: data2 };
           }
         }
         if (!response.ok) {
-          if (typeof data.error?.code === "number" && typeof data.error?.message === "string")
-            return data;
+          if (typeof data2.error?.code === "number" && typeof data2.error?.message === "string")
+            return data2;
           throw new HttpRequestError({
             body: body2,
-            details: stringify(data.error) || response.statusText,
+            details: stringify(data2.error) || response.statusText,
             headers: response.headers,
             status: response.status,
             url
           });
         }
-        return data;
+        return data2;
       } catch (err2) {
         if (signal_?.aborted)
           throw getAbortError(signal_);
@@ -17543,13 +17543,13 @@ async function getSocketRpcClient(parameters) {
             error = void 0;
             reconnectCount = 0;
           },
-          onResponse(data) {
-            const isSubscription = data.method === "eth_subscription";
-            const id4 = isSubscription ? data.params.subscription : data.id;
+          onResponse(data2) {
+            const isSubscription = data2.method === "eth_subscription";
+            const id4 = isSubscription ? data2.params.subscription : data2.id;
             const cache2 = isSubscription ? subscriptions : requests;
             const callback = cache2.get(id4);
             if (callback)
-              callback.onResponse(data);
+              callback.onResponse(data2);
             if (!isSubscription)
               cache2.delete(id4);
           }
@@ -17714,16 +17714,16 @@ var require_buffer_util = __commonJS({
       }
       return buf2.buffer.slice(buf2.byteOffset, buf2.byteOffset + buf2.length);
     }
-    function toBuffer(data) {
+    function toBuffer(data2) {
       toBuffer.readOnly = true;
-      if (Buffer.isBuffer(data)) return data;
+      if (Buffer.isBuffer(data2)) return data2;
       let buf2;
-      if (data instanceof ArrayBuffer) {
-        buf2 = new FastBuffer(data);
-      } else if (ArrayBuffer.isView(data)) {
-        buf2 = new FastBuffer(data.buffer, data.byteOffset, data.byteLength);
+      if (data2 instanceof ArrayBuffer) {
+        buf2 = new FastBuffer(data2);
+      } else if (ArrayBuffer.isView(data2)) {
+        buf2 = new FastBuffer(data2.buffer, data2.byteOffset, data2.byteLength);
       } else {
-        buf2 = Buffer.from(data);
+        buf2 = Buffer.from(data2);
         toBuffer.readOnly = false;
       }
       return buf2;
@@ -18037,9 +18037,9 @@ var require_permessage_deflate = __commonJS({
        * @param {Function} callback Callback
        * @public
        */
-      decompress(data, fin, callback) {
+      decompress(data2, fin, callback) {
         zlibLimiter.add((done) => {
-          this._decompress(data, fin, (err2, result) => {
+          this._decompress(data2, fin, (err2, result) => {
             done();
             callback(err2, result);
           });
@@ -18053,9 +18053,9 @@ var require_permessage_deflate = __commonJS({
        * @param {Function} callback Callback
        * @public
        */
-      compress(data, fin, callback) {
+      compress(data2, fin, callback) {
         zlibLimiter.add((done) => {
-          this._compress(data, fin, (err2, result) => {
+          this._compress(data2, fin, (err2, result) => {
             done();
             callback(err2, result);
           });
@@ -18069,7 +18069,7 @@ var require_permessage_deflate = __commonJS({
        * @param {Function} callback Callback
        * @private
        */
-      _decompress(data, fin, callback) {
+      _decompress(data2, fin, callback) {
         const endpoint2 = this._isServer ? "client" : "server";
         if (!this._inflate) {
           const key = `${endpoint2}_max_window_bits`;
@@ -18085,7 +18085,7 @@ var require_permessage_deflate = __commonJS({
           this._inflate.on("data", inflateOnData);
         }
         this._inflate[kCallback] = callback;
-        this._inflate.write(data);
+        this._inflate.write(data2);
         if (fin) this._inflate.write(TRAILER);
         this._inflate.flush(() => {
           const err2 = this._inflate[kError];
@@ -18095,7 +18095,7 @@ var require_permessage_deflate = __commonJS({
             callback(err2);
             return;
           }
-          const data2 = bufferUtil.concat(
+          const data3 = bufferUtil.concat(
             this._inflate[kBuffers],
             this._inflate[kTotalLength]
           );
@@ -18109,7 +18109,7 @@ var require_permessage_deflate = __commonJS({
               this._inflate.reset();
             }
           }
-          callback(null, data2);
+          callback(null, data3);
         });
       }
       /**
@@ -18120,7 +18120,7 @@ var require_permessage_deflate = __commonJS({
        * @param {Function} callback Callback
        * @private
        */
-      _compress(data, fin, callback) {
+      _compress(data2, fin, callback) {
         const endpoint2 = this._isServer ? "server" : "client";
         if (!this._deflate) {
           const key = `${endpoint2}_max_window_bits`;
@@ -18134,17 +18134,17 @@ var require_permessage_deflate = __commonJS({
           this._deflate.on("data", deflateOnData);
         }
         this._deflate[kCallback] = callback;
-        this._deflate.write(data);
+        this._deflate.write(data2);
         this._deflate.flush(zlib.Z_SYNC_FLUSH, () => {
           if (!this._deflate) {
             return;
           }
-          let data2 = bufferUtil.concat(
+          let data3 = bufferUtil.concat(
             this._deflate[kBuffers],
             this._deflate[kTotalLength]
           );
           if (fin) {
-            data2 = new FastBuffer(data2.buffer, data2.byteOffset, data2.length - 4);
+            data3 = new FastBuffer(data3.buffer, data3.byteOffset, data3.length - 4);
           }
           this._deflate[kCallback] = null;
           this._deflate[kTotalLength] = 0;
@@ -18152,7 +18152,7 @@ var require_permessage_deflate = __commonJS({
           if (fin && this.params[`${endpoint2}_no_context_takeover`]) {
             this._deflate.reset();
           }
-          callback(null, data2);
+          callback(null, data3);
         });
       }
     };
@@ -18786,27 +18786,27 @@ var require_receiver = __commonJS({
        * @private
        */
       getData(cb3) {
-        let data = EMPTY_BUFFER;
+        let data2 = EMPTY_BUFFER;
         if (this._payloadLength) {
           if (this._bufferedBytes < this._payloadLength) {
             this._loop = false;
             return;
           }
-          data = this.consume(this._payloadLength);
+          data2 = this.consume(this._payloadLength);
           if (this._masked && (this._mask[0] | this._mask[1] | this._mask[2] | this._mask[3]) !== 0) {
-            unmask(data, this._mask);
+            unmask(data2, this._mask);
           }
         }
         if (this._opcode > 7) {
-          this.controlMessage(data, cb3);
+          this.controlMessage(data2, cb3);
           return;
         }
         if (this._compressed) {
           this._state = INFLATING;
-          this.decompress(data, cb3);
+          this.decompress(data2, cb3);
           return;
         }
-        if (data.length) {
+        if (data2.length) {
           if (this._maxFragments > 0 && this._fragments.length >= this._maxFragments) {
             const error = this.createError(
               RangeError,
@@ -18819,7 +18819,7 @@ var require_receiver = __commonJS({
             return;
           }
           this._messageLength = this._totalPayloadLength;
-          this._fragments.push(data);
+          this._fragments.push(data2);
         }
         this.dataMessage(cb3);
       }
@@ -18830,9 +18830,9 @@ var require_receiver = __commonJS({
        * @param {Function} cb Callback
        * @private
        */
-      decompress(data, cb3) {
+      decompress(data2, cb3) {
         const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
-        perMessageDeflate.decompress(data, this._fin, (err2, buf2) => {
+        perMessageDeflate.decompress(data2, this._fin, (err2, buf2) => {
           if (err2) return cb3(err2);
           if (buf2.length) {
             this._messageLength += buf2.length;
@@ -18882,23 +18882,23 @@ var require_receiver = __commonJS({
         this._fragmented = 0;
         this._fragments = [];
         if (this._opcode === 2) {
-          let data;
+          let data2;
           if (this._binaryType === "nodebuffer") {
-            data = concat5(fragments, messageLength);
+            data2 = concat5(fragments, messageLength);
           } else if (this._binaryType === "arraybuffer") {
-            data = toArrayBuffer(concat5(fragments, messageLength));
+            data2 = toArrayBuffer(concat5(fragments, messageLength));
           } else if (this._binaryType === "blob") {
-            data = new Blob(fragments);
+            data2 = new Blob(fragments);
           } else {
-            data = fragments;
+            data2 = fragments;
           }
           if (this._allowSynchronousEvents) {
-            this.emit("message", data, true);
+            this.emit("message", data2, true);
             this._state = GET_INFO;
           } else {
             this._state = DEFER_EVENT;
             setImmediate(() => {
-              this.emit("message", data, true);
+              this.emit("message", data2, true);
               this._state = GET_INFO;
               this.startLoop(cb3);
             });
@@ -18936,14 +18936,14 @@ var require_receiver = __commonJS({
        * @return {(Error|RangeError|undefined)} A possible error
        * @private
        */
-      controlMessage(data, cb3) {
+      controlMessage(data2, cb3) {
         if (this._opcode === 8) {
-          if (data.length === 0) {
+          if (data2.length === 0) {
             this._loop = false;
             this.emit("conclude", 1005, EMPTY_BUFFER);
             this.end();
           } else {
-            const code = data.readUInt16BE(0);
+            const code = data2.readUInt16BE(0);
             if (!isValidStatusCode(code)) {
               const error = this.createError(
                 RangeError,
@@ -18956,9 +18956,9 @@ var require_receiver = __commonJS({
               return;
             }
             const buf2 = new FastBuffer(
-              data.buffer,
-              data.byteOffset + 2,
-              data.length - 2
+              data2.buffer,
+              data2.byteOffset + 2,
+              data2.length - 2
             );
             if (!this._skipUTF8Validation && !isValidUTF8(buf2)) {
               const error = this.createError(
@@ -18979,12 +18979,12 @@ var require_receiver = __commonJS({
           return;
         }
         if (this._allowSynchronousEvents) {
-          this.emit(this._opcode === 9 ? "ping" : "pong", data);
+          this.emit(this._opcode === 9 ? "ping" : "pong", data2);
           this._state = GET_INFO;
         } else {
           this._state = DEFER_EVENT;
           setImmediate(() => {
-            this.emit(this._opcode === 9 ? "ping" : "pong", data);
+            this.emit(this._opcode === 9 ? "ping" : "pong", data2);
             this._state = GET_INFO;
             this.startLoop(cb3);
           });
@@ -19084,7 +19084,7 @@ var require_sender = __commonJS({
        * @return {(Buffer|String)[]} The framed data
        * @public
        */
-      static frame(data, options) {
+      static frame(data2, options) {
         let mask;
         let merge = false;
         let offset = 2;
@@ -19110,15 +19110,15 @@ var require_sender = __commonJS({
           offset = 6;
         }
         let dataLength;
-        if (typeof data === "string") {
+        if (typeof data2 === "string") {
           if ((!options.mask || skipMasking) && options[kByteLength] !== void 0) {
             dataLength = options[kByteLength];
           } else {
-            data = Buffer.from(data);
-            dataLength = data.length;
+            data2 = Buffer.from(data2);
+            dataLength = data2.length;
           }
         } else {
-          dataLength = data.length;
+          dataLength = data2.length;
           merge = options.mask && options.readOnly && !skipMasking;
         }
         let payloadLength = dataLength;
@@ -19139,19 +19139,19 @@ var require_sender = __commonJS({
           target[2] = target[3] = 0;
           target.writeUIntBE(dataLength, 4, 6);
         }
-        if (!options.mask) return [target, data];
+        if (!options.mask) return [target, data2];
         target[1] |= 128;
         target[offset - 4] = mask[0];
         target[offset - 3] = mask[1];
         target[offset - 2] = mask[2];
         target[offset - 1] = mask[3];
-        if (skipMasking) return [target, data];
+        if (skipMasking) return [target, data2];
         if (merge) {
-          applyMask(data, mask, target, offset, dataLength);
+          applyMask(data2, mask, target, offset, dataLength);
           return [target];
         }
-        applyMask(data, mask, data, 0, dataLength);
-        return [target, data];
+        applyMask(data2, mask, data2, 0, dataLength);
+        return [target, data2];
       }
       /**
        * Sends a close message to the other peer.
@@ -19162,26 +19162,26 @@ var require_sender = __commonJS({
        * @param {Function} [cb] Callback
        * @public
        */
-      close(code, data, mask, cb3) {
+      close(code, data2, mask, cb3) {
         let buf2;
         if (code === void 0) {
           buf2 = EMPTY_BUFFER;
         } else if (typeof code !== "number" || !isValidStatusCode(code)) {
           throw new TypeError("First argument must be a valid error code number");
-        } else if (data === void 0 || !data.length) {
+        } else if (data2 === void 0 || !data2.length) {
           buf2 = Buffer.allocUnsafe(2);
           buf2.writeUInt16BE(code, 0);
         } else {
-          const length = Buffer.byteLength(data);
+          const length = Buffer.byteLength(data2);
           if (length > 123) {
             throw new RangeError("The message must not be greater than 123 bytes");
           }
           buf2 = Buffer.allocUnsafe(2 + length);
           buf2.writeUInt16BE(code, 0);
-          if (typeof data === "string") {
-            buf2.write(data, 2);
-          } else if (isUint8Array(data)) {
-            buf2.set(data, 2);
+          if (typeof data2 === "string") {
+            buf2.write(data2, 2);
+          } else if (isUint8Array(data2)) {
+            buf2.set(data2, 2);
           } else {
             throw new TypeError("Second argument must be a string or a Uint8Array");
           }
@@ -19210,18 +19210,18 @@ var require_sender = __commonJS({
        * @param {Function} [cb] Callback
        * @public
        */
-      ping(data, mask, cb3) {
+      ping(data2, mask, cb3) {
         let byteLength;
         let readOnly;
-        if (typeof data === "string") {
-          byteLength = Buffer.byteLength(data);
+        if (typeof data2 === "string") {
+          byteLength = Buffer.byteLength(data2);
           readOnly = false;
-        } else if (isBlob(data)) {
-          byteLength = data.size;
+        } else if (isBlob(data2)) {
+          byteLength = data2.size;
           readOnly = false;
         } else {
-          data = toBuffer(data);
-          byteLength = data.length;
+          data2 = toBuffer(data2);
+          byteLength = data2.length;
           readOnly = toBuffer.readOnly;
         }
         if (byteLength > 125) {
@@ -19237,16 +19237,16 @@ var require_sender = __commonJS({
           readOnly,
           rsv1: false
         };
-        if (isBlob(data)) {
+        if (isBlob(data2)) {
           if (this._state !== DEFAULT) {
-            this.enqueue([this.getBlobData, data, false, options, cb3]);
+            this.enqueue([this.getBlobData, data2, false, options, cb3]);
           } else {
-            this.getBlobData(data, false, options, cb3);
+            this.getBlobData(data2, false, options, cb3);
           }
         } else if (this._state !== DEFAULT) {
-          this.enqueue([this.dispatch, data, false, options, cb3]);
+          this.enqueue([this.dispatch, data2, false, options, cb3]);
         } else {
-          this.sendFrame(_Sender.frame(data, options), cb3);
+          this.sendFrame(_Sender.frame(data2, options), cb3);
         }
       }
       /**
@@ -19257,18 +19257,18 @@ var require_sender = __commonJS({
        * @param {Function} [cb] Callback
        * @public
        */
-      pong(data, mask, cb3) {
+      pong(data2, mask, cb3) {
         let byteLength;
         let readOnly;
-        if (typeof data === "string") {
-          byteLength = Buffer.byteLength(data);
+        if (typeof data2 === "string") {
+          byteLength = Buffer.byteLength(data2);
           readOnly = false;
-        } else if (isBlob(data)) {
-          byteLength = data.size;
+        } else if (isBlob(data2)) {
+          byteLength = data2.size;
           readOnly = false;
         } else {
-          data = toBuffer(data);
-          byteLength = data.length;
+          data2 = toBuffer(data2);
+          byteLength = data2.length;
           readOnly = toBuffer.readOnly;
         }
         if (byteLength > 125) {
@@ -19284,16 +19284,16 @@ var require_sender = __commonJS({
           readOnly,
           rsv1: false
         };
-        if (isBlob(data)) {
+        if (isBlob(data2)) {
           if (this._state !== DEFAULT) {
-            this.enqueue([this.getBlobData, data, false, options, cb3]);
+            this.enqueue([this.getBlobData, data2, false, options, cb3]);
           } else {
-            this.getBlobData(data, false, options, cb3);
+            this.getBlobData(data2, false, options, cb3);
           }
         } else if (this._state !== DEFAULT) {
-          this.enqueue([this.dispatch, data, false, options, cb3]);
+          this.enqueue([this.dispatch, data2, false, options, cb3]);
         } else {
-          this.sendFrame(_Sender.frame(data, options), cb3);
+          this.sendFrame(_Sender.frame(data2, options), cb3);
         }
       }
       /**
@@ -19312,21 +19312,21 @@ var require_sender = __commonJS({
        * @param {Function} [cb] Callback
        * @public
        */
-      send(data, options, cb3) {
+      send(data2, options, cb3) {
         const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
         let opcode = options.binary ? 2 : 1;
         let rsv1 = options.compress;
         let byteLength;
         let readOnly;
-        if (typeof data === "string") {
-          byteLength = Buffer.byteLength(data);
+        if (typeof data2 === "string") {
+          byteLength = Buffer.byteLength(data2);
           readOnly = false;
-        } else if (isBlob(data)) {
-          byteLength = data.size;
+        } else if (isBlob(data2)) {
+          byteLength = data2.size;
           readOnly = false;
         } else {
-          data = toBuffer(data);
-          byteLength = data.length;
+          data2 = toBuffer(data2);
+          byteLength = data2.length;
           readOnly = toBuffer.readOnly;
         }
         if (this._firstFragment) {
@@ -19350,16 +19350,16 @@ var require_sender = __commonJS({
           readOnly,
           rsv1
         };
-        if (isBlob(data)) {
+        if (isBlob(data2)) {
           if (this._state !== DEFAULT) {
-            this.enqueue([this.getBlobData, data, this._compress, opts, cb3]);
+            this.enqueue([this.getBlobData, data2, this._compress, opts, cb3]);
           } else {
-            this.getBlobData(data, this._compress, opts, cb3);
+            this.getBlobData(data2, this._compress, opts, cb3);
           }
         } else if (this._state !== DEFAULT) {
-          this.enqueue([this.dispatch, data, this._compress, opts, cb3]);
+          this.enqueue([this.dispatch, data2, this._compress, opts, cb3]);
         } else {
-          this.dispatch(data, this._compress, opts, cb3);
+          this.dispatch(data2, this._compress, opts, cb3);
         }
       }
       /**
@@ -19397,13 +19397,13 @@ var require_sender = __commonJS({
             return;
           }
           this._bufferedBytes -= options[kByteLength];
-          const data = toBuffer(arrayBuffer);
+          const data2 = toBuffer(arrayBuffer);
           if (!compress) {
             this._state = DEFAULT;
-            this.sendFrame(_Sender.frame(data, options), cb3);
+            this.sendFrame(_Sender.frame(data2, options), cb3);
             this.dequeue();
           } else {
-            this.dispatch(data, compress, options, cb3);
+            this.dispatch(data2, compress, options, cb3);
           }
         }).catch((err2) => {
           process.nextTick(onError, this, err2, cb3);
@@ -19432,15 +19432,15 @@ var require_sender = __commonJS({
        * @param {Function} [cb] Callback
        * @private
        */
-      dispatch(data, compress, options, cb3) {
+      dispatch(data2, compress, options, cb3) {
         if (!compress) {
-          this.sendFrame(_Sender.frame(data, options), cb3);
+          this.sendFrame(_Sender.frame(data2, options), cb3);
           return;
         }
         const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
         this._bufferedBytes += options[kByteLength];
         this._state = DEFLATING;
-        perMessageDeflate.compress(data, options.fin, (_, buf2) => {
+        perMessageDeflate.compress(data2, options.fin, (_, buf2) => {
           if (this._socket.destroyed) {
             const err2 = new Error(
               "The socket was closed while data was being compressed"
@@ -19664,9 +19664,9 @@ var require_event_target = __commonJS({
         }
         let wrapper;
         if (type3 === "message") {
-          wrapper = function onMessage(data, isBinary) {
+          wrapper = function onMessage(data2, isBinary) {
             const event = new MessageEvent("message", {
-              data: isBinary ? data : data.toString()
+              data: isBinary ? data2 : data2.toString()
             });
             event[kTarget] = this;
             callListener(handler, this, event);
@@ -20146,7 +20146,7 @@ var require_websocket = __commonJS({
        *     closing
        * @public
        */
-      close(code, data) {
+      close(code, data2) {
         if (this.readyState === _WebSocket.CLOSED) return;
         if (this.readyState === _WebSocket.CONNECTING) {
           const msg = "WebSocket was closed before the connection was established";
@@ -20160,7 +20160,7 @@ var require_websocket = __commonJS({
           return;
         }
         this._readyState = _WebSocket.CLOSING;
-        this._sender.close(code, data, !this._isServer, (err2) => {
+        this._sender.close(code, data2, !this._isServer, (err2) => {
           if (err2) return;
           this._closeFrameSent = true;
           if (this._closeFrameReceived || this._receiver._writableState.errorEmitted) {
@@ -20189,24 +20189,24 @@ var require_websocket = __commonJS({
        * @param {Function} [cb] Callback which is executed when the ping is sent
        * @public
        */
-      ping(data, mask, cb3) {
+      ping(data2, mask, cb3) {
         if (this.readyState === _WebSocket.CONNECTING) {
           throw new Error("WebSocket is not open: readyState 0 (CONNECTING)");
         }
-        if (typeof data === "function") {
-          cb3 = data;
-          data = mask = void 0;
+        if (typeof data2 === "function") {
+          cb3 = data2;
+          data2 = mask = void 0;
         } else if (typeof mask === "function") {
           cb3 = mask;
           mask = void 0;
         }
-        if (typeof data === "number") data = data.toString();
+        if (typeof data2 === "number") data2 = data2.toString();
         if (this.readyState !== _WebSocket.OPEN) {
-          sendAfterClose(this, data, cb3);
+          sendAfterClose(this, data2, cb3);
           return;
         }
         if (mask === void 0) mask = !this._isServer;
-        this._sender.ping(data || EMPTY_BUFFER, mask, cb3);
+        this._sender.ping(data2 || EMPTY_BUFFER, mask, cb3);
       }
       /**
        * Send a pong.
@@ -20216,24 +20216,24 @@ var require_websocket = __commonJS({
        * @param {Function} [cb] Callback which is executed when the pong is sent
        * @public
        */
-      pong(data, mask, cb3) {
+      pong(data2, mask, cb3) {
         if (this.readyState === _WebSocket.CONNECTING) {
           throw new Error("WebSocket is not open: readyState 0 (CONNECTING)");
         }
-        if (typeof data === "function") {
-          cb3 = data;
-          data = mask = void 0;
+        if (typeof data2 === "function") {
+          cb3 = data2;
+          data2 = mask = void 0;
         } else if (typeof mask === "function") {
           cb3 = mask;
           mask = void 0;
         }
-        if (typeof data === "number") data = data.toString();
+        if (typeof data2 === "number") data2 = data2.toString();
         if (this.readyState !== _WebSocket.OPEN) {
-          sendAfterClose(this, data, cb3);
+          sendAfterClose(this, data2, cb3);
           return;
         }
         if (mask === void 0) mask = !this._isServer;
-        this._sender.pong(data || EMPTY_BUFFER, mask, cb3);
+        this._sender.pong(data2 || EMPTY_BUFFER, mask, cb3);
       }
       /**
        * Resume the socket.
@@ -20262,7 +20262,7 @@ var require_websocket = __commonJS({
        * @param {Function} [cb] Callback which is executed when data is written out
        * @public
        */
-      send(data, options, cb3) {
+      send(data2, options, cb3) {
         if (this.readyState === _WebSocket.CONNECTING) {
           throw new Error("WebSocket is not open: readyState 0 (CONNECTING)");
         }
@@ -20270,13 +20270,13 @@ var require_websocket = __commonJS({
           cb3 = options;
           options = {};
         }
-        if (typeof data === "number") data = data.toString();
+        if (typeof data2 === "number") data2 = data2.toString();
         if (this.readyState !== _WebSocket.OPEN) {
-          sendAfterClose(this, data, cb3);
+          sendAfterClose(this, data2, cb3);
           return;
         }
         const opts = {
-          binary: typeof data !== "string",
+          binary: typeof data2 !== "string",
           mask: !this._isServer,
           compress: true,
           fin: true,
@@ -20285,7 +20285,7 @@ var require_websocket = __commonJS({
         if (!this._extensions[PerMessageDeflate2.extensionName]) {
           opts.compress = false;
         }
-        this._sender.send(data || EMPTY_BUFFER, opts, cb3);
+        this._sender.send(data2 || EMPTY_BUFFER, opts, cb3);
       }
       /**
        * Forcibly close the connection.
@@ -20670,9 +20670,9 @@ var require_websocket = __commonJS({
         stream.once("close", websocket.emitClose.bind(websocket));
       }
     }
-    function sendAfterClose(websocket, data, cb3) {
-      if (data) {
-        const length = isBlob(data) ? data.size : toBuffer(data).length;
+    function sendAfterClose(websocket, data2, cb3) {
+      if (data2) {
+        const length = isBlob(data2) ? data2.size : toBuffer(data2).length;
         if (websocket._socket) websocket._sender._bufferedBytes += length;
         else websocket._bufferedAmount += length;
       }
@@ -20713,16 +20713,16 @@ var require_websocket = __commonJS({
     function receiverOnFinish() {
       this[kWebSocket].emitClose();
     }
-    function receiverOnMessage(data, isBinary) {
-      this[kWebSocket].emit("message", data, isBinary);
+    function receiverOnMessage(data2, isBinary) {
+      this[kWebSocket].emit("message", data2, isBinary);
     }
-    function receiverOnPing(data) {
+    function receiverOnPing(data2) {
       const websocket = this[kWebSocket];
-      if (websocket._autoPong) websocket.pong(data, !this._isServer, NOOP);
-      websocket.emit("ping", data);
+      if (websocket._autoPong) websocket.pong(data2, !this._isServer, NOOP);
+      websocket.emit("ping", data2);
     }
-    function receiverOnPong(data) {
-      this[kWebSocket].emit("pong", data);
+    function receiverOnPong(data2) {
+      this[kWebSocket].emit("pong", data2);
     }
     function resume(stream) {
       stream.resume();
@@ -20820,8 +20820,8 @@ var require_stream = __commonJS({
         writableObjectMode: false
       });
       ws3.on("message", function message2(msg, isBinary) {
-        const data = !isBinary && duplex._readableState.objectMode ? msg.toString() : msg;
-        if (!duplex.push(data)) ws3.pause();
+        const data2 = !isBinary && duplex._readableState.objectMode ? msg.toString() : msg;
+        if (!duplex.push(data2)) ws3.pause();
       });
       ws3.once("error", function error(err2) {
         if (duplex.destroyed) return;
@@ -21414,11 +21414,11 @@ async function getWebSocketRpcClient(url, options = {}) {
         socket.removeEventListener("open", onOpen);
         onClose();
       }
-      function onMessage({ data }) {
-        if (typeof data === "string" && data.trim().length === 0)
+      function onMessage({ data: data2 }) {
+        if (typeof data2 === "string" && data2.trim().length === 0)
           return;
         try {
-          const _data = JSON.parse(data);
+          const _data = JSON.parse(data2);
           onResponse(_data);
         } catch (error) {
           onError(error);
@@ -21573,13 +21573,13 @@ var init_typedData = __esm({
 function serializeTypedData(parameters) {
   const { domain: domain_, message: message_, primaryType, types: types3 } = parameters;
   const normalizeData = (struct, data_) => {
-    const data = { ...data_ };
+    const data2 = { ...data_ };
     for (const param of struct) {
       const { name, type: type3 } = param;
       if (type3 === "address")
-        data[name] = data[name].toLowerCase();
+        data2[name] = data2[name].toLowerCase();
     }
-    return data;
+    return data2;
   };
   const domain = (() => {
     if (!types3.EIP712Domain)
@@ -21597,10 +21597,10 @@ function serializeTypedData(parameters) {
 }
 function validateTypedData(parameters) {
   const { domain, message: message2, primaryType, types: types3 } = parameters;
-  const validateData = (struct, data) => {
+  const validateData = (struct, data2) => {
     for (const param of struct) {
       const { name, type: type3 } = param;
-      const value = data[name];
+      const value = data2[name];
       const integerMatch = type3.match(integerRegex2);
       if (integerMatch && (typeof value === "number" || typeof value === "bigint")) {
         const [_type, base3, size_] = integerMatch;
@@ -21714,15 +21714,15 @@ function hashDomain({ domain, types: types3 }) {
     types: types3
   });
 }
-function hashStruct({ data, primaryType, types: types3 }) {
+function hashStruct({ data: data2, primaryType, types: types3 }) {
   const encoded = encodeData({
-    data,
+    data: data2,
     primaryType,
     types: types3
   });
   return keccak256(encoded);
 }
-function encodeData({ data, primaryType, types: types3 }) {
+function encodeData({ data: data2, primaryType, types: types3 }) {
   const encodedTypes = [{ type: "bytes32" }];
   const encodedValues = [hashType({ primaryType, types: types3 })];
   for (const field of types3[primaryType]) {
@@ -21730,7 +21730,7 @@ function encodeData({ data, primaryType, types: types3 }) {
       types: types3,
       name: field.name,
       type: field.type,
-      value: data[field.name]
+      value: data2[field.name]
     });
     encodedTypes.push(type3);
     encodedValues.push(value);
@@ -22314,12 +22314,12 @@ function decodeArray2(cursor, param, options) {
     const value2 = [];
     for (let i = 0; i < length2; ++i) {
       cursor.setPosition(startOfData + (dynamicChild ? i * 32 : consumed2));
-      const [data, consumed_] = decodeParameter2(cursor, param, {
+      const [data2, consumed_] = decodeParameter2(cursor, param, {
         checksumAddress: checksumAddress3,
         staticPosition: startOfData
       });
       consumed2 += consumed_;
-      value2.push(data);
+      value2.push(data2);
     }
     cursor.setPosition(staticPosition + 32);
     return [value2, 32];
@@ -22330,11 +22330,11 @@ function decodeArray2(cursor, param, options) {
     const value2 = [];
     for (let i = 0; i < length; ++i) {
       cursor.setPosition(start + i * 32);
-      const [data] = decodeParameter2(cursor, param, {
+      const [data2] = decodeParameter2(cursor, param, {
         checksumAddress: checksumAddress3,
         staticPosition: start
       });
-      value2.push(data);
+      value2.push(data2);
     }
     cursor.setPosition(staticPosition + 32);
     return [value2, 32];
@@ -22342,12 +22342,12 @@ function decodeArray2(cursor, param, options) {
   let consumed = 0;
   const value = [];
   for (let i = 0; i < length; ++i) {
-    const [data, consumed_] = decodeParameter2(cursor, param, {
+    const [data2, consumed_] = decodeParameter2(cursor, param, {
       checksumAddress: checksumAddress3,
       staticPosition: staticPosition + consumed
     });
     consumed += consumed_;
-    value.push(data);
+    value.push(data2);
   }
   return [value, consumed];
 }
@@ -22364,9 +22364,9 @@ function decodeBytes2(cursor, param, { staticPosition }) {
       cursor.setPosition(staticPosition + 32);
       return ["0x", 32];
     }
-    const data = cursor.readBytes(length);
+    const data2 = cursor.readBytes(length);
     cursor.setPosition(staticPosition + 32);
-    return [fromBytes2(data), 32];
+    return [fromBytes2(data2), 32];
   }
   const value = fromBytes2(cursor.readBytes(Number.parseInt(size6, 10), 32));
   return [value, 32];
@@ -22391,23 +22391,23 @@ function decodeTuple2(cursor, param, options) {
     for (let i = 0; i < param.components.length; ++i) {
       const component = param.components[i];
       cursor.setPosition(start + consumed);
-      const [data, consumed_] = decodeParameter2(cursor, component, {
+      const [data2, consumed_] = decodeParameter2(cursor, component, {
         checksumAddress: checksumAddress3,
         staticPosition: start
       });
       consumed += consumed_;
-      value[hasUnnamedChild ? i : component?.name] = data;
+      value[hasUnnamedChild ? i : component?.name] = data2;
     }
     cursor.setPosition(staticPosition + 32);
     return [value, 32];
   }
   for (let i = 0; i < param.components.length; ++i) {
     const component = param.components[i];
-    const [data, consumed_] = decodeParameter2(cursor, component, {
+    const [data2, consumed_] = decodeParameter2(cursor, component, {
       checksumAddress: checksumAddress3,
       staticPosition
     });
-    value[hasUnnamedChild ? i : component?.name] = data;
+    value[hasUnnamedChild ? i : component?.name] = data2;
     consumed += consumed_;
   }
   return [value, consumed];
@@ -22421,8 +22421,8 @@ function decodeString2(cursor, { staticPosition }) {
     cursor.setPosition(staticPosition + 32);
     return ["", 32];
   }
-  const data = cursor.readBytes(length, 32);
-  const value = toString(trimLeft(data));
+  const data2 = cursor.readBytes(length, 32);
+  const value = toString(trimLeft(data2));
   cursor.setPosition(staticPosition + 32);
   return [value, 32];
 }
@@ -22537,16 +22537,16 @@ function encodeArray2(value, options) {
     preparedParameters.push(preparedParam);
   }
   if (dynamic || dynamicChild) {
-    const data = encode2(preparedParameters);
+    const data2 = encode2(preparedParameters);
     if (dynamic) {
       const length2 = fromNumber(preparedParameters.length, { size: 32 });
       return {
         dynamic: true,
-        encoded: preparedParameters.length > 0 ? concat3(length2, data) : length2
+        encoded: preparedParameters.length > 0 ? concat3(length2, data2) : length2
       };
     }
     if (dynamicChild)
-      return { dynamic: true, encoded: data };
+      return { dynamic: true, encoded: data2 };
   }
   return {
     dynamic: false,
@@ -22879,15 +22879,15 @@ var init_cursor3 = __esm({
 });
 
 // relay/node_modules/ox/_esm/core/AbiParameters.js
-function decode(parameters, data, options = {}) {
+function decode(parameters, data2, options = {}) {
   const { as: as3 = "Array", checksumAddress: checksumAddress3 = false } = options;
-  const bytes = typeof data === "string" ? fromHex2(data) : data;
+  const bytes = typeof data2 === "string" ? fromHex2(data2) : data2;
   const cursor = create(bytes);
   if (size2(bytes) === 0 && parameters.length > 0)
     throw new ZeroDataError();
   if (size2(bytes) && size2(bytes) < 32)
     throw new DataSizeTooSmallError({
-      data: typeof data === "string" ? data : fromBytes2(data),
+      data: typeof data2 === "string" ? data2 : fromBytes2(data2),
       parameters,
       size: size2(bytes)
     });
@@ -22896,15 +22896,15 @@ function decode(parameters, data, options = {}) {
   for (let i = 0; i < parameters.length; ++i) {
     const param = parameters[i];
     cursor.setPosition(consumed);
-    const [data2, consumed_] = decodeParameter2(cursor, param, {
+    const [data3, consumed_] = decodeParameter2(cursor, param, {
       checksumAddress: checksumAddress3,
       staticPosition: 0
     });
     consumed += consumed_;
     if (as3 === "Array")
-      values.push(data2);
+      values.push(data3);
     else
-      values[param.name ?? i] = data2;
+      values[param.name ?? i] = data3;
   }
   return values;
 }
@@ -22920,10 +22920,10 @@ function encode3(parameters, values, options) {
     parameters,
     values
   });
-  const data = encode2(preparedParameters);
-  if (data.length === 0)
+  const data2 = encode2(preparedParameters);
+  if (data2.length === 0)
     return "0x";
-  return data;
+  return data2;
 }
 function encodePacked2(types3, values) {
   if (types3.length !== values.length)
@@ -22931,13 +22931,13 @@ function encodePacked2(types3, values) {
       expectedLength: types3.length,
       givenLength: values.length
     });
-  const data = [];
+  const data2 = [];
   for (let i = 0; i < types3.length; i++) {
     const type3 = types3[i];
     const value = values[i];
-    data.push(encodePacked2.encode(type3, value));
+    data2.push(encodePacked2.encode(type3, value));
   }
-  return concat3(...data);
+  return concat3(...data2);
 }
 function from5(parameters) {
   if (Array.isArray(parameters) && typeof parameters[0] === "string")
@@ -22992,24 +22992,24 @@ var init_AbiParameters = __esm({
         const arrayMatch = type3.match(arrayRegex2);
         if (arrayMatch && Array.isArray(value)) {
           const [_type, childType] = arrayMatch;
-          const data = [];
+          const data2 = [];
           for (let i = 0; i < value.length; i++) {
-            data.push(encode6(childType, value[i], true));
+            data2.push(encode6(childType, value[i], true));
           }
-          if (data.length === 0)
+          if (data2.length === 0)
             return "0x";
-          return concat3(...data);
+          return concat3(...data2);
         }
         throw new InvalidTypeError(type3);
       }
       encodePacked4.encode = encode6;
     })(encodePacked2 || (encodePacked2 = {}));
     DataSizeTooSmallError = class extends BaseError3 {
-      constructor({ data, parameters, size: size6 }) {
+      constructor({ data: data2, parameters, size: size6 }) {
         super(`Data size of ${size6} bytes is too small for given parameters.`, {
           metaMessages: [
             `Params: (${formatAbiParameters(parameters)})`,
-            `Data:   ${data} (${size6} bytes)`
+            `Data:   ${data2} (${size6} bytes)`
           ]
         });
         Object.defineProperty(this, "name", {
@@ -23594,7 +23594,7 @@ function unwrap(wrapped) {
   const suffixLength = toNumber(slice3(wrapped, -64, -32));
   const suffix = slice3(wrapped, -suffixLength - 64, -64);
   const signature = slice3(wrapped, 0, -suffixLength - 64);
-  const [auth, to4, data] = decode(suffixParameters, suffix);
+  const [auth, to4, data2] = decode(suffixParameters, suffix);
   const authorization = from8({
     address: auth.delegation,
     chainId: Number(auth.chainId),
@@ -23606,11 +23606,11 @@ function unwrap(wrapped) {
   return {
     authorization,
     signature,
-    ...data && data !== "0x" ? { data, to: to4 } : {}
+    ...data2 && data2 !== "0x" ? { data: data2, to: to4 } : {}
   };
 }
 function wrap(value) {
-  const { data, signature } = value;
+  const { data: data2, signature } = value;
   assert6(value);
   const self2 = recoverAddress2({
     payload: getSignPayload(value.authorization),
@@ -23623,7 +23623,7 @@ function wrap(value) {
       chainId: BigInt(value.authorization.chainId)
     },
     value.to ?? self2,
-    data ?? "0x"
+    data2 ?? "0x"
   ]);
   const suffixLength = fromNumber(size3(suffix), { size: 32 });
   return concat3(signature, suffix, suffixLength, magicBytes);
@@ -23682,8 +23682,8 @@ var init_isErc8010Signature = __esm({
 function parseErc6492Signature(signature) {
   if (!isErc6492Signature(signature))
     return { signature };
-  const [address3, data, signature_] = decodeAbiParameters([{ type: "address" }, { type: "bytes" }, { type: "bytes" }], signature);
-  return { address: address3, data, signature: signature_ };
+  const [address3, data2, signature_] = decodeAbiParameters([{ type: "address" }, { type: "bytes" }, { type: "bytes" }], signature);
+  return { address: address3, data: data2, signature: signature_ };
 }
 var init_parseErc6492Signature = __esm({
   "relay/node_modules/viem/_esm/utils/signature/parseErc6492Signature.js"() {
@@ -23751,9 +23751,9 @@ var init_recoverTypedDataAddress = __esm({
 
 // relay/node_modules/viem/_esm/utils/signature/serializeErc6492Signature.js
 function serializeErc6492Signature(parameters) {
-  const { address: address3, data, signature, to: to4 = "hex" } = parameters;
+  const { address: address3, data: data2, signature, to: to4 = "hex" } = parameters;
   const signature_ = concatHex([
-    encodeAbiParameters([{ type: "address" }, { type: "bytes" }, { type: "bytes" }], [address3, data, signature]),
+    encodeAbiParameters([{ type: "address" }, { type: "bytes" }, { type: "bytes" }], [address3, data2, signature]),
     erc6492MagicBytes
   ]);
   if (to4 === "hex")
@@ -23771,7 +23771,7 @@ var init_serializeErc6492Signature = __esm({
 
 // relay/node_modules/viem/_esm/utils/signature/serializeErc8010Signature.js
 function serializeErc8010Signature(parameters) {
-  const { address: address3, data, signature, to: to4 = "hex" } = parameters;
+  const { address: address3, data: data2, signature, to: to4 = "hex" } = parameters;
   const signature_ = SignatureErc8010_exports.wrap({
     authorization: {
       address: parameters.authorization.address,
@@ -23781,7 +23781,7 @@ function serializeErc8010Signature(parameters) {
       s: BigInt(parameters.authorization.s),
       yParity: parameters.authorization.yParity
     },
-    data,
+    data: data2,
     signature,
     to: address3
   });
@@ -23877,7 +23877,7 @@ function parseTransaction(serializedTransaction) {
 }
 function parseTransactionEIP7702(serializedTransaction) {
   const transactionArray = toTransactionArray(serializedTransaction);
-  const [chainId, nonce3, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data, accessList, authorizationList, v, r, s] = transactionArray;
+  const [chainId, nonce3, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data2, accessList, authorizationList, v, r, s] = transactionArray;
   if (transactionArray.length !== 10 && transactionArray.length !== 13)
     throw new InvalidSerializedTransactionError({
       attributes: {
@@ -23888,7 +23888,7 @@ function parseTransactionEIP7702(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         accessList,
         authorizationList,
         ...transactionArray.length > 9 ? {
@@ -23908,8 +23908,8 @@ function parseTransactionEIP7702(serializedTransaction) {
     transaction.to = to4;
   if (isHex(gas) && gas !== "0x")
     transaction.gas = hexToBigInt(gas);
-  if (isHex(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex(nonce3))
     transaction.nonce = nonce3 === "0x" ? 0 : hexToNumber(nonce3);
   if (isHex(value) && value !== "0x")
@@ -23931,7 +23931,7 @@ function parseTransactionEIP4844(serializedTransaction) {
   const hasNetworkWrapper = transactionOrWrapperArray.length === 4;
   const transactionArray = hasNetworkWrapper ? transactionOrWrapperArray[0] : transactionOrWrapperArray;
   const wrapperArray = hasNetworkWrapper ? transactionOrWrapperArray.slice(1) : [];
-  const [chainId, nonce3, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data, accessList, maxFeePerBlobGas, blobVersionedHashes, v, r, s] = transactionArray;
+  const [chainId, nonce3, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data2, accessList, maxFeePerBlobGas, blobVersionedHashes, v, r, s] = transactionArray;
   const [blobs, commitments, proofs] = wrapperArray;
   if (!(transactionArray.length === 11 || transactionArray.length === 14))
     throw new InvalidSerializedTransactionError({
@@ -23943,7 +23943,7 @@ function parseTransactionEIP4844(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         accessList,
         ...transactionArray.length > 9 ? {
           v,
@@ -23962,8 +23962,8 @@ function parseTransactionEIP4844(serializedTransaction) {
   };
   if (isHex(gas) && gas !== "0x")
     transaction.gas = hexToBigInt(gas);
-  if (isHex(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex(nonce3))
     transaction.nonce = nonce3 === "0x" ? 0 : hexToNumber(nonce3);
   if (isHex(value) && value !== "0x")
@@ -23988,7 +23988,7 @@ function parseTransactionEIP4844(serializedTransaction) {
 }
 function parseTransactionEIP1559(serializedTransaction) {
   const transactionArray = toTransactionArray(serializedTransaction);
-  const [chainId, nonce3, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data, accessList, v, r, s] = transactionArray;
+  const [chainId, nonce3, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data2, accessList, v, r, s] = transactionArray;
   if (!(transactionArray.length === 9 || transactionArray.length === 12))
     throw new InvalidSerializedTransactionError({
       attributes: {
@@ -23999,7 +23999,7 @@ function parseTransactionEIP1559(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         accessList,
         ...transactionArray.length > 9 ? {
           v,
@@ -24018,8 +24018,8 @@ function parseTransactionEIP1559(serializedTransaction) {
     transaction.to = to4;
   if (isHex(gas) && gas !== "0x")
     transaction.gas = hexToBigInt(gas);
-  if (isHex(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex(nonce3))
     transaction.nonce = nonce3 === "0x" ? 0 : hexToNumber(nonce3);
   if (isHex(value) && value !== "0x")
@@ -24036,7 +24036,7 @@ function parseTransactionEIP1559(serializedTransaction) {
 }
 function parseTransactionEIP2930(serializedTransaction) {
   const transactionArray = toTransactionArray(serializedTransaction);
-  const [chainId, nonce3, gasPrice, gas, to4, value, data, accessList, v, r, s] = transactionArray;
+  const [chainId, nonce3, gasPrice, gas, to4, value, data2, accessList, v, r, s] = transactionArray;
   if (!(transactionArray.length === 8 || transactionArray.length === 11))
     throw new InvalidSerializedTransactionError({
       attributes: {
@@ -24046,7 +24046,7 @@ function parseTransactionEIP2930(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         accessList,
         ...transactionArray.length > 8 ? {
           v,
@@ -24065,8 +24065,8 @@ function parseTransactionEIP2930(serializedTransaction) {
     transaction.to = to4;
   if (isHex(gas) && gas !== "0x")
     transaction.gas = hexToBigInt(gas);
-  if (isHex(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex(nonce3))
     transaction.nonce = nonce3 === "0x" ? 0 : hexToNumber(nonce3);
   if (isHex(value) && value !== "0x")
@@ -24081,7 +24081,7 @@ function parseTransactionEIP2930(serializedTransaction) {
 }
 function parseTransactionLegacy(serializedTransaction) {
   const transactionArray = fromRlp(serializedTransaction, "hex");
-  const [nonce3, gasPrice, gas, to4, value, data, chainIdOrV_, r, s] = transactionArray;
+  const [nonce3, gasPrice, gas, to4, value, data2, chainIdOrV_, r, s] = transactionArray;
   if (!(transactionArray.length === 6 || transactionArray.length === 9))
     throw new InvalidSerializedTransactionError({
       attributes: {
@@ -24090,7 +24090,7 @@ function parseTransactionLegacy(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         ...transactionArray.length > 6 ? {
           v: chainIdOrV_,
           r,
@@ -24107,8 +24107,8 @@ function parseTransactionLegacy(serializedTransaction) {
     transaction.to = to4;
   if (isHex(gas) && gas !== "0x")
     transaction.gas = hexToBigInt(gas);
-  if (isHex(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex(nonce3))
     transaction.nonce = nonce3 === "0x" ? 0 : hexToNumber(nonce3);
   if (isHex(value) && value !== "0x")
@@ -24214,14 +24214,14 @@ var init_unit2 = __esm({
 function parseUnits(value, decimals) {
   if (!/^(-?)([0-9]*)\.?([0-9]*)$/.test(value))
     throw new InvalidDecimalNumberError({ value });
-  let [integer, fraction = "0"] = value.split(".");
-  const negative = integer.startsWith("-");
+  let [integer2, fraction = "0"] = value.split(".");
+  const negative = integer2.startsWith("-");
   if (negative)
-    integer = integer.slice(1);
+    integer2 = integer2.slice(1);
   fraction = fraction.replace(/(0+)$/, "");
   if (decimals === 0) {
     if (Math.round(Number(`.${fraction}`)) === 1)
-      integer = `${BigInt(integer) + 1n}`;
+      integer2 = `${BigInt(integer2) + 1n}`;
     fraction = "";
   } else if (fraction.length > decimals) {
     const [left, unit, right] = [
@@ -24236,13 +24236,13 @@ function parseUnits(value, decimals) {
       fraction = `${left}${rounded}`;
     if (fraction.length > decimals) {
       fraction = fraction.slice(1);
-      integer = `${BigInt(integer) + 1n}`;
+      integer2 = `${BigInt(integer2) + 1n}`;
     }
     fraction = fraction.slice(0, decimals);
   } else {
     fraction = fraction.padEnd(decimals, "0");
   }
-  return BigInt(`${negative ? "-" : ""}${integer}${fraction}`);
+  return BigInt(`${negative ? "-" : ""}${integer2}${fraction}`);
 }
 var init_parseUnits = __esm({
   "relay/node_modules/viem/_esm/utils/unit/parseUnits.js"() {
@@ -24330,11 +24330,11 @@ async function getStorageAt(client, { address: address3, blockHash, blockNumber,
     blockTag,
     requireCanonical
   });
-  const data = await client.request({
+  const data2 = await client.request({
     method: "eth_getStorageAt",
     params: [address3, slot, block]
   });
-  return data;
+  return data2;
 }
 var init_getStorageAt = __esm({
   "relay/node_modules/viem/_esm/actions/public/getStorageAt.js"() {
@@ -24580,11 +24580,11 @@ async function simulateBlocks(client, parameters) {
       const calls = block2.calls.map((call_) => {
         const call3 = call_;
         const account = call3.account ? parseAccount(call3.account) : void 0;
-        const data = call3.abi ? encodeFunctionData(call3) : call3.data;
+        const data2 = call3.abi ? encodeFunctionData(call3) : call3.data;
         const request = {
           ...call3,
           account,
-          data: call3.dataSuffix ? concat([data || "0x", call3.dataSuffix]) : data,
+          data: call3.dataSuffix ? concat([data2 || "0x", call3.dataSuffix]) : data2,
           from: call3.from ?? account?.address
         };
         assertRequest(request);
@@ -24610,23 +24610,23 @@ async function simulateBlocks(client, parameters) {
       ...formatBlock(block2),
       calls: block2.calls.map((call3, j3) => {
         const { abi: abi3, args, functionName, to: to4 } = blocks[i].calls[j3];
-        const data = call3.error?.data ?? call3.returnData;
+        const data2 = call3.error?.data ?? call3.returnData;
         const gasUsed = BigInt(call3.gasUsed);
         const logs = call3.logs?.map((log) => formatLog(log));
         const status = call3.status === "0x1" ? "success" : "failure";
-        const result2 = abi3 && status === "success" && data !== "0x" ? decodeFunctionResult({
+        const result2 = abi3 && status === "success" && data2 !== "0x" ? decodeFunctionResult({
           abi: abi3,
-          data,
+          data: data2,
           functionName
         }) : null;
         const error = (() => {
           if (status === "success")
             return void 0;
           let error2;
-          if (data === "0x")
+          if (data2 === "0x")
             error2 = new AbiDecodingZeroDataError();
-          else if (data)
-            error2 = new RawContractError({ data });
+          else if (data2)
+            error2 = new RawContractError({ data: data2 });
           if (!error2)
             return void 0;
           return getContractError(error2, {
@@ -24637,7 +24637,7 @@ async function simulateBlocks(client, parameters) {
           });
         })();
         return {
-          data,
+          data: data2,
           gasUsed,
           logs,
           status,
@@ -24938,12 +24938,12 @@ var init_AbiItem = __esm({
       }
     };
     NotFoundError = class extends BaseError3 {
-      constructor({ name, data, type: type3 = "item" }) {
+      constructor({ name, data: data2, type: type3 = "item" }) {
         const selector = (() => {
           if (name)
             return ` with name "${name}"`;
-          if (data)
-            return ` with data "${data}"`;
+          if (data2)
+            return ` with data "${data2}"`;
           return "";
         })();
         super(`ABI ${type3}${selector} not found.`);
@@ -25002,8 +25002,8 @@ function encodeData2(...parameters) {
     args
   }) : abiFunction;
   const selector = getSelector2(item);
-  const data = args.length > 0 ? encode3(item.inputs, args) : void 0;
-  return data ? concat3(selector, data) : selector;
+  const data2 = args.length > 0 ? encode3(item.inputs, args) : void 0;
+  return data2 ? concat3(selector, data2) : selector;
 }
 function from12(abiFunction, options = {}) {
   return from10(abiFunction, options);
@@ -25270,14 +25270,14 @@ function from13(wrapped) {
 }
 function unwrap2(wrapped) {
   assert7(wrapped);
-  const [to4, data, signature] = decode(from5("address, bytes, bytes"), wrapped);
-  return { data, signature, to: to4 };
+  const [to4, data2, signature] = decode(from5("address, bytes, bytes"), wrapped);
+  return { data: data2, signature, to: to4 };
 }
 function wrap2(value) {
-  const { data, signature, to: to4 } = value;
+  const { data: data2, signature, to: to4 } = value;
   return concat3(encode3(from5("address, bytes, bytes"), [
     to4,
-    data,
+    data2,
     signature
   ]), magicBytes2);
 }
@@ -25490,8 +25490,8 @@ async function verifyErc8010(client, parameters) {
       ]
     ]
   });
-  const data = results[results.length - 1]?.returnData;
-  if (data?.startsWith("0x1626ba7e"))
+  const data2 = results[results.length - 1]?.returnData;
+  if (data2?.startsWith("0x1626ba7e"))
     return true;
   throw new VerificationError();
 }
@@ -25524,12 +25524,12 @@ async function verifyErc6492(client, parameters) {
     }),
     ...rest
   };
-  const { data } = await getAction(client, call, "call")(args).catch((error) => {
+  const { data: data2 } = await getAction(client, call, "call")(args).catch((error) => {
     if (error instanceof CallExecutionError)
       throw new VerificationError();
     throw error;
   });
-  if (hexToBool(data ?? "0x0"))
+  if (hexToBool(data2 ?? "0x0"))
     return true;
   throw new VerificationError();
 }
@@ -25688,10 +25688,10 @@ function watchBlockNumber(client, { emitOnBegin = false, emitMissed = false, onB
           })();
           const { unsubscribe: unsubscribe_ } = await transport.subscribe({
             params: ["newHeads"],
-            onData(data) {
+            onData(data2) {
               if (!active)
                 return;
-              const blockNumber = hexToBigInt(data.result?.number);
+              const blockNumber = hexToBigInt(data2.result?.number);
               emit.onBlockNumber(blockNumber, prevBlockNumber);
               prevBlockNumber = blockNumber;
             },
@@ -25960,11 +25960,11 @@ function watchBlocks(client, { blockTag = client.experimental_blockTag ?? "lates
         })();
         const { unsubscribe: unsubscribe_ } = await transport.subscribe({
           params: ["newHeads"],
-          async onData(data) {
+          async onData(data2) {
             if (!active)
               return;
             const block = await getAction(client, getBlock, "getBlock")({
-              blockNumber: data.result?.number,
+              blockNumber: data2.result?.number,
               includeTransactions
             }).catch(() => {
             });
@@ -26117,10 +26117,10 @@ function watchEvent(client, { address: address3, args, batch = true, event, even
         }
         const { unsubscribe: unsubscribe_ } = await transport.subscribe({
           params: ["logs", { address: address3, topics }],
-          onData(data) {
+          onData(data2) {
             if (!active)
               return;
-            const log = data.result;
+            const log = data2.result;
             try {
               const { eventName, args: args2 } = decodeEventLog({
                 abi: events_ ?? [],
@@ -26232,10 +26232,10 @@ function watchPendingTransactions(client, { batch = true, onError, onTransaction
       try {
         const { unsubscribe: unsubscribe_ } = await client.transport.subscribe({
           params: ["newPendingTransactions"],
-          onData(data) {
+          onData(data2) {
             if (!active)
               return;
-            const transaction = data.result;
+            const transaction = data2.result;
             onTransactions([transaction]);
           },
           onError(error) {
@@ -26560,7 +26560,7 @@ var init_sendRawTransactionSync = __esm({
 
 // relay/node_modules/viem/_esm/actions/wallet/sendTransactionSync.js
 async function sendTransactionSync(client, parameters) {
-  const { account: account_ = client.account, assertChainId = true, chain = client.chain, accessList, authorizationList, blobs, data, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, pollingInterval, throwOnReceiptRevert, type: type3, value, ...rest } = parameters;
+  const { account: account_ = client.account, assertChainId = true, chain = client.chain, accessList, authorizationList, blobs, data: data2, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, pollingInterval, throwOnReceiptRevert, type: type3, value, ...rest } = parameters;
   const timeout = parameters.timeout ?? Math.max((chain?.blockTime ?? 0) * 3, 5e3);
   if (typeof account_ === "undefined")
     throw new AccountNotFoundError({
@@ -26603,7 +26603,7 @@ async function sendTransactionSync(client, parameters) {
         authorizationList,
         blobs,
         chainId,
-        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
+        data: dataSuffix ? concat([data2 ?? "0x", dataSuffix]) : data2,
         gas,
         gasPrice,
         maxFeePerBlobGas,
@@ -26673,7 +26673,7 @@ async function sendTransactionSync(client, parameters) {
         authorizationList,
         blobs,
         chain,
-        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
+        data: dataSuffix ? concat([data2 ?? "0x", dataSuffix]) : data2,
         gas,
         gasPrice,
         maxFeePerBlobGas,
@@ -27366,14 +27366,14 @@ var init_revert = __esm({
 
 // relay/node_modules/viem/_esm/actions/test/sendUnsignedTransaction.js
 async function sendUnsignedTransaction(client, args) {
-  const { accessList, data, from: from21, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, to: to4, value, ...rest } = args;
+  const { accessList, data: data2, from: from21, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, to: to4, value, ...rest } = args;
   const chainFormat = client.chain?.formatters?.transactionRequest?.format;
   const format3 = chainFormat || formatTransactionRequest;
   const request = format3({
     // Pick out extra data that might exist on the chain's transaction request type.
     ...extract(rest, { format: chainFormat }),
     accessList,
-    data,
+    data: data2,
     from: from21,
     gas,
     gasPrice,
@@ -28581,8 +28581,8 @@ var init_eip1193 = __esm({
 
 // relay/node_modules/viem/_esm/utils/abi/decodeDeployData.js
 function decodeDeployData(parameters) {
-  const { abi: abi3, bytecode, data } = parameters;
-  if (data === bytecode)
+  const { abi: abi3, bytecode, data: data2 } = parameters;
+  if (data2 === bytecode)
     return { bytecode };
   const description = abi3.find((x) => "type" in x && x.type === "constructor");
   if (!description)
@@ -28591,7 +28591,7 @@ function decodeDeployData(parameters) {
     throw new AbiConstructorParamsNotFoundError({ docsPath: docsPath8 });
   if (!description.inputs || description.inputs.length === 0)
     throw new AbiConstructorParamsNotFoundError({ docsPath: docsPath8 });
-  const args = decodeAbiParameters(description.inputs, `0x${data.replace(bytecode, "")}`);
+  const args = decodeAbiParameters(description.inputs, `0x${data2.replace(bytecode, "")}`);
   return { args, bytecode };
 }
 var docsPath8;
@@ -28608,7 +28608,7 @@ function fromBlobs(parameters) {
   const to4 = parameters.to ?? (typeof parameters.blobs[0] === "string" ? "hex" : "bytes");
   const blobs = typeof parameters.blobs[0] === "string" ? parameters.blobs.map((x) => hexToBytes(x)) : parameters.blobs;
   const length = blobs.reduce((length2, blob) => length2 + blob.length, 0);
-  const data = createCursor(new Uint8Array(length));
+  const data2 = createCursor(new Uint8Array(length));
   let active = true;
   for (const blob of blobs) {
     const cursor = createCursor(blob);
@@ -28624,11 +28624,11 @@ function fromBlobs(parameters) {
           active = false;
           break;
         }
-        data.pushByte(byte);
+        data2.pushByte(byte);
       }
     }
   }
-  const trimmedData = data.bytes.slice(0, data.position);
+  const trimmedData = data2.bytes.slice(0, data2.position);
   return to4 === "hex" ? bytesToHex(trimmedData) : trimmedData;
 }
 var init_fromBlobs = __esm({
@@ -29774,7 +29774,7 @@ function serializeTransaction2(transaction, signature) {
   return serializeTransaction(transaction, signature);
 }
 function serializeTransactionEIP712(transaction) {
-  const { chainId, gas, nonce: nonce3, to: to4, from: from21, value, maxFeePerGas, maxPriorityFeePerGas, customSignature, factoryDeps, paymaster, paymasterInput, gasPerPubdata, data } = transaction;
+  const { chainId, gas, nonce: nonce3, to: to4, from: from21, value, maxFeePerGas, maxPriorityFeePerGas, customSignature, factoryDeps, paymaster, paymasterInput, gasPerPubdata, data: data2 } = transaction;
   assertEip712Transaction(transaction);
   const serializedTransaction = [
     nonce3 ? toHex(nonce3) : "0x",
@@ -29783,7 +29783,7 @@ function serializeTransactionEIP712(transaction) {
     gas ? toHex(gas) : "0x",
     to4 ?? "0x",
     value ? toHex(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     toHex(chainId),
     toHex(""),
     toHex(""),
@@ -29878,7 +29878,7 @@ var init_hashBytecode = __esm({
 
 // relay/node_modules/viem/_esm/zksync/utils/getEip712Domain.js
 function transactionToMessage(transaction) {
-  const { gas, nonce: nonce3, to: to4, from: from21, value, maxFeePerGas, maxPriorityFeePerGas, factoryDeps, paymaster, paymasterInput, gasPerPubdata, data } = transaction;
+  const { gas, nonce: nonce3, to: to4, from: from21, value, maxFeePerGas, maxPriorityFeePerGas, factoryDeps, paymaster, paymasterInput, gasPerPubdata, data: data2 } = transaction;
   return {
     txType: 113n,
     from: BigInt(from21),
@@ -29890,7 +29890,7 @@ function transactionToMessage(transaction) {
     paymaster: paymaster ? BigInt(paymaster) : 0n,
     nonce: nonce3 ? BigInt(nonce3) : 0n,
     value: value ?? 0n,
-    data: data ?? "0x",
+    data: data2 ?? "0x",
     factoryDeps: factoryDeps?.map((dep) => toHex(hashBytecode(dep))) ?? [],
     paymasterInput: paymasterInput ? paymasterInput : "0x"
   };
@@ -30441,7 +30441,7 @@ function serializeTransaction3(transaction, signature) {
 }
 function serializeTransactionDeposit(transaction) {
   assertTransactionDeposit(transaction);
-  const { sourceHash, data, from: from21, gas, isSystemTx, mint: mint3, to: to4, value } = transaction;
+  const { sourceHash, data: data2, from: from21, gas, isSystemTx, mint: mint3, to: to4, value } = transaction;
   const serializedTransaction = [
     sourceHash,
     from21,
@@ -30450,7 +30450,7 @@ function serializeTransactionDeposit(transaction) {
     value ? toHex(value) : "0x",
     gas ? toHex(gas) : "0x",
     isSystemTx ? "0x1" : "0x",
-    data ?? "0x"
+    data2 ?? "0x"
   ];
   return concatHex([
     "0x7e",
@@ -33389,7 +33389,7 @@ function serializeTransaction4(transaction, signature) {
 }
 function serializeTransactionCIP64(transaction, signature) {
   assertTransactionCIP64(transaction);
-  const { chainId, gas, nonce: nonce3, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, feeCurrency, data } = transaction;
+  const { chainId, gas, nonce: nonce3, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, feeCurrency, data: data2 } = transaction;
   const serializedTransaction = [
     toHex(chainId),
     nonce3 ? toHex(nonce3) : "0x",
@@ -33398,7 +33398,7 @@ function serializeTransactionCIP64(transaction, signature) {
     gas ? toHex(gas) : "0x",
     to4 ?? "0x",
     value ? toHex(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializeAccessList(accessList),
     feeCurrency,
     ...toYParitySignatureArray(transaction, signature)
@@ -41126,7 +41126,7 @@ async function estimateGas2(client, args) {
     throw new AccountNotFoundError();
   const account = parseAccount(account_);
   try {
-    const { accessList, blockNumber, blockTag, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, to: to4, value, ...rest } = args;
+    const { accessList, blockNumber, blockTag, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce3, to: to4, value, ...rest } = args;
     const blockNumberHex = typeof blockNumber === "bigint" ? numberToHex(blockNumber) : void 0;
     const block = blockNumberHex || blockTag;
     assertRequest(args);
@@ -41137,7 +41137,7 @@ async function estimateGas2(client, args) {
       ...extract(rest, { format: chainFormat }),
       account,
       accessList,
-      data,
+      data: data2,
       gas,
       gasPrice,
       maxFeePerGas,
@@ -50449,8 +50449,8 @@ function deserialize(value) {
     return { signature, type: "secp256k1" };
   }
   const typeId = slice3(serialized, 0, 1);
-  const data = slice3(serialized, 1);
-  const dataSize = size3(data);
+  const data2 = slice3(serialized, 1);
+  const dataSize = size3(data2);
   if (typeId === serializedP256Type) {
     if (dataSize !== 129)
       throw new InvalidSerializedError({
@@ -50460,13 +50460,13 @@ function deserialize(value) {
     return {
       publicKey: {
         prefix: 4,
-        x: toBigInt(slice3(data, 64, 96)),
-        y: toBigInt(slice3(data, 96, 128))
+        x: toBigInt(slice3(data2, 64, 96)),
+        y: toBigInt(slice3(data2, 96, 128))
       },
-      prehash: toNumber(slice3(data, 128, 129)) !== 0,
+      prehash: toNumber(slice3(data2, 128, 129)) !== 0,
       signature: {
-        r: toBigInt(slice3(data, 0, 32)),
-        s: toBigInt(slice3(data, 32, 64))
+        r: toBigInt(slice3(data2, 0, 32)),
+        s: toBigInt(slice3(data2, 32, 64))
       },
       type: "p256"
     };
@@ -50478,7 +50478,7 @@ function deserialize(value) {
         serialized
       });
     const webauthnDataSize = dataSize - 128;
-    const webauthnData = slice3(data, 0, webauthnDataSize);
+    const webauthnData = slice3(data2, 0, webauthnDataSize);
     let authenticatorData;
     let clientDataJSON;
     for (let split3 = 37; split3 < webauthnDataSize; split3++) {
@@ -50501,23 +50501,23 @@ function deserialize(value) {
     return {
       publicKey: {
         prefix: 4,
-        x: toBigInt(slice3(data, webauthnDataSize + 64, webauthnDataSize + 96)),
-        y: toBigInt(slice3(data, webauthnDataSize + 96, webauthnDataSize + 128))
+        x: toBigInt(slice3(data2, webauthnDataSize + 64, webauthnDataSize + 96)),
+        y: toBigInt(slice3(data2, webauthnDataSize + 96, webauthnDataSize + 128))
       },
       metadata: {
         authenticatorData,
         clientDataJSON
       },
       signature: {
-        r: toBigInt(slice3(data, webauthnDataSize, webauthnDataSize + 32)),
-        s: toBigInt(slice3(data, webauthnDataSize + 32, webauthnDataSize + 64))
+        r: toBigInt(slice3(data2, webauthnDataSize, webauthnDataSize + 32)),
+        s: toBigInt(slice3(data2, webauthnDataSize + 32, webauthnDataSize + 64))
       },
       type: "webAuthn"
     };
   }
   if (typeId === serializedKeychainType || typeId === serializedKeychainV2Type) {
-    const userAddress = slice3(data, 0, 20);
-    const inner = deserialize(slice3(data, 20));
+    const userAddress = slice3(data2, 0, 20);
+    const inner = deserialize(slice3(data2, 20));
     return {
       userAddress,
       inner,
@@ -50526,7 +50526,7 @@ function deserialize(value) {
     };
   }
   if (typeId === serializedMultisigType) {
-    const [account, signatures, init] = toHex3(data);
+    const [account, signatures, init] = toHex3(data2);
     if (typeof init !== "undefined" && !Array.isArray(init))
       throw new InvalidSerializedError({
         reason: "Invalid multisig `init`: expected the bootstrap config list or an omitted trailing element",
@@ -51921,12 +51921,12 @@ function format(value, decimals = 0) {
   if (negative)
     display = display.slice(1);
   display = display.padStart(decimals, "0");
-  let [integer, fraction] = [
+  let [integer2, fraction] = [
     display.slice(0, display.length - decimals),
     display.slice(display.length - decimals)
   ];
   fraction = fraction.replace(/(0+)$/, "");
-  return `${negative ? "-" : ""}${integer || "0"}${fraction ? `.${fraction}` : ""}`;
+  return `${negative ? "-" : ""}${integer2 || "0"}${fraction ? `.${fraction}` : ""}`;
 }
 function formatGwei2(wei, unit = "wei") {
   return format(wei, exponents.gwei - exponents[unit]);
@@ -52102,14 +52102,14 @@ function deserialize3(serialized) {
   if (calls && calls !== "0x") {
     const callsArray = calls;
     transaction.calls = callsArray.map((callTuple) => {
-      const [to4, value, data] = callTuple;
+      const [to4, value, data2] = callTuple;
       const call3 = {};
       if (to4 && to4 !== "0x")
         call3.to = to4;
       if (value && value !== "0x")
         call3.value = BigInt(value);
-      if (data && data !== "0x")
-        call3.data = data;
+      if (data2 && data2 !== "0x")
+        call3.data = data2;
       return call3;
     });
   }
@@ -55992,12 +55992,12 @@ function formatTransactionRequest2(r, action) {
     ..."feePayerSignature" in request && request.feePayerSignature !== void 0 ? { feePayerSignature: request.feePayerSignature } : {}
   };
 }
-function shimKeyData(data) {
-  if (!data)
-    return data;
-  const byteLength = (data.length - 2) / 2;
+function shimKeyData(data2) {
+  if (!data2)
+    return data2;
+  const byteLength = (data2.length - 2) / 2;
   if (byteLength <= 4)
-    return data;
+    return data2;
   return fromNumber(byteLength, { size: 2 });
 }
 var init_Formatters = __esm({
@@ -61443,21 +61443,21 @@ function padBytes2(bytes, { dir, size: size6 = 32 } = {}) {
   return paddedBytes;
 }
 function trim4(hexOrBytes, { dir = "left" } = {}) {
-  let data = typeof hexOrBytes === "string" ? hexOrBytes.replace("0x", "") : hexOrBytes;
+  let data2 = typeof hexOrBytes === "string" ? hexOrBytes.replace("0x", "") : hexOrBytes;
   let sliceLength = 0;
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[dir === "left" ? i : data.length - i - 1].toString() === "0")
+  for (let i = 0; i < data2.length - 1; i++) {
+    if (data2[dir === "left" ? i : data2.length - i - 1].toString() === "0")
       sliceLength++;
     else
       break;
   }
-  data = dir === "left" ? data.slice(sliceLength) : data.slice(0, data.length - sliceLength);
+  data2 = dir === "left" ? data2.slice(sliceLength) : data2.slice(0, data2.length - sliceLength);
   if (typeof hexOrBytes === "string") {
-    if (data.length === 1 && dir === "right")
-      data = `${data}0`;
-    return `0x${data.length % 2 === 1 ? `0${data}` : data}`;
+    if (data2.length === 1 && dir === "right")
+      data2 = `${data2}0`;
+    return `0x${data2.length % 2 === 1 ? `0${data2}` : data2}`;
   }
-  return data;
+  return data2;
 }
 function assertSize4(hexOrBytes, { size: size6 }) {
   if (size5(hexOrBytes) > size6)
@@ -61729,11 +61729,11 @@ function utf8ToBytes3(str) {
     throw new Error("string expected");
   return new Uint8Array(new TextEncoder().encode(str));
 }
-function toBytes22(data) {
-  if (typeof data === "string")
-    data = utf8ToBytes3(data);
-  abytes3(data);
-  return data;
+function toBytes22(data2) {
+  if (typeof data2 === "string")
+    data2 = utf8ToBytes3(data2);
+  abytes3(data2);
+  return data2;
 }
 function concatBytes4(...arrays) {
   let sum = 0;
@@ -61973,10 +61973,10 @@ function encodeAbiParameters2(params, values) {
     params,
     values
   });
-  const data = encodeParams2(preparedParams);
-  if (data.length === 0)
+  const data2 = encodeParams2(preparedParams);
+  if (data2.length === 0)
     return "0x";
-  return data;
+  return data2;
 }
 function prepareParams2({ params, values }) {
   const preparedParams = [];
@@ -62068,16 +62068,16 @@ function encodeArray3(value, { length, param }) {
     preparedParams.push(preparedParam);
   }
   if (dynamic || dynamicChild) {
-    const data = encodeParams2(preparedParams);
+    const data2 = encodeParams2(preparedParams);
     if (dynamic) {
       const length2 = numberToHex3(preparedParams.length, { size: 32 });
       return {
         dynamic: true,
-        encoded: preparedParams.length > 0 ? concat4([length2, data]) : length2
+        encoded: preparedParams.length > 0 ? concat4([length2, data2]) : length2
       };
     }
     if (dynamicChild)
-      return { dynamic: true, encoded: data };
+      return { dynamic: true, encoded: data2 };
   }
   return {
     dynamic: false,
@@ -62395,8 +62395,8 @@ function encodeFunctionData2(parameters) {
   })();
   const abiItem = abi22[0];
   const signature = functionName;
-  const data = "inputs" in abiItem && abiItem.inputs ? encodeAbiParameters2(abiItem.inputs, args ?? []) : void 0;
-  return concatHex2([signature, data ?? "0x"]);
+  const data2 = "inputs" in abiItem && abiItem.inputs ? encodeAbiParameters2(abiItem.inputs, args ?? []) : void 0;
+  return concatHex2([signature, data2 ?? "0x"]);
 }
 function createCursor2(bytes, { recursiveReadLimit = 8192 } = {}) {
   const cursor = Object.create(staticCursor3);
@@ -62449,27 +62449,27 @@ function bytesToString2(bytes_, opts = {}) {
   }
   return new TextDecoder().decode(bytes);
 }
-function decodeAbiParameters2(params, data) {
-  const bytes = typeof data === "string" ? hexToBytes3(data) : data;
+function decodeAbiParameters2(params, data2) {
+  const bytes = typeof data2 === "string" ? hexToBytes3(data2) : data2;
   const cursor = createCursor2(bytes);
   if (size5(bytes) === 0 && params.length > 0)
     throw new AbiDecodingZeroDataError2();
-  if (size5(data) && size5(data) < 32)
+  if (size5(data2) && size5(data2) < 32)
     throw new AbiDecodingDataSizeTooSmallError2({
-      data: typeof data === "string" ? data : bytesToHex3(data),
+      data: typeof data2 === "string" ? data2 : bytesToHex3(data2),
       params,
-      size: size5(data)
+      size: size5(data2)
     });
   let consumed = 0;
   const values = [];
   for (let i = 0; i < params.length; ++i) {
     const param = params[i];
     cursor.setPosition(consumed);
-    const [data2, consumed_] = decodeParameter3(cursor, param, {
+    const [data3, consumed_] = decodeParameter3(cursor, param, {
       staticPosition: 0
     });
     consumed += consumed_;
-    values.push(data2);
+    values.push(data3);
   }
   return values;
 }
@@ -62511,11 +62511,11 @@ function decodeArray3(cursor, param, { length, staticPosition }) {
     const value2 = [];
     for (let i = 0; i < length2; ++i) {
       cursor.setPosition(startOfData + (dynamicChild ? i * 32 : consumed2));
-      const [data, consumed_] = decodeParameter3(cursor, param, {
+      const [data2, consumed_] = decodeParameter3(cursor, param, {
         staticPosition: startOfData
       });
       consumed2 += consumed_;
-      value2.push(data);
+      value2.push(data2);
     }
     cursor.setPosition(staticPosition + 32);
     return [value2, 32];
@@ -62526,10 +62526,10 @@ function decodeArray3(cursor, param, { length, staticPosition }) {
     const value2 = [];
     for (let i = 0; i < length; ++i) {
       cursor.setPosition(start + i * 32);
-      const [data] = decodeParameter3(cursor, param, {
+      const [data2] = decodeParameter3(cursor, param, {
         staticPosition: start
       });
-      value2.push(data);
+      value2.push(data2);
     }
     cursor.setPosition(staticPosition + 32);
     return [value2, 32];
@@ -62537,11 +62537,11 @@ function decodeArray3(cursor, param, { length, staticPosition }) {
   let consumed = 0;
   const value = [];
   for (let i = 0; i < length; ++i) {
-    const [data, consumed_] = decodeParameter3(cursor, param, {
+    const [data2, consumed_] = decodeParameter3(cursor, param, {
       staticPosition: staticPosition + consumed
     });
     consumed += consumed_;
-    value.push(data);
+    value.push(data2);
   }
   return [value, consumed];
 }
@@ -62558,9 +62558,9 @@ function decodeBytes3(cursor, param, { staticPosition }) {
       cursor.setPosition(staticPosition + 32);
       return ["0x", 32];
     }
-    const data = cursor.readBytes(length);
+    const data2 = cursor.readBytes(length);
     cursor.setPosition(staticPosition + 32);
-    return [bytesToHex3(data), 32];
+    return [bytesToHex3(data2), 32];
   }
   const value = bytesToHex3(cursor.readBytes(Number.parseInt(size6, 10), 32));
   return [value, 32];
@@ -62584,21 +62584,21 @@ function decodeTuple3(cursor, param, { staticPosition }) {
     for (let i = 0; i < param.components.length; ++i) {
       const component = param.components[i];
       cursor.setPosition(start + consumed);
-      const [data, consumed_] = decodeParameter3(cursor, component, {
+      const [data2, consumed_] = decodeParameter3(cursor, component, {
         staticPosition: start
       });
       consumed += consumed_;
-      value[hasUnnamedChild ? i : component?.name] = data;
+      value[hasUnnamedChild ? i : component?.name] = data2;
     }
     cursor.setPosition(staticPosition + 32);
     return [value, 32];
   }
   for (let i = 0; i < param.components.length; ++i) {
     const component = param.components[i];
-    const [data, consumed_] = decodeParameter3(cursor, component, {
+    const [data2, consumed_] = decodeParameter3(cursor, component, {
       staticPosition
     });
-    value[hasUnnamedChild ? i : component?.name] = data;
+    value[hasUnnamedChild ? i : component?.name] = data2;
     consumed += consumed_;
   }
   return [value, consumed];
@@ -62612,8 +62612,8 @@ function decodeString3(cursor, { staticPosition }) {
     cursor.setPosition(staticPosition + 32);
     return ["", 32];
   }
-  const data = cursor.readBytes(length, 32);
-  const value = bytesToString2(trim4(data));
+  const data2 = cursor.readBytes(length, 32);
+  const value = bytesToString2(trim4(data2));
   cursor.setPosition(staticPosition + 32);
   return [value, 32];
 }
@@ -62633,8 +62633,8 @@ function hasDynamicChild3(param) {
   return false;
 }
 function decodeErrorResult2(parameters) {
-  const { abi: abi22, data, cause } = parameters;
-  const signature = slice4(data, 0, 4);
+  const { abi: abi22, data: data2, cause } = parameters;
+  const signature = slice4(data2, 0, 4);
   if (signature === "0x")
     throw new AbiDecodingZeroDataError2({ cause });
   const abi_ = [...abi22 || [], solidityError2, solidityPanic2];
@@ -62646,7 +62646,7 @@ function decodeErrorResult2(parameters) {
     });
   return {
     abiItem,
-    args: "inputs" in abiItem && abiItem.inputs && abiItem.inputs.length > 0 ? decodeAbiParameters2(abiItem.inputs, slice4(data, 4)) : void 0,
+    args: "inputs" in abiItem && abiItem.inputs && abiItem.inputs.length > 0 ? decodeAbiParameters2(abiItem.inputs, slice4(data2, 4)) : void 0,
     errorName: abiItem.name
   };
 }
@@ -62665,12 +62665,12 @@ function formatUnits2(value, decimals) {
   if (negative)
     display = display.slice(1);
   display = display.padStart(decimals, "0");
-  let [integer, fraction] = [
+  let [integer2, fraction] = [
     display.slice(0, display.length - decimals),
     display.slice(display.length - decimals)
   ];
   fraction = fraction.replace(/(0+)$/, "");
-  return `${negative ? "-" : ""}${integer || "0"}${fraction ? `.${fraction}` : ""}`;
+  return `${negative ? "-" : ""}${integer2 || "0"}${fraction ? `.${fraction}` : ""}`;
 }
 function formatEther2(wei, unit = "wei") {
   return formatUnits2(wei, etherUnits2[unit]);
@@ -62731,14 +62731,14 @@ function isAbortError2(error) {
 }
 function getContractError2(err2, { abi: abi22, address: address3, args, docsPath: docsPath92, functionName, sender }) {
   const error = err2 instanceof RawContractError2 ? err2 : err2 instanceof BaseError22 ? err2.walk((err3) => "data" in err3) || err2.walk() : {};
-  const { code, data, details, message: message2, shortMessage } = error;
+  const { code, data: data2, details, message: message2, shortMessage } = error;
   const cause = (() => {
     if (err2 instanceof AbiDecodingZeroDataError2)
       return new ContractFunctionZeroDataError2({ functionName, cause: err2 });
-    if ([EXECUTION_REVERTED_ERROR_CODE2, InternalRpcError2.code].includes(code) && (data || details || message2 || shortMessage) || code === InvalidInputRpcError2.code && details === "execution reverted" && data) {
+    if ([EXECUTION_REVERTED_ERROR_CODE2, InternalRpcError2.code].includes(code) && (data2 || details || message2 || shortMessage) || code === InvalidInputRpcError2.code && details === "execution reverted" && data2) {
       return new ContractFunctionRevertedError2({
         abi: abi22,
-        data: typeof data === "object" ? data.data : data,
+        data: typeof data2 === "object" ? data2.data : data2,
         functionName,
         message: error instanceof RpcRequestError2 ? details : shortMessage ?? message2,
         cause: err2
@@ -65217,8 +65217,8 @@ function commitmentsToVersionedHashes2(parameters) {
 }
 function toBlobs2(parameters) {
   const to4 = parameters.to ?? (typeof parameters.data === "string" ? "hex" : "bytes");
-  const data = typeof parameters.data === "string" ? hexToBytes3(parameters.data) : parameters.data;
-  const size_ = size5(data);
+  const data2 = typeof parameters.data === "string" ? hexToBytes3(parameters.data) : parameters.data;
+  const size_ = size5(data2);
   if (!size_)
     throw new EmptyBlobError2();
   if (size_ > maxBytesPerTransaction2)
@@ -65233,7 +65233,7 @@ function toBlobs2(parameters) {
     const blob = createCursor2(new Uint8Array(bytesPerBlob2));
     let size6 = 0;
     while (size6 < fieldElementsPerBlob2) {
-      const bytes = data.slice(position, position + (bytesPerFieldElement2 - 1));
+      const bytes = data2.slice(position, position + (bytesPerFieldElement2 - 1));
       blob.pushByte(0);
       blob.pushBytes(bytes);
       if (bytes.length < 31) {
@@ -65249,8 +65249,8 @@ function toBlobs2(parameters) {
   return to4 === "bytes" ? blobs.map((x) => x.bytes) : blobs.map((x) => bytesToHex3(x.bytes));
 }
 function toBlobSidecars2(parameters) {
-  const { data, kzg, to: to4 } = parameters;
-  const blobs = parameters.blobs ?? toBlobs2({ data, to: to4 });
+  const { data: data2, kzg, to: to4 } = parameters;
+  const blobs = parameters.blobs ?? toBlobs2({ data: data2, to: to4 });
   const commitments = parameters.commitments ?? blobsToCommitments2({ blobs, kzg, to: to4 });
   const proofs = parameters.proofs ?? blobsToProofs2({ blobs, commitments, kzg, to: to4 });
   const sidecars = [];
@@ -65298,7 +65298,7 @@ async function getChainId2(client) {
   return hexToNumber4(chainIdHex);
 }
 async function fillTransaction2(client, parameters) {
-  const { account = client.account, accessList, authorizationList, chain = client.chain, blobVersionedHashes, blobs, data, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce_, nonceManager: nonceManager22, to: to4, type: type22, value, ...rest } = parameters;
+  const { account = client.account, accessList, authorizationList, chain = client.chain, blobVersionedHashes, blobs, data: data2, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce_, nonceManager: nonceManager22, to: to4, type: type22, value, ...rest } = parameters;
   const nonce22 = await (async () => {
     if (!account)
       return nonce_;
@@ -65325,7 +65325,7 @@ async function fillTransaction2(client, parameters) {
     authorizationList,
     blobs,
     blobVersionedHashes,
-    data,
+    data: data2,
     gas,
     gasPrice,
     maxFeePerBlobGas,
@@ -65631,7 +65631,7 @@ async function estimateGas3(client, args) {
         });
       return void 0;
     })();
-    const { accessList, authorizationList, blobs, blobVersionedHashes, blockNumber, blockTag, data, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, value, stateOverride, ...rest } = prepare ? await prepareTransactionRequest2(client, {
+    const { accessList, authorizationList, blobs, blobVersionedHashes, blockNumber, blockTag, data: data2, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, value, stateOverride, ...rest } = prepare ? await prepareTransactionRequest2(client, {
       ...args,
       parameters,
       to: to4
@@ -65652,7 +65652,7 @@ async function estimateGas3(client, args) {
       authorizationList,
       blobs,
       blobVersionedHashes,
-      data,
+      data: data2,
       gasPrice,
       maxFeePerBlobGas,
       maxFeePerGas,
@@ -65679,14 +65679,14 @@ async function estimateGas3(client, args) {
 }
 async function estimateContractGas2(client, parameters) {
   const { abi: abi22, address: address3, args, functionName, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, ...request } = parameters;
-  const data = encodeFunctionData2({
+  const data2 = encodeFunctionData2({
     abi: abi22,
     args,
     functionName
   });
   try {
     const gas = await getAction2(client, estimateGas3, "estimateGas")({
-      data: `${data}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
+      data: `${data2}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
       to: address3,
       ...request
     });
@@ -65723,7 +65723,7 @@ function formatLog2(log, { args, eventName } = {}) {
   };
 }
 function decodeEventLog2(parameters) {
-  const { abi: abi22, data, strict: strict_, topics } = parameters;
+  const { abi: abi22, data: data2, strict: strict_, topics } = parameters;
   const strict = strict_ ?? true;
   const [signature, ...argTopics] = topics;
   if (!signature)
@@ -65756,9 +65756,9 @@ function decodeEventLog2(parameters) {
   const nonIndexedInputs = inputs.filter((x) => !("indexed" in x && x.indexed));
   const inputsToDecode = strict ? nonIndexedInputs : [...missingIndexedInputs.map(([param]) => param), ...nonIndexedInputs];
   if (inputsToDecode.length > 0) {
-    if (data && data !== "0x") {
+    if (data2 && data2 !== "0x") {
       try {
-        const decodedData = decodeAbiParameters2(inputsToDecode, data);
+        const decodedData = decodeAbiParameters2(inputsToDecode, data2);
         if (decodedData) {
           let dataIndex = 0;
           if (!strict) {
@@ -65779,9 +65779,9 @@ function decodeEventLog2(parameters) {
           if (err2 instanceof AbiDecodingDataSizeTooSmallError2 || err2 instanceof PositionOutOfBoundsError3)
             throw new DecodeLogDataMismatch2({
               abiItem,
-              data,
+              data: data2,
               params: inputsToDecode,
-              size: size5(data)
+              size: size5(data2)
             });
           throw err2;
         }
@@ -65968,7 +65968,7 @@ async function getContractEvents2(client, parameters) {
   });
 }
 function decodeFunctionResult2(parameters) {
-  const { abi: abi22, args, functionName, data } = parameters;
+  const { abi: abi22, args, functionName, data: data2 } = parameters;
   let abiItem = abi22[0];
   if (functionName) {
     const item = getAbiItem2({ abi: abi22, args, name: functionName });
@@ -65980,7 +65980,7 @@ function decodeFunctionResult2(parameters) {
     throw new AbiFunctionNotFoundError2(void 0, { docsPath: docsPath42 });
   if (!abiItem.outputs)
     throw new AbiFunctionOutputsNotFoundError2(abiItem.name, { docsPath: docsPath42 });
-  const values = decodeAbiParameters2(abiItem.outputs, data);
+  const values = decodeAbiParameters2(abiItem.outputs, data2);
   if (values && values.length > 1)
     return values;
   if (values && values.length === 1)
@@ -66049,16 +66049,16 @@ function pad22(bytes, options = {}) {
 }
 function trim22(value, options = {}) {
   const { dir = "left" } = options;
-  let data = value;
+  let data2 = value;
   let sliceLength = 0;
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[dir === "left" ? i : data.length - i - 1].toString() === "0")
+  for (let i = 0; i < data2.length - 1; i++) {
+    if (data2[dir === "left" ? i : data2.length - i - 1].toString() === "0")
       sliceLength++;
     else
       break;
   }
-  data = dir === "left" ? data.slice(sliceLength) : data.slice(0, data.length - sliceLength);
-  return data;
+  data2 = dir === "left" ? data2.slice(sliceLength) : data2.slice(0, data2.length - sliceLength);
+  return data2;
 }
 function assertSize32(hex, size_) {
   if (size32(hex) > size_)
@@ -66099,20 +66099,20 @@ function pad32(hex_, options = {}) {
 }
 function trim32(value, options = {}) {
   const { dir = "left" } = options;
-  let data = value.replace("0x", "");
+  let data2 = value.replace("0x", "");
   let sliceLength = 0;
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[dir === "left" ? i : data.length - i - 1].toString() === "0")
+  for (let i = 0; i < data2.length - 1; i++) {
+    if (data2[dir === "left" ? i : data2.length - i - 1].toString() === "0")
       sliceLength++;
     else
       break;
   }
-  data = dir === "left" ? data.slice(sliceLength) : data.slice(0, data.length - sliceLength);
-  if (data === "0")
+  data2 = dir === "left" ? data2.slice(sliceLength) : data2.slice(0, data2.length - sliceLength);
+  if (data2 === "0")
     return "0x";
-  if (dir === "right" && data.length % 2 === 1)
-    return `0x${data}0`;
-  return `0x${data}`;
+  if (dir === "right" && data2.length % 2 === 1)
+    return `0x${data2}0`;
+  return `0x${data2}`;
 }
 function stringify22(value, replacer, space) {
   return JSON.stringify(value, (key, value2) => {
@@ -66439,8 +66439,8 @@ function encodeDeployData2(parameters) {
     throw new AbiConstructorParamsNotFoundError2({ docsPath: docsPath52 });
   if (!description.inputs || description.inputs.length === 0)
     throw new AbiConstructorParamsNotFoundError2({ docsPath: docsPath52 });
-  const data = encodeAbiParameters2(description.inputs, args);
-  return concatHex2([bytecode, data]);
+  const data2 = encodeAbiParameters2(description.inputs, args);
+  return concatHex2([bytecode, data2]);
 }
 function getChainContractAddress2({ blockNumber, chain, contract: name }) {
   const contract = chain?.contracts?.[name];
@@ -66488,12 +66488,12 @@ function createBatchScheduler2({ fn: fn3, id: id3, shouldSplitBatch, wait: wait2
     const args = scheduler.map(({ args: args2 }) => args2);
     if (args.length === 0)
       return;
-    fn3(args).then((data) => {
-      if (sort && Array.isArray(data))
-        data.sort(sort);
+    fn3(args).then((data2) => {
+      if (sort && Array.isArray(data2))
+        data2.sort(sort);
       for (let i = 0; i < scheduler.length; i++) {
         const { resolve: resolve22 } = scheduler[i];
-        resolve22?.([data[i], data]);
+        resolve22?.([data2[i], data2]);
       }
     }).catch((err2) => {
       for (let i = 0; i < scheduler.length; i++) {
@@ -66525,8 +66525,8 @@ function createBatchScheduler2({ fn: fn3, id: id3, shouldSplitBatch, wait: wait2
   };
 }
 function decodeFunctionData2(parameters) {
-  const { abi: abi22, data } = parameters;
-  const signature = slice4(data, 0, 4);
+  const { abi: abi22, data: data2 } = parameters;
+  const signature = slice4(data2, 0, 4);
   const description = abi22.find((x) => x.type === "function" && signature === toFunctionSelector2(formatAbiItem22(x)));
   if (!description)
     throw new AbiFunctionSignatureNotFoundError2(signature, {
@@ -66534,7 +66534,7 @@ function decodeFunctionData2(parameters) {
     });
   return {
     functionName: description.name,
-    args: "inputs" in description && description.inputs && description.inputs.length > 0 ? decodeAbiParameters2(description.inputs, slice4(data, 4)) : void 0
+    args: "inputs" in description && description.inputs && description.inputs.length > 0 ? decodeAbiParameters2(description.inputs, slice4(data2, 4)) : void 0
   };
 }
 function encodeErrorResult2(parameters) {
@@ -66550,13 +66550,13 @@ function encodeErrorResult2(parameters) {
     throw new AbiErrorNotFoundError2(void 0, { docsPath: docsPath62 });
   const definition = formatAbiItem22(abiItem);
   const signature = toFunctionSelector2(definition);
-  let data = "0x";
+  let data2 = "0x";
   if (args && args.length > 0) {
     if (!abiItem.inputs)
       throw new AbiErrorInputsNotFoundError2(abiItem.name, { docsPath: docsPath62 });
-    data = encodeAbiParameters2(abiItem.inputs, args);
+    data2 = encodeAbiParameters2(abiItem.inputs, args);
   }
-  return concatHex2([signature, data]);
+  return concatHex2([signature, data2]);
 }
 function encodeFunctionResult2(parameters) {
   const { abi: abi22, functionName, result } = parameters;
@@ -66583,8 +66583,8 @@ function encodeFunctionResult2(parameters) {
   return encodeAbiParameters2(abiItem.outputs, values);
 }
 async function localBatchGatewayRequest2(parameters) {
-  const { data, ccipRequest: ccipRequest22 } = parameters;
-  const { args: [queries] } = decodeFunctionData2({ abi: batchGatewayAbi2, data });
+  const { data: data2, ccipRequest: ccipRequest22 } = parameters;
+  const { args: [queries] } = decodeFunctionData2({ abi: batchGatewayAbi2, data: data2 });
   const failures = [];
   const responses = [];
   await Promise.all(queries.map(async (query, i) => {
@@ -66615,9 +66615,9 @@ function encodeError2(error) {
     args: ["shortMessage" in error ? error.shortMessage : error.message]
   });
 }
-async function offchainLookup2(client, { blockNumber, blockTag, data, requestOptions, to: to4 }) {
+async function offchainLookup2(client, { blockNumber, blockTag, data: data2, requestOptions, to: to4 }) {
   const { args } = decodeErrorResult2({
-    data,
+    data: data2,
     abi: [offchainLookupAbiItem2]
   });
   const [sender, urls, callData, callbackSelector, extraData] = args;
@@ -66649,24 +66649,24 @@ async function offchainLookup2(client, { blockNumber, blockTag, data, requestOpt
     throw new OffchainLookupError2({
       callbackSelector,
       cause: err2,
-      data,
+      data: data2,
       extraData,
       sender,
       urls
     });
   }
 }
-async function ccipRequest2({ data, requestOptions, sender, urls }) {
+async function ccipRequest2({ data: data2, requestOptions, sender, urls }) {
   let error = new Error("An unknown error occurred.");
   for (let i = 0; i < urls.length; i++) {
     if (requestOptions?.signal?.aborted)
       throw getAbortError2(requestOptions.signal);
     const url = urls[i];
     const method = url.includes("{data}") ? "GET" : "POST";
-    const body2 = method === "POST" ? { data, sender } : void 0;
+    const body2 = method === "POST" ? { data: data2, sender } : void 0;
     const headers = method === "POST" ? { "Content-Type": "application/json" } : {};
     try {
-      const response = await fetch(url.replace("{sender}", sender.toLowerCase()).replace("{data}", data), {
+      const response = await fetch(url.replace("{sender}", sender.toLowerCase()).replace("{data}", data2), {
         body: JSON.stringify(body2),
         headers,
         method,
@@ -66720,7 +66720,7 @@ async function call2(client, args) {
   const deploylessCallViaBytecode = code && data_;
   const deploylessCallViaFactory = factory && factoryData && to4 && data_;
   const deploylessCall = deploylessCallViaBytecode || deploylessCallViaFactory;
-  const data = (() => {
+  const data2 = (() => {
     if (deploylessCallViaBytecode)
       return toDeploylessCallViaBytecodeData2({
         code,
@@ -66754,7 +66754,7 @@ async function call2(client, args) {
       account,
       authorizationList,
       blobs,
-      data,
+      data: data2,
       gas,
       gasPrice,
       maxFeePerBlobGas,
@@ -66812,13 +66812,13 @@ async function call2(client, args) {
       throw getAbortError2(requestOptions.signal);
     if (isAbortError2(err2))
       throw err2;
-    const data2 = getRevertErrorData2(err2);
+    const data3 = getRevertErrorData2(err2);
     const { offchainLookup: offchainLookup22, offchainLookupSignature: offchainLookupSignature22 } = await Promise.resolve().then(() => (init_ccip22(), ccip_exports2));
-    if (client.ccipRead !== false && data2?.slice(0, 10) === offchainLookupSignature22 && to4)
+    if (client.ccipRead !== false && data3?.slice(0, 10) === offchainLookupSignature22 && to4)
       return {
-        data: await offchainLookup22(client, { data: data2, requestOptions, to: to4 })
+        data: await offchainLookup22(client, { data: data3, requestOptions, to: to4 })
       };
-    if (deploylessCall && data2?.slice(0, 10) === "0x101bb98d")
+    if (deploylessCall && data3?.slice(0, 10) === "0x101bb98d")
       throw new CounterfactualDeploymentFailedError2({ factory });
     throw getCallError2(err2, {
       ...args,
@@ -66828,10 +66828,10 @@ async function call2(client, args) {
   }
 }
 function shouldPerformMulticall2({ request }) {
-  const { data, to: to4, ...request_ } = request;
-  if (!data)
+  const { data: data2, to: to4, ...request_ } = request;
+  if (!data2)
     return false;
-  if (data.startsWith(aggregate3Signature2))
+  if (data2.startsWith(aggregate3Signature2))
     return false;
   if (!to4)
     return false;
@@ -66851,7 +66851,7 @@ function getRequestOptionsId2(requestOptions) {
 }
 async function scheduleMulticall2(client, args) {
   const { batchSize = 1024, deployless = false, wait: wait22 = 0 } = typeof client.batch?.multicall === "object" ? client.batch.multicall : {};
-  const { blockHash, blockNumber, blockTag = client.experimental_blockTag ?? "latest", requireCanonical, data, multicallAddress: multicallAddress_, requestOptions, rpcStateOverride, to: to4 } = args;
+  const { blockHash, blockNumber, blockTag = client.experimental_blockTag ?? "latest", requireCanonical, data: data2, multicallAddress: multicallAddress_, requestOptions, rpcStateOverride, to: to4 } = args;
   const multicallAddress = multicallAddress_ !== void 0 ? multicallAddress_ : getMulticallAddress2(client, {
     blockNumber,
     deployless
@@ -66868,7 +66868,7 @@ async function scheduleMulticall2(client, args) {
     id: `${client.uid}.${blockId}.${getRequestOptionsId2(requestOptions)}${stateOverrideKey}`,
     wait: wait22,
     shouldSplitBatch(args2) {
-      const size6 = args2.reduce((size7, { data: data2 }) => size7 + (data2.length - 2), 0);
+      const size6 = args2.reduce((size7, { data: data3 }) => size7 + (data3.length - 2), 0);
       return size6 > batchSize * 2;
     },
     fn: async (requests) => {
@@ -66890,7 +66890,7 @@ async function scheduleMulticall2(client, args) {
           })
         } : { to: multicallAddress, data: calldata }
       };
-      const data2 = await client.request({
+      const data3 = await client.request({
         method: "eth_call",
         params: rpcStateOverride ? [multicallRequest, block, rpcStateOverride] : [multicallRequest, block]
       }, requestOptions);
@@ -66898,11 +66898,11 @@ async function scheduleMulticall2(client, args) {
         abi: multicall3Abi2,
         args: [calls],
         functionName: "aggregate3",
-        data: data2 || "0x"
+        data: data3 || "0x"
       });
     }
   });
-  const [{ returnData, success }] = await schedule({ data, to: to4 });
+  const [{ returnData, success }] = await schedule({ data: data2, to: to4 });
   if (!success)
     throw new RawContractError2({ data: returnData });
   if (returnData === "0x")
@@ -66927,19 +66927,19 @@ function hasStateOverrideForAddress2(rpcStateOverride, address3) {
   return Object.keys(rpcStateOverride).some((stateOverrideAddress) => isAddressEqual2(stateOverrideAddress, address3));
 }
 function toDeploylessCallViaBytecodeData2(parameters) {
-  const { code, data } = parameters;
+  const { code, data: data2 } = parameters;
   return encodeDeployData2({
     abi: parseAbi2(["constructor(bytes, bytes)"]),
     bytecode: deploylessCallViaBytecodeBytecode2,
-    args: [code, data]
+    args: [code, data2]
   });
 }
 function toDeploylessCallViaFactoryData2(parameters) {
-  const { data, factory, factoryData, to: to4 } = parameters;
+  const { data: data2, factory, factoryData, to: to4 } = parameters;
   return encodeDeployData2({
     abi: parseAbi2(["constructor(address, bytes, address, bytes)"]),
     bytecode: deploylessCallViaFactoryBytecode2,
-    args: [to4, data, factory, factoryData]
+    args: [to4, data2, factory, factoryData]
   });
 }
 function getRevertErrorData2(err2) {
@@ -66956,7 +66956,7 @@ async function readContract2(client, parameters) {
     functionName
   });
   try {
-    const { data } = await getAction2(client, call2, "call")({
+    const { data: data2 } = await getAction2(client, call2, "call")({
       ...rest,
       data: calldata,
       to: address3
@@ -66965,7 +66965,7 @@ async function readContract2(client, parameters) {
       abi: abi22,
       args,
       functionName,
-      data: data || "0x"
+      data: data2 || "0x"
     });
   } catch (error) {
     throw getContractError2(error, {
@@ -66982,7 +66982,7 @@ async function simulateContract2(client, parameters) {
   const account = callRequest.account ? parseAccount2(callRequest.account) : client.account;
   const calldata = encodeFunctionData2({ abi: abi22, args, functionName });
   try {
-    const { data } = await getAction2(client, call2, "call")({
+    const { data: data2 } = await getAction2(client, call2, "call")({
       batch: false,
       data: `${calldata}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
       to: address3,
@@ -66993,7 +66993,7 @@ async function simulateContract2(client, parameters) {
       abi: abi22,
       args,
       functionName,
-      data: data || "0x"
+      data: data2 || "0x"
     });
     const minimizedAbi = abi22.filter((abiItem) => "name" in abiItem && abiItem.name === parameters.functionName);
     return {
@@ -67090,10 +67090,10 @@ function poll2(fn3, { emitOnBegin, initialWaitTime, interval }) {
   let active = true;
   const unwatch = () => active = false;
   const watch = async () => {
-    let data;
+    let data2;
     if (emitOnBegin)
-      data = await fn3({ unpoll: unwatch });
-    const initialWait = await initialWaitTime?.(data) ?? interval;
+      data2 = await fn3({ unpoll: unwatch });
+    const initialWait = await initialWaitTime?.(data2) ?? interval;
     await wait2(initialWait);
     const poll22 = async () => {
       if (!active)
@@ -67111,7 +67111,7 @@ function getCache2(cacheKey22) {
   const buildCache = (cacheKey3, cache2) => ({
     clear: () => cache2.delete(cacheKey3),
     get: () => cache2.get(cacheKey3),
-    set: (data) => cache2.set(cacheKey3, data)
+    set: (data2) => cache2.set(cacheKey3, data2)
   });
   const promise = buildCache(cacheKey22, promiseCache3);
   const response = buildCache(cacheKey22, responseCache2);
@@ -67138,9 +67138,9 @@ async function withCache2(fn3, { cacheKey: cacheKey22, cacheTime = Number.POSITI
     cache2.promise.set(promise);
   }
   try {
-    const data = await promise;
-    cache2.response.set({ created: /* @__PURE__ */ new Date(), data });
-    return data;
+    const data2 = await promise;
+    cache2.response.set({ created: /* @__PURE__ */ new Date(), data: data2 });
+    return data2;
   } finally {
     cache2.promise.clear();
   }
@@ -67300,10 +67300,10 @@ function watchContractEvent2(client, parameters) {
           }) : [];
           const { unsubscribe: unsubscribe_ } = await transport.subscribe({
             params: ["logs", { address: address3, topics }],
-            onData(data) {
+            onData(data2) {
               if (!active)
                 return;
-              const log = data.result;
+              const log = data2.result;
               try {
                 const { eventName: eventName2, args: args2 } = decodeEventLog2({
                   abi: abi22,
@@ -67361,7 +67361,7 @@ async function sendRawTransaction2(client, { serializedTransaction }) {
   }, { retryCount: 0 });
 }
 async function sendTransaction2(client, parameters) {
-  const { account: account_ = client.account, assertChainId = true, chain = client.chain, accessList, authorizationList, blobs, data, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, type: type22, value, ...rest } = parameters;
+  const { account: account_ = client.account, assertChainId = true, chain = client.chain, accessList, authorizationList, blobs, data: data2, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, type: type22, value, ...rest } = parameters;
   if (typeof account_ === "undefined")
     throw new AccountNotFoundError2({
       docsPath: "/docs/actions/wallet/sendTransaction"
@@ -67403,7 +67403,7 @@ async function sendTransaction2(client, parameters) {
         authorizationList,
         blobs,
         chainId,
-        data: dataSuffix ? concat4([data ?? "0x", dataSuffix]) : data,
+        data: dataSuffix ? concat4([data2 ?? "0x", dataSuffix]) : data2,
         gas,
         gasPrice,
         maxFeePerBlobGas,
@@ -67462,7 +67462,7 @@ async function sendTransaction2(client, parameters) {
         authorizationList,
         blobs,
         chain,
-        data: dataSuffix ? concat4([data ?? "0x", dataSuffix]) : data,
+        data: dataSuffix ? concat4([data2 ?? "0x", dataSuffix]) : data2,
         gas,
         gasPrice,
         maxFeePerBlobGas,
@@ -67699,8 +67699,8 @@ function withRetry2(fn3, { delay: delay_ = 100, retryCount = 2, shouldRetry: sho
         attemptRetry({ count: count + 1 });
       };
       try {
-        const data = await fn3();
-        resolve22(data);
+        const data2 = await fn3();
+        resolve22(data2);
       } catch (err2) {
         if (signal?.aborted) {
           reject(getAbortError2(signal));
@@ -67759,13 +67759,13 @@ async function sendCalls2(client, parameters) {
   }
   const calls = parameters.calls.map((call_) => {
     const call22 = call_;
-    const data = call22.abi ? encodeFunctionData2({
+    const data2 = call22.abi ? encodeFunctionData2({
       abi: call22.abi,
       functionName: call22.functionName,
       args: call22.args
     }) : call22.data;
     return {
-      data: call22.dataSuffix && data ? concat4([data, call22.dataSuffix]) : data,
+      data: call22.dataSuffix && data2 ? concat4([data2, call22.dataSuffix]) : data2,
       to: call22.to,
       value: call22.value ? numberToHex3(call22.value) : void 0
     };
@@ -68145,18 +68145,18 @@ async function getEnsAddress2(client, parameters) {
     throw err2;
   }
 }
-function decodeAddress22({ coinType, data, args }) {
+function decodeAddress22({ coinType, data: data2, args }) {
   try {
     return decodeFunctionResult2({
       abi: addressResolverAbi2,
       args,
       functionName: "addr",
-      data
+      data: data2
     });
   } catch (err2) {
     if (coinType == null)
       throw err2;
-    const address3 = trim4(data);
+    const address3 = trim4(data2);
     if (size5(address3) === 20)
       return getAddress3(address3);
     throw err2;
@@ -68238,11 +68238,11 @@ function resolveAvatarUri2({ uri, gatewayUrls }) {
   }
   throw new EnsAvatarUriResolutionError2({ uri });
 }
-function getJsonImage2(data) {
-  if (typeof data !== "object" || !("image" in data) && !("image_url" in data) && !("image_data" in data)) {
-    throw new EnsAvatarInvalidMetadataError2({ data });
+function getJsonImage2(data2) {
+  if (typeof data2 !== "object" || !("image" in data2) && !("image_url" in data2) && !("image_data" in data2)) {
+    throw new EnsAvatarInvalidMetadataError2({ data: data2 });
   }
-  return data.image || data.image_url || data.image_data;
+  return data2.image || data2.image_url || data2.image_data;
 }
 async function getMetadataAvatarUri2({ gatewayUrls, uri }) {
   try {
@@ -68502,7 +68502,7 @@ async function getEnsResolver2(client, parameters) {
   return resolverAddress;
 }
 async function createAccessList2(client, args) {
-  const { account: account_ = client.account, blockNumber, blockTag = "latest", blobs, data, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, to: to4, value, ...rest } = args;
+  const { account: account_ = client.account, blockNumber, blockTag = "latest", blobs, data: data2, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, to: to4, value, ...rest } = args;
   const account = account_ ? parseAccount2(account_) : void 0;
   try {
     assertRequest2(args);
@@ -68515,7 +68515,7 @@ async function createAccessList2(client, args) {
       ...extract3(rest, { format: chainFormat }),
       account,
       blobs,
-      data,
+      data: data2,
       gas,
       gasPrice,
       maxFeePerBlobGas,
@@ -68613,7 +68613,7 @@ async function getBalance3(client, { address: address3, blockHash, blockNumber, 
       functionName: "getEthBalance",
       args: [address3]
     });
-    const { data } = await getAction2(client, call2, "call")({
+    const { data: data2 } = await getAction2(client, call2, "call")({
       to: multicall3Address,
       data: calldata,
       blockHash,
@@ -68625,7 +68625,7 @@ async function getBalance3(client, { address: address3, blockHash, blockNumber, 
       abi: multicall3Abi2,
       functionName: "getEthBalance",
       args: [address3],
-      data: data || "0x"
+      data: data2 || "0x"
     });
   }
   const balance = await client.request({
@@ -68700,7 +68700,7 @@ async function getDelegation2(client, { address: address3, blockNumber, blockTag
 async function getEip712Domain3(client, parameters) {
   const { address: address3, factory, factoryData } = parameters;
   try {
-    const [fields2, name, version5, chainId, verifyingContract, salt, extensions] = await getAction2(client, readContract2, "readContract")({
+    const [fields4, name, version5, chainId, verifyingContract, salt, extensions] = await getAction2(client, readContract2, "readContract")({
       abi: abi2,
       address: address3,
       functionName: "eip712Domain",
@@ -68716,7 +68716,7 @@ async function getEip712Domain3(client, parameters) {
         salt
       },
       extensions,
-      fields: fields2
+      fields: fields4
     };
   } catch (e) {
     const error = e;
@@ -68767,13 +68767,13 @@ function encodePacked3(types22, values) {
       expectedLength: types22.length,
       givenLength: values.length
     });
-  const data = [];
+  const data2 = [];
   for (let i = 0; i < types22.length; i++) {
     const type22 = types22[i];
     const value = values[i];
-    data.push(encode5(type22, value));
+    data2.push(encode5(type22, value));
   }
-  return concatHex2(data);
+  return concatHex2(data2);
 }
 function encode5(type22, value, isArray = false) {
   if (type22 === "address") {
@@ -68812,13 +68812,13 @@ function encode5(type22, value, isArray = false) {
   const arrayMatch = type22.match(arrayRegex3);
   if (arrayMatch && Array.isArray(value)) {
     const [_type, childType] = arrayMatch;
-    const data = [];
+    const data2 = [];
     for (let i = 0; i < value.length; i++) {
-      data.push(encode5(childType, value[i], true));
+      data2.push(encode5(childType, value[i], true));
     }
-    if (data.length === 0)
+    if (data2.length === 0)
       return "0x";
-    return concatHex2(data);
+    return concatHex2(data2);
   }
   throw new UnsupportedPackedAbiType2(type22);
 }
@@ -68955,7 +68955,7 @@ function serializeTransaction5(transaction, signature) {
   return serializeTransactionLegacy2(transaction, signature);
 }
 function serializeTransactionEIP77022(transaction, signature) {
-  const { authorizationList, chainId, gas, nonce: nonce22, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { authorizationList, chainId, gas, nonce: nonce22, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP77022(transaction);
   const serializedAccessList = serializeAccessList2(accessList);
   const serializedAuthorizationList = serializeAuthorizationList2(authorizationList);
@@ -68969,7 +68969,7 @@ function serializeTransactionEIP77022(transaction, signature) {
       gas ? numberToHex3(gas) : "0x",
       to4 ?? "0x",
       value ? numberToHex3(value) : "0x",
-      data ?? "0x",
+      data2 ?? "0x",
       serializedAccessList,
       serializedAuthorizationList,
       ...toYParitySignatureArray2(transaction, signature)
@@ -68977,7 +68977,7 @@ function serializeTransactionEIP77022(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP48442(transaction, signature) {
-  const { chainId, gas, nonce: nonce22, to: to4, value, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { chainId, gas, nonce: nonce22, to: to4, value, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP48442(transaction);
   let blobVersionedHashes = transaction.blobVersionedHashes;
   let sidecars = transaction.sidecars;
@@ -69006,7 +69006,7 @@ function serializeTransactionEIP48442(transaction, signature) {
     gas ? numberToHex3(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex3(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     maxFeePerBlobGas ? numberToHex3(maxFeePerBlobGas) : "0x",
     blobVersionedHashes ?? [],
@@ -69034,7 +69034,7 @@ function serializeTransactionEIP48442(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP15592(transaction, signature) {
-  const { chainId, gas, nonce: nonce22, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { chainId, gas, nonce: nonce22, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP15592(transaction);
   const serializedAccessList = serializeAccessList2(accessList);
   const serializedTransaction = [
@@ -69045,7 +69045,7 @@ function serializeTransactionEIP15592(transaction, signature) {
     gas ? numberToHex3(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex3(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     ...toYParitySignatureArray2(transaction, signature)
   ];
@@ -69055,7 +69055,7 @@ function serializeTransactionEIP15592(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP29302(transaction, signature) {
-  const { chainId, gas, data, nonce: nonce22, to: to4, value, accessList, gasPrice } = transaction;
+  const { chainId, gas, data: data2, nonce: nonce22, to: to4, value, accessList, gasPrice } = transaction;
   assertTransactionEIP29302(transaction);
   const serializedAccessList = serializeAccessList2(accessList);
   const serializedTransaction = [
@@ -69065,7 +69065,7 @@ function serializeTransactionEIP29302(transaction, signature) {
     gas ? numberToHex3(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex3(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     ...toYParitySignatureArray2(transaction, signature)
   ];
@@ -69075,7 +69075,7 @@ function serializeTransactionEIP29302(transaction, signature) {
   ]);
 }
 function serializeTransactionLegacy2(transaction, signature) {
-  const { chainId = 0, gas, data, nonce: nonce22, to: to4, value, gasPrice } = transaction;
+  const { chainId = 0, gas, data: data2, nonce: nonce22, to: to4, value, gasPrice } = transaction;
   assertTransactionLegacy2(transaction);
   let serializedTransaction = [
     nonce22 ? numberToHex3(nonce22) : "0x",
@@ -69083,7 +69083,7 @@ function serializeTransactionLegacy2(transaction, signature) {
     gas ? numberToHex3(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex3(value) : "0x",
-    data ?? "0x"
+    data2 ?? "0x"
   ];
   if (signature) {
     const v = (() => {
@@ -69356,10 +69356,10 @@ function hashString2(str, seed = 0) {
 }
 function ccipReadTunnel2({ batchGateways, ccipRequest: ccipRequest22 = ccipRequest2 }) {
   return {
-    async request({ data, sender, urls }) {
+    async request({ data: data2, sender, urls }) {
       if (urls.includes(localBatchGatewayUrl2)) {
         return ccipRequest22({
-          data,
+          data: data2,
           sender,
           urls: batchGateways
         });
@@ -69371,7 +69371,7 @@ function ccipReadTunnel2({ batchGateways, ccipRequest: ccipRequest22 = ccipReque
             data: encodeFunctionData2({
               abi: batchGatewayAbi2,
               functionName: "query",
-              args: [[{ sender, data, urls }]]
+              args: [[{ sender, data: data2, urls }]]
             }),
             sender,
             urls: batchGateways
@@ -69649,31 +69649,31 @@ function getHttpRpcClient2(url_, options = {}) {
         });
         if (onResponse)
           await onResponse(response);
-        let data;
+        let data2;
         if (response.headers.get("Content-Type")?.startsWith("application/json"))
-          data = await response.json();
+          data2 = await response.json();
         else {
-          data = await response.text();
+          data2 = await response.text();
           try {
-            data = JSON.parse(data || "{}");
+            data2 = JSON.parse(data2 || "{}");
           } catch (err2) {
             if (response.ok)
               throw err2;
-            data = { error: data };
+            data2 = { error: data2 };
           }
         }
         if (!response.ok) {
-          if (typeof data.error?.code === "number" && typeof data.error?.message === "string")
-            return data;
+          if (typeof data2.error?.code === "number" && typeof data2.error?.message === "string")
+            return data2;
           throw new HttpRequestError2({
             body: body2,
-            details: stringify3(data.error) || response.statusText,
+            details: stringify3(data2.error) || response.statusText,
             headers: response.headers,
             status: response.status,
             url
           });
         }
-        return data;
+        return data2;
       } catch (err2) {
         if (signal_?.aborted)
           throw getAbortError2(signal_);
@@ -69774,13 +69774,13 @@ async function getSocketRpcClient2(parameters) {
             error = void 0;
             reconnectCount = 0;
           },
-          onResponse(data) {
-            const isSubscription = data.method === "eth_subscription";
-            const id4 = isSubscription ? data.params.subscription : data.id;
+          onResponse(data2) {
+            const isSubscription = data2.method === "eth_subscription";
+            const id4 = isSubscription ? data2.params.subscription : data2.id;
             const cache2 = isSubscription ? subscriptions : requests;
             const callback = cache2.get(id4);
             if (callback)
-              callback.onResponse(data);
+              callback.onResponse(data2);
             if (!isSubscription)
               cache2.delete(id4);
           }
@@ -69898,11 +69898,11 @@ async function getWebSocketRpcClient2(url, options = {}) {
         socket.removeEventListener("open", onOpen);
         onClose();
       }
-      function onMessage({ data }) {
-        if (typeof data === "string" && data.trim().length === 0)
+      function onMessage({ data: data2 }) {
+        if (typeof data2 === "string" && data2.trim().length === 0)
           return;
         try {
-          const _data = JSON.parse(data);
+          const _data = JSON.parse(data2);
           onResponse(_data);
         } catch (error) {
           onError(error);
@@ -69984,13 +69984,13 @@ function hashMessage2(message2, to_) {
 function serializeTypedData2(parameters) {
   const { domain: domain_, message: message_, primaryType, types: types22 } = parameters;
   const normalizeData = (struct, data_) => {
-    const data = { ...data_ };
+    const data2 = { ...data_ };
     for (const param of struct) {
       const { name, type: type22 } = param;
       if (type22 === "address")
-        data[name] = data[name].toLowerCase();
+        data2[name] = data2[name].toLowerCase();
     }
-    return data;
+    return data2;
   };
   const domain = (() => {
     if (!types22.EIP712Domain)
@@ -70008,10 +70008,10 @@ function serializeTypedData2(parameters) {
 }
 function validateTypedData2(parameters) {
   const { domain, message: message2, primaryType, types: types22 } = parameters;
-  const validateData = (struct, data) => {
+  const validateData = (struct, data2) => {
     for (const param of struct) {
       const { name, type: type22 } = param;
-      const value = data[name];
+      const value = data2[name];
       const integerMatch = type22.match(integerRegex22);
       if (integerMatch && (typeof value === "number" || typeof value === "bigint")) {
         const [_type, base3, size_] = integerMatch;
@@ -70110,15 +70110,15 @@ function hashDomain2({ domain, types: types22 }) {
     types: types22
   });
 }
-function hashStruct2({ data, primaryType, types: types22 }) {
+function hashStruct2({ data: data2, primaryType, types: types22 }) {
   const encoded = encodeData3({
-    data,
+    data: data2,
     primaryType,
     types: types22
   });
   return keccak2563(encoded);
 }
-function encodeData3({ data, primaryType, types: types22 }) {
+function encodeData3({ data: data2, primaryType, types: types22 }) {
   const encodedTypes = [{ type: "bytes32" }];
   const encodedValues = [hashType2({ primaryType, types: types22 })];
   for (const field of types22[primaryType]) {
@@ -70126,7 +70126,7 @@ function encodeData3({ data, primaryType, types: types22 }) {
       types: types22,
       name: field.name,
       type: field.type,
-      value: data[field.name]
+      value: data2[field.name]
     });
     encodedTypes.push(type22);
     encodedValues.push(value);
@@ -70391,12 +70391,12 @@ function decodeArray22(cursor, param, options) {
     const value2 = [];
     for (let i = 0; i < length2; ++i) {
       cursor.setPosition(startOfData + (dynamicChild ? i * 32 : consumed2));
-      const [data, consumed_] = decodeParameter22(cursor, param, {
+      const [data2, consumed_] = decodeParameter22(cursor, param, {
         checksumAddress: checksumAddress3,
         staticPosition: startOfData
       });
       consumed2 += consumed_;
-      value2.push(data);
+      value2.push(data2);
     }
     cursor.setPosition(staticPosition + 32);
     return [value2, 32];
@@ -70407,11 +70407,11 @@ function decodeArray22(cursor, param, options) {
     const value2 = [];
     for (let i = 0; i < length; ++i) {
       cursor.setPosition(start + i * 32);
-      const [data] = decodeParameter22(cursor, param, {
+      const [data2] = decodeParameter22(cursor, param, {
         checksumAddress: checksumAddress3,
         staticPosition: start
       });
-      value2.push(data);
+      value2.push(data2);
     }
     cursor.setPosition(staticPosition + 32);
     return [value2, 32];
@@ -70419,12 +70419,12 @@ function decodeArray22(cursor, param, options) {
   let consumed = 0;
   const value = [];
   for (let i = 0; i < length; ++i) {
-    const [data, consumed_] = decodeParameter22(cursor, param, {
+    const [data2, consumed_] = decodeParameter22(cursor, param, {
       checksumAddress: checksumAddress3,
       staticPosition: staticPosition + consumed
     });
     consumed += consumed_;
-    value.push(data);
+    value.push(data2);
   }
   return [value, consumed];
 }
@@ -70441,9 +70441,9 @@ function decodeBytes22(cursor, param, { staticPosition }) {
       cursor.setPosition(staticPosition + 32);
       return ["0x", 32];
     }
-    const data = cursor.readBytes(length);
+    const data2 = cursor.readBytes(length);
     cursor.setPosition(staticPosition + 32);
-    return [fromBytes22(data), 32];
+    return [fromBytes22(data2), 32];
   }
   const value = fromBytes22(cursor.readBytes(Number.parseInt(size6, 10), 32));
   return [value, 32];
@@ -70468,23 +70468,23 @@ function decodeTuple22(cursor, param, options) {
     for (let i = 0; i < param.components.length; ++i) {
       const component = param.components[i];
       cursor.setPosition(start + consumed);
-      const [data, consumed_] = decodeParameter22(cursor, component, {
+      const [data2, consumed_] = decodeParameter22(cursor, component, {
         checksumAddress: checksumAddress3,
         staticPosition: start
       });
       consumed += consumed_;
-      value[hasUnnamedChild ? i : component?.name] = data;
+      value[hasUnnamedChild ? i : component?.name] = data2;
     }
     cursor.setPosition(staticPosition + 32);
     return [value, 32];
   }
   for (let i = 0; i < param.components.length; ++i) {
     const component = param.components[i];
-    const [data, consumed_] = decodeParameter22(cursor, component, {
+    const [data2, consumed_] = decodeParameter22(cursor, component, {
       checksumAddress: checksumAddress3,
       staticPosition
     });
-    value[hasUnnamedChild ? i : component?.name] = data;
+    value[hasUnnamedChild ? i : component?.name] = data2;
     consumed += consumed_;
   }
   return [value, consumed];
@@ -70498,8 +70498,8 @@ function decodeString22(cursor, { staticPosition }) {
     cursor.setPosition(staticPosition + 32);
     return ["", 32];
   }
-  const data = cursor.readBytes(length, 32);
-  const value = toString3(trimLeft3(data));
+  const data2 = cursor.readBytes(length, 32);
+  const value = toString3(trimLeft3(data2));
   cursor.setPosition(staticPosition + 32);
   return [value, 32];
 }
@@ -70614,16 +70614,16 @@ function encodeArray22(value, options) {
     preparedParameters.push(preparedParam);
   }
   if (dynamic || dynamicChild) {
-    const data = encode22(preparedParameters);
+    const data2 = encode22(preparedParameters);
     if (dynamic) {
       const length2 = fromNumber2(preparedParameters.length, { size: 32 });
       return {
         dynamic: true,
-        encoded: preparedParameters.length > 0 ? concat32(length2, data) : length2
+        encoded: preparedParameters.length > 0 ? concat32(length2, data2) : length2
       };
     }
     if (dynamicChild)
-      return { dynamic: true, encoded: data };
+      return { dynamic: true, encoded: data2 };
   }
   return {
     dynamic: false,
@@ -70741,15 +70741,15 @@ function create2(bytes, { recursiveReadLimit = 8192 } = {}) {
   cursor.recursiveReadLimit = recursiveReadLimit;
   return cursor;
 }
-function decode3(parameters, data, options = {}) {
+function decode3(parameters, data2, options = {}) {
   const { as: as3 = "Array", checksumAddress: checksumAddress3 = false } = options;
-  const bytes = typeof data === "string" ? fromHex22(data) : data;
+  const bytes = typeof data2 === "string" ? fromHex22(data2) : data2;
   const cursor = create2(bytes);
   if (size22(bytes) === 0 && parameters.length > 0)
     throw new ZeroDataError2();
   if (size22(bytes) && size22(bytes) < 32)
     throw new DataSizeTooSmallError2({
-      data: typeof data === "string" ? data : fromBytes22(data),
+      data: typeof data2 === "string" ? data2 : fromBytes22(data2),
       parameters,
       size: size22(bytes)
     });
@@ -70758,15 +70758,15 @@ function decode3(parameters, data, options = {}) {
   for (let i = 0; i < parameters.length; ++i) {
     const param = parameters[i];
     cursor.setPosition(consumed);
-    const [data2, consumed_] = decodeParameter22(cursor, param, {
+    const [data3, consumed_] = decodeParameter22(cursor, param, {
       checksumAddress: checksumAddress3,
       staticPosition: 0
     });
     consumed += consumed_;
     if (as3 === "Array")
-      values.push(data2);
+      values.push(data3);
     else
-      values[param.name ?? i] = data2;
+      values[param.name ?? i] = data3;
   }
   return values;
 }
@@ -70782,10 +70782,10 @@ function encode32(parameters, values, options) {
     parameters,
     values
   });
-  const data = encode22(preparedParameters);
-  if (data.length === 0)
+  const data2 = encode22(preparedParameters);
+  if (data2.length === 0)
     return "0x";
-  return data;
+  return data2;
 }
 function encodePacked22(types22, values) {
   if (types22.length !== values.length)
@@ -70793,13 +70793,13 @@ function encodePacked22(types22, values) {
       expectedLength: types22.length,
       givenLength: values.length
     });
-  const data = [];
+  const data2 = [];
   for (let i = 0; i < types22.length; i++) {
     const type22 = types22[i];
     const value = values[i];
-    data.push(encodePacked22.encode(type22, value));
+    data2.push(encodePacked22.encode(type22, value));
   }
-  return concat32(...data);
+  return concat32(...data2);
 }
 function from52(parameters) {
   if (Array.isArray(parameters) && typeof parameters[0] === "string")
@@ -71184,7 +71184,7 @@ function unwrap3(wrapped) {
   const suffixLength = toNumber3(slice32(wrapped, -64, -32));
   const suffix = slice32(wrapped, -suffixLength - 64, -64);
   const signature = slice32(wrapped, 0, -suffixLength - 64);
-  const [auth, to4, data] = decode3(suffixParameters2, suffix);
+  const [auth, to4, data2] = decode3(suffixParameters2, suffix);
   const authorization = from82({
     address: auth.delegation,
     chainId: Number(auth.chainId),
@@ -71196,11 +71196,11 @@ function unwrap3(wrapped) {
   return {
     authorization,
     signature,
-    ...data && data !== "0x" ? { data, to: to4 } : {}
+    ...data2 && data2 !== "0x" ? { data: data2, to: to4 } : {}
   };
 }
 function wrap3(value) {
-  const { data, signature } = value;
+  const { data: data2, signature } = value;
   assert62(value);
   const self2 = recoverAddress22({
     payload: getSignPayload6(value.authorization),
@@ -71213,7 +71213,7 @@ function wrap3(value) {
       chainId: BigInt(value.authorization.chainId)
     },
     value.to ?? self2,
-    data ?? "0x"
+    data2 ?? "0x"
   ]);
   const suffixLength = fromNumber2(size32(suffix), { size: 32 });
   return concat32(signature, suffix, suffixLength, magicBytes4);
@@ -71232,8 +71232,8 @@ function isErc8010Signature2(signature) {
 function parseErc6492Signature2(signature) {
   if (!isErc6492Signature2(signature))
     return { signature };
-  const [address3, data, signature_] = decodeAbiParameters2([{ type: "address" }, { type: "bytes" }, { type: "bytes" }], signature);
-  return { address: address3, data, signature: signature_ };
+  const [address3, data2, signature_] = decodeAbiParameters2([{ type: "address" }, { type: "bytes" }, { type: "bytes" }], signature);
+  return { address: address3, data: data2, signature: signature_ };
 }
 function parseErc8010Signature2(signature) {
   if (!isErc8010Signature2(signature))
@@ -71268,9 +71268,9 @@ async function recoverTypedDataAddress2(parameters) {
   });
 }
 function serializeErc6492Signature2(parameters) {
-  const { address: address3, data, signature, to: to4 = "hex" } = parameters;
+  const { address: address3, data: data2, signature, to: to4 = "hex" } = parameters;
   const signature_ = concatHex2([
-    encodeAbiParameters2([{ type: "address" }, { type: "bytes" }, { type: "bytes" }], [address3, data, signature]),
+    encodeAbiParameters2([{ type: "address" }, { type: "bytes" }, { type: "bytes" }], [address3, data2, signature]),
     erc6492MagicBytes2
   ]);
   if (to4 === "hex")
@@ -71278,7 +71278,7 @@ function serializeErc6492Signature2(parameters) {
   return hexToBytes3(signature_);
 }
 function serializeErc8010Signature2(parameters) {
-  const { address: address3, data, signature, to: to4 = "hex" } = parameters;
+  const { address: address3, data: data2, signature, to: to4 = "hex" } = parameters;
   const signature_ = SignatureErc8010_exports2.wrap({
     authorization: {
       address: parameters.authorization.address,
@@ -71288,7 +71288,7 @@ function serializeErc8010Signature2(parameters) {
       s: BigInt(parameters.authorization.s),
       yParity: parameters.authorization.yParity
     },
-    data,
+    data: data2,
     signature,
     to: address3
   });
@@ -71340,7 +71340,7 @@ function parseTransaction2(serializedTransaction) {
 }
 function parseTransactionEIP77022(serializedTransaction) {
   const transactionArray = toTransactionArray2(serializedTransaction);
-  const [chainId, nonce22, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data, accessList, authorizationList, v, r, s] = transactionArray;
+  const [chainId, nonce22, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data2, accessList, authorizationList, v, r, s] = transactionArray;
   if (transactionArray.length !== 10 && transactionArray.length !== 13)
     throw new InvalidSerializedTransactionError2({
       attributes: {
@@ -71351,7 +71351,7 @@ function parseTransactionEIP77022(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         accessList,
         authorizationList,
         ...transactionArray.length > 9 ? {
@@ -71371,8 +71371,8 @@ function parseTransactionEIP77022(serializedTransaction) {
     transaction.to = to4;
   if (isHex2(gas) && gas !== "0x")
     transaction.gas = hexToBigInt2(gas);
-  if (isHex2(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex2(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex2(nonce22))
     transaction.nonce = nonce22 === "0x" ? 0 : hexToNumber4(nonce22);
   if (isHex2(value) && value !== "0x")
@@ -71394,7 +71394,7 @@ function parseTransactionEIP48442(serializedTransaction) {
   const hasNetworkWrapper = transactionOrWrapperArray.length === 4;
   const transactionArray = hasNetworkWrapper ? transactionOrWrapperArray[0] : transactionOrWrapperArray;
   const wrapperArray = hasNetworkWrapper ? transactionOrWrapperArray.slice(1) : [];
-  const [chainId, nonce22, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data, accessList, maxFeePerBlobGas, blobVersionedHashes, v, r, s] = transactionArray;
+  const [chainId, nonce22, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data2, accessList, maxFeePerBlobGas, blobVersionedHashes, v, r, s] = transactionArray;
   const [blobs, commitments, proofs] = wrapperArray;
   if (!(transactionArray.length === 11 || transactionArray.length === 14))
     throw new InvalidSerializedTransactionError2({
@@ -71406,7 +71406,7 @@ function parseTransactionEIP48442(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         accessList,
         ...transactionArray.length > 9 ? {
           v,
@@ -71425,8 +71425,8 @@ function parseTransactionEIP48442(serializedTransaction) {
   };
   if (isHex2(gas) && gas !== "0x")
     transaction.gas = hexToBigInt2(gas);
-  if (isHex2(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex2(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex2(nonce22))
     transaction.nonce = nonce22 === "0x" ? 0 : hexToNumber4(nonce22);
   if (isHex2(value) && value !== "0x")
@@ -71451,7 +71451,7 @@ function parseTransactionEIP48442(serializedTransaction) {
 }
 function parseTransactionEIP15592(serializedTransaction) {
   const transactionArray = toTransactionArray2(serializedTransaction);
-  const [chainId, nonce22, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data, accessList, v, r, s] = transactionArray;
+  const [chainId, nonce22, maxPriorityFeePerGas, maxFeePerGas, gas, to4, value, data2, accessList, v, r, s] = transactionArray;
   if (!(transactionArray.length === 9 || transactionArray.length === 12))
     throw new InvalidSerializedTransactionError2({
       attributes: {
@@ -71462,7 +71462,7 @@ function parseTransactionEIP15592(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         accessList,
         ...transactionArray.length > 9 ? {
           v,
@@ -71481,8 +71481,8 @@ function parseTransactionEIP15592(serializedTransaction) {
     transaction.to = to4;
   if (isHex2(gas) && gas !== "0x")
     transaction.gas = hexToBigInt2(gas);
-  if (isHex2(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex2(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex2(nonce22))
     transaction.nonce = nonce22 === "0x" ? 0 : hexToNumber4(nonce22);
   if (isHex2(value) && value !== "0x")
@@ -71499,7 +71499,7 @@ function parseTransactionEIP15592(serializedTransaction) {
 }
 function parseTransactionEIP29302(serializedTransaction) {
   const transactionArray = toTransactionArray2(serializedTransaction);
-  const [chainId, nonce22, gasPrice, gas, to4, value, data, accessList, v, r, s] = transactionArray;
+  const [chainId, nonce22, gasPrice, gas, to4, value, data2, accessList, v, r, s] = transactionArray;
   if (!(transactionArray.length === 8 || transactionArray.length === 11))
     throw new InvalidSerializedTransactionError2({
       attributes: {
@@ -71509,7 +71509,7 @@ function parseTransactionEIP29302(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         accessList,
         ...transactionArray.length > 8 ? {
           v,
@@ -71528,8 +71528,8 @@ function parseTransactionEIP29302(serializedTransaction) {
     transaction.to = to4;
   if (isHex2(gas) && gas !== "0x")
     transaction.gas = hexToBigInt2(gas);
-  if (isHex2(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex2(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex2(nonce22))
     transaction.nonce = nonce22 === "0x" ? 0 : hexToNumber4(nonce22);
   if (isHex2(value) && value !== "0x")
@@ -71544,7 +71544,7 @@ function parseTransactionEIP29302(serializedTransaction) {
 }
 function parseTransactionLegacy2(serializedTransaction) {
   const transactionArray = fromRlp2(serializedTransaction, "hex");
-  const [nonce22, gasPrice, gas, to4, value, data, chainIdOrV_, r, s] = transactionArray;
+  const [nonce22, gasPrice, gas, to4, value, data2, chainIdOrV_, r, s] = transactionArray;
   if (!(transactionArray.length === 6 || transactionArray.length === 9))
     throw new InvalidSerializedTransactionError2({
       attributes: {
@@ -71553,7 +71553,7 @@ function parseTransactionLegacy2(serializedTransaction) {
         gas,
         to: to4,
         value,
-        data,
+        data: data2,
         ...transactionArray.length > 6 ? {
           v: chainIdOrV_,
           r,
@@ -71570,8 +71570,8 @@ function parseTransactionLegacy2(serializedTransaction) {
     transaction.to = to4;
   if (isHex2(gas) && gas !== "0x")
     transaction.gas = hexToBigInt2(gas);
-  if (isHex2(data) && data !== "0x")
-    transaction.data = data;
+  if (isHex2(data2) && data2 !== "0x")
+    transaction.data = data2;
   if (isHex2(nonce22))
     transaction.nonce = nonce22 === "0x" ? 0 : hexToNumber4(nonce22);
   if (isHex2(value) && value !== "0x")
@@ -71641,14 +71641,14 @@ function parseEIP155Signature2(transactionArray) {
 function parseUnits2(value, decimals) {
   if (!/^(-?)([0-9]*)\.?([0-9]*)$/.test(value))
     throw new InvalidDecimalNumberError2({ value });
-  let [integer, fraction = "0"] = value.split(".");
-  const negative = integer.startsWith("-");
+  let [integer2, fraction = "0"] = value.split(".");
+  const negative = integer2.startsWith("-");
   if (negative)
-    integer = integer.slice(1);
+    integer2 = integer2.slice(1);
   fraction = fraction.replace(/(0+)$/, "");
   if (decimals === 0) {
     if (Math.round(Number(`.${fraction}`)) === 1)
-      integer = `${BigInt(integer) + 1n}`;
+      integer2 = `${BigInt(integer2) + 1n}`;
     fraction = "";
   } else if (fraction.length > decimals) {
     const [left, unit, right] = [
@@ -71663,13 +71663,13 @@ function parseUnits2(value, decimals) {
       fraction = `${left}${rounded}`;
     if (fraction.length > decimals) {
       fraction = fraction.slice(1);
-      integer = `${BigInt(integer) + 1n}`;
+      integer2 = `${BigInt(integer2) + 1n}`;
     }
     fraction = fraction.slice(0, decimals);
   } else {
     fraction = fraction.padEnd(decimals, "0");
   }
-  return BigInt(`${negative ? "-" : ""}${integer}${fraction}`);
+  return BigInt(`${negative ? "-" : ""}${integer2}${fraction}`);
 }
 function parseEther2(ether, unit = "wei") {
   return parseUnits2(ether, etherUnits2[unit]);
@@ -71711,11 +71711,11 @@ async function getStorageAt2(client, { address: address3, blockHash, blockNumber
     blockTag,
     requireCanonical
   });
-  const data = await client.request({
+  const data2 = await client.request({
     method: "eth_getStorageAt",
     params: [address3, slot, block]
   });
-  return data;
+  return data2;
 }
 async function getTransaction2(client, { blockHash, blockNumber, blockTag: blockTag_, hash: hash6, index: index22, sender, nonce: nonce22 }) {
   const blockTag = blockTag_ || "latest";
@@ -71911,11 +71911,11 @@ async function simulateBlocks2(client, parameters) {
       const calls = block2.calls.map((call_) => {
         const call22 = call_;
         const account = call22.account ? parseAccount2(call22.account) : void 0;
-        const data = call22.abi ? encodeFunctionData2(call22) : call22.data;
+        const data2 = call22.abi ? encodeFunctionData2(call22) : call22.data;
         const request = {
           ...call22,
           account,
-          data: call22.dataSuffix ? concat4([data || "0x", call22.dataSuffix]) : data,
+          data: call22.dataSuffix ? concat4([data2 || "0x", call22.dataSuffix]) : data2,
           from: call22.from ?? account?.address
         };
         assertRequest2(request);
@@ -71941,23 +71941,23 @@ async function simulateBlocks2(client, parameters) {
       ...formatBlock2(block2),
       calls: block2.calls.map((call22, j3) => {
         const { abi: abi22, args, functionName, to: to4 } = blocks[i].calls[j3];
-        const data = call22.error?.data ?? call22.returnData;
+        const data2 = call22.error?.data ?? call22.returnData;
         const gasUsed = BigInt(call22.gasUsed);
         const logs = call22.logs?.map((log) => formatLog2(log));
         const status = call22.status === "0x1" ? "success" : "failure";
-        const result2 = abi22 && status === "success" && data !== "0x" ? decodeFunctionResult2({
+        const result2 = abi22 && status === "success" && data2 !== "0x" ? decodeFunctionResult2({
           abi: abi22,
-          data,
+          data: data2,
           functionName
         }) : null;
         const error = (() => {
           if (status === "success")
             return void 0;
           let error2;
-          if (data === "0x")
+          if (data2 === "0x")
             error2 = new AbiDecodingZeroDataError2();
-          else if (data)
-            error2 = new RawContractError2({ data });
+          else if (data2)
+            error2 = new RawContractError2({ data: data2 });
           if (!error2)
             return void 0;
           return getContractError2(error2, {
@@ -71968,7 +71968,7 @@ async function simulateBlocks2(client, parameters) {
           });
         })();
         return {
-          data,
+          data: data2,
           gasUsed,
           logs,
           status,
@@ -72244,8 +72244,8 @@ function encodeData22(...parameters) {
     args
   }) : abiFunction;
   const selector = getSelector22(item);
-  const data = args.length > 0 ? encode32(item.inputs, args) : void 0;
-  return data ? concat32(selector, data) : selector;
+  const data2 = args.length > 0 ? encode32(item.inputs, args) : void 0;
+  return data2 ? concat32(selector, data2) : selector;
 }
 function from122(abiFunction, options = {}) {
   return from102(abiFunction, options);
@@ -72464,14 +72464,14 @@ function from132(wrapped) {
 }
 function unwrap22(wrapped) {
   assert72(wrapped);
-  const [to4, data, signature] = decode3(from52("address, bytes, bytes"), wrapped);
-  return { data, signature, to: to4 };
+  const [to4, data2, signature] = decode3(from52("address, bytes, bytes"), wrapped);
+  return { data: data2, signature, to: to4 };
 }
 function wrap22(value) {
-  const { data, signature, to: to4 } = value;
+  const { data: data2, signature, to: to4 } = value;
   return concat32(encode32(from52("address, bytes, bytes"), [
     to4,
-    data,
+    data2,
     signature
   ]), magicBytes22);
 }
@@ -72601,8 +72601,8 @@ async function verifyErc80102(client, parameters) {
       ]
     ]
   });
-  const data = results[results.length - 1]?.returnData;
-  if (data?.startsWith("0x1626ba7e"))
+  const data2 = results[results.length - 1]?.returnData;
+  if (data2?.startsWith("0x1626ba7e"))
     return true;
   throw new VerificationError3();
 }
@@ -72635,12 +72635,12 @@ async function verifyErc64922(client, parameters) {
     }),
     ...rest
   };
-  const { data } = await getAction2(client, call2, "call")(args).catch((error) => {
+  const { data: data2 } = await getAction2(client, call2, "call")(args).catch((error) => {
     if (error instanceof CallExecutionError2)
       throw new VerificationError3();
     throw error;
   });
-  if (hexToBool2(data ?? "0x0"))
+  if (hexToBool2(data2 ?? "0x0"))
     return true;
   throw new VerificationError3();
 }
@@ -72752,10 +72752,10 @@ function watchBlockNumber2(client, { emitOnBegin = false, emitMissed = false, on
           })();
           const { unsubscribe: unsubscribe_ } = await transport.subscribe({
             params: ["newHeads"],
-            onData(data) {
+            onData(data2) {
               if (!active)
                 return;
-              const blockNumber = hexToBigInt2(data.result?.number);
+              const blockNumber = hexToBigInt2(data2.result?.number);
               emit.onBlockNumber(blockNumber, prevBlockNumber);
               prevBlockNumber = blockNumber;
             },
@@ -72995,11 +72995,11 @@ function watchBlocks2(client, { blockTag = client.experimental_blockTag ?? "late
         })();
         const { unsubscribe: unsubscribe_ } = await transport.subscribe({
           params: ["newHeads"],
-          async onData(data) {
+          async onData(data2) {
             if (!active)
               return;
             const block = await getAction2(client, getBlock2, "getBlock")({
-              blockNumber: data.result?.number,
+              blockNumber: data2.result?.number,
               includeTransactions
             }).catch(() => {
             });
@@ -73141,10 +73141,10 @@ function watchEvent2(client, { address: address3, args, batch = true, event, eve
         }
         const { unsubscribe: unsubscribe_ } = await transport.subscribe({
           params: ["logs", { address: address3, topics }],
-          onData(data) {
+          onData(data2) {
             if (!active)
               return;
-            const log = data.result;
+            const log = data2.result;
             try {
               const { eventName, args: args2 } = decodeEventLog2({
                 abi: events_ ?? [],
@@ -73236,10 +73236,10 @@ function watchPendingTransactions2(client, { batch = true, onError, onTransactio
       try {
         const { unsubscribe: unsubscribe_ } = await client.transport.subscribe({
           params: ["newPendingTransactions"],
-          onData(data) {
+          onData(data2) {
             if (!active)
               return;
-            const transaction = data.result;
+            const transaction = data2.result;
             onTransactions([transaction]);
           },
           onError(error) {
@@ -73492,14 +73492,14 @@ async function revert2(client, { id: id3 }) {
   });
 }
 async function sendUnsignedTransaction2(client, args) {
-  const { accessList, data, from: from202, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, to: to4, value, ...rest } = args;
+  const { accessList, data: data2, from: from202, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, to: to4, value, ...rest } = args;
   const chainFormat = client.chain?.formatters?.transactionRequest?.format;
   const format22 = chainFormat || formatTransactionRequest3;
   const request = format22({
     // Pick out extra data that might exist on the chain's transaction request type.
     ...extract3(rest, { format: chainFormat }),
     accessList,
-    data,
+    data: data2,
     from: from202,
     gas,
     gasPrice,
@@ -73800,7 +73800,7 @@ async function sendCallsSync2(client, parameters) {
   return status;
 }
 async function sendTransactionSync2(client, parameters) {
-  const { account: account_ = client.account, assertChainId = true, chain = client.chain, accessList, authorizationList, blobs, data, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, pollingInterval, throwOnReceiptRevert, type: type22, value, ...rest } = parameters;
+  const { account: account_ = client.account, assertChainId = true, chain = client.chain, accessList, authorizationList, blobs, data: data2, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, pollingInterval, throwOnReceiptRevert, type: type22, value, ...rest } = parameters;
   const timeout = parameters.timeout ?? Math.max((chain?.blockTime ?? 0) * 3, 5e3);
   if (typeof account_ === "undefined")
     throw new AccountNotFoundError2({
@@ -73843,7 +73843,7 @@ async function sendTransactionSync2(client, parameters) {
         authorizationList,
         blobs,
         chainId,
-        data: dataSuffix ? concat4([data ?? "0x", dataSuffix]) : data,
+        data: dataSuffix ? concat4([data2 ?? "0x", dataSuffix]) : data2,
         gas,
         gasPrice,
         maxFeePerBlobGas,
@@ -73913,7 +73913,7 @@ async function sendTransactionSync2(client, parameters) {
         authorizationList,
         blobs,
         chain,
-        data: dataSuffix ? concat4([data ?? "0x", dataSuffix]) : data,
+        data: dataSuffix ? concat4([data2 ?? "0x", dataSuffix]) : data2,
         gas,
         gasPrice,
         maxFeePerBlobGas,
@@ -74444,8 +74444,8 @@ function webSocket2(url, config = {}) {
   };
 }
 function decodeDeployData2(parameters) {
-  const { abi: abi22, bytecode, data } = parameters;
-  if (data === bytecode)
+  const { abi: abi22, bytecode, data: data2 } = parameters;
+  if (data2 === bytecode)
     return { bytecode };
   const description = abi22.find((x) => "type" in x && x.type === "constructor");
   if (!description)
@@ -74454,14 +74454,14 @@ function decodeDeployData2(parameters) {
     throw new AbiConstructorParamsNotFoundError2({ docsPath: docsPath82 });
   if (!description.inputs || description.inputs.length === 0)
     throw new AbiConstructorParamsNotFoundError2({ docsPath: docsPath82 });
-  const args = decodeAbiParameters2(description.inputs, `0x${data.replace(bytecode, "")}`);
+  const args = decodeAbiParameters2(description.inputs, `0x${data2.replace(bytecode, "")}`);
   return { args, bytecode };
 }
 function fromBlobs2(parameters) {
   const to4 = parameters.to ?? (typeof parameters.blobs[0] === "string" ? "hex" : "bytes");
   const blobs = typeof parameters.blobs[0] === "string" ? parameters.blobs.map((x) => hexToBytes3(x)) : parameters.blobs;
   const length = blobs.reduce((length2, blob) => length2 + blob.length, 0);
-  const data = createCursor2(new Uint8Array(length));
+  const data2 = createCursor2(new Uint8Array(length));
   let active = true;
   for (const blob of blobs) {
     const cursor = createCursor2(blob);
@@ -74477,11 +74477,11 @@ function fromBlobs2(parameters) {
           active = false;
           break;
         }
-        data.pushByte(byte);
+        data2.pushByte(byte);
       }
     }
   }
-  const trimmedData = data.bytes.slice(0, data.position);
+  const trimmedData = data2.bytes.slice(0, data2.position);
   return to4 === "hex" ? bytesToHex3(trimmedData) : trimmedData;
 }
 function sidecarsToVersionedHashes2(parameters) {
@@ -74628,7 +74628,7 @@ function serializeTransaction22(transaction, signature) {
   return serializeTransaction5(transaction, signature);
 }
 function serializeTransactionEIP7122(transaction) {
-  const { chainId, gas, nonce: nonce22, to: to4, from: from202, value, maxFeePerGas, maxPriorityFeePerGas, customSignature, factoryDeps, paymaster, paymasterInput, gasPerPubdata, data } = transaction;
+  const { chainId, gas, nonce: nonce22, to: to4, from: from202, value, maxFeePerGas, maxPriorityFeePerGas, customSignature, factoryDeps, paymaster, paymasterInput, gasPerPubdata, data: data2 } = transaction;
   assertEip712Transaction2(transaction);
   const serializedTransaction = [
     nonce22 ? toHex5(nonce22) : "0x",
@@ -74637,7 +74637,7 @@ function serializeTransactionEIP7122(transaction) {
     gas ? toHex5(gas) : "0x",
     to4 ?? "0x",
     value ? toHex5(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     toHex5(chainId),
     toHex5(""),
     toHex5(""),
@@ -74681,7 +74681,7 @@ function hashBytecode2(bytecode) {
   return hash6;
 }
 function transactionToMessage2(transaction) {
-  const { gas, nonce: nonce22, to: to4, from: from202, value, maxFeePerGas, maxPriorityFeePerGas, factoryDeps, paymaster, paymasterInput, gasPerPubdata, data } = transaction;
+  const { gas, nonce: nonce22, to: to4, from: from202, value, maxFeePerGas, maxPriorityFeePerGas, factoryDeps, paymaster, paymasterInput, gasPerPubdata, data: data2 } = transaction;
   return {
     txType: 113n,
     from: BigInt(from202),
@@ -74693,7 +74693,7 @@ function transactionToMessage2(transaction) {
     paymaster: paymaster ? BigInt(paymaster) : 0n,
     nonce: nonce22 ? BigInt(nonce22) : 0n,
     value: value ?? 0n,
-    data: data ?? "0x",
+    data: data2 ?? "0x",
     factoryDeps: factoryDeps?.map((dep) => toHex5(hashBytecode2(dep))) ?? [],
     paymasterInput: paymasterInput ? paymasterInput : "0x"
   };
@@ -74705,7 +74705,7 @@ function serializeTransaction32(transaction, signature) {
 }
 function serializeTransactionDeposit2(transaction) {
   assertTransactionDeposit2(transaction);
-  const { sourceHash, data, from: from202, gas, isSystemTx, mint: mint22, to: to4, value } = transaction;
+  const { sourceHash, data: data2, from: from202, gas, isSystemTx, mint: mint22, to: to4, value } = transaction;
   const serializedTransaction = [
     sourceHash,
     from202,
@@ -74714,7 +74714,7 @@ function serializeTransactionDeposit2(transaction) {
     value ? toHex5(value) : "0x",
     gas ? toHex5(gas) : "0x",
     isSystemTx ? "0x1" : "0x",
-    data ?? "0x"
+    data2 ?? "0x"
   ];
   return concatHex2([
     "0x7e",
@@ -74771,7 +74771,7 @@ function serializeTransaction42(transaction, signature) {
 }
 function serializeTransactionCIP642(transaction, signature) {
   assertTransactionCIP642(transaction);
-  const { chainId, gas, nonce: nonce22, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, feeCurrency, data } = transaction;
+  const { chainId, gas, nonce: nonce22, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, feeCurrency, data: data2 } = transaction;
   const serializedTransaction = [
     toHex5(chainId),
     nonce22 ? toHex5(nonce22) : "0x",
@@ -74780,7 +74780,7 @@ function serializeTransactionCIP642(transaction, signature) {
     gas ? toHex5(gas) : "0x",
     to4 ?? "0x",
     value ? toHex5(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializeAccessList2(accessList),
     feeCurrency,
     ...toYParitySignatureArray2(transaction, signature)
@@ -74815,7 +74815,7 @@ async function estimateGas22(client, args) {
     throw new AccountNotFoundError2();
   const account = parseAccount2(account_);
   try {
-    const { accessList, blockNumber, blockTag, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, to: to4, value, ...rest } = args;
+    const { accessList, blockNumber, blockTag, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, to: to4, value, ...rest } = args;
     const blockNumberHex = typeof blockNumber === "bigint" ? numberToHex3(blockNumber) : void 0;
     const block = blockNumberHex || blockTag;
     assertRequest2(args);
@@ -74826,7 +74826,7 @@ async function estimateGas22(client, args) {
       ...extract3(rest, { format: chainFormat }),
       account,
       accessList,
-      data,
+      data: data2,
       gas,
       gasPrice,
       maxFeePerGas,
@@ -75140,8 +75140,8 @@ function deserialize4(value) {
     return { signature, type: "secp256k1" };
   }
   const typeId = slice32(serialized, 0, 1);
-  const data = slice32(serialized, 1);
-  const dataSize = size32(data);
+  const data2 = slice32(serialized, 1);
+  const dataSize = size32(data2);
   if (typeId === serializedP256Type2) {
     if (dataSize !== 129)
       throw new InvalidSerializedError3({
@@ -75151,13 +75151,13 @@ function deserialize4(value) {
     return {
       publicKey: {
         prefix: 4,
-        x: toBigInt3(slice32(data, 64, 96)),
-        y: toBigInt3(slice32(data, 96, 128))
+        x: toBigInt3(slice32(data2, 64, 96)),
+        y: toBigInt3(slice32(data2, 96, 128))
       },
-      prehash: toNumber3(slice32(data, 128, 129)) !== 0,
+      prehash: toNumber3(slice32(data2, 128, 129)) !== 0,
       signature: {
-        r: toBigInt3(slice32(data, 0, 32)),
-        s: toBigInt3(slice32(data, 32, 64))
+        r: toBigInt3(slice32(data2, 0, 32)),
+        s: toBigInt3(slice32(data2, 32, 64))
       },
       type: "p256"
     };
@@ -75169,7 +75169,7 @@ function deserialize4(value) {
         serialized
       });
     const webauthnDataSize = dataSize - 128;
-    const webauthnData = slice32(data, 0, webauthnDataSize);
+    const webauthnData = slice32(data2, 0, webauthnDataSize);
     let authenticatorData;
     let clientDataJSON;
     for (let split3 = 37; split3 < webauthnDataSize; split3++) {
@@ -75192,23 +75192,23 @@ function deserialize4(value) {
     return {
       publicKey: {
         prefix: 4,
-        x: toBigInt3(slice32(data, webauthnDataSize + 64, webauthnDataSize + 96)),
-        y: toBigInt3(slice32(data, webauthnDataSize + 96, webauthnDataSize + 128))
+        x: toBigInt3(slice32(data2, webauthnDataSize + 64, webauthnDataSize + 96)),
+        y: toBigInt3(slice32(data2, webauthnDataSize + 96, webauthnDataSize + 128))
       },
       metadata: {
         authenticatorData,
         clientDataJSON
       },
       signature: {
-        r: toBigInt3(slice32(data, webauthnDataSize, webauthnDataSize + 32)),
-        s: toBigInt3(slice32(data, webauthnDataSize + 32, webauthnDataSize + 64))
+        r: toBigInt3(slice32(data2, webauthnDataSize, webauthnDataSize + 32)),
+        s: toBigInt3(slice32(data2, webauthnDataSize + 32, webauthnDataSize + 64))
       },
       type: "webAuthn"
     };
   }
   if (typeId === serializedKeychainType2 || typeId === serializedKeychainV2Type2) {
-    const userAddress = slice32(data, 0, 20);
-    const inner = deserialize4(slice32(data, 20));
+    const userAddress = slice32(data2, 0, 20);
+    const inner = deserialize4(slice32(data2, 20));
     return {
       userAddress,
       inner,
@@ -75217,7 +75217,7 @@ function deserialize4(value) {
     };
   }
   if (typeId === serializedMultisigType2) {
-    const [account, genesisConfigId, signatures, init] = toHex32(data);
+    const [account, genesisConfigId, signatures, init] = toHex32(data2);
     return {
       type: "multisig",
       account,
@@ -76255,12 +76255,12 @@ function format2(value, decimals = 0) {
   if (negative)
     display = display.slice(1);
   display = display.padStart(decimals, "0");
-  let [integer, fraction] = [
+  let [integer2, fraction] = [
     display.slice(0, display.length - decimals),
     display.slice(display.length - decimals)
   ];
   fraction = fraction.replace(/(0+)$/, "");
-  return `${negative ? "-" : ""}${integer || "0"}${fraction ? `.${fraction}` : ""}`;
+  return `${negative ? "-" : ""}${integer2 || "0"}${fraction ? `.${fraction}` : ""}`;
 }
 function formatGwei22(wei, unit = "wei") {
   return format2(wei, exponents2.gwei - exponents2[unit]);
@@ -76344,14 +76344,14 @@ function deserialize32(serialized) {
   if (calls && calls !== "0x") {
     const callsArray = calls;
     transaction.calls = callsArray.map((callTuple) => {
-      const [to4, value, data] = callTuple;
+      const [to4, value, data2] = callTuple;
       const call22 = {};
       if (to4 && to4 !== "0x")
         call22.to = to4;
       if (value && value !== "0x")
         call22.value = BigInt(value);
-      if (data && data !== "0x")
-        call22.data = data;
+      if (data2 && data2 !== "0x")
+        call22.data = data2;
       return call22;
     });
   }
@@ -76865,12 +76865,12 @@ function formatTransactionRequest22(r, action) {
     ..."feePayerSignature" in request && request.feePayerSignature !== void 0 ? { feePayerSignature: request.feePayerSignature } : {}
   };
 }
-function shimKeyData2(data) {
-  if (!data)
-    return data;
-  const byteLength = (data.length - 2) / 2;
+function shimKeyData2(data2) {
+  if (!data2)
+    return data2;
+  const byteLength = (data2.length - 2) / 2;
   if (byteLength <= 4)
-    return data;
+    return data2;
   return fromNumber2(byteLength, { size: 2 });
 }
 async function detect2(key) {
@@ -76967,21 +76967,21 @@ function size52(value) {
   return value.length;
 }
 function trim42(hexOrBytes, { dir = "left" } = {}) {
-  let data = typeof hexOrBytes === "string" ? hexOrBytes.replace("0x", "") : hexOrBytes;
+  let data2 = typeof hexOrBytes === "string" ? hexOrBytes.replace("0x", "") : hexOrBytes;
   let sliceLength = 0;
-  for (let i = 0; i < data.length - 1; i++) {
-    if (data[dir === "left" ? i : data.length - i - 1].toString() === "0")
+  for (let i = 0; i < data2.length - 1; i++) {
+    if (data2[dir === "left" ? i : data2.length - i - 1].toString() === "0")
       sliceLength++;
     else
       break;
   }
-  data = dir === "left" ? data.slice(sliceLength) : data.slice(0, data.length - sliceLength);
+  data2 = dir === "left" ? data2.slice(sliceLength) : data2.slice(0, data2.length - sliceLength);
   if (typeof hexOrBytes === "string") {
-    if (data.length === 1 && dir === "right")
-      data = `${data}0`;
-    return `0x${data.length % 2 === 1 ? `0${data}` : data}`;
+    if (data2.length === 1 && dir === "right")
+      data2 = `${data2}0`;
+    return `0x${data2.length % 2 === 1 ? `0${data2}` : data2}`;
   }
-  return data;
+  return data2;
 }
 function pad42(hexOrBytes, { dir, size: size6 = 32 } = {}) {
   if (typeof hexOrBytes === "string")
@@ -77432,12 +77432,12 @@ function formatUnits22(value, decimals) {
   if (negative)
     display = display.slice(1);
   display = display.padStart(decimals, "0");
-  let [integer, fraction] = [
+  let [integer2, fraction] = [
     display.slice(0, display.length - decimals),
     display.slice(display.length - decimals)
   ];
   fraction = fraction.replace(/(0+)$/, "");
-  return `${negative ? "-" : ""}${integer || "0"}${fraction ? `.${fraction}` : ""}`;
+  return `${negative ? "-" : ""}${integer2 || "0"}${fraction ? `.${fraction}` : ""}`;
 }
 function formatGwei32(wei, unit = "wei") {
   return formatUnits22(wei, gweiUnits22[unit]);
@@ -77549,11 +77549,11 @@ function utf8ToBytes32(str) {
     throw new Error("string expected");
   return new Uint8Array(new TextEncoder().encode(str));
 }
-function toBytes6(data) {
-  if (typeof data === "string")
-    data = utf8ToBytes32(data);
-  abytes32(data);
-  return data;
+function toBytes6(data2) {
+  if (typeof data2 === "string")
+    data2 = utf8ToBytes32(data2);
+  abytes32(data2);
+  return data2;
 }
 function concatBytes5(...arrays) {
   let sum = 0;
@@ -77649,8 +77649,8 @@ function commitmentsToVersionedHashes22(parameters) {
 }
 function toBlobs22(parameters) {
   const to4 = parameters.to ?? (typeof parameters.data === "string" ? "hex" : "bytes");
-  const data = typeof parameters.data === "string" ? hexToBytes32(parameters.data) : parameters.data;
-  const size_ = size52(data);
+  const data2 = typeof parameters.data === "string" ? hexToBytes32(parameters.data) : parameters.data;
+  const size_ = size52(data2);
   if (!size_)
     throw new EmptyBlobError22();
   if (size_ > maxBytesPerTransaction22)
@@ -77665,7 +77665,7 @@ function toBlobs22(parameters) {
     const blob = createCursor22(new Uint8Array(bytesPerBlob22));
     let size6 = 0;
     while (size6 < fieldElementsPerBlob22) {
-      const bytes = data.slice(position, position + (bytesPerFieldElement22 - 1));
+      const bytes = data2.slice(position, position + (bytesPerFieldElement22 - 1));
       blob.pushByte(0);
       blob.pushBytes(bytes);
       if (bytes.length < 31) {
@@ -77681,8 +77681,8 @@ function toBlobs22(parameters) {
   return to4 === "bytes" ? blobs.map((x) => x.bytes) : blobs.map((x) => bytesToHex32(x.bytes));
 }
 function toBlobSidecars22(parameters) {
-  const { data, kzg, to: to4 } = parameters;
-  const blobs = parameters.blobs ?? toBlobs22({ data, to: to4 });
+  const { data: data2, kzg, to: to4 } = parameters;
+  const blobs = parameters.blobs ?? toBlobs22({ data: data2, to: to4 });
   const commitments = parameters.commitments ?? blobsToCommitments22({ blobs, kzg, to: to4 });
   const proofs = parameters.proofs ?? blobsToProofs22({ blobs, commitments, kzg, to: to4 });
   const sidecars = [];
@@ -77930,7 +77930,7 @@ function serializeTransaction52(transaction, signature) {
   return serializeTransactionLegacy22(transaction, signature);
 }
 function serializeTransactionEIP770222(transaction, signature) {
-  const { authorizationList, chainId, gas, nonce: nonce22, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { authorizationList, chainId, gas, nonce: nonce22, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP770222(transaction);
   const serializedAccessList = serializeAccessList22(accessList);
   const serializedAuthorizationList = serializeAuthorizationList22(authorizationList);
@@ -77944,7 +77944,7 @@ function serializeTransactionEIP770222(transaction, signature) {
       gas ? numberToHex32(gas) : "0x",
       to4 ?? "0x",
       value ? numberToHex32(value) : "0x",
-      data ?? "0x",
+      data2 ?? "0x",
       serializedAccessList,
       serializedAuthorizationList,
       ...toYParitySignatureArray22(transaction, signature)
@@ -77952,7 +77952,7 @@ function serializeTransactionEIP770222(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP484422(transaction, signature) {
-  const { chainId, gas, nonce: nonce22, to: to4, value, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { chainId, gas, nonce: nonce22, to: to4, value, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP484422(transaction);
   let blobVersionedHashes = transaction.blobVersionedHashes;
   let sidecars = transaction.sidecars;
@@ -77981,7 +77981,7 @@ function serializeTransactionEIP484422(transaction, signature) {
     gas ? numberToHex32(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex32(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     maxFeePerBlobGas ? numberToHex32(maxFeePerBlobGas) : "0x",
     blobVersionedHashes ?? [],
@@ -78009,7 +78009,7 @@ function serializeTransactionEIP484422(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP155922(transaction, signature) {
-  const { chainId, gas, nonce: nonce22, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data } = transaction;
+  const { chainId, gas, nonce: nonce22, to: to4, value, maxFeePerGas, maxPriorityFeePerGas, accessList, data: data2 } = transaction;
   assertTransactionEIP155922(transaction);
   const serializedAccessList = serializeAccessList22(accessList);
   const serializedTransaction = [
@@ -78020,7 +78020,7 @@ function serializeTransactionEIP155922(transaction, signature) {
     gas ? numberToHex32(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex32(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     ...toYParitySignatureArray22(transaction, signature)
   ];
@@ -78030,7 +78030,7 @@ function serializeTransactionEIP155922(transaction, signature) {
   ]);
 }
 function serializeTransactionEIP293022(transaction, signature) {
-  const { chainId, gas, data, nonce: nonce22, to: to4, value, accessList, gasPrice } = transaction;
+  const { chainId, gas, data: data2, nonce: nonce22, to: to4, value, accessList, gasPrice } = transaction;
   assertTransactionEIP293022(transaction);
   const serializedAccessList = serializeAccessList22(accessList);
   const serializedTransaction = [
@@ -78040,7 +78040,7 @@ function serializeTransactionEIP293022(transaction, signature) {
     gas ? numberToHex32(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex32(value) : "0x",
-    data ?? "0x",
+    data2 ?? "0x",
     serializedAccessList,
     ...toYParitySignatureArray22(transaction, signature)
   ];
@@ -78050,7 +78050,7 @@ function serializeTransactionEIP293022(transaction, signature) {
   ]);
 }
 function serializeTransactionLegacy22(transaction, signature) {
-  const { chainId = 0, gas, data, nonce: nonce22, to: to4, value, gasPrice } = transaction;
+  const { chainId = 0, gas, data: data2, nonce: nonce22, to: to4, value, gasPrice } = transaction;
   assertTransactionLegacy22(transaction);
   let serializedTransaction = [
     nonce22 ? numberToHex32(nonce22) : "0x",
@@ -78058,7 +78058,7 @@ function serializeTransactionLegacy22(transaction, signature) {
     gas ? numberToHex32(gas) : "0x",
     to4 ?? "0x",
     value ? numberToHex32(value) : "0x",
-    data ?? "0x"
+    data2 ?? "0x"
   ];
   if (signature) {
     const v = (() => {
@@ -91598,8 +91598,8 @@ function publicProviderAddress(address3) {
   return typeof address3 === "string" && !!net.isIP(address3) && !isBlockedHost2(address3);
 }
 function qualificationMessage(report) {
-  const fields2 = ["version", "hostId", "operator", "address", "issuedAt", "expiresAt", "checks"];
-  if (!report || Object.keys(report).some((k3) => !fields2.includes(k3)) || report.version !== 1 || !idPattern.test(report.hostId) || !addressPattern.test(report.operator) || !publicProviderAddress(report.address) || !Number.isSafeInteger(report.issuedAt) || !Number.isSafeInteger(report.expiresAt) || report.expiresAt <= report.issuedAt || report.expiresAt - report.issuedAt > 3e5 || !report.checks || Object.keys(report.checks).length !== PROVIDER_CHECKS.length || PROVIDER_CHECKS.some((k3) => report.checks[k3] !== true)) throw new Error("provider qualification failed");
+  const fields4 = ["version", "hostId", "operator", "address", "issuedAt", "expiresAt", "checks"];
+  if (!report || Object.keys(report).some((k3) => !fields4.includes(k3)) || report.version !== 1 || !idPattern.test(report.hostId) || !addressPattern.test(report.operator) || !publicProviderAddress(report.address) || !Number.isSafeInteger(report.issuedAt) || !Number.isSafeInteger(report.expiresAt) || report.expiresAt <= report.issuedAt || report.expiresAt - report.issuedAt > 3e5 || !report.checks || Object.keys(report.checks).length !== PROVIDER_CHECKS.length || PROVIDER_CHECKS.some((k3) => report.checks[k3] !== true)) throw new Error("provider qualification failed");
   return "enclave-provider-qualification:v1\n" + JSON.stringify({
     version: 1,
     hostId: report.hostId,
@@ -92193,7 +92193,7 @@ function serializeTransaction6(transaction, signature) {
 }
 function serializeTransactionDeposit22(transaction) {
   assertTransactionDeposit22(transaction);
-  const { sourceHash, data, from: from202, gas, isSystemTx, mint: mint22, to: to4, value } = transaction;
+  const { sourceHash, data: data2, from: from202, gas, isSystemTx, mint: mint22, to: to4, value } = transaction;
   const serializedTransaction = [
     sourceHash,
     from202,
@@ -92202,7 +92202,7 @@ function serializeTransactionDeposit22(transaction) {
     value ? toHex52(value) : "0x",
     gas ? toHex52(gas) : "0x",
     isSystemTx ? "0x1" : "0x",
-    data ?? "0x"
+    data2 ?? "0x"
   ];
   return concatHex22([
     "0x7e",
@@ -92291,17 +92291,17 @@ function pinnedClient({ b, hash: hash6, request, chainId, alive = () => {
       return { number: b, hash: h3.hash, stateRoot: h3.stateRoot, timestamp: BigInt(h3.timestamp / 1e3) };
     },
     readContract: async ({ address: address3, abi: abi22, functionName, args, blockNumber, blockTag, account }) => {
-      const data = encodeFunctionData2({ abi: abi22, functionName, args });
+      const data2 = encodeFunctionData2({ abi: abi22, functionName, args });
       const from202 = typeof account === "string" ? account : account?.address;
-      return decodeFunctionResult2({ abi: abi22, functionName, data: await request("eth_call", [{ to: address3, data, ...from202 ? { from: from202 } : {} }, at3(blockNumber, blockTag)]) });
+      return decodeFunctionResult2({ abi: abi22, functionName, data: await request("eth_call", [{ to: address3, data: data2, ...from202 ? { from: from202 } : {} }, at3(blockNumber, blockTag)]) });
     },
     getCode: code,
     getBytecode: code,
     getStorageAt: async ({ address: address3, slot, blockNumber, blockTag }) => request("eth_getStorageAt", [address3, slot, at3(blockNumber, blockTag)]),
     getBalance: async ({ address: address3, blockNumber, blockTag }) => BigInt(await request("eth_getBalance", [address3, at3(blockNumber, blockTag)])),
-    ...allowCall ? { call: async ({ account, to: to4, data, value, blockNumber, blockTag }) => {
+    ...allowCall ? { call: async ({ account, to: to4, data: data2, value, blockNumber, blockTag }) => {
       const from202 = typeof account === "string" ? account : account?.address;
-      const tx3 = { to: to4, ...data ? { data } : {}, ...from202 ? { from: from202 } : {}, ...value ? { value: "0x" + BigInt(value).toString(16) } : {} };
+      const tx3 = { to: to4, ...data2 ? { data: data2 } : {}, ...from202 ? { from: from202 } : {}, ...value ? { value: "0x" + BigInt(value).toString(16) } : {} };
       return { data: await request("eth_call", [tx3, at3(blockNumber, blockTag)]) };
     } } : {}
   };
@@ -94140,8 +94140,8 @@ function createAppZoneAuthority({
     }
   };
 }
-function parseTcgLog(data, { maxBytes = TCG_MAX_LOG_BYTES, maxEvents = TCG_MAX_EVENTS } = {}) {
-  const b = toBuf(data);
+function parseTcgLog(data2, { maxBytes = TCG_MAX_LOG_BYTES, maxEvents = TCG_MAX_EVENTS } = {}) {
+  const b = toBuf(data2);
   if (b.length > maxBytes) throw new Error(`TCG log exceeds ${maxBytes} bytes`);
   const need2 = (off2, n) => {
     if (!Number.isSafeInteger(off2) || off2 < 0 || n < 0 || off2 + n > b.length) throw new Error("TCG log truncated");
@@ -94247,15 +94247,15 @@ function tcgLogWith(sha25612) {
     return out;
   }
   function sipaFields2(events, pcr = 12, alg = TCG_SHA256) {
-    const fields2 = /* @__PURE__ */ new Map();
+    const fields4 = /* @__PURE__ */ new Map();
     for (const r of sipaRecords2(events, pcr, alg)) {
       if (SIPA_CONTAINERS.has(r.id)) continue;
       const v = r.value;
       const val = [1, 2, 4, 8].includes(v.length) ? scalar(v) : SIPA_STRINGS.has(r.id) ? utf16(v) : v;
-      if (!fields2.has(r.name)) fields2.set(r.name, []);
-      fields2.get(r.name).push(val);
+      if (!fields4.has(r.name)) fields4.set(r.name, []);
+      fields4.get(r.name).push(val);
     }
-    return fields2;
+    return fields4;
   }
   function vsmKey2(events, which = "IDKS", alg = TCG_SHA256) {
     const id3 = which === "IDKS" ? SIPA_VSM_IDKS_INFO : SIPA_VSM_IDK_INFO;
@@ -94366,8 +94366,8 @@ function extensionValue(certDer, oid) {
   if (certFields.length !== 3 || certFields[0].tag !== 48 || certFields[1].tag !== 48 || certFields[2].tag !== 3)
     throw new Error("certificate fields malformed");
   const [tbs] = certFields;
-  const fields2 = children(b, tbs);
-  const extensions = fields2.filter((f) => f.tag === 163);
+  const fields4 = children(b, tbs);
+  const extensions = fields4.filter((f) => f.tag === 163);
   if (!extensions.length) return null;
   if (extensions.length !== 1) throw new Error("duplicate extension containers");
   const wrapped = children(b, extensions[0], 1), seq = wrapped[0];
@@ -94393,20 +94393,20 @@ function parseAvfExtension(certDer) {
   if (!v) throw new Error("no AVF attestation extension");
   const top = tlv(v, 0);
   if (top.tag !== 48 || top.end !== v.length) throw new Error("AttestationExtension is not an exact SEQUENCE");
-  const fields2 = children(v, top, 4);
-  if (fields2.length !== 3 && fields2.length !== 4) throw new Error("AttestationExtension must have three fields (or four, the fourth an empty SEQUENCE)");
-  if (fields2.length === 4 && (fields2[3].tag !== 48 || body(v, fields2[3]).length !== 0))
+  const fields4 = children(v, top, 4);
+  if (fields4.length !== 3 && fields4.length !== 4) throw new Error("AttestationExtension must have three fields (or four, the fourth an empty SEQUENCE)");
+  if (fields4.length === 4 && (fields4[3].tag !== 48 || body(v, fields4[3]).length !== 0))
     throw new Error("AttestationExtension's fourth field is not an empty SEQUENCE: unknown structure, refused");
-  const [chal, secure, comps] = fields2;
+  const [chal, secure, comps] = fields4;
   if (!chal || chal.tag !== 4) throw new Error("attestationChallenge missing");
   if (!secure || secure.tag !== 1) throw new Error("isVmSecure missing");
   if (!comps || comps.tag !== 48) throw new Error("vmComponents missing");
   const isVmSecure = boolOf(v, secure);
   const components = children(v, comps, AVF_MAX_COMPONENTS).map((c) => {
     if (c.tag !== 48) throw new Error("VmComponent is not a SEQUENCE");
-    const fields3 = children(v, c, 4);
-    if (fields3.length !== 4) throw new Error("VmComponent must have four fields");
-    const [name, ver, code, auth] = fields3;
+    const fields5 = children(v, c, 4);
+    if (fields5.length !== 4) throw new Error("VmComponent must have four fields");
+    const [name, ver, code, auth] = fields5;
     if (!name || name.tag !== 12 || !ver || ver.tag !== 2 || !code || code.tag !== 4 || !auth || auth.tag !== 4)
       throw new Error("VmComponent malformed");
     const nameBytes = body(v, name);
@@ -95641,6 +95641,18 @@ function releaseBinding({ id: id3, transportSpki, ticket, runtimeId: runtimeId2,
   if (!Buffer.isBuffer(transportSpki) || transportSpki.length < 32) throw new Error("transportSpki must be a DER SPKI");
   return sha25611(RELEASE_DOMAIN, idBytes(id3), sha25611(transportSpki), b322(ticket, "ticket"), b322(runtimeId2, "runtimeId"), b322(sealKey, "sealKey"));
 }
+function validImageIdentity(p) {
+  return fields2(p, ["signer", "productId", "moduleId"]) && typeof p.signer === "string" && p.signer.length === 64 && HEX.test(p.signer) && p.signer !== "0".repeat(64) && u323(p.productId) && u323(p.moduleId);
+}
+function validImageIdentities(pins) {
+  return Array.isArray(pins) && pins.length > 0 && pins.length <= 256 && Array.from(pins).every((p) => fields2(p, ["measurement", "identity"]) && typeof p.measurement === "string" && p.measurement.length === 64 && HEX.test(p.measurement) && validImageIdentity(p.identity));
+}
+function imageIdentityPins(images) {
+  if (!images.some((p) => p.identity !== void 0 || p.nativeDesktop === true)) return void 0;
+  const pins = images.map((p) => ({ measurement: p.measurement, identity: p.identity }));
+  if (!validImageIdentities(pins)) throw new Error("explicit image signer/product/module pins are required for every candidate");
+  return pins;
+}
 function vbsVmReportWith({ sha256: sha25612, equal: equal2 = ctEqual }) {
   function parseVbsVmReport2(envelope) {
     requireThat(
@@ -95682,10 +95694,11 @@ function vbsVmReportWith({ sha256: sha25612, equal: equal2 = ctEqual }) {
       enabledVtl: r(216),
       policy: r(220),
       guestVtl: r(224),
-      guestSvn: r(228)
+      guestSvn: r(228),
+      identity: { signer: report.subarray(152, 184).toString("hex"), productId: r(232), moduleId: r(236) }
     };
   }
-  function* vbsVmReportChecks({ envelope, idksPublicKey, expectedUserData, allowedMeasurements, minimumGuestSvn = 0 } = {}) {
+  function* vbsVmReportChecks({ envelope, idksPublicKey, expectedUserData, allowedMeasurements, minimumGuestSvn = 0, imageIdentities } = {}) {
     const checks = Object.fromEntries(VBS_VM_REPORT_CHECKS.map((k3) => [k3, void 0]));
     let reason = null, p = null;
     const step22 = (key, fn3) => {
@@ -95697,7 +95710,7 @@ function vbsVmReportWith({ sha256: sha25612, equal: equal2 = ctEqual }) {
         if (reason === null) reason = e.message;
       }
     };
-    const done = () => reason === null ? { ok: true, measurement: p.measurement, guestSvn: p.guestSvn, parsed: p, checks } : { ok: false, reason, parsed: p, checks };
+    const done = () => reason === null ? { ok: true, measurement: p.measurement, guestSvn: p.guestSvn, identity: p.identity, parsed: p, checks } : { ok: false, reason, parsed: p, checks };
     step22("inputs", () => {
       requireThat(
         Buffer.isBuffer(expectedUserData) && expectedUserData.length === 64,
@@ -95711,6 +95724,10 @@ function vbsVmReportWith({ sha256: sha25612, equal: equal2 = ctEqual }) {
         Number.isSafeInteger(minimumGuestSvn) && minimumGuestSvn >= 0,
         "invalid minimum guest SVN"
       );
+      requireThat(
+        imageIdentities === void 0 || validImageIdentities(imageIdentities),
+        "invalid image signer/product/module pins"
+      );
     });
     if (reason !== null) return done();
     step22("envelope", () => {
@@ -95723,6 +95740,10 @@ function vbsVmReportWith({ sha256: sha25612, equal: equal2 = ctEqual }) {
     ));
     step22("svn", () => requireThat(p.guestSvn >= minimumGuestSvn, "guest SVN below policy"));
     step22("measurement", () => requireThat(allowedMeasurements.includes(p.measurement), "image measurement is not pinned"));
+    if (imageIdentities !== void 0) step22("image-identity", () => requireThat(
+      imageIdentities.some((pin) => pin.measurement === p.measurement && pin.identity.signer === p.identity.signer && pin.identity.productId === p.identity.productId && pin.identity.moduleId === p.identity.moduleId),
+      "image signer/product/module identity is not pinned"
+    ));
     step22("user-data", () => requireThat(equal2(p.userData, expectedUserData), "guest binding differs from verifier request"));
     let signed = false, why = null;
     try {
@@ -95743,12 +95764,13 @@ function verifyVbsVmReport({
   idksPublicKey,
   expectedUserData,
   allowedMeasurements,
-  minimumGuestSvn = 0
+  minimumGuestSvn = 0,
+  imageIdentities
 }) {
   try {
-    const r = runSync(CORE.vbsVmReportChecks({ envelope, idksPublicKey, expectedUserData, allowedMeasurements, minimumGuestSvn }), OPS);
-    if (!r.ok) return { ok: false, reason: r.reason };
-    return { ok: true, measurement: r.measurement, guestSvn: r.guestSvn, scope: VBS_VM_REPORT_SCOPE };
+    const r = runSync(CORE.vbsVmReportChecks({ envelope, idksPublicKey, expectedUserData, allowedMeasurements, minimumGuestSvn, imageIdentities }), OPS);
+    if (!r.ok) return { ok: false, reason: r.reason, checks: r.checks };
+    return { ok: true, measurement: r.measurement, guestSvn: r.guestSvn, identity: r.identity, checks: r.checks, scope: VBS_VM_REPORT_SCOPE };
   } catch (e) {
     return { ok: false, reason: e.message };
   }
@@ -95862,13 +95884,15 @@ function verifyVbsAppEvidence({
       idksPublicKey: rsaKeyFromModulus(key.modulus, key.exponent),
       expectedUserData: vbsAppUserData(binding, expectedAppSha256),
       allowedMeasurements: policy.allowedMeasurements,
-      minimumGuestSvn: policy.minimumGuestSvn ?? 0
+      minimumGuestSvn: policy.minimumGuestSvn ?? 0,
+      imageIdentities: policy.imageIdentities
     });
     if (!result.ok) return result;
     return {
       ok: true,
       scope: "hardware-bound app evidence; admission is a separate policy decision",
       measurement: result.measurement,
+      identity: result.identity,
       appSha256: expectedAppSha256,
       runtimeId: expectedRuntimeId,
       boot: host.boot
@@ -95877,6 +95901,83 @@ function verifyVbsAppEvidence({
     return fail4(e.message);
   }
 }
+function integer(value, low, high, label2) {
+  if (!Number.isInteger(value) || value < low || value > high)
+    throw new Error(`${label2} outside ${low}..${high}`);
+}
+function data(value, label2, depth = 0) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error(`${label2} must contain finite numbers`);
+    return value;
+  }
+  if (typeof value !== "object" || depth >= MAX_DEPTH) throw new Error(`${label2} must be bounded plain data`);
+  const array = Array.isArray(value);
+  const proto = Object.getPrototypeOf(value);
+  if (array ? proto !== Array.prototype : proto !== Object.prototype && proto !== null)
+    throw new Error(`${label2} must be plain data objects`);
+  const names = Reflect.ownKeys(value);
+  if (array && (names.length !== value.length + 1 || names.some((name) => name !== "length" && (typeof name !== "string" || !/^(0|[1-9][0-9]*)$/.test(name) || Number(name) >= value.length))))
+    throw new Error(`${label2} arrays must be dense and contain only indexed elements`);
+  const out = array ? [] : {};
+  for (const name of names) {
+    if (array && name === "length") continue;
+    const d = typeof name === "string" ? Reflect.getOwnPropertyDescriptor(value, name) : null;
+    if (!d || !Object.hasOwn(d, "value") || !d.enumerable) throw new Error(`${label2} must be data-only`);
+    Object.defineProperty(out, name, {
+      value: data(d.value, label2, depth + 1),
+      enumerable: true,
+      writable: true,
+      configurable: true
+    });
+  }
+  return out;
+}
+function fields3(value, expected, label2) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value)))
+    throw new Error(`${label2} must be a plain object`);
+  const names = Reflect.ownKeys(value);
+  if (names.length !== expected.length || !expected.every((k3) => names.includes(k3)))
+    throw new Error(`${label2} requires exactly its declared fields`);
+  const out = {};
+  for (const k3 of expected) {
+    const d = Reflect.getOwnPropertyDescriptor(value, k3);
+    if (!d || !Object.hasOwn(d, "value") || !d.enumerable) throw new Error(`${label2} must be data-only`);
+    out[k3] = d.value;
+  }
+  return out;
+}
+function validateDesktopRelease(raw) {
+  const r = fields3(data(raw, "desktop release"), RELEASE_FIELDS, "desktop release");
+  if (r.schema !== DESKTOP_RELEASE_SCHEMA) throw new Error(`desktop release requires ${DESKTOP_RELEASE_SCHEMA}`);
+  if (!isCid(r.controllerCid)) throw new Error("invalid desktop controller CID");
+  for (const k3 of HASH_FIELDS)
+    if (!nonzero(r[k3])) throw new Error(`desktop release ${k3} must be nonzero lowercase 64-hex`);
+  integer(r.minimumCpuMilli, 1, 1e3, "minimum CPU milli");
+  const p = fields3(r.policy, ["cpuPercent", "vcpus"], "desktop release policy");
+  integer(p.cpuPercent, 400, 1600, "CPU percent");
+  integer(p.vcpus, 4, 16, "vCPUs");
+  if (p.cpuPercent > p.vcpus * 100) throw new Error("CPU percent exceeds the pinned vCPUs");
+  return Object.freeze({
+    schema: r.schema,
+    controllerCid: r.controllerCid,
+    controllerSha256: r.controllerSha256,
+    runtimeId: r.runtimeId,
+    igvmSha256: r.igvmSha256,
+    profileSha256: r.profileSha256,
+    launchMeasurement: r.launchMeasurement,
+    minimumCpuMilli: r.minimumCpuMilli,
+    policy: Object.freeze({ cpuPercent: p.cpuPercent, vcpus: p.vcpus })
+  });
+}
+function shieldImageCandidates(policy, expected) {
+  const desktop = policy?.desktop == null ? null : validateDesktopRelease(policy.desktop);
+  const native = expected?.requiresDesktop === true;
+  if (expected?.requiresDesktop !== void 0 && typeof expected.requiresDesktop !== "boolean") return [];
+  if (native && (!desktop || expected.runtimeId !== desktop.runtimeId)) return [];
+  if (!native && desktop && expected?.runtimeId === desktop.runtimeId) return [];
+  return (Array.isArray(policy?.images) ? policy.images : []).filter((p) => HEX2.test(p?.measurement || "") && p.runtimeId === expected?.runtimeId && (!expected.requiresConfigBundleV5 || p.configBundleV5 === true) && (!expected.requiresSecretsV1 || p.secretsV1 === true) && (!expected.requiresConfigSocketServer || p.configSocketServer === true) && (native ? p.nativeDesktop === true && validImageIdentity(p.identity) && p.measurement === desktop.launchMeasurement && p.igvmSha256 === desktop.igvmSha256 && p.profileSha256 === desktop.profileSha256 && p.controllerSha256 === desktop.controllerSha256 && p.configBundleV5 === true && p.secretsV1 === true && p.configSocketServer === true && p.protectedPorts === true : p.nativeDesktop !== true && (!desktop || p.measurement !== desktop.launchMeasurement)));
+}
 function verifyShieldAppPolicy(input, policy = {}) {
   const no3 = (reason) => ({ ok: false, reason });
   try {
@@ -95884,20 +95985,21 @@ function verifyShieldAppPolicy(input, policy = {}) {
     const { platforms, images } = policy;
     if (!platformsValid(platforms))
       return no3('explicit TPM identity and platform firmware pins (or "attested") are required');
-    if (!Array.isArray(images) || !images.length || images.some((p) => !HEX.test(p?.measurement || "") || !HEX.test(p?.runtimeId || "")))
+    if (!Array.isArray(images) || !images.length || images.some((p) => !HEX3.test(p?.measurement || "") || !HEX3.test(p?.runtimeId || "")))
       return no3("explicit image/runtime pairs are required");
-    const candidates = images.filter((p) => p.runtimeId === input?.expectedRuntimeId && (!input.requiresConfigBundleV5 || p.configBundleV5 === true) && (!input.requiresSecretsV1 || p.secretsV1 === true) && (!input.requiresConfigSocketServer || p.configSocketServer === true));
+    const candidates = shieldImageCandidates(policy, { ...input, runtimeId: input?.expectedRuntimeId });
     if (!candidates.length) return no3("runtime has no admitted image");
     const v = verifyVbsAppEvidence(input, {
       ekRoots: policy.ekRoots,
       allowedMeasurements: candidates.map((p) => p.measurement),
+      imageIdentities: imageIdentityPins(candidates),
       minimumGuestSvn: policy.minimumGuestSvn ?? 0
     });
     if (!v.ok) return v;
     if (!platformAdmitted(platforms, v.boot))
       return no3("authenticated TPM/platform pair is not admitted");
     const spkiSha256 = createHash17("sha256").update(input.handshakeSpki).digest("hex");
-    if (input.expectedCsrSpkiSha256 !== void 0 && (!HEX.test(input.expectedCsrSpkiSha256) || input.expectedCsrSpkiSha256 !== spkiSha256))
+    if (input.expectedCsrSpkiSha256 !== void 0 && (!HEX3.test(input.expectedCsrSpkiSha256) || input.expectedCsrSpkiSha256 !== spkiSha256))
       return no3("certificate key differs from the verified app key");
     return {
       ...v,
@@ -95978,7 +96080,7 @@ function validateShieldResponderPolicy(policy) {
   if (!policy || policy.schema !== "enclave-shield-app-policy/1") throw new Error("ATTESTED_SHIELD_POLICY must be an enclave-shield-app-policy/1 document");
   if (!policy.ekRoots || typeof policy.ekRoots !== "string") throw new Error("the Shield policy needs pinned TPM EK roots (ekRoots)");
   if (!platformsValid(policy.platforms)) throw new Error('the Shield policy needs explicit TPM/firmware platform pins, or "attested"');
-  if (!Array.isArray(policy.images) || !policy.images.length || policy.images.some((i) => !HEX2.test(i?.measurement || "") || !HEX2.test(i?.runtimeId || "")))
+  if (!Array.isArray(policy.images) || !policy.images.length || policy.images.some((i) => !HEX4.test(i?.measurement || "") || !HEX4.test(i?.runtimeId || "")))
     throw new Error("the Shield policy needs explicit (VBS launch digest, RuntimeID) image pairs");
   return policy;
 }
@@ -96012,7 +96114,7 @@ function createShieldChallengeAuth({
   for (const [k3, [min, max]] of Object.entries(LIMITS))
     if (!Number.isSafeInteger(opts[k3]) || opts[k3] < min || opts[k3] > max) throw new Error(`${k3} must be an integer in ${min}..${max}`);
   if (typeof registryEntry !== "function") throw new Error("a Shield responder needs its own registry read (registryEntry)");
-  if (givenParty !== null && !HEX2.test(String(givenParty))) throw new Error("party must be a 32-byte hex id");
+  if (givenParty !== null && !HEX4.test(String(givenParty))) throw new Error("party must be a 32-byte hex id");
   const party = givenParty ?? shieldResponderId(zone);
   const entry = async (hostId) => {
     const e = await registryEntry(hostId);
@@ -96068,7 +96170,8 @@ function createShieldChallengeAuth({
       sweep();
       const sessions = [...live.entries()].reverse().filter(([h3, s]) => (onlyHost === null || h3 === String(onlyHost).toLowerCase()) && (onlyOperator === null || s.operator === String(onlyOperator).toLowerCase()));
       if (!sessions.length) return deny3(403, onlyHost === null ? "no live Shield host session on this responder: the host must attest its TPM boot here first" : "no live Shield host session for this lease's runner and operator: that host must attest its TPM boot here first");
-      const measurements = policy.images.filter((i) => i.runtimeId === rid).map((i) => i.measurement);
+      const imageCandidates = policy.images.filter((i) => i.runtimeId === rid);
+      const measurements = imageCandidates.map((i) => i.measurement);
       if (!measurements.length) return deny3(403, "Shield attestation refused: runtime has no admitted image");
       let envelope;
       try {
@@ -96082,7 +96185,8 @@ function createShieldChallengeAuth({
         envelope,
         expectedUserData: vbsAppUserData(bind2(spki, nonce22, ridBytes), doc.appSha256),
         allowedMeasurements: measurements,
-        minimumGuestSvn: policy.minimumGuestSvn ?? 0
+        minimumGuestSvn: policy.minimumGuestSvn ?? 0,
+        imageIdentities: imageIdentityPins(imageCandidates)
       };
       let why = "VBS report signature failed: no live host session's IDKS signed this report";
       for (const [hostId, s] of sessions) {
@@ -96434,11 +96538,11 @@ function checkMinTcb(minTcb, product, p) {
   const lines = Object.keys(minTcb);
   if (!lines.length) return bad("minimum-TCB policy malformed: names no product line");
   for (const line of lines) {
-    const f = minTcb[line], fields2 = TCB_FIELDS[line];
-    if (!fields2) return bad(`minimum-TCB policy malformed: unknown product line "${line}"`);
+    const f = minTcb[line], fields4 = TCB_FIELDS[line];
+    if (!fields4) return bad(`minimum-TCB policy malformed: unknown product line "${line}"`);
     if (!f || typeof f !== "object" || Array.isArray(f)) return bad(`minimum-TCB policy malformed: ${line} is not an object`);
-    for (const k3 of Object.keys(f)) if (!fields2.includes(k3)) return bad(`minimum-TCB policy malformed: ${line} has unknown field "${k3}"`);
-    for (const k3 of fields2)
+    for (const k3 of Object.keys(f)) if (!fields4.includes(k3)) return bad(`minimum-TCB policy malformed: ${line} has unknown field "${k3}"`);
+    for (const k3 of fields4)
       if (!Number.isInteger(f[k3]) || f[k3] < 0 || f[k3] > 255) return bad(`minimum-TCB policy malformed: ${line}.${k3} must be an integer 0-255`);
   }
   if (!product) return bad("cannot judge the TCB: the report's product line is unknown");
@@ -96953,7 +97057,7 @@ function parseProfile(bytes, { expectedDigest } = {}) {
   if (!Buffer.from(bytes).equals(encodeProfile(value))) throw Error("authority profile is not canonically encoded");
   return { digest, profile: validateProfile(value) };
 }
-var require2, __create2, __defProp2, __getOwnPropDesc2, __getOwnPropNames2, __getProtoOf2, __hasOwnProp2, __require2, __esm2, __commonJS2, __export2, __copyProps2, __toESM2, version4, init_version4, BaseError4, init_errors4, bytesRegex4, integerRegex4, isTupleRegex2, init_regex3, tupleRegex2, init_formatAbiParameter2, init_formatAbiParameters2, init_formatAbiItem3, errorSignatureRegex2, eventSignatureRegex2, functionSignatureRegex2, structSignatureRegex2, constructorSignatureRegex2, fallbackSignatureRegex2, receiveSignatureRegex2, modifiers2, eventModifiers2, functionModifiers2, init_signatures2, InvalidAbiItemError2, UnknownTypeError2, UnknownSolidityTypeError2, init_abiItem3, InvalidAbiParameterError2, InvalidAbiParametersError2, InvalidParameterError2, SolidityProtectedKeywordError2, InvalidModifierError2, InvalidFunctionModifierError2, InvalidAbiTypeParameterError2, init_abiParameter2, InvalidSignatureError2, UnknownSignatureError2, InvalidStructSignatureError2, init_signature2, CircularReferenceError2, init_struct2, InvalidParenthesisError2, init_splitParameters2, parameterCache2, init_cache2, abiParameterWithoutTupleRegex2, abiParameterWithTupleRegex2, dynamicIntegerRegex2, protectedKeywordsRegex2, init_utils11, typeWithoutTupleRegex2, init_structs2, init_parseAbi2, init_parseAbiItem2, init_parseAbiParameter2, init_parseAbiParameters2, init_exports2, init_getAction2, init_formatAbiItem22, init_isHex2, init_size2, version22, init_version22, errorConfig2, BaseError22, init_base3, AbiConstructorNotFoundError2, AbiConstructorParamsNotFoundError2, AbiDecodingDataSizeInvalidError2, AbiDecodingDataSizeTooSmallError2, AbiDecodingZeroDataError2, AbiEncodingArrayLengthMismatchError2, AbiEncodingBytesSizeMismatchError2, AbiEncodingLengthMismatchError2, AbiErrorInputsNotFoundError2, AbiErrorNotFoundError2, AbiErrorSignatureNotFoundError2, AbiEventSignatureEmptyTopicsError2, AbiEventSignatureNotFoundError2, AbiEventNotFoundError2, AbiFunctionNotFoundError2, AbiFunctionOutputsNotFoundError2, AbiFunctionSignatureNotFoundError2, AbiItemAmbiguityError2, BytesSizeMismatchError3, DecodeLogDataMismatch2, DecodeLogTopicsMismatch2, InvalidAbiEncodingTypeError2, InvalidAbiDecodingTypeError2, InvalidArrayError3, InvalidDefinitionTypeError2, UnsupportedPackedAbiType2, init_abi2, FilterTypeNotSupportedError2, init_log3, SliceOffsetOutOfBoundsError4, SizeExceedsPaddingSizeError4, InvalidBytesLengthError2, init_data2, init_pad2, IntegerOutOfRangeError3, InvalidBytesBooleanError3, InvalidHexBooleanError2, InvalidHexValueError3, SizeOverflowError4, init_encoding2, init_trim2, init_fromHex2, hexes4, encoder6, init_toHex2, encoder22, charCodeMap3, init_toBytes2, U32_MASK642, _32n2, shrSH2, shrSL2, rotrSH2, rotrSL2, rotrBH2, rotrBL2, rotlSH2, rotlSL2, rotlBH2, rotlBL2, add3L2, add3H2, add4L2, add4H2, add5L2, add5H2, init_u642, crypto22, init_cryptoNode2, isLE2, swap32IfBE2, Hash2, init_utils22, _0n7, _1n7, _2n5, _7n2, _256n2, _0x71n2, SHA3_PI2, SHA3_ROTL2, _SHA3_IOTA2, IOTAS2, SHA3_IOTA_H2, SHA3_IOTA_L2, rotlH2, rotlL2, Keccak2, gen2, keccak_2562, init_sha32, init_keccak2562, hash5, init_hashSignature2, init_normalizeSignature2, toSignature2, init_toSignature2, init_toSignatureHash2, toEventSelector2, init_toEventSelector2, InvalidAddressError3, init_address3, LruMap3, init_lru3, checksumAddressCache2, init_getAddress2, addressRegex3, isAddressCache2, init_isAddress2, init_concat2, init_slice2, arrayRegex3, bytesRegex22, integerRegex22, init_regex22, init_encodeAbiParameters2, toFunctionSelector2, init_toFunctionSelector2, init_getAbiItem2, docsPath9, init_encodeEventTopics2, init_createFilterRequestScope2, init_createContractEventFilter2, init_parseAccount2, docsPath22, init_prepareEncodeFunctionData2, init_encodeFunctionData2, panicReasons2, solidityError2, solidityPanic2, init_solidity2, NegativeOffsetError3, PositionOutOfBoundsError3, RecursiveReadLimitExceededError3, init_cursor4, staticCursor3, init_cursor22, init_fromBytes2, sizeOfLength3, sizeOfOffset3, init_decodeAbiParameters2, init_decodeErrorResult2, stringify3, init_stringify2, init_formatAbiItemWithArgs2, etherUnits2, gweiUnits2, weiUnits2, init_unit3, init_formatUnits2, init_formatEther2, init_formatGwei2, AccountStateConflictError2, StateAssignmentConflictError2, init_stateOverride3, FeeConflictError2, InvalidLegacyVError2, InvalidSerializableTransactionError2, InvalidSerializedTransactionTypeError2, InvalidSerializedTransactionError2, InvalidStorageKeySizeError3, TransactionExecutionError2, TransactionNotFoundError2, TransactionReceiptNotFoundError2, TransactionReceiptRevertedError2, WaitForTransactionReceiptTimeoutError2, init_transaction4, getContractAddress3, getUrl2, init_utils32, CallExecutionError2, ContractFunctionExecutionError2, ContractFunctionRevertedError2, ContractFunctionZeroDataError2, CounterfactualDeploymentFailedError2, RawContractError2, init_contract3, HttpRequestError2, WebSocketRequestError2, RpcRequestError2, SocketClosedError2, TimeoutError2, init_request2, unknownErrorCode2, RpcError2, ProviderRpcError3, ParseRpcError2, InvalidRequestRpcError2, MethodNotFoundRpcError2, InvalidParamsRpcError2, InternalRpcError2, InvalidInputRpcError2, ResourceNotFoundRpcError2, ResourceUnavailableRpcError2, TransactionRejectedRpcError2, MethodNotSupportedRpcError2, LimitExceededRpcError2, JsonRpcVersionUnsupportedError2, UserRejectedRequestError2, UnauthorizedProviderError2, UnsupportedProviderMethodError2, ProviderDisconnectedError2, ChainDisconnectedError2, SwitchChainError2, UnsupportedNonOptionalCapabilityError2, UnsupportedChainIdError2, DuplicateIdError2, UnknownBundleIdError2, BundleTooLargeError2, AtomicReadyWalletRejectedUpgradeError2, AtomicityNotSupportedError2, WalletConnectSessionSettlementError2, UnknownRpcError2, init_rpc2, EXECUTION_REVERTED_ERROR_CODE2, init_getContractError2, init_publicKeyToAddress2, HashMD2, SHA256_IV2, SHA384_IV2, SHA512_IV2, init_md2, SHA256_K2, SHA256_W2, SHA2562, K5122, SHA512_Kh2, SHA512_Kl2, SHA512_W_H2, SHA512_W_L2, SHA5122, SHA3842, sha2565, sha5122, sha3842, init_sha22, HMAC2, hmac2, init_hmac2, _0n22, _1n22, hasHexBuiltin2, hexes22, asciis2, isPosBig2, bitMask2, u8n2, u8fr2, validatorFns2, init_utils42, _0n32, _1n32, _2n22, _3n3, _4n3, _5n2, _8n2, FIELD_FIELDS2, init_modular2, _0n42, _1n42, pointPrecomputes2, pointWindowSizes2, init_curve2, DERErr2, DER2, _0n52, _1n52, _2n32, _3n22, _4n22, init_weierstrass2, init_shortw_utils2, os2ip2, init_hash_to_curve2, secp256k1_exports2, secp256k1P2, secp256k1N2, _0n62, _1n62, _2n42, divNearest2, Fpk12, secp256k12, TAGGED_HASH_PREFIXES2, pointToBytes2, numTo32b2, modP2, modN2, Point2, GmulAdd2, num2, schnorr2, isoMap2, mapSWU2, secp256k1_hasher2, hashToCurve2, encodeToCurve2, init_secp256k12, init_recoverPublicKey2, init_recoverAddress2, init_toRlp2, init_hashAuthorization2, init_recoverAuthorizationAddress2, EstimateGasExecutionError2, init_estimateGas4, ExecutionRevertedError2, FeeCapTooHighError3, FeeCapTooLowError2, NonceTooHighError2, NonceTooLowError2, NonceMaxValueError2, InsufficientFundsError2, IntrinsicGasTooHighError2, IntrinsicGasTooLowError2, TransactionTypeNotSupportedError2, TipAboveFeeCapError3, UnknownNodeError2, init_node2, init_getNodeError2, init_getEstimateGasError2, init_extract2, init_formatter2, rpcTransactionType2, defineTransactionRequest2, init_transactionRequest2, init_stateOverride22, maxInt83, maxInt163, maxInt243, maxInt323, maxInt403, maxInt483, maxInt563, maxInt643, maxInt723, maxInt803, maxInt883, maxInt963, maxInt1043, maxInt1123, maxInt1203, maxInt1283, maxInt1363, maxInt1443, maxInt1523, maxInt1603, maxInt1683, maxInt1763, maxInt1843, maxInt1923, maxInt2003, maxInt2083, maxInt2163, maxInt2243, maxInt2323, maxInt2403, maxInt2483, maxInt2563, minInt83, minInt163, minInt243, minInt323, minInt403, minInt483, minInt563, minInt643, minInt723, minInt803, minInt883, minInt963, minInt1043, minInt1123, minInt1203, minInt1283, minInt1363, minInt1443, minInt1523, minInt1603, minInt1683, minInt1763, minInt1843, minInt1923, minInt2003, minInt2083, minInt2163, minInt2243, minInt2323, minInt2403, minInt2483, minInt2563, maxUint83, maxUint163, maxUint243, maxUint323, maxUint403, maxUint483, maxUint563, maxUint643, maxUint723, maxUint803, maxUint883, maxUint963, maxUint1043, maxUint1123, maxUint1203, maxUint1283, maxUint1363, maxUint1443, maxUint1523, maxUint1603, maxUint1683, maxUint1763, maxUint1843, maxUint1923, maxUint2003, maxUint2083, maxUint2163, maxUint2243, maxUint2323, maxUint2403, maxUint2483, maxUint2563, init_number3, init_assertRequest2, BaseFeeScalarError2, Eip1559FeesNotSupportedError2, MaxFeePerGasTooLowError2, init_fee2, BlockNotFoundError2, init_block3, transactionType2, defineTransaction2, init_transaction22, defineBlock2, init_block22, init_getBlock2, init_getGasPrice2, init_estimateMaxPriorityFeePerGas2, init_estimateFeesPerGas2, init_formatBlockParameter2, init_getTransactionCount2, init_blobsToCommitments2, init_blobsToProofs2, sha25622, init_sha2563, init_sha25622, init_commitmentToVersionedHash2, init_commitmentsToVersionedHashes2, blobsPerTransaction2, bytesPerFieldElement2, fieldElementsPerBlob2, bytesPerBlob2, maxBytesPerTransaction2, init_blob3, versionedHashVersionKzg2, init_kzg2, BlobSizeTooLargeError2, EmptyBlobError2, InvalidVersionedHashSizeError2, InvalidVersionedHashVersionError2, init_blob22, init_toBlobs2, init_toBlobSidecars2, init_getTransactionType2, init_getTransactionError2, init_getChainId2, init_fillTransaction2, defaultParameters2, eip1559NetworkCache2, supportsFillTransaction2, init_prepareTransactionRequest2, init_estimateGas22, init_estimateContractGas2, init_isAddressEqual2, init_log22, docsPath32, init_decodeEventLog2, init_parseEventLogs2, init_getLogs2, init_getContractEvents2, docsPath42, init_decodeFunctionResult2, version32, init_version32, init_errors22, BaseError32, init_Errors2, charCodeMap22, init_bytes3, init_hex2, bigIntSuffix2, init_Json2, decoder2, encoder32, InvalidBytesBooleanError22, InvalidBytesTypeError2, SizeOverflowError22, SliceOffsetOutOfBoundsError22, SizeExceedsPaddingSizeError22, init_Bytes2, encoder42, hexes32, IntegerOutOfRangeError22, InvalidHexTypeError2, InvalidHexValueError22, InvalidLengthError2, SizeOverflowError32, SliceOffsetOutOfBoundsError32, SizeExceedsPaddingSizeError32, init_Hex2, init_Withdrawal2, init_BlockOverrides2, multicall3Abi2, batchGatewayAbi2, universalResolverErrors2, universalResolverResolveAbi2, universalResolverReverseAbi2, textResolverAbi2, addressResolverAbi2, erc1271Abi2, erc6492SignatureValidatorAbi2, erc20Abi2, erc20Abi_bytes322, erc1155Abi2, erc721Abi2, erc4626Abi2, init_abis2, aggregate3Signature2, init_contract22, deploylessCallViaBytecodeBytecode2, deploylessCallViaFactoryBytecode2, erc6492SignatureValidatorByteCode2, multicall3Bytecode2, init_contracts3, ChainDoesNotSupportContract2, ChainMismatchError2, ChainNotFoundError2, ClientChainNotConfiguredError2, InvalidChainIdError3, init_chain2, docsPath52, init_encodeDeployData2, init_getChainContractAddress2, init_getCallError2, init_withResolvers2, schedulerCache2, init_createBatchScheduler2, OffchainLookupError2, OffchainLookupResponseMalformedError2, OffchainLookupSenderMismatchError2, init_ccip3, init_decodeFunctionData2, docsPath62, init_encodeErrorResult2, docsPath72, init_encodeFunctionResult2, localBatchGatewayUrl2, init_localBatchGatewayRequest2, ccip_exports2, offchainLookupSignature2, offchainLookupAbiItem2, init_ccip22, requestOptionsId2, requestOptionsIds2, init_call2, init_readContract2, init_simulateContract2, listenersCache2, cleanupCache2, callbackCount2, init_observe2, init_wait2, init_poll2, promiseCache3, responseCache2, init_withCache2, cacheKey2, init_getBlockNumber2, init_getFilterChanges2, init_uninstallFilter2, init_watchContractEvent2, AccountNotFoundError2, AccountTypeNotSupportedError2, init_account2, init_assertCurrentChain2, init_sendRawTransaction2, supportsWalletNamespace3, init_sendTransaction2, init_writeContract2, init_getContract2, BundleFailedError2, init_calls2, init_withRetry2, receiptStatuses2, defineTransactionReceipt2, init_transactionReceipt2, fallbackMagicIdentifier2, fallbackTransactionErrorMagicIdentifier2, init_sendCalls2, init_getCallsStatus2, WaitForCallsStatusTimeoutError2, init_waitForCallsStatus2, size42, index2, buffer2, init_uid2, init_createClient2, init_errors32, init_encodedLabelToLabelhash2, init_namehash2, init_encodeLabelhash2, init_labelhash2, init_packetToBytes2, init_getEnsAddress2, EnsAvatarInvalidMetadataError2, EnsAvatarInvalidNftUriError2, EnsAvatarUriResolutionError2, EnsAvatarUnsupportedNamespaceError2, EnsInvalidChainIdError2, init_ens2, networkRegex2, ipfsHashRegex2, base64Regex2, dataURIRegex2, init_utils52, init_parseAvatarRecord2, init_getEnsText2, init_getEnsAvatar2, init_getEnsName2, init_getEnsResolver2, init_createAccessList2, init_createBlockFilter2, init_createEventFilter2, init_createPendingTransactionFilter2, init_getBalance3, init_getBlobBaseFee2, init_getBlockReceipts2, init_getBlockTransactionCount2, init_getCode2, init_getDelegation2, Eip712DomainNotFoundError2, init_eip7122, abi2, init_getEip712Domain3, init_feeHistory2, init_getFeeHistory2, init_getFilterLogs2, init_encodePacked2, init_isBytes2, init_getContractAddress2, init_assertTransaction2, init_serializeAccessList2, init_serializeTransaction2, init_serializeAuthorizationList2, init_verifyAuthorization2, promiseCache22, init_withDedupe2, init_buildRequest2, init_ccipTunnel2, init_defineChain2, init_extractChain2, init_fromRlp2, init_isHash2, Rho1602, Id1602, Pi1602, idxLR2, idxL2, idxR2, shifts1602, shiftsL1602, shiftsR1602, Kl1602, Kr1602, BUF_1602, RIPEMD1602, ripemd1604, init_legacy2, ripemd16022, init_ripemd1603, init_ripemd16022, init_toEventHash2, init_toEventSignature2, init_toFunctionHash2, init_toFunctionSignature2, nonceManager2, init_nonceManager2, init_withTimeout2, idCache2, init_id2, init_http3, socketClientCache2, init_socket2, require_constants2, require_buffer_util2, require_limiter2, require_permessage_deflate2, require_validation2, require_receiver2, require_sender2, require_event_target2, require_extension2, require_websocket2, require_stream2, require_subprotocol2, require_websocket_server2, wrapper_exports2, import_stream2, import_extension2, import_permessage_deflate2, import_receiver2, import_sender2, import_subprotocol2, import_websocket2, import_websocket_server2, wrapper_default2, init_wrapper2, init_utils62, esm_exports3, WebSocket32, init_esm3, init_webSocket3, init_compat2, presignMessagePrefix2, init_strings2, init_toPrefixedMessage2, init_hashMessage2, InvalidDomainError2, InvalidPrimaryTypeError2, InvalidStructTypeError2, init_typedData3, init_typedData22, init_hashTypedData2, erc6492MagicBytes2, zeroHash2, init_bytes22, init_isErc6492Signature2, LruMap22, init_lru22, caches2, checksum3, init_Caches2, init_Hash2, InvalidError2, InvalidPrefixError3, InvalidCompressedPrefixError2, InvalidUncompressedPrefixError2, InvalidSerializedSizeError3, init_PublicKey2, addressRegex22, InvalidAddressError22, InvalidInputError2, InvalidChecksumError2, init_Address2, arrayRegex22, bytesRegex32, integerRegex32, maxInt822, maxInt1622, maxInt2422, maxInt3222, maxInt4022, maxInt4822, maxInt5622, maxInt6422, maxInt7222, maxInt8022, maxInt8822, maxInt9622, maxInt10422, maxInt11222, maxInt12022, maxInt12822, maxInt13622, maxInt14422, maxInt15222, maxInt16022, maxInt16822, maxInt17622, maxInt18422, maxInt19222, maxInt20022, maxInt20822, maxInt21622, maxInt22422, maxInt23222, maxInt24022, maxInt24822, maxInt25622, minInt822, minInt1622, minInt2422, minInt3222, minInt4022, minInt4822, minInt5622, minInt6422, minInt7222, minInt8022, minInt8822, minInt9622, minInt10422, minInt11222, minInt12022, minInt12822, minInt13622, minInt14422, minInt15222, minInt16022, minInt16822, minInt17622, minInt18422, minInt19222, minInt20022, minInt20822, minInt21622, minInt22422, minInt23222, minInt24022, minInt24822, minInt25622, maxUint822, maxUint1622, maxUint2422, maxUint3222, maxUint4022, maxUint4822, maxUint5622, maxUint6422, maxUint7222, maxUint8022, maxUint8822, maxUint9622, maxUint10422, maxUint11222, maxUint12022, maxUint12822, maxUint13622, maxUint14422, maxUint15222, maxUint16022, maxUint16822, maxUint17622, maxUint18422, maxUint19222, maxUint20022, maxUint20822, maxUint21622, maxUint22422, maxUint23222, maxUint24022, maxUint24822, maxUint25622, init_Solidity2, sizeOfLength22, sizeOfOffset22, init_abiParameters2, staticCursor22, NegativeOffsetError22, PositionOutOfBoundsError22, RecursiveReadLimitExceededError22, init_cursor32, DataSizeTooSmallError2, ZeroDataError2, ArrayLengthMismatchError2, BytesSizeMismatchError22, LengthMismatchError2, InvalidArrayError22, InvalidTypeError2, init_AbiParameters2, init_Rlp2, InvalidSerializedSizeError22, MissingPropertiesError3, InvalidRError2, InvalidSError2, InvalidYParityError3, InvalidVError2, init_Signature2, init_Authorization2, init_Secp256k12, SignatureErc8010_exports2, magicBytes4, suffixParameters2, InvalidWrappedSignatureError3, init_SignatureErc80102, init_erc80102, init_isErc8010Signature2, init_parseErc6492Signature2, init_parseErc8010Signature2, init_recoverMessageAddress2, init_recoverTypedDataAddress2, init_serializeErc6492Signature2, init_serializeErc8010Signature2, init_verifyHash3, init_verifyMessage3, init_verifyTypedData3, init_getSerializedTransactionType2, init_parseTransaction2, InvalidDecimalNumberError2, init_unit22, init_parseUnits2, init_parseEther2, init_parseGwei2, init_utils72, init_proof2, init_getProof2, init_getStorageAt2, init_getTransaction2, init_getTransactionConfirmations2, init_getTransactionReceipt2, init_multicall2, init_simulateBlocks2, init_abiItem22, AmbiguityError2, NotFoundError2, init_AbiItem2, init_AbiConstructor2, init_AbiFunction2, ethAddress2, zeroAddress2, init_address22, getBalanceCode2, init_simulateCalls2, SignatureErc6492_exports2, magicBytes22, universalSignatureValidatorBytecode2, universalSignatureValidatorAbi2, InvalidWrappedSignatureError22, init_SignatureErc64922, init_erc64922, init_serializeSignature2, VerificationError3, init_verifyHash22, init_verifyMessage22, init_verifyTypedData22, init_watchBlockNumber2, init_waitForTransactionReceipt2, init_watchBlocks2, init_watchEvent2, init_watchPendingTransactions2, prefixRegex2, suffixRegex2, init_parseSiweMessage2, init_validateSiweMessage2, init_verifySiweMessage2, init_sendRawTransactionSync2, init_public2, init_createPublicClient2, init_dropTransaction2, init_dumpState2, init_getAutomine2, init_getTxpoolContent2, init_getTxpoolStatus2, init_impersonateAccount2, init_increaseTime2, init_inspectTxpool2, init_loadState2, init_mine2, init_removeBlockTimestampInterval2, init_reset2, init_revert2, init_sendUnsignedTransaction2, init_setAutomine2, init_setBalance2, init_setBlockGasLimit2, init_setBlockTimestampInterval2, init_setCode2, init_setCoinbase2, init_setIntervalMining2, init_setLoggingEnabled2, init_setMinGasPrice2, init_setNextBlockBaseFeePerGas2, init_setNextBlockTimestamp2, init_setNonce2, init_setRpcUrl2, init_setStorageAt2, init_snapshot2, init_stopImpersonatingAccount2, init_test2, init_createTestClient2, init_addChain2, init_deployContract2, init_getAddresses2, init_getCapabilities2, init_getPermissions2, init_prepareAuthorization2, init_requestAddresses2, init_requestPermissions2, init_sendCallsSync2, supportsWalletNamespace22, init_sendTransactionSync2, init_showCallsStatus2, init_signAuthorization2, init_signMessage2, init_signTransaction2, init_signTypedData2, init_switchChain2, init_watchAsset2, init_writeContractSync2, init_wallet2, init_createWalletClient2, init_createTransport2, init_custom2, init_fallback2, UrlRequiredError2, init_transport2, signalId2, signalIds2, init_http22, init_webSocket22, ProviderRpcError22, init_eip11932, docsPath82, init_decodeDeployData2, init_fromBlobs2, init_sidecarsToVersionedHashes2, SLIP44_MSB2, init_toCoinType2, init_defineKzg2, init_setupKzg2, init_compactSignatureToSignature2, init_parseCompactSignature2, init_parseSignature2, init_recoverTransactionAddress2, init_serializeCompactSignature2, init_signatureToCompactSignature2, esm_exports22, init_esm22, zeroG2, init_g2, zeroGGalileoTestnet2, init_gGalileoTestnet2, zeroGMainnet2, init_gMainnet2, zeroGTestnet2, init_gTestnet2, fireChain2, init_ireChain2, abey2, init_abey2, gasPerPubdataDefault2, maxBytecodeSize2, init_number22, formatters4, init_formatters4, InvalidEip712TransactionError2, init_transaction32, init_isEip712Transaction2, init_assertEip712Transaction2, serializers4, init_serializers4, BytecodeLengthExceedsMaxSizeError2, BytecodeLengthInWordsMustBeOddError2, BytecodeLengthMustBeDivisibleBy32Error2, init_bytecode2, init_hashBytecode2, getEip712Domain22, init_getEip712Domain22, chainConfig6, init_chainConfig6, abstract2, init_abstract2, abstractTestnet2, init_abstractTestnet2, acala2, init_acala2, acria2, init_acria2, adf2, init_adf2, adi2, init_adi2, agungTestnet2, init_agungTestnet2, aioz2, init_aioz2, alephZero2, init_alephZero2, alephZeroTestnet2, init_alephZeroTestnet2, alienx2, init_alienX2, alienxHalTestnet2, init_alienXHalTestnet2, alpenTestnet2, init_alpenTestnet2, contracts2, init_contracts22, formatters22, init_formatters22, serializers22, init_serializers22, chainConfig22, init_chainConfig22, sourceId70, ancient82, init_ancient82, sourceId210, ancient8Sepolia2, init_ancient8Sepolia2, anvil2, init_anvil2, sourceId310, apeChain2, init_apeChain2, apexTestnet2, init_apexTestnet2, apollo2, init_apollo2, arbitrum2, init_arbitrum2, arbitrumGoerli2, init_arbitrumGoerli2, arbitrumNova2, init_arbitrumNova2, arbitrumSepolia2, init_arbitrumSepolia2, arc2, init_arc2, arcTestnet2, init_arcTestnet2, arenaz2, init_arenaz2, areonNetwork2, init_areonNetwork2, areonNetworkTestnet2, init_areonNetworkTestnet2, areum2, init_areum2, artelaTestnet2, init_artelaTestnet2, arthera2, init_arthera2, artheraTestnet2, init_artheraTestnet2, assetChain2, init_assetChain2, assetChainTestnet2, init_assetChainTestnet2, astar2, init_astar2, astarZkEVM2, init_astarZkEVM2, astarZkyoto2, init_astarZkyoto2, atletaOlympia2, init_atletaOlympia2, aurora2, init_aurora2, auroraTestnet2, init_auroraTestnet2, auroria2, init_auroria2, autheoTestnet2, init_autheoTestnet2, avalanche2, init_avalanche2, avalancheFuji2, init_avalancheFuji2, sourceId410, b32, init_b32, sourceId510, b3Sepolia2, init_b3Sepolia2, bahamut2, init_bahamut2, sourceId610, base2, basePreconf2, init_base22, basecampTestnet2, init_basecampTestnet2, sourceId72, baseGoerli2, init_baseGoerli2, sourceId82, baseSepolia2, baseSepoliaPreconf2, init_baseSepolia2, battlechainTestnet2, init_battlechainTestnet2, beam2, init_beam2, beamTestnet2, init_beamTestnet2, bearNetworkChainMainnet2, init_bearNetworkChainMainnet2, bearNetworkChainTestnet2, init_bearNetworkChainTestnet2, berachain2, init_berachain2, berachainBepolia2, init_berachainBepolia2, berachainTestnet2, init_berachainTestnet2, berachainTestnetbArtio2, init_berachainTestnetbArtio2, bevmMainnet2, init_bevmMainnet2, bifrost2, init_bifrost2, birdlayer2, init_birdlayer2, bitgert2, init_bitgert2, bitkub2, init_bitkub2, bitkubTestnet2, init_bitkubTestnet2, bitlayer2, init_bitlayer2, bitlayerTestnet2, init_bitlayerTestnet2, bitrock2, init_bitrock2, bitTorrent2, init_bitTorrent2, bitTorrentTestnet2, init_bitTorrentTestnet2, sourceId92, blast2, init_blast2, sourceId102, blastSepolia2, init_blastSepolia2, sourceId112, bob2, init_bob2, boba2, init_boba2, bobaSepolia2, init_bobaSepolia2, sourceId122, bobSepolia2, init_bobSepolia2, boolBetaMainnet2, init_boolBetaMainnet2, botanix2, init_botanix2, botanixTestnet2, init_botanixTestnet2, bounceBit2, init_bounceBit2, bounceBitTestnet2, init_bounceBitTestnet2, bronos2, init_bronos2, bronosTestnet2, init_bronosTestnet2, bsc2, init_bsc2, bscGreenfield2, init_bscGreenfield2, bscTestnet2, init_bscTestnet2, bsquared2, init_bsquared2, bsquaredTestnet2, init_bsquaredTestnet2, btr2, init_btr2, btrTestnet2, init_btrTestnet2, bxn2, init_bxn2, bxnTestnet2, init_bxnTestnet2, cannon2, init_cannon2, canto2, init_canto2, fees2, init_fees2, init_utils82, formatters32, init_formatters32, serializers32, MAX_MAX_FEE_PER_GAS2, init_serializers32, chainConfig32, init_chainConfig32, celo2, init_celo2, sourceId132, celoAlfajores2, init_celoAlfajores2, sourceId142, celoSepolia2, init_celoSepolia2, chang2, init_chang2, chiliz2, init_chiliz2, chips2, init_chips2, citrate2, init_citrate2, citrea2, init_citrea2, citreaTestnet2, init_citreaTestnet2, classic2, init_classic2, sourceId152, codex2, init_codex2, sourceId162, codexTestnet2, init_codexTestnet2, coinbit2, init_coinbit2, coinex2, init_coinex2, confluxESpace2, init_confluxESpace2, confluxESpaceTestnet2, init_confluxESpaceTestnet2, coreDao2, init_coreDao2, coreTestnet12, init_coreTestnet12, coreTestnet22, init_coreTestnet22, sourceId172, corn2, init_corn2, sourceId182, cornTestnet2, init_cornTestnet2, cpchain2, init_cpchain2, crab2, init_crab2, creatorTestnet2, init_creatorTestnet2, creditCoin3Devnet2, init_creditCoin3Devnet2, creditCoin3Mainnet2, init_creditCoin3Mainnet2, creditCoin3Testnet2, init_creditCoin3Testnet2, cronos2, init_cronos2, cronosTestnet2, init_cronosTestnet2, cronoszkEVM2, init_cronoszkEVM2, cronoszkEVMTestnet2, init_cronoszkEVMTestnet2, crossbell2, init_crossbell2, crossfi2, init_crossfi2, curtis2, init_curtis2, cyber2, init_cyber2, cyberTestnet2, init_cyberTestnet2, dailyNetwork2, init_dailyNetwork2, dailyNetworkTestnet2, init_dailyNetworkTestnet2, darwinia2, init_darwinia2, datahavenTestnet2, init_datahavenTestnet2, dbkchain2, init_dbkchain2, dchain2, init_dchain2, dchainTestnet2, init_dchainTestnet2, defichainEvm2, init_defichainEvm2, defichainEvmTestnet2, init_defichainEvmTestnet2, degen2, init_degen2, dfk2, init_dfk2, diode2, init_diode2, disChain2, init_disChain2, dodochainTestnet2, init_dodochainTestnet2, dogechain2, init_dogechain2, domaTestnet2, init_domaTestnet2, donatuz2, init_donatuz2, dosChain2, init_dosChain2, dosChainTestnet2, init_dosChainTestnet2, dreyerxMainnet2, init_dreyerxMainnet2, init_utils92, dreyerxTestnet2, init_dreyerxTestnet2, dustboyIoT2, init_dustboyIoT2, dymension2, init_dymension2, eden2, init_eden2, edexa2, init_edexa2, edexaTestnet2, init_edexaTestnet2, edgeless2, init_edgeless2, edgelessTestnet2, init_edgelessTestnet2, edgeware2, init_edgeware2, edgewareTestnet2, init_edgewareTestnet2, eduChain2, init_eduChain2, eduChainTestnet2, init_eduChainTestnet2, elastos2, init_elastos2, elastosTestnet2, init_elastosTestnet2, electroneum2, init_electroneum2, electroneumTestnet2, init_electroneumTestnet2, elysiumTestnet2, init_elysiumTestnet2, energy2, init_energy2, eni2, init_eni2, eniTestnet2, init_eniTestnet2, enuls2, init_enuls2, eon2, init_eon2, eos2, init_eos2, eosTestnet2, init_eosTestnet2, eteria2, init_eteria2, etherlink2, init_etherlink2, etherlinkShadownetTestnet2, init_etherlinkShadownetTestnet2, etherlinkTestnet2, init_etherlinkTestnet2, ethernity2, init_ethernity2, etp2, init_etp2, evmos2, init_evmos2, evmosTestnet2, init_evmosTestnet2, excelonMainnet2, init_excelonMainnet2, expanse2, init_expanse2, exsat2, init_exSat2, exsatTestnet2, init_exSatTestnet2, fantom2, init_fantom2, fantomSonicTestnet2, init_fantomSonicTestnet2, fantomTestnet2, init_fantomTestnet2, fibo2, init_fibo2, filecoin2, init_filecoin2, filecoinCalibration2, init_filecoinCalibration2, filecoinHyperspace2, init_filecoinHyperspace2, flame2, init_flame2, flare2, init_flare2, flareTestnet2, init_flareTestnet2, flowMainnet2, init_flowMainnet2, flowPreviewnet2, init_flowPreviewnet2, flowTestnet2, init_flowTestnet2, fluence2, init_fluence2, fluenceStage2, init_fluenceStage2, fluenceTestnet2, init_fluenceTestnet2, fluent2, init_fluent2, fluentDevnet2, init_fluentDevnet2, fluentTestnet2, init_fluentTestnet2, sourceId192, form2, init_form2, forma2, init_forma2, sourceId202, formTestnet2, init_formTestnet2, forta2, init_forta2, foundry2, init_foundry2, sourceId212, fraxtal2, init_fraxtal2, sourceId222, fraxtalTestnet2, init_fraxtalTestnet2, sourceId232, funkiMainnet2, init_funkiMainnet2, sourceId242, funkiSepolia2, init_funkiSepolia2, fuse2, init_fuse2, fuseSparknet2, init_fuseSparknet2, fusion2, init_fusion2, fusionTestnet2, init_fusionTestnet2, sourceId252, garnet2, init_garnet2, gatechain2, init_gatechain2, geist2, init_geist2, genesys2, init_genesys2, gensyn2, init_gensyn2, sourceId262, giwaSepolia2, giwaSepoliaPreconf2, init_giwaSepolia2, glideL1Protocol2, init_glideL1Protocol2, glideL2Protocol2, init_glideL2Protocol2, gnosis2, init_gnosis2, gnosisChiado2, init_gnosisChiado2, goat2, init_goat2, gobi2, init_gobi2, goChain2, init_goChain2, godwoken2, init_godwoken2, goerli2, init_goerli2, graphite2, init_graphite2, graphiteTestnet2, init_graphiteTestnet2, grav2, init_grav2, gravity2, init_gravity2, gunz2, init_gunz2, guruNetwork2, init_guruNetwork2, guruTestnet2, init_guruTestnet2, ham2, init_ham2, happychainTestnet2, init_happychainTestnet2, haqqMainnet2, init_haqqMainnet2, haqqTestedge22, init_haqqTestedge22, hardhat2, init_hardhat2, harmonyOne2, init_harmonyOne2, hashkey2, init_hashKeyChain2, hashkeyTestnet2, init_hashkeyChainTestnet2, haustTestnet2, init_haustTestnet2, hedera2, init_hedera2, hederaPreviewnet2, init_hederaPreviewnet2, hederaTestnet2, init_hederaTestnet2, hela2, init_hela2, heliosTestnet2, init_heliosTestnet2, hemi2, init_hemi2, hemiSepolia2, init_hemiSepolia2, henesys2, init_henesys2, holesky2, init_holesky2, hoodi2, init_hoodi2, horizenTestnet2, init_horizenTestnet2, hpb2, init_hpb2, hpp2, init_hpp2, hppSepolia2, init_hppSepolia2, sourceId272, huddle01Mainnet2, init_huddle01Mainnet2, sourceId282, huddle01Testnet2, init_huddle01Testnet2, humanity2, init_humanity2, humanityTestnet2, init_humanityTestnet2, humanode2, init_humanode2, humanodeTestnet52, init_humanodeTestnet52, hychain2, init_hychain2, hychainTestnet2, init_hychainTestnet2, hyperEvm2, init_hyperEvm2, hyperliquidEvmTestnet2, init_hyperliquidEvmTestnet2, icbNetwork2, init_icbNetwork2, idchain2, init_idchain2, igra2, init_igra2, immutableZkEvm2, init_immutableZkEvm2, immutableZkEvmTestnet2, init_immutableZkEvmTestnet2, inEVM2, init_inEVM2, initVerse2, init_initVerse2, initVerseGenesis2, init_initVerseGenesis2, injective2, init_injective2, injectiveTestnet2, init_injectiveTestnet2, sourceId292, ink2, init_ink2, sourceId302, inkSepolia2, init_inkSepolia2, iota2, init_iota2, iotaTestnet2, init_iotaTestnet2, iotex2, init_iotex2, iotexTestnet2, init_iotexTestnet2, iSunCoin2, init_iSunCoin2, jasmyChain2, init_jasmyChain2, jasmyChainTestnet2, init_jasmyChainTestnet2, jbc2, init_jbc2, jbcTestnet2, init_jbcTestnet2, jocMainnet2, init_jocMainnet2, jocTestnet2, init_jocTestnet2, jovay2, init_jovay2, jovaySepolia2, init_jovaySepolia2, juneo2, init_juneo2, juneoBCH1Chain2, init_juneoBCH1Chain2, juneoDAI1Chain2, init_juneoDAI1Chain2, juneoDOGE1Chain2, init_juneoDOGE1Chain2, juneoEUR1Chain2, init_juneoEUR1Chain2, juneoGLD1Chain2, init_juneoGLD1Chain2, juneoLINK1Chain2, init_juneoLINK1Chain2, juneoLTC1Chain2, init_juneoLTC1Chain2, juneomBTC1Chain2, init_juneomBTC1Chain2, juneoSGD1Chain2, init_juneoSGD1Chain2, juneoSocotraTestnet2, init_juneoSocotraTestnet2, juneoUSD1Chain2, init_juneoUSD1Chain2, juneoUSDT1Chain2, init_juneoUSDT1Chain2, kaia2, init_kaia2, kairos2, init_kairos2, kakarotSepolia2, init_kakarotSepolia2, kakarotStarknetSepolia2, init_kakarotStarknetSepolia2, kardiaChain2, init_kardiaChain2, karura2, init_karura2, katana2, init_katana2, kava2, init_kava2, kavaTestnet2, init_kavaTestnet2, kcc2, init_kcc2, kii2, init_kii2, kiiTestnetOro2, init_kiiTestnet2, kinto2, init_kinto2, klaytn2, init_klaytn2, klaytnBaobab2, init_klaytnBaobab2, koi2, init_koi2, kroma2, init_kroma2, kromaSepolia2, init_kromaSepolia2, krown2, init_krown2, l3x2, init_l3x2, l3xTestnet2, init_l3xTestnet2, ladyChain2, init_ladyChain2, lavita2, init_lavita2, lens2, init_lens2, lensTestnet2, init_lensTestnet2, lestnet2, init_lestnet2, lightlinkPegasus2, init_lightlinkPegasus2, lightlinkPhoenix2, init_lightlinkPhoenix2, init_estimateGas32, chainConfig42, init_chainConfig42, linea2, init_linea2, lineaGoerli2, init_lineaGoerli2, lineaSepolia2, init_lineaSepolia2, lineaTestnet2, init_lineaTestnet2, sourceId312, lisk2, init_lisk2, sourceId322, liskSepolia2, init_liskSepolia2, loadAlphanet2, init_loadAlphanet2, localhost2, init_localhost2, loop2, init_loop2, lukso2, init_lukso2, luksoTestnet2, init_luksoTestnet2, lumiaMainnet2, init_lumiaMainnet2, lumiaTestnet2, init_lumiaTestnet2, lumoz2, init_lumoz2, lumozTestnet2, init_lumozTestnet2, luxeports2, init_luxeports2, lycan2, init_lycan2, lyra2, init_lyra2, mainnet2, init_mainnet2, mandala2, init_mandala2, manta2, init_manta2, mantaSepoliaTestnet2, init_mantaSepoliaTestnet2, mantaTestnet2, init_mantaTestnet2, mantle2, init_mantle2, mantleSepoliaTestnet2, init_mantleSepoliaTestnet2, mantleTestnet2, init_mantleTestnet2, mantraDuKongEVMTestnet2, init_mantraDuKongEVMTestnet2, mantraEVM2, init_mantraEVM2, mapProtocol2, init_mapProtocol2, matchain2, init_matchain2, matchainTestnet2, init_matchainTestnet2, mchVerse2, init_mchVerse2, sourceId332, megaeth2, init_megaeth2, megaethTestnet2, init_megaethTestnet2, mekong2, init_mekong2, meld2, init_meld2, memecore2, init_memecore2, formicarium2, init_memecoreFormicariumTestnet2, merlin2, init_merlin2, merlinErigonTestnet2, init_merlinErigonTestnet2, metachain2, init_metachain2, metachainIstanbul2, init_metachainIstanbul2, metadium2, init_metadium2, sourceId342, metalL22, init_metalL22, meter2, init_meter2, meterTestnet2, init_meterTestnet2, metis2, init_metis2, metisGoerli2, init_metisGoerli2, metisSepolia2, init_metisSepolia2, mev2, init_mev2, mevTestnet2, init_mevTestnet2, mezo2, init_mezo2, mezoTestnet2, init_mezoTestnet2, mint2, init_mint2, mintSepoliaTestnet2, init_mintSepoliaTestnet2, mitosisTestnet2, init_mitosisTestnet2, mizuhikiTestnetAwaji2, init_mizuhikiTestnetAwaji2, sourceId352, mode2, init_mode2, sourceId362, modeTestnet2, init_modeTestnet2, monad2, init_monad2, monadTestnet2, init_monadTestnet2, moonbaseAlpha2, init_moonbaseAlpha2, moonbeam2, init_moonbeam2, moonbeamDev2, init_moonbeamDev2, moonriver2, init_moonriver2, morph2, init_morph2, morphHolesky2, init_morphHolesky2, morphSepolia2, init_morphSepolia2, nahmii2, init_nahmii2, nautilus2, init_nautilus2, near2, init_near2, nearTestnet2, init_nearTestnet2, neonDevnet2, init_neonDevnet2, neonMainnet2, init_neonMainnet2, neoxMainnet2, init_neoxMainnet2, neoxT42, init_neoxT42, newton2, init_newton2, nexi2, init_nexi2, nexilix2, init_nexilix2, nibiru2, init_nibiru2, nitrographTestnet2, init_nitrographTestnet2, nomina2, init_nomina2, oasisTestnet2, init_oasisTestnet2, oasys2, init_oasys2, odysseyTestnet2, init_odysseyTestnet2, okc2, init_okc2, omax2, init_omax2, omni2, init_omni2, omniOmega2, init_omniOmega2, oneWorld2, init_oneWorld2, oortMainnetDev2, init_oortmainnetDev2, sourceId372, opBNB2, init_opBNB2, sourceId382, opBNBTestnet2, init_opBNBTestnet2, openledger2, init_openledger2, sourceId392, optimism2, init_optimism2, sourceId402, optimismGoerli2, init_optimismGoerli2, sourceId412, optimismSepolia2, init_optimismSepolia2, optopia2, init_optopia2, optopiaTestnet2, init_optopiaTestnet2, orderly2, init_orderly2, orderlySepolia2, init_orderlySepolia2, otimDevnet2, init_otimDevnet2, palm2, init_palm2, palmTestnet2, init_palmTestnet2, paseoPassetHub2, init_paseoPassetHub2, peaq2, init_peaq2, sourceId422, pgn2, init_pgn2, sourceId432, pgnTestnet2, init_pgnTestnet2, phoenix2, init_phoenix2, planq2, init_planq2, plasma2, init_plasma2, plasmaDevnet2, init_plasmaDevnet2, plasmaTestnet2, init_plasmaTestnet2, playfiAlbireo2, init_playfiAlbireo2, plinga2, init_plinga2, sourceId442, plume2, init_plume2, sourceId452, plumeDevnet2, init_plumeDevnet2, sourceId462, plumeMainnet2, init_plumeMainnet2, sourceId472, plumeSepolia2, init_plumeSepolia2, sourceId482, plumeTestnet2, init_plumeTestnet2, polterTestnet2, init_polterTestnet2, polygon2, init_polygon2, polygonAmoy2, init_polygonAmoy2, polygonMumbai2, init_polygonMumbai2, polygonZkEvm2, init_polygonZkEvm2, polygonZkEvmCardona2, init_polygonZkEvmCardona2, polygonZkEvmTestnet2, init_polygonZkEvmTestnet2, polynomial2, init_polynomial2, polynomialSepolia2, init_polynomialSepolia2, potos2, init_potos2, potosTestnet2, init_potosTestnet2, premiumBlockTestnet2, init_premiumBlock2, pulsechain2, init_pulsechain2, pulsechainV42, init_pulsechainV42, pumpfiTestnet2, init_pumpfiTestnet2, sourceId492, pyrope2, init_pyrope2, ql12, init_ql12, qMainnet2, init_qMainnet2, qTestnet2, init_qTestnet2, quai2, init_quai2, quaiTestnet2, init_quaiTestnet2, radius2, init_radius2, radiusTestnet2, init_radiusTestnet2, reactiveTestnet2, init_reactiveTestnet2, real2, init_real2, redbellyMainnet2, init_redbellyMainnet2, redbellyTestnet2, init_redbellyTestnet2, reddio2, init_reddio2, reddioSepolia2, init_reddioSepolia2, sourceId502, redstone2, init_redstone2, rei2, init_rei2, reyaNetwork2, init_reyaNetwork2, rise2, init_rise2, riseTestnet2, init_riseTestnet2, rivalz2, init_rivalz2, rollux2, init_rollux2, rolluxTestnet2, init_rolluxTestnet2, ronin2, init_ronin2, root2, init_root2, rootPorcini2, init_rootPorcini2, rootstock2, init_rootstock2, rootstockTestnet2, init_rootstockTestnet2, sourceId512, rss32, init_rss32, sourceId522, rss3Sepolia2, init_rss3Sepolia2, saakuru2, init_saakuru2, saga2, init_saga2, saigon2, init_saigon2, sanko2, init_sanko2, sapphire2, init_sapphire2, sapphireTestnet2, init_sapphireTestnet2, satoshiVM2, init_satoshivm2, satoshiVMTestnet2, init_satoshivmTestnet2, scroll2, init_scroll2, scrollSepolia2, init_scrollSepolia2, sei2, init_sei2, seismicDevnet2, init_seismicDevnet2, seiTestnet2, init_seiTestnet2, sentrix2, init_sentrix2, sentrixTestnet2, init_sentrixTestnet2, sepolia2, init_sepolia2, sourceId532, shape2, init_shape2, sourceId542, shapeSepolia2, init_shapeSepolia2, shardeum2, init_shardeum2, shardeumSphinx2, init_shardeumSphinx2, shibarium2, init_shibarium2, shibariumTestnet2, init_shibariumTestnet2, shiden2, init_shiden2, shimmer2, init_shimmer2, shimmerTestnet2, init_shimmerTestnet2, sidraChain2, init_sidra2, silentData2, init_silentdata2, silicon2, init_silicon2, siliconSepolia2, init_siliconSepolia2, sixProtocol2, init_sixProtocol2, skaleBlockBrawlers2, init_brawl2, skaleCalypso2, init_calypso2, skaleCalypsoTestnet2, init_calypsoTestnet2, skaleCryptoBlades2, init_cryptoBlades2, skaleCryptoColosseum2, init_cryptoColosseum2, skaleEuropa2, init_europa2, skaleEuropaTestnet2, init_europaTestnet2, skaleExorde2, init_exorde2, skaleHumanProtocol2, init_humanProtocol2, skaleNebula2, init_nebula2, skaleNebulaTestnet2, init_nebulaTestnet2, skaleRazor2, init_razor2, skaleBase2, init_skaleBase2, skaleBaseSepoliaTestnet2, init_skaleBaseSepoliaTestnet2, skaleTitan2, init_titan2, skaleTitanTestnet2, init_titanTestnet2, sketchpad2, init_sketchpad2, sourceId552, snax2, init_snax2, sourceId562, snaxTestnet2, init_snaxTestnet2, somnia2, init_somnia2, somniaTestnet2, init_somniaTestnet2, sourceId572, soneium2, init_soneium2, sourceId582, soneiumMinato2, init_soneiumMinato2, songbird2, init_songbird2, songbirdTestnet2, init_songbirdTestnet2, sonic2, init_sonic2, sonicBlazeTestnet2, init_sonicBlazeTestnet2, sonicTestnet2, init_sonicTestnet2, sophon2, init_sophon2, sophonTestnet2, init_sophonTestnet2, sova2, init_sova2, sovaSepolia2, init_sovaSepolia2, spicy2, init_spicy2, stable2, init_stable2, stableTestnet2, init_stableTestnet2, statusSepolia2, init_statusNetworkSepolia2, step2, init_step2, story2, init_story2, storyAeneid2, init_storyAeneid2, storyOdyssey2, init_storyOdyssey2, storyTestnet2, init_storyTestnet2, stratis2, init_stratis2, subtensorEvm2, init_subtensorEvm2, superlumio2, init_superlumio2, superposition2, init_superposition2, sourceId592, superseed2, init_superseed2, sourceId602, superseedSepolia2, init_superseedSepolia2, surgeTestnet2, init_surgeTestnet2, swan2, init_swan2, swanProximaTestnet2, init_swanProximaTestnet2, swanSaturnTestnet2, init_swanSaturnTestnet2, swellchain2, init_swellchain2, swellchainTestnet2, init_swellchainTestnet2, swissdlt2, init_swissdlt2, syscoin2, init_syscoin2, syscoinTestnet2, init_syscoinTestnet2, tac2, init_tac2, tacSPB2, init_tacSPB2, taiko2, init_taiko2, taikoHekla2, init_taikoHekla2, taikoHoodi2, init_taikoHoodi2, taikoJolnir2, init_taikoJolnir2, taikoKatla2, init_taikoKatla2, taikoTestnetSepolia2, init_taikoTestnetSepolia2, taraxa2, init_taraxa2, taraxaTestnet2, init_taraxaTestnet2, teaSepolia2, init_teaSepolia2, telcoinTestnet2, init_telcoinTestnet2, telos2, init_telos2, telosTestnet2, init_telosTestnet2, Fp2562, p256_a2, p256_b2, p2562, Fp3842, p384_a2, p384_b2, p3842, Fp5212, p521_a2, p521_b2, p5212, init_nist2, secp256r12, init_p2562, init_P2562, encoder52, integerToCharacter2, characterToInteger2, init_Base642, init_Authentication2, init_WebAuthnP2562, MultisigConfig_exports2, maxOwners2, maxOwnerSignatureBytes2, signatureTypeByte2, zeroSalt2, accountDomain2, configDomain, signatureDomain2, InvalidConfigError2, init_MultisigConfig2, SignatureEnvelope_exports2, serializedP256Type2, serializedWebAuthnType2, serializedKeychainType2, serializedKeychainV2Type2, serializedMultisigType2, magicBytes32, types2, CoercionError2, MissingPropertiesError22, InvalidSerializedError3, VerificationError22, init_SignatureEnvelope2, InvalidPrefixError22, init_TempoAddress2, init_AuthorizationTempo2, tip20Prefix2, init_TokenId2, channelIdParameters2, domainSeparatorParameters2, voucherHashParameters2, eip712DomainTypehash2, nameHash2, versionHash2, voucherTypehash2, init_Channel2, KeyAuthorization_exports2, InvalidWitnessSizeError2, InvalidAdminMarkerError2, init_KeyAuthorization2, init_Period2, init_PoolId2, init_AbiEvent2, transferBlocked2, init_ReceivePolicyReceipt2, init_RpcSchemaTempo2, init_Tick2, init_TokenRole2, toRpcType5, fromRpcType5, init_Transaction4, Transaction_exports4, toRpcType22, fromRpcType22, init_Transaction22, fromRpcType32, toRpcType32, init_TransactionReceipt3, fromRpcType42, toRpcType42, init_TransactionReceipt22, init_TransactionRequest3, TransactionRequest_exports3, init_TransactionRequest22, InvalidStorageKeySizeError22, init_AccessList2, exponents2, init_Value2, FeeCapTooHighError22, InvalidChainIdError22, InvalidSerializedError22, TipAboveFeeCapError22, init_TxEnvelope2, TxEnvelopeTempo_exports2, feePayerMagic2, serializedType2, type2, CallsEmptyError2, InvalidValidityWindowError2, init_TxEnvelopeTempo2, init_VirtualAddress2, init_VirtualMaster2, init_ZoneId2, init_ZoneRpcAuthentication2, init_tempo3, accountKeychain3, addressRegistry2, nonce2, receivePolicyGuard2, signatureVerifier3, stablecoinDex2, tip202, tip20ChannelReserve2, tip20Factory2, tip403Registry2, feeManager2, feeAmm2, validatorConfig2, validatorConfigV22, abis2, init_Abis2, init_Transaction32, init_Account2, accountKeychain22, signatureVerifier22, init_Addresses2, hardforks2, init_Hardfork2, init_utils102, signatureTypes2, spendPolicies2, init_accessKey2, init_Formatters2, concurrentCounts2, init_concurrent2, maxExpirySecs2, chainConfig52, init_chainConfig52, tempo2, init_tempo22, tempoDevnet2, init_tempoDevnet2, tempoLocalnet2, init_tempoLocalnet2, tempoModerato2, init_tempoModerato2, tenet2, init_tenet2, ternoa2, init_ternoa2, thaiChain2, init_thaiChain2, that2, init_that2, theta2, init_theta2, thetaTestnet2, init_thetaTestnet2, thunderCore2, init_thunderCore2, thunderTestnet2, init_thunderTestnet2, tiktrixTestnet2, init_tiktrixTestnet2, tomb2, init_tomb2, treasure2, init_treasure2, treasureTopaz2, init_treasureTopaz2, tron2, init_tron2, tronNile2, init_tronNile2, tronShasta2, init_tronShasta2, ubiq2, init_ubiq2, ultra2, init_ultra2, ultraTestnet2, init_ultraTestnet2, ultron2, init_ultron2, ultronTestnet2, init_ultronTestnet2, sourceId612, unichain2, init_unichain2, sourceId622, unichainSepolia2, init_unichainSepolia2, unique2, init_unique2, uniqueOpal2, init_uniqueOpal2, uniqueQuartz2, init_uniqueQuartz2, unreal2, init_unreal2, valygoNft2, init_valygoNft2, valygoSmartchain2, init_valygoSmartchain2, vana2, init_vana2, vanaMoksha2, init_vanaMoksha2, vanar2, init_vanar2, vechain2, init_vechain2, velas2, init_velas2, viction2, init_viction2, victionTestnet2, init_victionTestnet2, vision2, init_vision2, visionTestnet2, init_visionTestnet2, wanchain2, init_wanchain2, wanchainTestnet2, init_wanchainTestnet2, weaveVMAlphanet2, init_weavevmAlphanet2, wemix2, init_wemix2, wemixTestnet2, init_wemixTestnet2, westendAssetHub2, init_westendAssetHub2, whitechain2, init_whitechain2, whitechainSepolia2, init_whitechainSepolia2, whitechainTestnet2, init_whitechainTestnet2, wmcTestnet2, init_wmcTestnet2, sourceId632, worldchain2, init_worldchain2, sourceId642, worldchainSepolia2, init_worldchainSepolia2, worldLand2, init_worldLand2, xai2, init_xai2, xaiTestnet2, init_xaiTestnet2, xdc2, init_xdc2, xdcTestnet2, init_xdcTestnet2, xgr2, init_xgr2, xLayer2, init_xLayer2, xLayerTestnet2, init_xLayerTestnet2, xoneMainnet2, init_xoneMainnet2, xoneTestnet2, init_xoneTestnet2, xphereMainnet2, init_xphereMainnet2, xphereTestnet2, init_xphereTestnet2, xpla2, init_xpla2, xrOne2, init_xrOne2, xrplevm2, init_xrplevm2, xrplevmDevnet2, init_xrplevmDevnet2, xrplevmTestnet2, init_xrplevmTestnet2, xrSepolia2, init_xrSepolia2, yooldoVerse2, init_yooldoVerse2, yooldoVerseTestnet2, init_yooldoVerseTestnet2, zenchainTestnet2, init_zenchainTestnet2, zeniq2, init_zeniq2, zeroNetwork2, init_zeroNetwork2, zetachain2, init_zetachain2, zetachainAthensTestnet2, init_zetachainAthensTestnet2, zhejiang2, init_zhejiang2, zilliqa2, init_zilliqa2, zilliqaTestnet2, init_zilliqaTestnet2, sourceId652, zircuit2, init_zircuit2, sourceId662, zircuitGarfieldTestnet2, init_zircuitGarfieldTestnet2, zkFair2, init_zkFair2, zkFairTestnet2, init_zkFairTestnet2, zkLinkNova2, init_zkLinkNova2, zkLinkNovaSepoliaTestnet2, init_zkLinkNovaSepoliaTestnet2, zksync2, init_zksync2, zksyncInMemoryNode2, init_zksyncInMemoryNode2, zksyncLocalCustomHyperchain2, init_zksyncLocalCustomHyperchain2, zksyncLocalHyperchain2, init_zksyncLocalHyperchain2, zksyncLocalHyperchainL12, init_zksyncLocalHyperchainL12, zksyncLocalNode2, init_zksyncLocalNode2, zksyncSepoliaTestnet2, init_zksyncSepoliaTestnet2, zkXPLA2, init_zkXPLA2, zkXPLATestnet2, init_zkXPLATestnet2, sourceId672, zora2, init_zora2, sourceId682, zoraSepolia2, init_zoraSepolia2, sourceId692, zoraTestnet2, init_zoraTestnet2, chains_exports2, init_chains2, LOOPBACK_HOSTS, loopbackSet, MAPPED, NAT64, dotted, RpcUrlError, label, init_rpc_identity, init_defineChain22, version42, init_version42, errorConfig22, BaseError42, init_base32, IntegerOutOfRangeError32, SizeOverflowError42, init_encoding22, init_isHex22, init_size22, init_trim22, SliceOffsetOutOfBoundsError42, SizeExceedsPaddingSizeError42, init_data22, init_pad22, hexes42, encoder62, init_toHex22, encoder7, charCodeMap32, init_toBytes22, init_fromHex22, init_formatter22, transactionType22, defineTransaction22, init_transaction42, defineBlock22, init_block32, init_log32, receiptStatuses22, defineTransactionReceipt22, init_transactionReceipt22, maxInt832, maxInt1632, maxInt2432, maxInt3232, maxInt4032, maxInt4832, maxInt5632, maxInt6432, maxInt7232, maxInt8032, maxInt8832, maxInt9632, maxInt10432, maxInt11232, maxInt12032, maxInt12832, maxInt13632, maxInt14432, maxInt15232, maxInt16032, maxInt16832, maxInt17632, maxInt18432, maxInt19232, maxInt20032, maxInt20832, maxInt21632, maxInt22432, maxInt23232, maxInt24032, maxInt24832, maxInt25632, minInt832, minInt1632, minInt2432, minInt3232, minInt4032, minInt4832, minInt5632, minInt6432, minInt7232, minInt8032, minInt8832, minInt9632, minInt10432, minInt11232, minInt12032, minInt12832, minInt13632, minInt14432, minInt15232, minInt16032, minInt16832, minInt17632, minInt18432, minInt19232, minInt20032, minInt20832, minInt21632, minInt22432, minInt23232, minInt24032, minInt24832, minInt25632, maxUint832, maxUint1632, maxUint2432, maxUint3232, maxUint4032, maxUint4832, maxUint5632, maxUint6432, maxUint7232, maxUint8032, maxUint8832, maxUint9632, maxUint10432, maxUint11232, maxUint12032, maxUint12832, maxUint13632, maxUint14432, maxUint15232, maxUint16032, maxUint16832, maxUint17632, maxUint18432, maxUint19232, maxUint20032, maxUint20832, maxUint21632, maxUint22432, maxUint23232, maxUint24032, maxUint24832, maxUint25632, init_number32, init_concat22, NegativeOffsetError32, PositionOutOfBoundsError32, RecursiveReadLimitExceededError32, init_cursor42, staticCursor32, init_cursor5, init_toRlp22, gweiUnits22, init_unit32, init_formatUnits22, init_formatGwei22, InvalidLegacyVError22, InvalidSerializableTransactionError22, InvalidStorageKeySizeError32, init_transaction5, init_serializeAuthorizationList22, init_blobsToCommitments22, init_blobsToProofs22, crypto3, init_cryptoNode22, isLE22, swap32IfBE22, Hash22, init_utils112, HashMD22, SHA256_IV22, init_md22, U32_MASK6422, _32n22, rotlSH22, rotlSL22, rotlBH22, rotlBL22, init_u6422, SHA256_K22, SHA256_W22, SHA25622, sha25652, init_sha222, sha2566, init_sha25632, init_sha2564, init_commitmentToVersionedHash22, init_commitmentsToVersionedHashes22, blobsPerTransaction22, bytesPerFieldElement22, fieldElementsPerBlob22, bytesPerBlob22, maxBytesPerTransaction22, init_blob32, versionedHashVersionKzg22, init_kzg22, BlobSizeTooLargeError22, EmptyBlobError22, InvalidVersionedHashSizeError22, InvalidVersionedHashVersionError22, init_blob4, init_toBlobs22, init_toBlobSidecars22, InvalidAddressError32, init_address32, InvalidChainIdError32, init_chain22, ExecutionRevertedError22, FeeCapTooHighError32, FeeCapTooLowError22, NonceTooHighError22, NonceTooLowError22, NonceMaxValueError22, InsufficientFundsError22, IntrinsicGasTooHighError22, IntrinsicGasTooLowError22, TransactionTypeNotSupportedError22, TipAboveFeeCapError32, init_node22, LruMap32, init_lru32, _0n72, _1n72, _2n52, _7n22, _256n22, _0x71n22, SHA3_PI22, SHA3_ROTL22, _SHA3_IOTA22, IOTAS22, SHA3_IOTA_H22, SHA3_IOTA_L22, rotlH22, rotlL22, Keccak22, gen22, keccak_25622, init_sha322, init_keccak25622, checksumAddressCache22, init_getAddress22, addressRegex32, isAddressCache22, init_isAddress22, init_slice22, init_assertTransaction22, init_getTransactionType22, init_serializeAccessList22, init_serializeTransaction22, _0n8, _1n8, hasHexBuiltin22, hexes5, asciis22, isPosBig22, bitMask22, u8n22, u8fr22, validatorFns22, init_utils12, HMAC22, hmac22, init_hmac22, _0n9, _1n9, _2n6, _3n32, _4n32, _5n22, _8n22, FIELD_FIELDS22, init_modular22, os2ip22, init_hash_to_curve22, _0n10, _1n10, pointPrecomputes22, pointWindowSizes22, init_curve22, DERErr22, DER22, _0n11, _1n11, _2n7, _3n4, _4n4, init_weierstrass22, init_shortw_utils22, secp256k1_exports22, secp256k1P22, secp256k1N22, _0n12, _1n12, _2n8, divNearest22, Fpk122, secp256k122, TAGGED_HASH_PREFIXES22, pointToBytes22, numTo32b22, modP22, modN22, Point22, GmulAdd22, num22, schnorr22, isoMap22, mapSWU22, secp256k1_hasher22, hashToCurve22, encodeToCurve22, init_secp256k122, init_publicKeyToAddress22, init_recoverPublicKey22, init_recoverAddress22, presignMessagePrefix22, init_strings22, init_toPrefixedMessage22, init_hashMessage22, init_recoverMessageAddress22, init_esm32, vbs_policy_exports, VBS_DEFAULT_EK_ROOTS, init_vbs_policy, host_admission_bundle_exports, Q6, h, Xi, $0, H0, ye, cn, Yu, Ju, Pa, Qi, _0, L0, Xu, M0, z0, j0, V0, W0, Y0, Q0, ew, Qu, om, ka, fn, es, ts, Ba, Ca, rs, os, ns, is, ss, as, Ra, Nt, cs, fs7, ed, us, nm, ds, im, Na, am, sw, aw, cw, fw, un, pw, Oa, fm, um, dm, pn, se, cr, $t, Ze, rd, lm, od, k, Z, Ha, bs, ln, yt, _a, La, Ma, za, ys, mn, Fa, Ua, xs, Ht, hn, ja, qa, Da, fr, Lr, Va, Ga, bn, $a, xe, Ka, hm, gs, ws, vs, Wa, Za, zr, Ya, Ja, Xa, Es, yn, $e, hw, bw, K, yw, dr, ke, ec, gm, vm, Em, Am, Im, Sm, go, Pm, ww, id, Fr, Ur, Iw, As, Sw, Pw, Tw, kw, Nm, Om, $m, Hm, Bw, Cw, Cm, Rm, sd, Nw, ic, ad, gt, Ow, Lm, zm, Fm, Um, cd, jr, Is, ce, Dt, Vt, Ss, fd, qr, $w, ud, wt, Je, Dr, Dm, ac, pd, hr, Gt, xn, Vr, Gm, gn, Ps, bd, ct, Wm, Ym, ft, Jm, uc, Xm, dc, Ts, wn, pc, yd, Vw, lc7, rh, oh, xd, Bs, gd, X, et, nh, ih, sh, vd, Ed, bc, In, yc, xc, Ad, gc, wc, vc, Ec, Sn, Pn, Ac, Ic, Lt, fh, Io, Mt, Tn, kn, So, Sc, Pc, Zt, Kr, vt, Wr, Cs, Po, Qw, Fe, Ue, Bn, Cn, Rn, Nn, yr, Et, On, $n, Hn, Zr, To, _n, ko, Ln, Mn, zn, Fn, Un, jn, qn, Dn, Vn, Gn, Kn, Wn, Zn, Tc, Rs, e5, Yn, dh, kc, xr, mh, r5, Yr, Bc, Bo, Id, Cc, Sd, hh, Bd, kd, gh, o5, gr, Pd, Ro, Td, yh, n5, ei, Ge, je, No, i5, Ah, Ih, Sh, f5, Hs, Bh, zd, Ld, Nh, Hh, jd, Ar, Ft, ne, Jr, _s, qd, Dd, Fh, x5, Dh, Jh, Fs, $c, Wd, Ms, Hc, Vh, Qr, Ir, Gh, Zd, Gd, Vd, zs, Yd, E5, ri, S5, P5, T5, Jd, k5, B5, Lc, eb, Mc, zc, nb, Xd, Uc, ib, Sr, At, oi, ni, ii, si, ai, ci, fi, ui, Jt, It, eo, Us, ab, js, jc, N5, pi, qc, HS, _S, LS, MS, zS, FS, US, jS, qS, DS, VS, GS, KS, WS, ZS, YS, JS, XS, QS, eP, tP, rP, oP, nP, iP, sP, aP, cP, fP, uP, dP, pP, lP, mP, hP, bP, yP, xP, gP, wP, vP, EP, AP, IP, SP, PP, TP, kP, BP, CP, RP, NP, OP, $P, HP, _P, LP, MP, zP, FP, UP, jP, qP, DP, VP, GP, KP, WP, ZP, YP, JP, XP, QP, eT, tT, rT, oT, nT, iT, sT, aT, cT, fT, uT, dT, pT, lT, mT, hT, bT, yT, xT, gT, wT, vT, mi, Qd, $o, hi, oo, Dc, qs, no, Vc, ep, fb, bi, ub, Gc, io, Kc, rp, op, Ho, np, Yc, Jc, lb, mb, bb, xb, ip, Qc, wi, ef, tf, sp, wb, ap, cp, Eb, nf, fp, M5, Ab, up, dp, cf, Sb, _o, Tr, Pb, ff, uf, df, pp, lp, Qt, Tb, kb, Cb, j, ot, kr, Hb, yp, j5, Ks, q5, D5, xp, Ti, lf, Vs, mf, so, Z5, Y5, Ws, gf, wf, hf, Gs, bf, Ne, Wb, Ep, rr, Af, Yb, If, Jb, Ap, Ip, Sp, Pp, Cr, Xb, Qb, Sf, ey, ty, Ri, Ys, zo, Js, Fo, Pf, Tp, kp, Uo, Bp, Cp, Rp, Np, Cf, Rf, Nf, ry, ny, Op, iy, Hp, ay, Rr, Qs, uy, e2, cy, dy, o2, py, jo, or, by, Of, Lp, f2, qo, Mp, Ni, u2, d2, gy, p2, Oi, ta, ra, vy, Ay, zp, l2, Iy, na, $f, Hf, Fp, Py, Lf, Up, jp, ky, Cy, zf, Ny, Ff, uo, _i, Uf, Oy, h2, b2, y2, x2, My, Fy, Vp, jy, Dy, Gy, Gp, Wy, Kp, Wp, Yy, Xy, e1, r1, Kf, n1, Wf, i1, v2, a1, f1, d1, l1, x1, g1, Zp, E1, I1, Yf, P1, k1, B1, R1, Jp, N1, $1, H1, _1, M1, Xp, Xf, Qf, eu, z1, j1, tu, ru, K1, $2, ou, W1, nu, tl, iu, rl, ol, nl, sl, L2, su, al, cl, aa, ex, tx, uu, FH, UH, jH, qH, DH, VH, GH, KH, WH, ZH, YH, JH, XH, QH, e_, t_, r_, o_, n_, i_, s_, a_, c_, f_, u_, d_, p_, l_, m_, h_, b_, y_, x_, g_, w_, v_, E_, A_, I_, S_, P_, T_, k_, B_, C_, R_, N_, O_, $_, H_, __, L_, M_, z_, F_, U_, j_, q_, D_, V_, G_, K_, W_, Z_, Y_, J_, X_, Q_, eL, tL, rL, oL, nL, iL, sL, aL, cL, fL, uL, dL, pL, lL, mL, hL, bL, yL, xL, gL, wL, vL, EL, AL, IL, SL, PL, fl, du, ox, ul, ix, ev, hu, ll, ml, hl, yl, xl, lu, fa, yu, mu, Mi, zi, ux, gl, pa, wl, vl, la, El, Tl, bx, xx, ma, kl, Bl, xu, wx, vx, Ex, Rl, Ix, Px, kx, wu, Cx, Nl, Nx, Ol, Ox, Hl, lo, Ll, Lx, Fx, Ux, Bt, jx, Iv, Dx, ya, Ml, Sv, Pv, Iu, Gx, Kx, Zx, Nr, xa, Jx, Qx, Fl, tg, og, ig, ag, Ov, $v, fg, dg, lg, hg, yg, xg, wg, Pu, vg, Hv, Eg, Ag, Ct, Ul, Lv, ga, jl, Dl, Vl, $j, Tg, Gl, Kl, Di, Zl, e8, $g, t8, r8, Hg, Xo, Lg, bo, Rq, Nq, Wg, c0, Ou, u0, be, d0, b8, Hu, U62, Zi, V8, nn, I0, mt, O6, I6, $r, ie, S6, A0, S0, $6, Ke, H6, G8, _6, L6, J8, Ku, P6, X8, Hr, k6, B6, eE, MD, Gu, R6, B0, Ig, Sg, Pg, ql, wa, Tu, jv, ku, Gv, Bu, Cu, Bg, o8, n8, i8, s8, a8, Ug, Yl, Jl, Ql, d8, t0, Ea, l8, Fg, en, Ru, r0, m8, Pq, n0, s0, Gg, Rt, f0, Yg, h8, Nu, Jg, x8, r6, g8, w8, v8, o6, rn, E8, _u, ae, Lu, te, l0, n6, A8, s6, zu, Mu, I8, S8, P8, T8, Jq, C8, Wi, b0, y0, m6, h6, b6, O8, p6, x0, y6, w0, M8, v0, g6, w6, z8, v62, F8, U8, A6, D8, Du, qu, E0, q6, V6, fE, dE, J6, init_host_admission_bundle, jb2, $, ra2, Ol2, Hl2, ge2, to3, qu2, Gu2, na2, _s2, _l2, Ll2, Vu2, zl2, Ml2, jl2, Gl2, Kl2, Yl2, Ql2, Db2, Wu2, n02, sa2, ro2, Ls2, zs2, ia2, aa2, Ms2, Us2, Fs2, js2, Ds2, qs2, ca2, Ot2, Gs2, Vs2, Ku2, Ws2, o02, Ks2, s02, ua, a02, Zb, Yb2, Jb2, Xb2, no2, t12, fa2, u02, f02, d02, so2, fr2, _t2, ct2, Yu2, p02, Ju2, S, X3, la2, Qs2, io2, xt2, pa2, ma2, ha2, ya2, ei2, ao2, ba2, ga2, ti2, Lt2, co2, xa2, wa2, va2, dr2, Mr2, Ea2, Aa2, uo2, da2, xe2, ri2, ni2, oi2, Ba2, Pa2, Fr2, Sa2, ka2, Ta2, si2, ii2, Ze2, o12, s12, Q2, i12, pr2, He2, $a2, y02, g02, x02, w02, v02, E02, An2, A02, d12, ef2, jr2, Dr2, h12, ai2, y12, b12, g12, x12, T02, $02, C0, R02, w12, v12, S02, k02, tf2, A12, Ha2, rf2, Et2, I12, O0, _02, L02, z02, nf2, qr2, ci2, je2, Pn2, Wt2, ui2, of2, yr2, B12, sf2, Kt2, ut2, Sn2, j02, La2, cf2, br2, Zt2, lo2, Vr2, ft2, V02, K02, dt2, Z02, Ua2, Y02, Fa2, fi2, po2, ja2, lf2, H12, Da2, ep2, tp2, pf2, li2, mf2, re2, Ye2, rp2, np2, op2, yf, bf2, Ga2, yo, Va2, Wa2, gf2, Ka2, Za2, bo2, go2, Ya2, Ja2, xr2, ap2, $n2, Ut2, xo2, wo2, Cn2, Xa2, Qa2, Xt2, Kr2, lt22, pt2, vo2, Zr2, D12, qe2, Ge2, Eo2, Ao2, Io2, Bo2, wr2, Bt2, Po2, So2, ko2, Yr2, Rn2, To2, Nn2, $o2, Co2, Ro2, No2, Oo2, Ho2, _o2, Lo2, zo2, Mo, Uo2, Fo2, jo2, ec2, mi2, tc2, vr2, dp2, V12, Jr2, rc2, On2, xf2, nc4, wf2, lp2, If2, Af2, yp2, W12, Er2, vf2, _n2, Ef2, mp2, K12, Vo2, Xe2, Ve2, Ln2, Z12, wp2, vp2, Ep2, Q12, gi2, Pp2, Of2, Rf2, Tp2, Rp2, Lf2, Pr2, jt2, ue, Xr2, xi2, zf2, Mf2, Lp2, cg2, Fp2, Kp2, Ai2, ac2, Df2, vi2, cc2, jp2, en2, Sr2, Dp2, qf2, Ff2, Uf2, Ei2, Gf2, lg2, Ko2, hg2, yg2, bg2, Vf2, gg2, xg2, fc2, kr2, rn2, Zo2, Yo2, Jo2, Xo2, Qo2, es2, ts2, rs2, nn2, Pt2, zn2, Ii2, Bi2, Eg2, ns2, pc2, K3, Z3, Y32, J32, X32, Q3, e4, t4, r4, n4, o4, s4, i4, a4, c4, u4, f4, d4, l4, p4, m4, h4, y4, b4, g4, x4, w4, v42, E4, A4, I4, B4, P4, S4, k4, T4, $4, C4, R4, N4, O4, H4, _4, L4, z4, M4, U4, F4, j4, D4, q4, G4, V42, W4, K4, Z4, Y4, J4, X4, Q4, e9, t9, r9, n9, o9, s9, i9, a9, c9, u9, f9, d9, l9, p9, m9, h9, y9, b9, g9, x9, w9, v9, E9, A9, I9, B9, P9, S9, k9, T9, $9, C9, R9, N9, O9, nm2, om2, Mn2, Un2, Fn2, Yf2, tr2, gm2, xm2, vm2, G, st2, Tr2, Pm2, ed2, Cg2, ki2, Rg2, Ng2, td2, ms2, Bc2, Pi2, Pc2, un2, zg2, Mg2, Ti2, Cc2, Rc2, Sc2, Si2, kc2, Re2, Mm2, sd2, or2, Hc2, Fm2, _c2, jm2, id2, ad2, cd2, ud2, Cr2, Dm2, qm2, Lc2, Gm2, Vm2, gs2, Ci2, Dn2, Ri2, fd2, dd2, ld2, qn2, pd2, md2, hd2, yd2, Fc2, jc2, Dc2, Wm2, bd2, gd2, Km2, wd2, Ym2, Rr2, Hi2, Qm2, Dg2, Jm2, eh2, Vg2, th2, Gn2, Ia2, q02, q12, lc8, ss2, an, mc2, cn2, Wf2, am2, wc2, vc2, Sg2, hm2, Zf2, bm2, qc2, Ed2, Xg2, Qg2, ex2, tx2, rx, Gc2, Vc2, Zc2, pn2, Es2, Yc2, ox2, sx, ix2, ax2, ru2, fx2, nu2, Bd2, _h2, ou2, su2, iu2, Gi2, au2, xx2, cu2, kd2, uu2, Td2, $d2, Cd2, Ex2, fu, Nd2, Od2, Zh2, Yh2, mu2, bC, gC, xC, wC, vC, EC, AC, IC, BC, PC, SC, kC, TC, $C, CC, RC, NC, OC, HC, _C, LC, zC, MC, UC, FC, jC, DC, qC, GC, VC, WC, KC, ZC, YC, JC, XC, QC, eR, tR, rR, nR, oR, sR, iR, aR, cR, uR, fR, dR, lR, pR, mR, hR, yR, bR, gR, xR, wR, vR, ER, AR, IR, BR, PR, SR, kR, TR, $R, CR, RR, NR, OR, HR, _R, LR, zR, MR, UR, FR, jR, DR, qR, GR, VR, WR, KR, ZR, YR, JR, XR, QR, eN, tN, rN, nN, Hd2, Xh2, _d2, Mx2, gu2, Md2, Ud2, jd2, Dd2, yu2, Ui2, wu2, bu2, Is2, qd2, Di2, Gd2, Vd2, qi2, Wd2, Xd2, Qd2, vu2, rl2, hn2, vy2, Ct2, u62, Ki2, ol2, f62, d62, Pu2, Nr2, g62, x62, P62, zy2, S62, k62, My2, Xn2, Fy2, $62, C62, ll2, Ky2, Zy2, O62, Ts2, H62, ar2, aL2, cL2, hL2, yL2, G62, bL2, gL2, xL2, AL2, IL2, TL, GL, VL, bl2, J62, gl2, X62, El2, ew2, Ji, gn2, ib2, Hr2, fe2, ab2, cb2, uw2, yz, bz, Mu2, Bl2, Rs2, kb2, Qe2, Cs2, Xi2, xw2, Pb2, ww2, Ew2, Qn2, init_lease_gas_runtime_bundle, OBSOLETE_TX_RPCS, init_chain_selection, chain_reader_exports, init_chain_reader, DEFAULT_RPCS, list2, loopback, stable22, BLOCK_HASH, MAX_PEERS, PEER_METHODS, inRange3, REGISTRY_GET, init_host_identity, KEY, BRAND, isAttestedVerifier, v4mask2, PROVIDER_CHECKS, idPattern, addressPattern, MODES, app, hex64, U6, keys, amount, networkPolicyMessage, byoReleaseMessage, byoConfigMessage, byoOwnerMessage, recordHash, message, appPattern, addressPattern2, hostABI, connectivityABI, SocksHttpsAgent, SocksPublicHttpAgent, DirectHttpsAgent, fields, bookABI, deploymentABI, schemaABI, registryV1ABI, errText, rateLimited, failureText, maxClients, clientMethods, chainAuthorityFromEnv, hexBlock, PINNED_METHODS, reservedFields, LeaseReader, fileWriters, DurableState, RETIRED_PUBLICATION, keptKey, DEFAULT_NETWORK_CHAIN_RPCS, contracts22, formatters42, serializers42, chainConfig62, sourceId702, base22, basePreconf22, lc, HASH, fail, hexBlock2, PINNED_METHODS2, AUTHORITY_ENV, VERIFIER_ENV, TX_BACKEND_ENV, VERIFIER_CLIENT, V, B, METHODS, VERIFIED_METHODS, BACKEND_METHODS, IPV4, MAX_RESPONSE, refused, RELAY_CHAIN_ENV, RELAY_VERIFIER_CONFLICTS, set, relayChainSelected, selected, ROLES, CHECKS, QUALIFICATION_MAX_MS, RECORD_MAX_MS, ipv4, wgKey, address, app2, exact, port, providerRecordMessage, qualificationMessage2, SECURITY_CHECKS, SECURITY, ALL_CHECKS, ONCHAIN_MAX_S, connectivityQualificationABI, bookABI2, KEY2, FORBIDDEN, INTERFACE, PEER, ERC1271, BOOK, FACTORY, VAULT, addr, ID, SIG_TTL, fail2, fingerprint, hashPattern, VERIFIER_MARK, MAX_RPCS, POLICY, POLICY_FORMAT, ANCHOR_KEYS, MAX_ENTRIES, MAX_VALIDITY_SEC, MAX_STALE_SEC, KINDS, ADDR, H32, ZERO, lc2, uint, err, canonical2, FIELDS, contentHash, policyTypedData, policyDigest, BOOK_ABI2, ERC12712, OWN_ABI, REG_ABI, REGISTRY_KEY, PLATFORM_POLICY_OFF, HTTPS, MAX_POLICY_RESPONSE, lc3, leaseHostAdmission, endpointAdmissions, freshAdmissions, lc4, PRODUCTION_BOOK, PRODUCTION_HOST_OWNERSHIP, PRODUCTION_MIRRORS, PRODUCTION_RPCS, PRODUCTION_HOST_POLICY, list, lc5, NOT_ACTIVATED, PUSH_NONCE_PREFIX, PUSH_SIG_PREFIX, FIELDS2, ACCEPT, deny, SHIELD_DOC_FORMAT, APP_PUSH_NONCE_PREFIX, APP_PUSH_SIG_PREFIX, APP_PUSH_MAX_BYTES, APP_TXT_MAX_TTL_S, FIELDS3, LEASE_FIELDS, ORDER_FIELDS, ACCEPT2, HEX64, ADDR2, ZERO64, ZERO40, CATALOG_REF, appLabel, appChallengeName, pushDigest, deny2, exact2, deploymentFields, DEPLOYMENTS_ABI, REGISTRY_ABI, CATALOG_ABI, lc6, TCG_MAX_LOG_BYTES, TCG_MAX_EVENTS, TCG_MAX_ALGS, TCG_SHA256, SIPA_MAX_DEPTH, SIPA_MAX_NODES, EV_NO_ACTION, EV_EVENT_TAG, EV_EFI_VARIABLE_DRIVER_CONFIG, SIPA, SIPA_ID, SIPA_CONTAINERS, SIPA_STRINGS, SIPA_VSM_IDK_INFO, SIPA_VSM_IDKS_INFO, toBuf, scalar, utf16, sha2568, replayPcrs, digestRecomputes, unhashedEvents, sipaRecords, sipaFields, vsmKey, secureBootFromLog, bootCounterFromLog, AVF_ATTESTATION_EXTENSION_OID, AVF_MAX_CERT_BYTES, AVF_MAX_CHAIN_CERTS, AVF_MAX_COMPONENTS, GOOGLE_ATTESTATION_ROOT_SHA256, fpHex, body, dateOf, TPM_MANUFACTURERS_ON_DIE, OID_SAN, OID_TPM_MANUFACTURER, TPM_GENERATED_VALUE, TPM_ST_ATTEST_QUOTE, TPM_ALG_RSA, TPM_ALG_SHA256, TPM_ALG_NULL, TPM_ALG_AES, TPM_ALG_CFB, TPM_ALG_RSASSA, AIK_REQUIRED_ATTRIBUTES, TPMA_DECRYPT, VBS_MAX_REPORT_BYTES, VBS_MAX_LOG_BYTES, VBS_MAX_CERT_BYTES, VBS_MAX_CHAIN_CERTS, VBS_MAX_ATTEST_BYTES, VBS_MAX_SIG_BYTES, VBS_MAX_TPMT_PUBLIC_BYTES, VBS_MAX_MODULES, VBS_REQUIRED_PCR12, VBS_QUOTE_PCRS, VBS_REPLAYED_PCRS, VBS_FORMAT, VBS_BIND_DOMAIN, ENCLAVE_TYPE_VBS, ENCLAVE_FLAG_FULL_DEBUG_ENABLED, ENCLAVE_FLAG_DYNAMIC_DEBUG_ENABLED, ENCLAVE_FLAG_DYNAMIC_DEBUG_ACTIVE, ENCLAVE_DEBUG_FLAGS, sha2569, ED25519_SPKI_PREFIX, hexOf, eq, b64url, unsigned, VBS_REPORT_SCHEME_SHA256_RSA_PSS, enclaveMeasurementKey, fpHex2, dateOf2, toCert, pemCerts, b64cap, IDENTITY_LABEL, EMPTY, u32be, u16be, HVNODE_FORMAT, HVNODE_BIND_DOMAIN, HVNODE_TECHNOLOGY, HVNODE_TIER, HVNODE_MAX_STATEMENT_BYTES, HVNODE_OMISSIONS, HVNODE_SCOPE, ED25519_SPKI_PREFIX2, hexOf2, eq2, b64cap2, buf, RETIRED_FORMATS, sha25610, ENV, NODE_OPS, ED25519_SPKI_PREFIX3, HV_NODE_REQUIRED_PCR12, ATTACH_DOMAIN, HEX32, ID32, ED25519_SPKI_PREFIX4, shieldResponderId, appZoneShieldParty, HEX322, MAX_PENDING_PER_EK, sha256hex, b64, fail3, MAX_REPLY_BYTES, RELEASE_DOMAIN, SEAL_INFO, RESPONSE_DOMAIN, ED25519_PKCS8_PREFIX, X25519_PKCS8_PREFIX, sha25611, b322, opFresh, BASE, META, REPORT_SIZE, requireThat, zero, ctEqual, VBS_VM_REPORT_CHECKS, VBS_VM_REPORT_SCOPE, hash52, equal, CORE, OPS, parseVbsVmReport, ABI1, ABI2, ISA_X86_64, ISA_AARCH64, ISA_PULLEY64, EXEC_JIT, EXEC_INTERPRETER, WX_ENFORCED, CACHE_NONE, CACHE_AUTHENTICATED, BIND2_DOMAIN, CACHE_KEY_DOMAIN, FIELDS4, HEX642, VBS_APP_MAX_REPORT_CHARS, VBS_APP_MAX_VM_REPORT_CHARS, platformsValid, platformAdmitted, vbsAppUserData, HEX, SHIELD_DOC_FORMAT2, SHIELD_DOC_TIER, HEX2, deny3, b64Chars, ENVELOPE_BYTES, SHIELD_CHALLENGE_MAX_BYTES, HVNODE_RAD_BODY_MAX_CHARS, SHIELD_ATTEST_MAX_BYTES, MAX_LIVE_PER_EK, LIMITS, V4, REGISTRY_GET_LAYOUTS, getAbi, SCHEMA_ABI2, reverted, APP_ZONE_SHIELD_SESSION_PATH, KDS, VCEK_GUID, MAX_KDS_BYTES, AMD_ARK_SHA256, fpHex3, _chainCache, _vcekCache, VCEK_CACHE_MAX, TCB_FIELDS, fmtTcb, AMD, SPL_OID, MODES2, LEGACY_WX_RELEASES, SECCOMP_UNSTATED_RELEASES, SELFTEST_ROLES, OPENS, required, optional, PROFILE_KIND, MAX_PROFILE_BYTES, MAX_RUNTIME_BYTES, MAX_RPC_RESPONSE_BYTES, A, B2, U, T3, owned, PROFILE_LAYOUT, LINKS, CONTRACT_PIN_KEYS, plain, address2, hash322, zero2, text;
+var require2, __create2, __defProp2, __getOwnPropDesc2, __getOwnPropNames2, __getProtoOf2, __hasOwnProp2, __require2, __esm2, __commonJS2, __export2, __copyProps2, __toESM2, version4, init_version4, BaseError4, init_errors4, bytesRegex4, integerRegex4, isTupleRegex2, init_regex3, tupleRegex2, init_formatAbiParameter2, init_formatAbiParameters2, init_formatAbiItem3, errorSignatureRegex2, eventSignatureRegex2, functionSignatureRegex2, structSignatureRegex2, constructorSignatureRegex2, fallbackSignatureRegex2, receiveSignatureRegex2, modifiers2, eventModifiers2, functionModifiers2, init_signatures2, InvalidAbiItemError2, UnknownTypeError2, UnknownSolidityTypeError2, init_abiItem3, InvalidAbiParameterError2, InvalidAbiParametersError2, InvalidParameterError2, SolidityProtectedKeywordError2, InvalidModifierError2, InvalidFunctionModifierError2, InvalidAbiTypeParameterError2, init_abiParameter2, InvalidSignatureError2, UnknownSignatureError2, InvalidStructSignatureError2, init_signature2, CircularReferenceError2, init_struct2, InvalidParenthesisError2, init_splitParameters2, parameterCache2, init_cache2, abiParameterWithoutTupleRegex2, abiParameterWithTupleRegex2, dynamicIntegerRegex2, protectedKeywordsRegex2, init_utils11, typeWithoutTupleRegex2, init_structs2, init_parseAbi2, init_parseAbiItem2, init_parseAbiParameter2, init_parseAbiParameters2, init_exports2, init_getAction2, init_formatAbiItem22, init_isHex2, init_size2, version22, init_version22, errorConfig2, BaseError22, init_base3, AbiConstructorNotFoundError2, AbiConstructorParamsNotFoundError2, AbiDecodingDataSizeInvalidError2, AbiDecodingDataSizeTooSmallError2, AbiDecodingZeroDataError2, AbiEncodingArrayLengthMismatchError2, AbiEncodingBytesSizeMismatchError2, AbiEncodingLengthMismatchError2, AbiErrorInputsNotFoundError2, AbiErrorNotFoundError2, AbiErrorSignatureNotFoundError2, AbiEventSignatureEmptyTopicsError2, AbiEventSignatureNotFoundError2, AbiEventNotFoundError2, AbiFunctionNotFoundError2, AbiFunctionOutputsNotFoundError2, AbiFunctionSignatureNotFoundError2, AbiItemAmbiguityError2, BytesSizeMismatchError3, DecodeLogDataMismatch2, DecodeLogTopicsMismatch2, InvalidAbiEncodingTypeError2, InvalidAbiDecodingTypeError2, InvalidArrayError3, InvalidDefinitionTypeError2, UnsupportedPackedAbiType2, init_abi2, FilterTypeNotSupportedError2, init_log3, SliceOffsetOutOfBoundsError4, SizeExceedsPaddingSizeError4, InvalidBytesLengthError2, init_data2, init_pad2, IntegerOutOfRangeError3, InvalidBytesBooleanError3, InvalidHexBooleanError2, InvalidHexValueError3, SizeOverflowError4, init_encoding2, init_trim2, init_fromHex2, hexes4, encoder6, init_toHex2, encoder22, charCodeMap3, init_toBytes2, U32_MASK642, _32n2, shrSH2, shrSL2, rotrSH2, rotrSL2, rotrBH2, rotrBL2, rotlSH2, rotlSL2, rotlBH2, rotlBL2, add3L2, add3H2, add4L2, add4H2, add5L2, add5H2, init_u642, crypto22, init_cryptoNode2, isLE2, swap32IfBE2, Hash2, init_utils22, _0n7, _1n7, _2n5, _7n2, _256n2, _0x71n2, SHA3_PI2, SHA3_ROTL2, _SHA3_IOTA2, IOTAS2, SHA3_IOTA_H2, SHA3_IOTA_L2, rotlH2, rotlL2, Keccak2, gen2, keccak_2562, init_sha32, init_keccak2562, hash5, init_hashSignature2, init_normalizeSignature2, toSignature2, init_toSignature2, init_toSignatureHash2, toEventSelector2, init_toEventSelector2, InvalidAddressError3, init_address3, LruMap3, init_lru3, checksumAddressCache2, init_getAddress2, addressRegex3, isAddressCache2, init_isAddress2, init_concat2, init_slice2, arrayRegex3, bytesRegex22, integerRegex22, init_regex22, init_encodeAbiParameters2, toFunctionSelector2, init_toFunctionSelector2, init_getAbiItem2, docsPath9, init_encodeEventTopics2, init_createFilterRequestScope2, init_createContractEventFilter2, init_parseAccount2, docsPath22, init_prepareEncodeFunctionData2, init_encodeFunctionData2, panicReasons2, solidityError2, solidityPanic2, init_solidity2, NegativeOffsetError3, PositionOutOfBoundsError3, RecursiveReadLimitExceededError3, init_cursor4, staticCursor3, init_cursor22, init_fromBytes2, sizeOfLength3, sizeOfOffset3, init_decodeAbiParameters2, init_decodeErrorResult2, stringify3, init_stringify2, init_formatAbiItemWithArgs2, etherUnits2, gweiUnits2, weiUnits2, init_unit3, init_formatUnits2, init_formatEther2, init_formatGwei2, AccountStateConflictError2, StateAssignmentConflictError2, init_stateOverride3, FeeConflictError2, InvalidLegacyVError2, InvalidSerializableTransactionError2, InvalidSerializedTransactionTypeError2, InvalidSerializedTransactionError2, InvalidStorageKeySizeError3, TransactionExecutionError2, TransactionNotFoundError2, TransactionReceiptNotFoundError2, TransactionReceiptRevertedError2, WaitForTransactionReceiptTimeoutError2, init_transaction4, getContractAddress3, getUrl2, init_utils32, CallExecutionError2, ContractFunctionExecutionError2, ContractFunctionRevertedError2, ContractFunctionZeroDataError2, CounterfactualDeploymentFailedError2, RawContractError2, init_contract3, HttpRequestError2, WebSocketRequestError2, RpcRequestError2, SocketClosedError2, TimeoutError2, init_request2, unknownErrorCode2, RpcError2, ProviderRpcError3, ParseRpcError2, InvalidRequestRpcError2, MethodNotFoundRpcError2, InvalidParamsRpcError2, InternalRpcError2, InvalidInputRpcError2, ResourceNotFoundRpcError2, ResourceUnavailableRpcError2, TransactionRejectedRpcError2, MethodNotSupportedRpcError2, LimitExceededRpcError2, JsonRpcVersionUnsupportedError2, UserRejectedRequestError2, UnauthorizedProviderError2, UnsupportedProviderMethodError2, ProviderDisconnectedError2, ChainDisconnectedError2, SwitchChainError2, UnsupportedNonOptionalCapabilityError2, UnsupportedChainIdError2, DuplicateIdError2, UnknownBundleIdError2, BundleTooLargeError2, AtomicReadyWalletRejectedUpgradeError2, AtomicityNotSupportedError2, WalletConnectSessionSettlementError2, UnknownRpcError2, init_rpc2, EXECUTION_REVERTED_ERROR_CODE2, init_getContractError2, init_publicKeyToAddress2, HashMD2, SHA256_IV2, SHA384_IV2, SHA512_IV2, init_md2, SHA256_K2, SHA256_W2, SHA2562, K5122, SHA512_Kh2, SHA512_Kl2, SHA512_W_H2, SHA512_W_L2, SHA5122, SHA3842, sha2565, sha5122, sha3842, init_sha22, HMAC2, hmac2, init_hmac2, _0n22, _1n22, hasHexBuiltin2, hexes22, asciis2, isPosBig2, bitMask2, u8n2, u8fr2, validatorFns2, init_utils42, _0n32, _1n32, _2n22, _3n3, _4n3, _5n2, _8n2, FIELD_FIELDS2, init_modular2, _0n42, _1n42, pointPrecomputes2, pointWindowSizes2, init_curve2, DERErr2, DER2, _0n52, _1n52, _2n32, _3n22, _4n22, init_weierstrass2, init_shortw_utils2, os2ip2, init_hash_to_curve2, secp256k1_exports2, secp256k1P2, secp256k1N2, _0n62, _1n62, _2n42, divNearest2, Fpk12, secp256k12, TAGGED_HASH_PREFIXES2, pointToBytes2, numTo32b2, modP2, modN2, Point2, GmulAdd2, num2, schnorr2, isoMap2, mapSWU2, secp256k1_hasher2, hashToCurve2, encodeToCurve2, init_secp256k12, init_recoverPublicKey2, init_recoverAddress2, init_toRlp2, init_hashAuthorization2, init_recoverAuthorizationAddress2, EstimateGasExecutionError2, init_estimateGas4, ExecutionRevertedError2, FeeCapTooHighError3, FeeCapTooLowError2, NonceTooHighError2, NonceTooLowError2, NonceMaxValueError2, InsufficientFundsError2, IntrinsicGasTooHighError2, IntrinsicGasTooLowError2, TransactionTypeNotSupportedError2, TipAboveFeeCapError3, UnknownNodeError2, init_node2, init_getNodeError2, init_getEstimateGasError2, init_extract2, init_formatter2, rpcTransactionType2, defineTransactionRequest2, init_transactionRequest2, init_stateOverride22, maxInt83, maxInt163, maxInt243, maxInt323, maxInt403, maxInt483, maxInt563, maxInt643, maxInt723, maxInt803, maxInt883, maxInt963, maxInt1043, maxInt1123, maxInt1203, maxInt1283, maxInt1363, maxInt1443, maxInt1523, maxInt1603, maxInt1683, maxInt1763, maxInt1843, maxInt1923, maxInt2003, maxInt2083, maxInt2163, maxInt2243, maxInt2323, maxInt2403, maxInt2483, maxInt2563, minInt83, minInt163, minInt243, minInt323, minInt403, minInt483, minInt563, minInt643, minInt723, minInt803, minInt883, minInt963, minInt1043, minInt1123, minInt1203, minInt1283, minInt1363, minInt1443, minInt1523, minInt1603, minInt1683, minInt1763, minInt1843, minInt1923, minInt2003, minInt2083, minInt2163, minInt2243, minInt2323, minInt2403, minInt2483, minInt2563, maxUint83, maxUint163, maxUint243, maxUint323, maxUint403, maxUint483, maxUint563, maxUint643, maxUint723, maxUint803, maxUint883, maxUint963, maxUint1043, maxUint1123, maxUint1203, maxUint1283, maxUint1363, maxUint1443, maxUint1523, maxUint1603, maxUint1683, maxUint1763, maxUint1843, maxUint1923, maxUint2003, maxUint2083, maxUint2163, maxUint2243, maxUint2323, maxUint2403, maxUint2483, maxUint2563, init_number3, init_assertRequest2, BaseFeeScalarError2, Eip1559FeesNotSupportedError2, MaxFeePerGasTooLowError2, init_fee2, BlockNotFoundError2, init_block3, transactionType2, defineTransaction2, init_transaction22, defineBlock2, init_block22, init_getBlock2, init_getGasPrice2, init_estimateMaxPriorityFeePerGas2, init_estimateFeesPerGas2, init_formatBlockParameter2, init_getTransactionCount2, init_blobsToCommitments2, init_blobsToProofs2, sha25622, init_sha2563, init_sha25622, init_commitmentToVersionedHash2, init_commitmentsToVersionedHashes2, blobsPerTransaction2, bytesPerFieldElement2, fieldElementsPerBlob2, bytesPerBlob2, maxBytesPerTransaction2, init_blob3, versionedHashVersionKzg2, init_kzg2, BlobSizeTooLargeError2, EmptyBlobError2, InvalidVersionedHashSizeError2, InvalidVersionedHashVersionError2, init_blob22, init_toBlobs2, init_toBlobSidecars2, init_getTransactionType2, init_getTransactionError2, init_getChainId2, init_fillTransaction2, defaultParameters2, eip1559NetworkCache2, supportsFillTransaction2, init_prepareTransactionRequest2, init_estimateGas22, init_estimateContractGas2, init_isAddressEqual2, init_log22, docsPath32, init_decodeEventLog2, init_parseEventLogs2, init_getLogs2, init_getContractEvents2, docsPath42, init_decodeFunctionResult2, version32, init_version32, init_errors22, BaseError32, init_Errors2, charCodeMap22, init_bytes3, init_hex2, bigIntSuffix2, init_Json2, decoder2, encoder32, InvalidBytesBooleanError22, InvalidBytesTypeError2, SizeOverflowError22, SliceOffsetOutOfBoundsError22, SizeExceedsPaddingSizeError22, init_Bytes2, encoder42, hexes32, IntegerOutOfRangeError22, InvalidHexTypeError2, InvalidHexValueError22, InvalidLengthError2, SizeOverflowError32, SliceOffsetOutOfBoundsError32, SizeExceedsPaddingSizeError32, init_Hex2, init_Withdrawal2, init_BlockOverrides2, multicall3Abi2, batchGatewayAbi2, universalResolverErrors2, universalResolverResolveAbi2, universalResolverReverseAbi2, textResolverAbi2, addressResolverAbi2, erc1271Abi2, erc6492SignatureValidatorAbi2, erc20Abi2, erc20Abi_bytes322, erc1155Abi2, erc721Abi2, erc4626Abi2, init_abis2, aggregate3Signature2, init_contract22, deploylessCallViaBytecodeBytecode2, deploylessCallViaFactoryBytecode2, erc6492SignatureValidatorByteCode2, multicall3Bytecode2, init_contracts3, ChainDoesNotSupportContract2, ChainMismatchError2, ChainNotFoundError2, ClientChainNotConfiguredError2, InvalidChainIdError3, init_chain2, docsPath52, init_encodeDeployData2, init_getChainContractAddress2, init_getCallError2, init_withResolvers2, schedulerCache2, init_createBatchScheduler2, OffchainLookupError2, OffchainLookupResponseMalformedError2, OffchainLookupSenderMismatchError2, init_ccip3, init_decodeFunctionData2, docsPath62, init_encodeErrorResult2, docsPath72, init_encodeFunctionResult2, localBatchGatewayUrl2, init_localBatchGatewayRequest2, ccip_exports2, offchainLookupSignature2, offchainLookupAbiItem2, init_ccip22, requestOptionsId2, requestOptionsIds2, init_call2, init_readContract2, init_simulateContract2, listenersCache2, cleanupCache2, callbackCount2, init_observe2, init_wait2, init_poll2, promiseCache3, responseCache2, init_withCache2, cacheKey2, init_getBlockNumber2, init_getFilterChanges2, init_uninstallFilter2, init_watchContractEvent2, AccountNotFoundError2, AccountTypeNotSupportedError2, init_account2, init_assertCurrentChain2, init_sendRawTransaction2, supportsWalletNamespace3, init_sendTransaction2, init_writeContract2, init_getContract2, BundleFailedError2, init_calls2, init_withRetry2, receiptStatuses2, defineTransactionReceipt2, init_transactionReceipt2, fallbackMagicIdentifier2, fallbackTransactionErrorMagicIdentifier2, init_sendCalls2, init_getCallsStatus2, WaitForCallsStatusTimeoutError2, init_waitForCallsStatus2, size42, index2, buffer2, init_uid2, init_createClient2, init_errors32, init_encodedLabelToLabelhash2, init_namehash2, init_encodeLabelhash2, init_labelhash2, init_packetToBytes2, init_getEnsAddress2, EnsAvatarInvalidMetadataError2, EnsAvatarInvalidNftUriError2, EnsAvatarUriResolutionError2, EnsAvatarUnsupportedNamespaceError2, EnsInvalidChainIdError2, init_ens2, networkRegex2, ipfsHashRegex2, base64Regex2, dataURIRegex2, init_utils52, init_parseAvatarRecord2, init_getEnsText2, init_getEnsAvatar2, init_getEnsName2, init_getEnsResolver2, init_createAccessList2, init_createBlockFilter2, init_createEventFilter2, init_createPendingTransactionFilter2, init_getBalance3, init_getBlobBaseFee2, init_getBlockReceipts2, init_getBlockTransactionCount2, init_getCode2, init_getDelegation2, Eip712DomainNotFoundError2, init_eip7122, abi2, init_getEip712Domain3, init_feeHistory2, init_getFeeHistory2, init_getFilterLogs2, init_encodePacked2, init_isBytes2, init_getContractAddress2, init_assertTransaction2, init_serializeAccessList2, init_serializeTransaction2, init_serializeAuthorizationList2, init_verifyAuthorization2, promiseCache22, init_withDedupe2, init_buildRequest2, init_ccipTunnel2, init_defineChain2, init_extractChain2, init_fromRlp2, init_isHash2, Rho1602, Id1602, Pi1602, idxLR2, idxL2, idxR2, shifts1602, shiftsL1602, shiftsR1602, Kl1602, Kr1602, BUF_1602, RIPEMD1602, ripemd1604, init_legacy2, ripemd16022, init_ripemd1603, init_ripemd16022, init_toEventHash2, init_toEventSignature2, init_toFunctionHash2, init_toFunctionSignature2, nonceManager2, init_nonceManager2, init_withTimeout2, idCache2, init_id2, init_http3, socketClientCache2, init_socket2, require_constants2, require_buffer_util2, require_limiter2, require_permessage_deflate2, require_validation2, require_receiver2, require_sender2, require_event_target2, require_extension2, require_websocket2, require_stream2, require_subprotocol2, require_websocket_server2, wrapper_exports2, import_stream2, import_extension2, import_permessage_deflate2, import_receiver2, import_sender2, import_subprotocol2, import_websocket2, import_websocket_server2, wrapper_default2, init_wrapper2, init_utils62, esm_exports3, WebSocket32, init_esm3, init_webSocket3, init_compat2, presignMessagePrefix2, init_strings2, init_toPrefixedMessage2, init_hashMessage2, InvalidDomainError2, InvalidPrimaryTypeError2, InvalidStructTypeError2, init_typedData3, init_typedData22, init_hashTypedData2, erc6492MagicBytes2, zeroHash2, init_bytes22, init_isErc6492Signature2, LruMap22, init_lru22, caches2, checksum3, init_Caches2, init_Hash2, InvalidError2, InvalidPrefixError3, InvalidCompressedPrefixError2, InvalidUncompressedPrefixError2, InvalidSerializedSizeError3, init_PublicKey2, addressRegex22, InvalidAddressError22, InvalidInputError2, InvalidChecksumError2, init_Address2, arrayRegex22, bytesRegex32, integerRegex32, maxInt822, maxInt1622, maxInt2422, maxInt3222, maxInt4022, maxInt4822, maxInt5622, maxInt6422, maxInt7222, maxInt8022, maxInt8822, maxInt9622, maxInt10422, maxInt11222, maxInt12022, maxInt12822, maxInt13622, maxInt14422, maxInt15222, maxInt16022, maxInt16822, maxInt17622, maxInt18422, maxInt19222, maxInt20022, maxInt20822, maxInt21622, maxInt22422, maxInt23222, maxInt24022, maxInt24822, maxInt25622, minInt822, minInt1622, minInt2422, minInt3222, minInt4022, minInt4822, minInt5622, minInt6422, minInt7222, minInt8022, minInt8822, minInt9622, minInt10422, minInt11222, minInt12022, minInt12822, minInt13622, minInt14422, minInt15222, minInt16022, minInt16822, minInt17622, minInt18422, minInt19222, minInt20022, minInt20822, minInt21622, minInt22422, minInt23222, minInt24022, minInt24822, minInt25622, maxUint822, maxUint1622, maxUint2422, maxUint3222, maxUint4022, maxUint4822, maxUint5622, maxUint6422, maxUint7222, maxUint8022, maxUint8822, maxUint9622, maxUint10422, maxUint11222, maxUint12022, maxUint12822, maxUint13622, maxUint14422, maxUint15222, maxUint16022, maxUint16822, maxUint17622, maxUint18422, maxUint19222, maxUint20022, maxUint20822, maxUint21622, maxUint22422, maxUint23222, maxUint24022, maxUint24822, maxUint25622, init_Solidity2, sizeOfLength22, sizeOfOffset22, init_abiParameters2, staticCursor22, NegativeOffsetError22, PositionOutOfBoundsError22, RecursiveReadLimitExceededError22, init_cursor32, DataSizeTooSmallError2, ZeroDataError2, ArrayLengthMismatchError2, BytesSizeMismatchError22, LengthMismatchError2, InvalidArrayError22, InvalidTypeError2, init_AbiParameters2, init_Rlp2, InvalidSerializedSizeError22, MissingPropertiesError3, InvalidRError2, InvalidSError2, InvalidYParityError3, InvalidVError2, init_Signature2, init_Authorization2, init_Secp256k12, SignatureErc8010_exports2, magicBytes4, suffixParameters2, InvalidWrappedSignatureError3, init_SignatureErc80102, init_erc80102, init_isErc8010Signature2, init_parseErc6492Signature2, init_parseErc8010Signature2, init_recoverMessageAddress2, init_recoverTypedDataAddress2, init_serializeErc6492Signature2, init_serializeErc8010Signature2, init_verifyHash3, init_verifyMessage3, init_verifyTypedData3, init_getSerializedTransactionType2, init_parseTransaction2, InvalidDecimalNumberError2, init_unit22, init_parseUnits2, init_parseEther2, init_parseGwei2, init_utils72, init_proof2, init_getProof2, init_getStorageAt2, init_getTransaction2, init_getTransactionConfirmations2, init_getTransactionReceipt2, init_multicall2, init_simulateBlocks2, init_abiItem22, AmbiguityError2, NotFoundError2, init_AbiItem2, init_AbiConstructor2, init_AbiFunction2, ethAddress2, zeroAddress2, init_address22, getBalanceCode2, init_simulateCalls2, SignatureErc6492_exports2, magicBytes22, universalSignatureValidatorBytecode2, universalSignatureValidatorAbi2, InvalidWrappedSignatureError22, init_SignatureErc64922, init_erc64922, init_serializeSignature2, VerificationError3, init_verifyHash22, init_verifyMessage22, init_verifyTypedData22, init_watchBlockNumber2, init_waitForTransactionReceipt2, init_watchBlocks2, init_watchEvent2, init_watchPendingTransactions2, prefixRegex2, suffixRegex2, init_parseSiweMessage2, init_validateSiweMessage2, init_verifySiweMessage2, init_sendRawTransactionSync2, init_public2, init_createPublicClient2, init_dropTransaction2, init_dumpState2, init_getAutomine2, init_getTxpoolContent2, init_getTxpoolStatus2, init_impersonateAccount2, init_increaseTime2, init_inspectTxpool2, init_loadState2, init_mine2, init_removeBlockTimestampInterval2, init_reset2, init_revert2, init_sendUnsignedTransaction2, init_setAutomine2, init_setBalance2, init_setBlockGasLimit2, init_setBlockTimestampInterval2, init_setCode2, init_setCoinbase2, init_setIntervalMining2, init_setLoggingEnabled2, init_setMinGasPrice2, init_setNextBlockBaseFeePerGas2, init_setNextBlockTimestamp2, init_setNonce2, init_setRpcUrl2, init_setStorageAt2, init_snapshot2, init_stopImpersonatingAccount2, init_test2, init_createTestClient2, init_addChain2, init_deployContract2, init_getAddresses2, init_getCapabilities2, init_getPermissions2, init_prepareAuthorization2, init_requestAddresses2, init_requestPermissions2, init_sendCallsSync2, supportsWalletNamespace22, init_sendTransactionSync2, init_showCallsStatus2, init_signAuthorization2, init_signMessage2, init_signTransaction2, init_signTypedData2, init_switchChain2, init_watchAsset2, init_writeContractSync2, init_wallet2, init_createWalletClient2, init_createTransport2, init_custom2, init_fallback2, UrlRequiredError2, init_transport2, signalId2, signalIds2, init_http22, init_webSocket22, ProviderRpcError22, init_eip11932, docsPath82, init_decodeDeployData2, init_fromBlobs2, init_sidecarsToVersionedHashes2, SLIP44_MSB2, init_toCoinType2, init_defineKzg2, init_setupKzg2, init_compactSignatureToSignature2, init_parseCompactSignature2, init_parseSignature2, init_recoverTransactionAddress2, init_serializeCompactSignature2, init_signatureToCompactSignature2, esm_exports22, init_esm22, zeroG2, init_g2, zeroGGalileoTestnet2, init_gGalileoTestnet2, zeroGMainnet2, init_gMainnet2, zeroGTestnet2, init_gTestnet2, fireChain2, init_ireChain2, abey2, init_abey2, gasPerPubdataDefault2, maxBytecodeSize2, init_number22, formatters4, init_formatters4, InvalidEip712TransactionError2, init_transaction32, init_isEip712Transaction2, init_assertEip712Transaction2, serializers4, init_serializers4, BytecodeLengthExceedsMaxSizeError2, BytecodeLengthInWordsMustBeOddError2, BytecodeLengthMustBeDivisibleBy32Error2, init_bytecode2, init_hashBytecode2, getEip712Domain22, init_getEip712Domain22, chainConfig6, init_chainConfig6, abstract2, init_abstract2, abstractTestnet2, init_abstractTestnet2, acala2, init_acala2, acria2, init_acria2, adf2, init_adf2, adi2, init_adi2, agungTestnet2, init_agungTestnet2, aioz2, init_aioz2, alephZero2, init_alephZero2, alephZeroTestnet2, init_alephZeroTestnet2, alienx2, init_alienX2, alienxHalTestnet2, init_alienXHalTestnet2, alpenTestnet2, init_alpenTestnet2, contracts2, init_contracts22, formatters22, init_formatters22, serializers22, init_serializers22, chainConfig22, init_chainConfig22, sourceId70, ancient82, init_ancient82, sourceId210, ancient8Sepolia2, init_ancient8Sepolia2, anvil2, init_anvil2, sourceId310, apeChain2, init_apeChain2, apexTestnet2, init_apexTestnet2, apollo2, init_apollo2, arbitrum2, init_arbitrum2, arbitrumGoerli2, init_arbitrumGoerli2, arbitrumNova2, init_arbitrumNova2, arbitrumSepolia2, init_arbitrumSepolia2, arc2, init_arc2, arcTestnet2, init_arcTestnet2, arenaz2, init_arenaz2, areonNetwork2, init_areonNetwork2, areonNetworkTestnet2, init_areonNetworkTestnet2, areum2, init_areum2, artelaTestnet2, init_artelaTestnet2, arthera2, init_arthera2, artheraTestnet2, init_artheraTestnet2, assetChain2, init_assetChain2, assetChainTestnet2, init_assetChainTestnet2, astar2, init_astar2, astarZkEVM2, init_astarZkEVM2, astarZkyoto2, init_astarZkyoto2, atletaOlympia2, init_atletaOlympia2, aurora2, init_aurora2, auroraTestnet2, init_auroraTestnet2, auroria2, init_auroria2, autheoTestnet2, init_autheoTestnet2, avalanche2, init_avalanche2, avalancheFuji2, init_avalancheFuji2, sourceId410, b32, init_b32, sourceId510, b3Sepolia2, init_b3Sepolia2, bahamut2, init_bahamut2, sourceId610, base2, basePreconf2, init_base22, basecampTestnet2, init_basecampTestnet2, sourceId72, baseGoerli2, init_baseGoerli2, sourceId82, baseSepolia2, baseSepoliaPreconf2, init_baseSepolia2, battlechainTestnet2, init_battlechainTestnet2, beam2, init_beam2, beamTestnet2, init_beamTestnet2, bearNetworkChainMainnet2, init_bearNetworkChainMainnet2, bearNetworkChainTestnet2, init_bearNetworkChainTestnet2, berachain2, init_berachain2, berachainBepolia2, init_berachainBepolia2, berachainTestnet2, init_berachainTestnet2, berachainTestnetbArtio2, init_berachainTestnetbArtio2, bevmMainnet2, init_bevmMainnet2, bifrost2, init_bifrost2, birdlayer2, init_birdlayer2, bitgert2, init_bitgert2, bitkub2, init_bitkub2, bitkubTestnet2, init_bitkubTestnet2, bitlayer2, init_bitlayer2, bitlayerTestnet2, init_bitlayerTestnet2, bitrock2, init_bitrock2, bitTorrent2, init_bitTorrent2, bitTorrentTestnet2, init_bitTorrentTestnet2, sourceId92, blast2, init_blast2, sourceId102, blastSepolia2, init_blastSepolia2, sourceId112, bob2, init_bob2, boba2, init_boba2, bobaSepolia2, init_bobaSepolia2, sourceId122, bobSepolia2, init_bobSepolia2, boolBetaMainnet2, init_boolBetaMainnet2, botanix2, init_botanix2, botanixTestnet2, init_botanixTestnet2, bounceBit2, init_bounceBit2, bounceBitTestnet2, init_bounceBitTestnet2, bronos2, init_bronos2, bronosTestnet2, init_bronosTestnet2, bsc2, init_bsc2, bscGreenfield2, init_bscGreenfield2, bscTestnet2, init_bscTestnet2, bsquared2, init_bsquared2, bsquaredTestnet2, init_bsquaredTestnet2, btr2, init_btr2, btrTestnet2, init_btrTestnet2, bxn2, init_bxn2, bxnTestnet2, init_bxnTestnet2, cannon2, init_cannon2, canto2, init_canto2, fees2, init_fees2, init_utils82, formatters32, init_formatters32, serializers32, MAX_MAX_FEE_PER_GAS2, init_serializers32, chainConfig32, init_chainConfig32, celo2, init_celo2, sourceId132, celoAlfajores2, init_celoAlfajores2, sourceId142, celoSepolia2, init_celoSepolia2, chang2, init_chang2, chiliz2, init_chiliz2, chips2, init_chips2, citrate2, init_citrate2, citrea2, init_citrea2, citreaTestnet2, init_citreaTestnet2, classic2, init_classic2, sourceId152, codex2, init_codex2, sourceId162, codexTestnet2, init_codexTestnet2, coinbit2, init_coinbit2, coinex2, init_coinex2, confluxESpace2, init_confluxESpace2, confluxESpaceTestnet2, init_confluxESpaceTestnet2, coreDao2, init_coreDao2, coreTestnet12, init_coreTestnet12, coreTestnet22, init_coreTestnet22, sourceId172, corn2, init_corn2, sourceId182, cornTestnet2, init_cornTestnet2, cpchain2, init_cpchain2, crab2, init_crab2, creatorTestnet2, init_creatorTestnet2, creditCoin3Devnet2, init_creditCoin3Devnet2, creditCoin3Mainnet2, init_creditCoin3Mainnet2, creditCoin3Testnet2, init_creditCoin3Testnet2, cronos2, init_cronos2, cronosTestnet2, init_cronosTestnet2, cronoszkEVM2, init_cronoszkEVM2, cronoszkEVMTestnet2, init_cronoszkEVMTestnet2, crossbell2, init_crossbell2, crossfi2, init_crossfi2, curtis2, init_curtis2, cyber2, init_cyber2, cyberTestnet2, init_cyberTestnet2, dailyNetwork2, init_dailyNetwork2, dailyNetworkTestnet2, init_dailyNetworkTestnet2, darwinia2, init_darwinia2, datahavenTestnet2, init_datahavenTestnet2, dbkchain2, init_dbkchain2, dchain2, init_dchain2, dchainTestnet2, init_dchainTestnet2, defichainEvm2, init_defichainEvm2, defichainEvmTestnet2, init_defichainEvmTestnet2, degen2, init_degen2, dfk2, init_dfk2, diode2, init_diode2, disChain2, init_disChain2, dodochainTestnet2, init_dodochainTestnet2, dogechain2, init_dogechain2, domaTestnet2, init_domaTestnet2, donatuz2, init_donatuz2, dosChain2, init_dosChain2, dosChainTestnet2, init_dosChainTestnet2, dreyerxMainnet2, init_dreyerxMainnet2, init_utils92, dreyerxTestnet2, init_dreyerxTestnet2, dustboyIoT2, init_dustboyIoT2, dymension2, init_dymension2, eden2, init_eden2, edexa2, init_edexa2, edexaTestnet2, init_edexaTestnet2, edgeless2, init_edgeless2, edgelessTestnet2, init_edgelessTestnet2, edgeware2, init_edgeware2, edgewareTestnet2, init_edgewareTestnet2, eduChain2, init_eduChain2, eduChainTestnet2, init_eduChainTestnet2, elastos2, init_elastos2, elastosTestnet2, init_elastosTestnet2, electroneum2, init_electroneum2, electroneumTestnet2, init_electroneumTestnet2, elysiumTestnet2, init_elysiumTestnet2, energy2, init_energy2, eni2, init_eni2, eniTestnet2, init_eniTestnet2, enuls2, init_enuls2, eon2, init_eon2, eos2, init_eos2, eosTestnet2, init_eosTestnet2, eteria2, init_eteria2, etherlink2, init_etherlink2, etherlinkShadownetTestnet2, init_etherlinkShadownetTestnet2, etherlinkTestnet2, init_etherlinkTestnet2, ethernity2, init_ethernity2, etp2, init_etp2, evmos2, init_evmos2, evmosTestnet2, init_evmosTestnet2, excelonMainnet2, init_excelonMainnet2, expanse2, init_expanse2, exsat2, init_exSat2, exsatTestnet2, init_exSatTestnet2, fantom2, init_fantom2, fantomSonicTestnet2, init_fantomSonicTestnet2, fantomTestnet2, init_fantomTestnet2, fibo2, init_fibo2, filecoin2, init_filecoin2, filecoinCalibration2, init_filecoinCalibration2, filecoinHyperspace2, init_filecoinHyperspace2, flame2, init_flame2, flare2, init_flare2, flareTestnet2, init_flareTestnet2, flowMainnet2, init_flowMainnet2, flowPreviewnet2, init_flowPreviewnet2, flowTestnet2, init_flowTestnet2, fluence2, init_fluence2, fluenceStage2, init_fluenceStage2, fluenceTestnet2, init_fluenceTestnet2, fluent2, init_fluent2, fluentDevnet2, init_fluentDevnet2, fluentTestnet2, init_fluentTestnet2, sourceId192, form2, init_form2, forma2, init_forma2, sourceId202, formTestnet2, init_formTestnet2, forta2, init_forta2, foundry2, init_foundry2, sourceId212, fraxtal2, init_fraxtal2, sourceId222, fraxtalTestnet2, init_fraxtalTestnet2, sourceId232, funkiMainnet2, init_funkiMainnet2, sourceId242, funkiSepolia2, init_funkiSepolia2, fuse2, init_fuse2, fuseSparknet2, init_fuseSparknet2, fusion2, init_fusion2, fusionTestnet2, init_fusionTestnet2, sourceId252, garnet2, init_garnet2, gatechain2, init_gatechain2, geist2, init_geist2, genesys2, init_genesys2, gensyn2, init_gensyn2, sourceId262, giwaSepolia2, giwaSepoliaPreconf2, init_giwaSepolia2, glideL1Protocol2, init_glideL1Protocol2, glideL2Protocol2, init_glideL2Protocol2, gnosis2, init_gnosis2, gnosisChiado2, init_gnosisChiado2, goat2, init_goat2, gobi2, init_gobi2, goChain2, init_goChain2, godwoken2, init_godwoken2, goerli2, init_goerli2, graphite2, init_graphite2, graphiteTestnet2, init_graphiteTestnet2, grav2, init_grav2, gravity2, init_gravity2, gunz2, init_gunz2, guruNetwork2, init_guruNetwork2, guruTestnet2, init_guruTestnet2, ham2, init_ham2, happychainTestnet2, init_happychainTestnet2, haqqMainnet2, init_haqqMainnet2, haqqTestedge22, init_haqqTestedge22, hardhat2, init_hardhat2, harmonyOne2, init_harmonyOne2, hashkey2, init_hashKeyChain2, hashkeyTestnet2, init_hashkeyChainTestnet2, haustTestnet2, init_haustTestnet2, hedera2, init_hedera2, hederaPreviewnet2, init_hederaPreviewnet2, hederaTestnet2, init_hederaTestnet2, hela2, init_hela2, heliosTestnet2, init_heliosTestnet2, hemi2, init_hemi2, hemiSepolia2, init_hemiSepolia2, henesys2, init_henesys2, holesky2, init_holesky2, hoodi2, init_hoodi2, horizenTestnet2, init_horizenTestnet2, hpb2, init_hpb2, hpp2, init_hpp2, hppSepolia2, init_hppSepolia2, sourceId272, huddle01Mainnet2, init_huddle01Mainnet2, sourceId282, huddle01Testnet2, init_huddle01Testnet2, humanity2, init_humanity2, humanityTestnet2, init_humanityTestnet2, humanode2, init_humanode2, humanodeTestnet52, init_humanodeTestnet52, hychain2, init_hychain2, hychainTestnet2, init_hychainTestnet2, hyperEvm2, init_hyperEvm2, hyperliquidEvmTestnet2, init_hyperliquidEvmTestnet2, icbNetwork2, init_icbNetwork2, idchain2, init_idchain2, igra2, init_igra2, immutableZkEvm2, init_immutableZkEvm2, immutableZkEvmTestnet2, init_immutableZkEvmTestnet2, inEVM2, init_inEVM2, initVerse2, init_initVerse2, initVerseGenesis2, init_initVerseGenesis2, injective2, init_injective2, injectiveTestnet2, init_injectiveTestnet2, sourceId292, ink2, init_ink2, sourceId302, inkSepolia2, init_inkSepolia2, iota2, init_iota2, iotaTestnet2, init_iotaTestnet2, iotex2, init_iotex2, iotexTestnet2, init_iotexTestnet2, iSunCoin2, init_iSunCoin2, jasmyChain2, init_jasmyChain2, jasmyChainTestnet2, init_jasmyChainTestnet2, jbc2, init_jbc2, jbcTestnet2, init_jbcTestnet2, jocMainnet2, init_jocMainnet2, jocTestnet2, init_jocTestnet2, jovay2, init_jovay2, jovaySepolia2, init_jovaySepolia2, juneo2, init_juneo2, juneoBCH1Chain2, init_juneoBCH1Chain2, juneoDAI1Chain2, init_juneoDAI1Chain2, juneoDOGE1Chain2, init_juneoDOGE1Chain2, juneoEUR1Chain2, init_juneoEUR1Chain2, juneoGLD1Chain2, init_juneoGLD1Chain2, juneoLINK1Chain2, init_juneoLINK1Chain2, juneoLTC1Chain2, init_juneoLTC1Chain2, juneomBTC1Chain2, init_juneomBTC1Chain2, juneoSGD1Chain2, init_juneoSGD1Chain2, juneoSocotraTestnet2, init_juneoSocotraTestnet2, juneoUSD1Chain2, init_juneoUSD1Chain2, juneoUSDT1Chain2, init_juneoUSDT1Chain2, kaia2, init_kaia2, kairos2, init_kairos2, kakarotSepolia2, init_kakarotSepolia2, kakarotStarknetSepolia2, init_kakarotStarknetSepolia2, kardiaChain2, init_kardiaChain2, karura2, init_karura2, katana2, init_katana2, kava2, init_kava2, kavaTestnet2, init_kavaTestnet2, kcc2, init_kcc2, kii2, init_kii2, kiiTestnetOro2, init_kiiTestnet2, kinto2, init_kinto2, klaytn2, init_klaytn2, klaytnBaobab2, init_klaytnBaobab2, koi2, init_koi2, kroma2, init_kroma2, kromaSepolia2, init_kromaSepolia2, krown2, init_krown2, l3x2, init_l3x2, l3xTestnet2, init_l3xTestnet2, ladyChain2, init_ladyChain2, lavita2, init_lavita2, lens2, init_lens2, lensTestnet2, init_lensTestnet2, lestnet2, init_lestnet2, lightlinkPegasus2, init_lightlinkPegasus2, lightlinkPhoenix2, init_lightlinkPhoenix2, init_estimateGas32, chainConfig42, init_chainConfig42, linea2, init_linea2, lineaGoerli2, init_lineaGoerli2, lineaSepolia2, init_lineaSepolia2, lineaTestnet2, init_lineaTestnet2, sourceId312, lisk2, init_lisk2, sourceId322, liskSepolia2, init_liskSepolia2, loadAlphanet2, init_loadAlphanet2, localhost2, init_localhost2, loop2, init_loop2, lukso2, init_lukso2, luksoTestnet2, init_luksoTestnet2, lumiaMainnet2, init_lumiaMainnet2, lumiaTestnet2, init_lumiaTestnet2, lumoz2, init_lumoz2, lumozTestnet2, init_lumozTestnet2, luxeports2, init_luxeports2, lycan2, init_lycan2, lyra2, init_lyra2, mainnet2, init_mainnet2, mandala2, init_mandala2, manta2, init_manta2, mantaSepoliaTestnet2, init_mantaSepoliaTestnet2, mantaTestnet2, init_mantaTestnet2, mantle2, init_mantle2, mantleSepoliaTestnet2, init_mantleSepoliaTestnet2, mantleTestnet2, init_mantleTestnet2, mantraDuKongEVMTestnet2, init_mantraDuKongEVMTestnet2, mantraEVM2, init_mantraEVM2, mapProtocol2, init_mapProtocol2, matchain2, init_matchain2, matchainTestnet2, init_matchainTestnet2, mchVerse2, init_mchVerse2, sourceId332, megaeth2, init_megaeth2, megaethTestnet2, init_megaethTestnet2, mekong2, init_mekong2, meld2, init_meld2, memecore2, init_memecore2, formicarium2, init_memecoreFormicariumTestnet2, merlin2, init_merlin2, merlinErigonTestnet2, init_merlinErigonTestnet2, metachain2, init_metachain2, metachainIstanbul2, init_metachainIstanbul2, metadium2, init_metadium2, sourceId342, metalL22, init_metalL22, meter2, init_meter2, meterTestnet2, init_meterTestnet2, metis2, init_metis2, metisGoerli2, init_metisGoerli2, metisSepolia2, init_metisSepolia2, mev2, init_mev2, mevTestnet2, init_mevTestnet2, mezo2, init_mezo2, mezoTestnet2, init_mezoTestnet2, mint2, init_mint2, mintSepoliaTestnet2, init_mintSepoliaTestnet2, mitosisTestnet2, init_mitosisTestnet2, mizuhikiTestnetAwaji2, init_mizuhikiTestnetAwaji2, sourceId352, mode2, init_mode2, sourceId362, modeTestnet2, init_modeTestnet2, monad2, init_monad2, monadTestnet2, init_monadTestnet2, moonbaseAlpha2, init_moonbaseAlpha2, moonbeam2, init_moonbeam2, moonbeamDev2, init_moonbeamDev2, moonriver2, init_moonriver2, morph2, init_morph2, morphHolesky2, init_morphHolesky2, morphSepolia2, init_morphSepolia2, nahmii2, init_nahmii2, nautilus2, init_nautilus2, near2, init_near2, nearTestnet2, init_nearTestnet2, neonDevnet2, init_neonDevnet2, neonMainnet2, init_neonMainnet2, neoxMainnet2, init_neoxMainnet2, neoxT42, init_neoxT42, newton2, init_newton2, nexi2, init_nexi2, nexilix2, init_nexilix2, nibiru2, init_nibiru2, nitrographTestnet2, init_nitrographTestnet2, nomina2, init_nomina2, oasisTestnet2, init_oasisTestnet2, oasys2, init_oasys2, odysseyTestnet2, init_odysseyTestnet2, okc2, init_okc2, omax2, init_omax2, omni2, init_omni2, omniOmega2, init_omniOmega2, oneWorld2, init_oneWorld2, oortMainnetDev2, init_oortmainnetDev2, sourceId372, opBNB2, init_opBNB2, sourceId382, opBNBTestnet2, init_opBNBTestnet2, openledger2, init_openledger2, sourceId392, optimism2, init_optimism2, sourceId402, optimismGoerli2, init_optimismGoerli2, sourceId412, optimismSepolia2, init_optimismSepolia2, optopia2, init_optopia2, optopiaTestnet2, init_optopiaTestnet2, orderly2, init_orderly2, orderlySepolia2, init_orderlySepolia2, otimDevnet2, init_otimDevnet2, palm2, init_palm2, palmTestnet2, init_palmTestnet2, paseoPassetHub2, init_paseoPassetHub2, peaq2, init_peaq2, sourceId422, pgn2, init_pgn2, sourceId432, pgnTestnet2, init_pgnTestnet2, phoenix2, init_phoenix2, planq2, init_planq2, plasma2, init_plasma2, plasmaDevnet2, init_plasmaDevnet2, plasmaTestnet2, init_plasmaTestnet2, playfiAlbireo2, init_playfiAlbireo2, plinga2, init_plinga2, sourceId442, plume2, init_plume2, sourceId452, plumeDevnet2, init_plumeDevnet2, sourceId462, plumeMainnet2, init_plumeMainnet2, sourceId472, plumeSepolia2, init_plumeSepolia2, sourceId482, plumeTestnet2, init_plumeTestnet2, polterTestnet2, init_polterTestnet2, polygon2, init_polygon2, polygonAmoy2, init_polygonAmoy2, polygonMumbai2, init_polygonMumbai2, polygonZkEvm2, init_polygonZkEvm2, polygonZkEvmCardona2, init_polygonZkEvmCardona2, polygonZkEvmTestnet2, init_polygonZkEvmTestnet2, polynomial2, init_polynomial2, polynomialSepolia2, init_polynomialSepolia2, potos2, init_potos2, potosTestnet2, init_potosTestnet2, premiumBlockTestnet2, init_premiumBlock2, pulsechain2, init_pulsechain2, pulsechainV42, init_pulsechainV42, pumpfiTestnet2, init_pumpfiTestnet2, sourceId492, pyrope2, init_pyrope2, ql12, init_ql12, qMainnet2, init_qMainnet2, qTestnet2, init_qTestnet2, quai2, init_quai2, quaiTestnet2, init_quaiTestnet2, radius2, init_radius2, radiusTestnet2, init_radiusTestnet2, reactiveTestnet2, init_reactiveTestnet2, real2, init_real2, redbellyMainnet2, init_redbellyMainnet2, redbellyTestnet2, init_redbellyTestnet2, reddio2, init_reddio2, reddioSepolia2, init_reddioSepolia2, sourceId502, redstone2, init_redstone2, rei2, init_rei2, reyaNetwork2, init_reyaNetwork2, rise2, init_rise2, riseTestnet2, init_riseTestnet2, rivalz2, init_rivalz2, rollux2, init_rollux2, rolluxTestnet2, init_rolluxTestnet2, ronin2, init_ronin2, root2, init_root2, rootPorcini2, init_rootPorcini2, rootstock2, init_rootstock2, rootstockTestnet2, init_rootstockTestnet2, sourceId512, rss32, init_rss32, sourceId522, rss3Sepolia2, init_rss3Sepolia2, saakuru2, init_saakuru2, saga2, init_saga2, saigon2, init_saigon2, sanko2, init_sanko2, sapphire2, init_sapphire2, sapphireTestnet2, init_sapphireTestnet2, satoshiVM2, init_satoshivm2, satoshiVMTestnet2, init_satoshivmTestnet2, scroll2, init_scroll2, scrollSepolia2, init_scrollSepolia2, sei2, init_sei2, seismicDevnet2, init_seismicDevnet2, seiTestnet2, init_seiTestnet2, sentrix2, init_sentrix2, sentrixTestnet2, init_sentrixTestnet2, sepolia2, init_sepolia2, sourceId532, shape2, init_shape2, sourceId542, shapeSepolia2, init_shapeSepolia2, shardeum2, init_shardeum2, shardeumSphinx2, init_shardeumSphinx2, shibarium2, init_shibarium2, shibariumTestnet2, init_shibariumTestnet2, shiden2, init_shiden2, shimmer2, init_shimmer2, shimmerTestnet2, init_shimmerTestnet2, sidraChain2, init_sidra2, silentData2, init_silentdata2, silicon2, init_silicon2, siliconSepolia2, init_siliconSepolia2, sixProtocol2, init_sixProtocol2, skaleBlockBrawlers2, init_brawl2, skaleCalypso2, init_calypso2, skaleCalypsoTestnet2, init_calypsoTestnet2, skaleCryptoBlades2, init_cryptoBlades2, skaleCryptoColosseum2, init_cryptoColosseum2, skaleEuropa2, init_europa2, skaleEuropaTestnet2, init_europaTestnet2, skaleExorde2, init_exorde2, skaleHumanProtocol2, init_humanProtocol2, skaleNebula2, init_nebula2, skaleNebulaTestnet2, init_nebulaTestnet2, skaleRazor2, init_razor2, skaleBase2, init_skaleBase2, skaleBaseSepoliaTestnet2, init_skaleBaseSepoliaTestnet2, skaleTitan2, init_titan2, skaleTitanTestnet2, init_titanTestnet2, sketchpad2, init_sketchpad2, sourceId552, snax2, init_snax2, sourceId562, snaxTestnet2, init_snaxTestnet2, somnia2, init_somnia2, somniaTestnet2, init_somniaTestnet2, sourceId572, soneium2, init_soneium2, sourceId582, soneiumMinato2, init_soneiumMinato2, songbird2, init_songbird2, songbirdTestnet2, init_songbirdTestnet2, sonic2, init_sonic2, sonicBlazeTestnet2, init_sonicBlazeTestnet2, sonicTestnet2, init_sonicTestnet2, sophon2, init_sophon2, sophonTestnet2, init_sophonTestnet2, sova2, init_sova2, sovaSepolia2, init_sovaSepolia2, spicy2, init_spicy2, stable2, init_stable2, stableTestnet2, init_stableTestnet2, statusSepolia2, init_statusNetworkSepolia2, step2, init_step2, story2, init_story2, storyAeneid2, init_storyAeneid2, storyOdyssey2, init_storyOdyssey2, storyTestnet2, init_storyTestnet2, stratis2, init_stratis2, subtensorEvm2, init_subtensorEvm2, superlumio2, init_superlumio2, superposition2, init_superposition2, sourceId592, superseed2, init_superseed2, sourceId602, superseedSepolia2, init_superseedSepolia2, surgeTestnet2, init_surgeTestnet2, swan2, init_swan2, swanProximaTestnet2, init_swanProximaTestnet2, swanSaturnTestnet2, init_swanSaturnTestnet2, swellchain2, init_swellchain2, swellchainTestnet2, init_swellchainTestnet2, swissdlt2, init_swissdlt2, syscoin2, init_syscoin2, syscoinTestnet2, init_syscoinTestnet2, tac2, init_tac2, tacSPB2, init_tacSPB2, taiko2, init_taiko2, taikoHekla2, init_taikoHekla2, taikoHoodi2, init_taikoHoodi2, taikoJolnir2, init_taikoJolnir2, taikoKatla2, init_taikoKatla2, taikoTestnetSepolia2, init_taikoTestnetSepolia2, taraxa2, init_taraxa2, taraxaTestnet2, init_taraxaTestnet2, teaSepolia2, init_teaSepolia2, telcoinTestnet2, init_telcoinTestnet2, telos2, init_telos2, telosTestnet2, init_telosTestnet2, Fp2562, p256_a2, p256_b2, p2562, Fp3842, p384_a2, p384_b2, p3842, Fp5212, p521_a2, p521_b2, p5212, init_nist2, secp256r12, init_p2562, init_P2562, encoder52, integerToCharacter2, characterToInteger2, init_Base642, init_Authentication2, init_WebAuthnP2562, MultisigConfig_exports2, maxOwners2, maxOwnerSignatureBytes2, signatureTypeByte2, zeroSalt2, accountDomain2, configDomain, signatureDomain2, InvalidConfigError2, init_MultisigConfig2, SignatureEnvelope_exports2, serializedP256Type2, serializedWebAuthnType2, serializedKeychainType2, serializedKeychainV2Type2, serializedMultisigType2, magicBytes32, types2, CoercionError2, MissingPropertiesError22, InvalidSerializedError3, VerificationError22, init_SignatureEnvelope2, InvalidPrefixError22, init_TempoAddress2, init_AuthorizationTempo2, tip20Prefix2, init_TokenId2, channelIdParameters2, domainSeparatorParameters2, voucherHashParameters2, eip712DomainTypehash2, nameHash2, versionHash2, voucherTypehash2, init_Channel2, KeyAuthorization_exports2, InvalidWitnessSizeError2, InvalidAdminMarkerError2, init_KeyAuthorization2, init_Period2, init_PoolId2, init_AbiEvent2, transferBlocked2, init_ReceivePolicyReceipt2, init_RpcSchemaTempo2, init_Tick2, init_TokenRole2, toRpcType5, fromRpcType5, init_Transaction4, Transaction_exports4, toRpcType22, fromRpcType22, init_Transaction22, fromRpcType32, toRpcType32, init_TransactionReceipt3, fromRpcType42, toRpcType42, init_TransactionReceipt22, init_TransactionRequest3, TransactionRequest_exports3, init_TransactionRequest22, InvalidStorageKeySizeError22, init_AccessList2, exponents2, init_Value2, FeeCapTooHighError22, InvalidChainIdError22, InvalidSerializedError22, TipAboveFeeCapError22, init_TxEnvelope2, TxEnvelopeTempo_exports2, feePayerMagic2, serializedType2, type2, CallsEmptyError2, InvalidValidityWindowError2, init_TxEnvelopeTempo2, init_VirtualAddress2, init_VirtualMaster2, init_ZoneId2, init_ZoneRpcAuthentication2, init_tempo3, accountKeychain3, addressRegistry2, nonce2, receivePolicyGuard2, signatureVerifier3, stablecoinDex2, tip202, tip20ChannelReserve2, tip20Factory2, tip403Registry2, feeManager2, feeAmm2, validatorConfig2, validatorConfigV22, abis2, init_Abis2, init_Transaction32, init_Account2, accountKeychain22, signatureVerifier22, init_Addresses2, hardforks2, init_Hardfork2, init_utils102, signatureTypes2, spendPolicies2, init_accessKey2, init_Formatters2, concurrentCounts2, init_concurrent2, maxExpirySecs2, chainConfig52, init_chainConfig52, tempo2, init_tempo22, tempoDevnet2, init_tempoDevnet2, tempoLocalnet2, init_tempoLocalnet2, tempoModerato2, init_tempoModerato2, tenet2, init_tenet2, ternoa2, init_ternoa2, thaiChain2, init_thaiChain2, that2, init_that2, theta2, init_theta2, thetaTestnet2, init_thetaTestnet2, thunderCore2, init_thunderCore2, thunderTestnet2, init_thunderTestnet2, tiktrixTestnet2, init_tiktrixTestnet2, tomb2, init_tomb2, treasure2, init_treasure2, treasureTopaz2, init_treasureTopaz2, tron2, init_tron2, tronNile2, init_tronNile2, tronShasta2, init_tronShasta2, ubiq2, init_ubiq2, ultra2, init_ultra2, ultraTestnet2, init_ultraTestnet2, ultron2, init_ultron2, ultronTestnet2, init_ultronTestnet2, sourceId612, unichain2, init_unichain2, sourceId622, unichainSepolia2, init_unichainSepolia2, unique2, init_unique2, uniqueOpal2, init_uniqueOpal2, uniqueQuartz2, init_uniqueQuartz2, unreal2, init_unreal2, valygoNft2, init_valygoNft2, valygoSmartchain2, init_valygoSmartchain2, vana2, init_vana2, vanaMoksha2, init_vanaMoksha2, vanar2, init_vanar2, vechain2, init_vechain2, velas2, init_velas2, viction2, init_viction2, victionTestnet2, init_victionTestnet2, vision2, init_vision2, visionTestnet2, init_visionTestnet2, wanchain2, init_wanchain2, wanchainTestnet2, init_wanchainTestnet2, weaveVMAlphanet2, init_weavevmAlphanet2, wemix2, init_wemix2, wemixTestnet2, init_wemixTestnet2, westendAssetHub2, init_westendAssetHub2, whitechain2, init_whitechain2, whitechainSepolia2, init_whitechainSepolia2, whitechainTestnet2, init_whitechainTestnet2, wmcTestnet2, init_wmcTestnet2, sourceId632, worldchain2, init_worldchain2, sourceId642, worldchainSepolia2, init_worldchainSepolia2, worldLand2, init_worldLand2, xai2, init_xai2, xaiTestnet2, init_xaiTestnet2, xdc2, init_xdc2, xdcTestnet2, init_xdcTestnet2, xgr2, init_xgr2, xLayer2, init_xLayer2, xLayerTestnet2, init_xLayerTestnet2, xoneMainnet2, init_xoneMainnet2, xoneTestnet2, init_xoneTestnet2, xphereMainnet2, init_xphereMainnet2, xphereTestnet2, init_xphereTestnet2, xpla2, init_xpla2, xrOne2, init_xrOne2, xrplevm2, init_xrplevm2, xrplevmDevnet2, init_xrplevmDevnet2, xrplevmTestnet2, init_xrplevmTestnet2, xrSepolia2, init_xrSepolia2, yooldoVerse2, init_yooldoVerse2, yooldoVerseTestnet2, init_yooldoVerseTestnet2, zenchainTestnet2, init_zenchainTestnet2, zeniq2, init_zeniq2, zeroNetwork2, init_zeroNetwork2, zetachain2, init_zetachain2, zetachainAthensTestnet2, init_zetachainAthensTestnet2, zhejiang2, init_zhejiang2, zilliqa2, init_zilliqa2, zilliqaTestnet2, init_zilliqaTestnet2, sourceId652, zircuit2, init_zircuit2, sourceId662, zircuitGarfieldTestnet2, init_zircuitGarfieldTestnet2, zkFair2, init_zkFair2, zkFairTestnet2, init_zkFairTestnet2, zkLinkNova2, init_zkLinkNova2, zkLinkNovaSepoliaTestnet2, init_zkLinkNovaSepoliaTestnet2, zksync2, init_zksync2, zksyncInMemoryNode2, init_zksyncInMemoryNode2, zksyncLocalCustomHyperchain2, init_zksyncLocalCustomHyperchain2, zksyncLocalHyperchain2, init_zksyncLocalHyperchain2, zksyncLocalHyperchainL12, init_zksyncLocalHyperchainL12, zksyncLocalNode2, init_zksyncLocalNode2, zksyncSepoliaTestnet2, init_zksyncSepoliaTestnet2, zkXPLA2, init_zkXPLA2, zkXPLATestnet2, init_zkXPLATestnet2, sourceId672, zora2, init_zora2, sourceId682, zoraSepolia2, init_zoraSepolia2, sourceId692, zoraTestnet2, init_zoraTestnet2, chains_exports2, init_chains2, LOOPBACK_HOSTS, loopbackSet, MAPPED, NAT64, dotted, RpcUrlError, label, init_rpc_identity, init_defineChain22, version42, init_version42, errorConfig22, BaseError42, init_base32, IntegerOutOfRangeError32, SizeOverflowError42, init_encoding22, init_isHex22, init_size22, init_trim22, SliceOffsetOutOfBoundsError42, SizeExceedsPaddingSizeError42, init_data22, init_pad22, hexes42, encoder62, init_toHex22, encoder7, charCodeMap32, init_toBytes22, init_fromHex22, init_formatter22, transactionType22, defineTransaction22, init_transaction42, defineBlock22, init_block32, init_log32, receiptStatuses22, defineTransactionReceipt22, init_transactionReceipt22, maxInt832, maxInt1632, maxInt2432, maxInt3232, maxInt4032, maxInt4832, maxInt5632, maxInt6432, maxInt7232, maxInt8032, maxInt8832, maxInt9632, maxInt10432, maxInt11232, maxInt12032, maxInt12832, maxInt13632, maxInt14432, maxInt15232, maxInt16032, maxInt16832, maxInt17632, maxInt18432, maxInt19232, maxInt20032, maxInt20832, maxInt21632, maxInt22432, maxInt23232, maxInt24032, maxInt24832, maxInt25632, minInt832, minInt1632, minInt2432, minInt3232, minInt4032, minInt4832, minInt5632, minInt6432, minInt7232, minInt8032, minInt8832, minInt9632, minInt10432, minInt11232, minInt12032, minInt12832, minInt13632, minInt14432, minInt15232, minInt16032, minInt16832, minInt17632, minInt18432, minInt19232, minInt20032, minInt20832, minInt21632, minInt22432, minInt23232, minInt24032, minInt24832, minInt25632, maxUint832, maxUint1632, maxUint2432, maxUint3232, maxUint4032, maxUint4832, maxUint5632, maxUint6432, maxUint7232, maxUint8032, maxUint8832, maxUint9632, maxUint10432, maxUint11232, maxUint12032, maxUint12832, maxUint13632, maxUint14432, maxUint15232, maxUint16032, maxUint16832, maxUint17632, maxUint18432, maxUint19232, maxUint20032, maxUint20832, maxUint21632, maxUint22432, maxUint23232, maxUint24032, maxUint24832, maxUint25632, init_number32, init_concat22, NegativeOffsetError32, PositionOutOfBoundsError32, RecursiveReadLimitExceededError32, init_cursor42, staticCursor32, init_cursor5, init_toRlp22, gweiUnits22, init_unit32, init_formatUnits22, init_formatGwei22, InvalidLegacyVError22, InvalidSerializableTransactionError22, InvalidStorageKeySizeError32, init_transaction5, init_serializeAuthorizationList22, init_blobsToCommitments22, init_blobsToProofs22, crypto3, init_cryptoNode22, isLE22, swap32IfBE22, Hash22, init_utils112, HashMD22, SHA256_IV22, init_md22, U32_MASK6422, _32n22, rotlSH22, rotlSL22, rotlBH22, rotlBL22, init_u6422, SHA256_K22, SHA256_W22, SHA25622, sha25652, init_sha222, sha2566, init_sha25632, init_sha2564, init_commitmentToVersionedHash22, init_commitmentsToVersionedHashes22, blobsPerTransaction22, bytesPerFieldElement22, fieldElementsPerBlob22, bytesPerBlob22, maxBytesPerTransaction22, init_blob32, versionedHashVersionKzg22, init_kzg22, BlobSizeTooLargeError22, EmptyBlobError22, InvalidVersionedHashSizeError22, InvalidVersionedHashVersionError22, init_blob4, init_toBlobs22, init_toBlobSidecars22, InvalidAddressError32, init_address32, InvalidChainIdError32, init_chain22, ExecutionRevertedError22, FeeCapTooHighError32, FeeCapTooLowError22, NonceTooHighError22, NonceTooLowError22, NonceMaxValueError22, InsufficientFundsError22, IntrinsicGasTooHighError22, IntrinsicGasTooLowError22, TransactionTypeNotSupportedError22, TipAboveFeeCapError32, init_node22, LruMap32, init_lru32, _0n72, _1n72, _2n52, _7n22, _256n22, _0x71n22, SHA3_PI22, SHA3_ROTL22, _SHA3_IOTA22, IOTAS22, SHA3_IOTA_H22, SHA3_IOTA_L22, rotlH22, rotlL22, Keccak22, gen22, keccak_25622, init_sha322, init_keccak25622, checksumAddressCache22, init_getAddress22, addressRegex32, isAddressCache22, init_isAddress22, init_slice22, init_assertTransaction22, init_getTransactionType22, init_serializeAccessList22, init_serializeTransaction22, _0n8, _1n8, hasHexBuiltin22, hexes5, asciis22, isPosBig22, bitMask22, u8n22, u8fr22, validatorFns22, init_utils12, HMAC22, hmac22, init_hmac22, _0n9, _1n9, _2n6, _3n32, _4n32, _5n22, _8n22, FIELD_FIELDS22, init_modular22, os2ip22, init_hash_to_curve22, _0n10, _1n10, pointPrecomputes22, pointWindowSizes22, init_curve22, DERErr22, DER22, _0n11, _1n11, _2n7, _3n4, _4n4, init_weierstrass22, init_shortw_utils22, secp256k1_exports22, secp256k1P22, secp256k1N22, _0n12, _1n12, _2n8, divNearest22, Fpk122, secp256k122, TAGGED_HASH_PREFIXES22, pointToBytes22, numTo32b22, modP22, modN22, Point22, GmulAdd22, num22, schnorr22, isoMap22, mapSWU22, secp256k1_hasher22, hashToCurve22, encodeToCurve22, init_secp256k122, init_publicKeyToAddress22, init_recoverPublicKey22, init_recoverAddress22, presignMessagePrefix22, init_strings22, init_toPrefixedMessage22, init_hashMessage22, init_recoverMessageAddress22, init_esm32, vbs_policy_exports, VBS_DEFAULT_EK_ROOTS, init_vbs_policy, host_admission_bundle_exports, Q6, h, Xi, $0, H0, ye, cn, Yu, Ju, Pa, Qi, _0, L0, Xu, M0, z0, j0, V0, W0, Y0, Q0, ew, Qu, om, ka, fn, es, ts, Ba, Ca, rs, os, ns, is, ss, as, Ra, Nt, cs, fs7, ed, us, nm, ds, im, Na, am, sw, aw, cw, fw, un, pw, Oa, fm, um, dm, pn, se, cr, $t, Ze, rd, lm, od, k, Z, Ha, bs, ln, yt, _a, La, Ma, za, ys, mn, Fa, Ua, xs, Ht, hn, ja, qa, Da, fr, Lr, Va, Ga, bn, $a, xe, Ka, hm, gs, ws, vs, Wa, Za, zr, Ya, Ja, Xa, Es, yn, $e, hw, bw, K, yw, dr, ke, ec, gm, vm, Em, Am, Im, Sm, go, Pm, ww, id, Fr, Ur, Iw, As, Sw, Pw, Tw, kw, Nm, Om, $m, Hm, Bw, Cw, Cm, Rm, sd, Nw, ic, ad, gt, Ow, Lm, zm, Fm, Um, cd, jr, Is, ce, Dt, Vt, Ss, fd, qr, $w, ud, wt, Je, Dr, Dm, ac, pd, hr, Gt, xn, Vr, Gm, gn, Ps, bd, ct, Wm, Ym, ft, Jm, uc, Xm, dc, Ts, wn, pc, yd, Vw, lc7, rh, oh, xd, Bs, gd, X, et, nh, ih, sh, vd, Ed, bc, In, yc, xc, Ad, gc, wc, vc, Ec, Sn, Pn, Ac, Ic, Lt, fh, Io, Mt, Tn, kn, So, Sc, Pc, Zt, Kr, vt, Wr, Cs, Po, Qw, Fe, Ue, Bn, Cn, Rn, Nn, yr, Et, On, $n, Hn, Zr, To, _n, ko, Ln, Mn, zn, Fn, Un, jn, qn, Dn, Vn, Gn, Kn, Wn, Zn, Tc, Rs, e5, Yn, dh, kc, xr, mh, r5, Yr, Bc, Bo, Id, Cc, Sd, hh, Bd, kd, gh, o5, gr, Pd, Ro, Td, yh, n5, ei, Ge, je, No, i5, Ah, Ih, Sh, f5, Hs, Bh, zd, Ld, Nh, Hh, jd, Ar, Ft, ne, Jr, _s, qd, Dd, Fh, x5, Dh, Jh, Fs, $c, Wd, Ms, Hc, Vh, Qr, Ir, Gh, Zd, Gd, Vd, zs, Yd, E5, ri, S5, P5, T5, Jd, k5, B5, Lc, eb, Mc, zc, nb, Xd, Uc, ib, Sr, At, oi, ni, ii, si, ai, ci, fi, ui, Jt, It, eo, Us, ab, js, jc, N5, pi, qc, HS, _S, LS, MS, zS, FS, US, jS, qS, DS, VS, GS, KS, WS, ZS, YS, JS, XS, QS, eP, tP, rP, oP, nP, iP, sP, aP, cP, fP, uP, dP, pP, lP, mP, hP, bP, yP, xP, gP, wP, vP, EP, AP, IP, SP, PP, TP, kP, BP, CP, RP, NP, OP, $P, HP, _P, LP, MP, zP, FP, UP, jP, qP, DP, VP, GP, KP, WP, ZP, YP, JP, XP, QP, eT, tT, rT, oT, nT, iT, sT, aT, cT, fT, uT, dT, pT, lT, mT, hT, bT, yT, xT, gT, wT, vT, mi, Qd, $o, hi, oo, Dc, qs, no, Vc, ep, fb, bi, ub, Gc, io, Kc, rp, op, Ho, np, Yc, Jc, lb, mb, bb, xb, ip, Qc, wi, ef, tf, sp, wb, ap, cp, Eb, nf, fp, M5, Ab, up, dp, cf, Sb, _o, Tr, Pb, ff, uf, df, pp, lp, Qt, Tb, kb, Cb, j, ot, kr, Hb, yp, j5, Ks, q5, D5, xp, Ti, lf, Vs, mf, so, Z5, Y5, Ws, gf, wf, hf, Gs, bf, Ne, Wb, Ep, rr, Af, Yb, If, Jb, Ap, Ip, Sp, Pp, Cr, Xb, Qb, Sf, ey, ty, Ri, Ys, zo, Js, Fo, Pf, Tp, kp, Uo, Bp, Cp, Rp, Np, Cf, Rf, Nf, ry, ny, Op, iy, Hp, ay, Rr, Qs, uy, e2, cy, dy, o2, py, jo, or, by, Of, Lp, f2, qo, Mp, Ni, u2, d2, gy, p2, Oi, ta, ra, vy, Ay, zp, l2, Iy, na, $f, Hf, Fp, Py, Lf, Up, jp, ky, Cy, zf, Ny, Ff, uo, _i, Uf, Oy, h2, b2, y2, x2, My, Fy, Vp, jy, Dy, Gy, Gp, Wy, Kp, Wp, Yy, Xy, e1, r1, Kf, n1, Wf, i1, v2, a1, f1, d1, l1, x1, g1, Zp, E1, I1, Yf, P1, k1, B1, R1, Jp, N1, $1, H1, _1, M1, Xp, Xf, Qf, eu, z1, j1, tu, ru, K1, $2, ou, W1, nu, tl, iu, rl, ol, nl, sl, L2, su, al, cl, aa, ex, tx, uu, FH, UH, jH, qH, DH, VH, GH, KH, WH, ZH, YH, JH, XH, QH, e_, t_, r_, o_, n_, i_, s_, a_, c_, f_, u_, d_, p_, l_, m_, h_, b_, y_, x_, g_, w_, v_, E_, A_, I_, S_, P_, T_, k_, B_, C_, R_, N_, O_, $_, H_, __, L_, M_, z_, F_, U_, j_, q_, D_, V_, G_, K_, W_, Z_, Y_, J_, X_, Q_, eL, tL, rL, oL, nL, iL, sL, aL, cL, fL, uL, dL, pL, lL, mL, hL, bL, yL, xL, gL, wL, vL, EL, AL, IL, SL, PL, fl, du, ox, ul, ix, ev, hu, ll, ml, hl, yl, xl, lu, fa, yu, mu, Mi, zi, ux, gl, pa, wl, vl, la, El, Tl, bx, xx, ma, kl, Bl, xu, wx, vx, Ex, Rl, Ix, Px, kx, wu, Cx, Nl, Nx, Ol, Ox, Hl, lo, Ll, Lx, Fx, Ux, Bt, jx, Iv, Dx, ya, Ml, Sv, Pv, Iu, Gx, Kx, Zx, Nr, xa, Jx, Qx, Fl, tg, og, ig, ag, Ov, $v, fg, dg, lg, hg, yg, xg, wg, Pu, vg, Hv, Eg, Ag, Ct, Ul, Lv, ga, jl, Dl, Vl, $j, Tg, Gl, Kl, Di, Zl, e8, $g, t8, r8, Hg, Xo, Lg, bo, Rq, Nq, Wg, c0, Ou, u0, be, d0, b8, Hu, U62, Zi, V8, nn, I0, mt, O6, I6, $r, ie, S6, A0, S0, $6, Ke, H6, G8, _6, L6, J8, Ku, P6, X8, Hr, k6, B6, eE, MD, Gu, R6, B0, Ig, Sg, Pg, ql, wa, Tu, jv, ku, Gv, Bu, Cu, Bg, o8, n8, i8, s8, a8, Ug, Yl, Jl, Ql, d8, t0, Ea, l8, Fg, en, Ru, r0, m8, Pq, n0, s0, Gg, Rt, f0, Yg, h8, Nu, Jg, x8, r6, g8, w8, v8, o6, rn, E8, _u, ae, Lu, te, l0, n6, A8, s6, zu, Mu, I8, S8, P8, T8, Jq, C8, Wi, b0, y0, m6, h6, b6, O8, p6, x0, y6, w0, M8, v0, g6, w6, z8, v62, F8, U8, A6, D8, Du, qu, E0, q6, V6, fE, dE, J6, init_host_admission_bundle, jb2, $, ra2, Ol2, Hl2, ge2, to3, qu2, Gu2, na2, _s2, _l2, Ll2, Vu2, zl2, Ml2, jl2, Gl2, Kl2, Yl2, Ql2, Db2, Wu2, n02, sa2, ro2, Ls2, zs2, ia2, aa2, Ms2, Us2, Fs2, js2, Ds2, qs2, ca2, Ot2, Gs2, Vs2, Ku2, Ws2, o02, Ks2, s02, ua, a02, Zb, Yb2, Jb2, Xb2, no2, t12, fa2, u02, f02, d02, so2, fr2, _t2, ct2, Yu2, p02, Ju2, S, X3, la2, Qs2, io2, xt2, pa2, ma2, ha2, ya2, ei2, ao2, ba2, ga2, ti2, Lt2, co2, xa2, wa2, va2, dr2, Mr2, Ea2, Aa2, uo2, da2, xe2, ri2, ni2, oi2, Ba2, Pa2, Fr2, Sa2, ka2, Ta2, si2, ii2, Ze2, o12, s12, Q2, i12, pr2, He2, $a2, y02, g02, x02, w02, v02, E02, An2, A02, d12, ef2, jr2, Dr2, h12, ai2, y12, b12, g12, x12, T02, $02, C0, R02, w12, v12, S02, k02, tf2, A12, Ha2, rf2, Et2, I12, O0, _02, L02, z02, nf2, qr2, ci2, je2, Pn2, Wt2, ui2, of2, yr2, B12, sf2, Kt2, ut2, Sn2, j02, La2, cf2, br2, Zt2, lo2, Vr2, ft2, V02, K02, dt2, Z02, Ua2, Y02, Fa2, fi2, po2, ja2, lf2, H12, Da2, ep2, tp2, pf2, li2, mf2, re2, Ye2, rp2, np2, op2, yf, bf2, Ga2, yo, Va2, Wa2, gf2, Ka2, Za2, bo2, go2, Ya2, Ja2, xr2, ap2, $n2, Ut2, xo2, wo2, Cn2, Xa2, Qa2, Xt2, Kr2, lt22, pt2, vo2, Zr2, D12, qe2, Ge2, Eo2, Ao2, Io2, Bo2, wr2, Bt2, Po2, So2, ko2, Yr2, Rn2, To2, Nn2, $o2, Co2, Ro2, No2, Oo2, Ho2, _o2, Lo2, zo2, Mo, Uo2, Fo2, jo2, ec2, mi2, tc2, vr2, dp2, V12, Jr2, rc2, On2, xf2, nc4, wf2, lp2, If2, Af2, yp2, W12, Er2, vf2, _n2, Ef2, mp2, K12, Vo2, Xe2, Ve2, Ln2, Z12, wp2, vp2, Ep2, Q12, gi2, Pp2, Of2, Rf2, Tp2, Rp2, Lf2, Pr2, jt2, ue, Xr2, xi2, zf2, Mf2, Lp2, cg2, Fp2, Kp2, Ai2, ac2, Df2, vi2, cc2, jp2, en2, Sr2, Dp2, qf2, Ff2, Uf2, Ei2, Gf2, lg2, Ko2, hg2, yg2, bg2, Vf2, gg2, xg2, fc2, kr2, rn2, Zo2, Yo2, Jo2, Xo2, Qo2, es2, ts2, rs2, nn2, Pt2, zn2, Ii2, Bi2, Eg2, ns2, pc2, K3, Z3, Y32, J32, X32, Q3, e4, t4, r4, n4, o4, s4, i4, a4, c4, u4, f4, d4, l4, p4, m4, h4, y4, b4, g4, x4, w4, v42, E4, A4, I4, B4, P4, S4, k4, T4, $4, C4, R4, N4, O4, H4, _4, L4, z4, M4, U4, F4, j4, D4, q4, G4, V42, W4, K4, Z4, Y4, J4, X4, Q4, e9, t9, r9, n9, o9, s9, i9, a9, c9, u9, f9, d9, l9, p9, m9, h9, y9, b9, g9, x9, w9, v9, E9, A9, I9, B9, P9, S9, k9, T9, $9, C9, R9, N9, O9, nm2, om2, Mn2, Un2, Fn2, Yf2, tr2, gm2, xm2, vm2, G, st2, Tr2, Pm2, ed2, Cg2, ki2, Rg2, Ng2, td2, ms2, Bc2, Pi2, Pc2, un2, zg2, Mg2, Ti2, Cc2, Rc2, Sc2, Si2, kc2, Re2, Mm2, sd2, or2, Hc2, Fm2, _c2, jm2, id2, ad2, cd2, ud2, Cr2, Dm2, qm2, Lc2, Gm2, Vm2, gs2, Ci2, Dn2, Ri2, fd2, dd2, ld2, qn2, pd2, md2, hd2, yd2, Fc2, jc2, Dc2, Wm2, bd2, gd2, Km2, wd2, Ym2, Rr2, Hi2, Qm2, Dg2, Jm2, eh2, Vg2, th2, Gn2, Ia2, q02, q12, lc8, ss2, an, mc2, cn2, Wf2, am2, wc2, vc2, Sg2, hm2, Zf2, bm2, qc2, Ed2, Xg2, Qg2, ex2, tx2, rx, Gc2, Vc2, Zc2, pn2, Es2, Yc2, ox2, sx, ix2, ax2, ru2, fx2, nu2, Bd2, _h2, ou2, su2, iu2, Gi2, au2, xx2, cu2, kd2, uu2, Td2, $d2, Cd2, Ex2, fu, Nd2, Od2, Zh2, Yh2, mu2, bC, gC, xC, wC, vC, EC, AC, IC, BC, PC, SC, kC, TC, $C, CC, RC, NC, OC, HC, _C, LC, zC, MC, UC, FC, jC, DC, qC, GC, VC, WC, KC, ZC, YC, JC, XC, QC, eR, tR, rR, nR, oR, sR, iR, aR, cR, uR, fR, dR, lR, pR, mR, hR, yR, bR, gR, xR, wR, vR, ER, AR, IR, BR, PR, SR, kR, TR, $R, CR, RR, NR, OR, HR, _R, LR, zR, MR, UR, FR, jR, DR, qR, GR, VR, WR, KR, ZR, YR, JR, XR, QR, eN, tN, rN, nN, Hd2, Xh2, _d2, Mx2, gu2, Md2, Ud2, jd2, Dd2, yu2, Ui2, wu2, bu2, Is2, qd2, Di2, Gd2, Vd2, qi2, Wd2, Xd2, Qd2, vu2, rl2, hn2, vy2, Ct2, u62, Ki2, ol2, f62, d62, Pu2, Nr2, g62, x62, P62, zy2, S62, k62, My2, Xn2, Fy2, $62, C62, ll2, Ky2, Zy2, O62, Ts2, H62, ar2, aL2, cL2, hL2, yL2, G62, bL2, gL2, xL2, AL2, IL2, TL, GL, VL, bl2, J62, gl2, X62, El2, ew2, Ji, gn2, ib2, Hr2, fe2, ab2, cb2, uw2, yz, bz, Mu2, Bl2, Rs2, kb2, Qe2, Cs2, Xi2, xw2, Pb2, ww2, Ew2, Qn2, init_lease_gas_runtime_bundle, OBSOLETE_TX_RPCS, init_chain_selection, chain_reader_exports, init_chain_reader, DEFAULT_RPCS, list2, loopback, stable22, BLOCK_HASH, MAX_PEERS, PEER_METHODS, inRange3, REGISTRY_GET, init_host_identity, KEY, BRAND, isAttestedVerifier, v4mask2, PROVIDER_CHECKS, idPattern, addressPattern, MODES, app, hex64, U6, keys, amount, networkPolicyMessage, byoReleaseMessage, byoConfigMessage, byoOwnerMessage, recordHash, message, appPattern, addressPattern2, hostABI, connectivityABI, SocksHttpsAgent, SocksPublicHttpAgent, DirectHttpsAgent, fields, bookABI, deploymentABI, schemaABI, registryV1ABI, errText, rateLimited, failureText, maxClients, clientMethods, chainAuthorityFromEnv, hexBlock, PINNED_METHODS, reservedFields, LeaseReader, fileWriters, DurableState, RETIRED_PUBLICATION, keptKey, DEFAULT_NETWORK_CHAIN_RPCS, contracts22, formatters42, serializers42, chainConfig62, sourceId702, base22, basePreconf22, lc, HASH, fail, hexBlock2, PINNED_METHODS2, AUTHORITY_ENV, VERIFIER_ENV, TX_BACKEND_ENV, VERIFIER_CLIENT, V, B, METHODS, VERIFIED_METHODS, BACKEND_METHODS, IPV4, MAX_RESPONSE, refused, RELAY_CHAIN_ENV, RELAY_VERIFIER_CONFLICTS, set, relayChainSelected, selected, ROLES, CHECKS, QUALIFICATION_MAX_MS, RECORD_MAX_MS, ipv4, wgKey, address, app2, exact, port, providerRecordMessage, qualificationMessage2, SECURITY_CHECKS, SECURITY, ALL_CHECKS, ONCHAIN_MAX_S, connectivityQualificationABI, bookABI2, KEY2, FORBIDDEN, INTERFACE, PEER, ERC1271, BOOK, FACTORY, VAULT, addr, ID, SIG_TTL, fail2, fingerprint, hashPattern, VERIFIER_MARK, MAX_RPCS, POLICY, POLICY_FORMAT, ANCHOR_KEYS, MAX_ENTRIES, MAX_VALIDITY_SEC, MAX_STALE_SEC, KINDS, ADDR, H32, ZERO, lc2, uint, err, canonical2, FIELDS, contentHash, policyTypedData, policyDigest, BOOK_ABI2, ERC12712, OWN_ABI, REG_ABI, REGISTRY_KEY, PLATFORM_POLICY_OFF, HTTPS, MAX_POLICY_RESPONSE, lc3, leaseHostAdmission, endpointAdmissions, freshAdmissions, lc4, PRODUCTION_BOOK, PRODUCTION_HOST_OWNERSHIP, PRODUCTION_MIRRORS, PRODUCTION_RPCS, PRODUCTION_HOST_POLICY, list, lc5, NOT_ACTIVATED, PUSH_NONCE_PREFIX, PUSH_SIG_PREFIX, FIELDS2, ACCEPT, deny, SHIELD_DOC_FORMAT, APP_PUSH_NONCE_PREFIX, APP_PUSH_SIG_PREFIX, APP_PUSH_MAX_BYTES, APP_TXT_MAX_TTL_S, FIELDS3, LEASE_FIELDS, ORDER_FIELDS, ACCEPT2, HEX64, ADDR2, ZERO64, ZERO40, CATALOG_REF, appLabel, appChallengeName, pushDigest, deny2, exact2, deploymentFields, DEPLOYMENTS_ABI, REGISTRY_ABI, CATALOG_ABI, lc6, TCG_MAX_LOG_BYTES, TCG_MAX_EVENTS, TCG_MAX_ALGS, TCG_SHA256, SIPA_MAX_DEPTH, SIPA_MAX_NODES, EV_NO_ACTION, EV_EVENT_TAG, EV_EFI_VARIABLE_DRIVER_CONFIG, SIPA, SIPA_ID, SIPA_CONTAINERS, SIPA_STRINGS, SIPA_VSM_IDK_INFO, SIPA_VSM_IDKS_INFO, toBuf, scalar, utf16, sha2568, replayPcrs, digestRecomputes, unhashedEvents, sipaRecords, sipaFields, vsmKey, secureBootFromLog, bootCounterFromLog, AVF_ATTESTATION_EXTENSION_OID, AVF_MAX_CERT_BYTES, AVF_MAX_CHAIN_CERTS, AVF_MAX_COMPONENTS, GOOGLE_ATTESTATION_ROOT_SHA256, fpHex, body, dateOf, TPM_MANUFACTURERS_ON_DIE, OID_SAN, OID_TPM_MANUFACTURER, TPM_GENERATED_VALUE, TPM_ST_ATTEST_QUOTE, TPM_ALG_RSA, TPM_ALG_SHA256, TPM_ALG_NULL, TPM_ALG_AES, TPM_ALG_CFB, TPM_ALG_RSASSA, AIK_REQUIRED_ATTRIBUTES, TPMA_DECRYPT, VBS_MAX_REPORT_BYTES, VBS_MAX_LOG_BYTES, VBS_MAX_CERT_BYTES, VBS_MAX_CHAIN_CERTS, VBS_MAX_ATTEST_BYTES, VBS_MAX_SIG_BYTES, VBS_MAX_TPMT_PUBLIC_BYTES, VBS_MAX_MODULES, VBS_REQUIRED_PCR12, VBS_QUOTE_PCRS, VBS_REPLAYED_PCRS, VBS_FORMAT, VBS_BIND_DOMAIN, ENCLAVE_TYPE_VBS, ENCLAVE_FLAG_FULL_DEBUG_ENABLED, ENCLAVE_FLAG_DYNAMIC_DEBUG_ENABLED, ENCLAVE_FLAG_DYNAMIC_DEBUG_ACTIVE, ENCLAVE_DEBUG_FLAGS, sha2569, ED25519_SPKI_PREFIX, hexOf, eq, b64url, unsigned, VBS_REPORT_SCHEME_SHA256_RSA_PSS, enclaveMeasurementKey, fpHex2, dateOf2, toCert, pemCerts, b64cap, IDENTITY_LABEL, EMPTY, u32be, u16be, HVNODE_FORMAT, HVNODE_BIND_DOMAIN, HVNODE_TECHNOLOGY, HVNODE_TIER, HVNODE_MAX_STATEMENT_BYTES, HVNODE_OMISSIONS, HVNODE_SCOPE, ED25519_SPKI_PREFIX2, hexOf2, eq2, b64cap2, buf, RETIRED_FORMATS, sha25610, ENV, NODE_OPS, ED25519_SPKI_PREFIX3, HV_NODE_REQUIRED_PCR12, ATTACH_DOMAIN, HEX32, ID32, ED25519_SPKI_PREFIX4, shieldResponderId, appZoneShieldParty, HEX322, MAX_PENDING_PER_EK, sha256hex, b64, fail3, MAX_REPLY_BYTES, RELEASE_DOMAIN, SEAL_INFO, RESPONSE_DOMAIN, ED25519_PKCS8_PREFIX, X25519_PKCS8_PREFIX, sha25611, b322, opFresh, HEX, u323, fields2, BASE, META, REPORT_SIZE, requireThat, zero, ctEqual, VBS_VM_REPORT_CHECKS, VBS_VM_REPORT_SCOPE, hash52, equal, CORE, OPS, parseVbsVmReport, ABI1, ABI2, ISA_X86_64, ISA_AARCH64, ISA_PULLEY64, EXEC_JIT, EXEC_INTERPRETER, WX_ENFORCED, CACHE_NONE, CACHE_AUTHENTICATED, BIND2_DOMAIN, CACHE_KEY_DOMAIN, FIELDS4, HEX642, VBS_APP_MAX_REPORT_CHARS, VBS_APP_MAX_VM_REPORT_CHARS, platformsValid, platformAdmitted, vbsAppUserData, MAX_CONFIG_BYTES, MAX_MANIFEST_BYTES, COMPONENT_PREAMBLE, DESKTOP_PORTS, DESKTOP_RELEASE_SCHEMA, RELEASE_FIELDS, HASH_FIELDS, HASH2, CID, REQUIRED_PORTS, MAX_DEPTH, nonzero, isCid, HEX2, HEX3, SHIELD_DOC_FORMAT2, SHIELD_DOC_TIER, HEX4, deny3, b64Chars, ENVELOPE_BYTES, SHIELD_CHALLENGE_MAX_BYTES, HVNODE_RAD_BODY_MAX_CHARS, SHIELD_ATTEST_MAX_BYTES, MAX_LIVE_PER_EK, LIMITS, V4, REGISTRY_GET_LAYOUTS, getAbi, SCHEMA_ABI2, reverted, APP_ZONE_SHIELD_SESSION_PATH, KDS, VCEK_GUID, MAX_KDS_BYTES, AMD_ARK_SHA256, fpHex3, _chainCache, _vcekCache, VCEK_CACHE_MAX, TCB_FIELDS, fmtTcb, AMD, SPL_OID, MODES2, LEGACY_WX_RELEASES, SECCOMP_UNSTATED_RELEASES, SELFTEST_ROLES, OPENS, required, optional, PROFILE_KIND, MAX_PROFILE_BYTES, MAX_RUNTIME_BYTES, MAX_RPC_RESPONSE_BYTES, A, B2, U, T3, owned, PROFILE_LAYOUT, LINKS, CONTRACT_PIN_KEYS, plain, address2, hash322, zero2, text;
 var init_network_runtime_bundle = __esm({
   async "relay/network-runtime.bundle.mjs"() {
     require2 = bundleRequire(import.meta.url);
@@ -97615,22 +97719,22 @@ var init_network_runtime_bundle = __esm({
           }
         };
         AbiDecodingDataSizeInvalidError2 = class extends BaseError22 {
-          constructor({ data, size: size6 }) {
+          constructor({ data: data2, size: size6 }) {
             super([
               `Data size of ${size6} bytes is invalid.`,
               "Size must be in increments of 32 bytes (size % 32 === 0)."
             ].join("\n"), {
-              metaMessages: [`Data: ${data} (${size6} bytes)`],
+              metaMessages: [`Data: ${data2} (${size6} bytes)`],
               name: "AbiDecodingDataSizeInvalidError"
             });
           }
         };
         AbiDecodingDataSizeTooSmallError2 = class extends BaseError22 {
-          constructor({ data, params, size: size6 }) {
+          constructor({ data: data2, params, size: size6 }) {
             super([`Data size of ${size6} bytes is too small for given parameters.`].join("\n"), {
               metaMessages: [
                 `Params: (${formatAbiParams2(params, { includeName: true })})`,
-                `Data:   ${data} (${size6} bytes)`
+                `Data:   ${data2} (${size6} bytes)`
               ],
               name: "AbiDecodingDataSizeTooSmallError"
             });
@@ -97652,7 +97756,7 @@ var init_network_runtime_bundle = __esm({
               writable: true,
               value: void 0
             });
-            this.data = data;
+            this.data = data2;
             this.params = params;
             this.size = size6;
           }
@@ -97819,13 +97923,13 @@ var init_network_runtime_bundle = __esm({
           }
         };
         DecodeLogDataMismatch2 = class extends BaseError22 {
-          constructor({ abiItem, data, params, size: size6 }) {
+          constructor({ abiItem, data: data2, params, size: size6 }) {
             super([
               `Data size of ${size6} bytes is too small for non-indexed event parameters.`
             ].join("\n"), {
               metaMessages: [
                 `Params: (${formatAbiParams2(params, { includeName: true })})`,
-                `Data:   ${data} (${size6} bytes)`
+                `Data:   ${data2} (${size6} bytes)`
               ],
               name: "DecodeLogDataMismatch"
             });
@@ -97854,7 +97958,7 @@ var init_network_runtime_bundle = __esm({
               value: void 0
             });
             this.abiItem = abiItem;
-            this.data = data;
+            this.data = data2;
             this.params = params;
             this.size = size6;
           }
@@ -98117,16 +98221,16 @@ var init_network_runtime_bundle = __esm({
             this.posOut = 0;
             this.pos = 0;
           }
-          update(data) {
+          update(data2) {
             aexists2(this);
-            data = toBytes22(data);
-            abytes3(data);
+            data2 = toBytes22(data2);
+            abytes3(data2);
             const { blockLen, state } = this;
-            const len = data.length;
+            const len = data2.length;
             for (let pos = 0; pos < len; ) {
               const take = Math.min(blockLen - this.pos, len - pos);
               for (let i = 0; i < take; i++)
-                state[this.pos++] ^= data[pos++];
+                state[this.pos++] ^= data2[pos++];
               if (this.pos === blockLen)
                 this.keccak();
             }
@@ -98816,13 +98920,13 @@ var init_network_runtime_bundle = __esm({
           }
         };
         TransactionExecutionError2 = class extends BaseError22 {
-          constructor(cause, { account, docsPath: docsPath92, chain, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, to: to4, value }) {
+          constructor(cause, { account, docsPath: docsPath92, chain, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, to: to4, value }) {
             const prettyArgs = prettyPrint2({
               chain: chain && `${chain?.name} (id: ${chain?.id})`,
               from: account?.address,
               to: to4,
               value: typeof value !== "undefined" && `${formatEther2(value)} ${chain?.nativeCurrency?.symbol || "ETH"}`,
-              data,
+              data: data2,
               gas,
               gasPrice: typeof gasPrice !== "undefined" && `${formatGwei3(gasPrice)} gwei`,
               maxFeePerGas: typeof maxFeePerGas !== "undefined" && `${formatGwei3(maxFeePerGas)} gwei`,
@@ -98932,13 +99036,13 @@ var init_network_runtime_bundle = __esm({
         init_transaction4();
         init_utils32();
         CallExecutionError2 = class extends BaseError22 {
-          constructor(cause, { account: account_, docsPath: docsPath92, chain, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, to: to4, value, stateOverride }) {
+          constructor(cause, { account: account_, docsPath: docsPath92, chain, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, to: to4, value, stateOverride }) {
             const account = account_ ? parseAccount2(account_) : void 0;
             let prettyArgs = prettyPrint2({
               from: account?.address,
               to: to4,
               value: typeof value !== "undefined" && `${formatEther2(value)} ${chain?.nativeCurrency?.symbol || "ETH"}`,
-              data,
+              data: data2,
               gas,
               gasPrice: typeof gasPrice !== "undefined" && `${formatGwei3(gasPrice)} gwei`,
               maxFeePerGas: typeof maxFeePerGas !== "undefined" && `${formatGwei3(maxFeePerGas)} gwei`,
@@ -99045,14 +99149,14 @@ ${prettyStateOverride2(stateOverride)}`;
           }
         };
         ContractFunctionRevertedError2 = class extends BaseError22 {
-          constructor({ abi: abi22, data, functionName, message: message2, cause: error }) {
+          constructor({ abi: abi22, data: data2, functionName, message: message2, cause: error }) {
             let cause;
             let decodedData;
             let metaMessages;
             let reason;
-            if (data && data !== "0x") {
+            if (data2 && data2 !== "0x") {
               try {
-                decodedData = decodeErrorResult2({ abi: abi22, data, cause: error });
+                decodedData = decodeErrorResult2({ abi: abi22, data: data2, cause: error });
                 const { abiItem, errorName, args: errorArgs } = decodedData;
                 if (errorName === "Error") {
                   reason = errorArgs[0];
@@ -99119,7 +99223,7 @@ ${prettyStateOverride2(stateOverride)}`;
               value: void 0
             });
             this.data = decodedData;
-            this.raw = data;
+            this.raw = data2;
             this.reason = reason;
             this.signature = signature;
           }
@@ -99151,7 +99255,7 @@ ${prettyStateOverride2(stateOverride)}`;
           }
         };
         RawContractError2 = class extends BaseError22 {
-          constructor({ data, message: message2 }) {
+          constructor({ data: data2, message: message2 }) {
             super(message2 || "", { name: "RawContractError" });
             Object.defineProperty(this, "code", {
               enumerable: true,
@@ -99165,7 +99269,7 @@ ${prettyStateOverride2(stateOverride)}`;
               writable: true,
               value: void 0
             });
-            this.data = data;
+            this.data = data2;
           }
         };
       }
@@ -99781,21 +99885,21 @@ ${prettyStateOverride2(stateOverride)}`;
             this.buffer = new Uint8Array(blockLen);
             this.view = createView2(this.buffer);
           }
-          update(data) {
+          update(data2) {
             aexists2(this);
-            data = toBytes22(data);
-            abytes3(data);
+            data2 = toBytes22(data2);
+            abytes3(data2);
             const { view, buffer: buffer22, blockLen } = this;
-            const len = data.length;
+            const len = data2.length;
             for (let pos = 0; pos < len; ) {
               const take = Math.min(blockLen - this.pos, len - pos);
               if (take === blockLen) {
-                const dataView = createView2(data);
+                const dataView = createView2(data2);
                 for (; blockLen <= len - pos; pos += blockLen)
                   this.process(dataView, pos);
                 continue;
               }
-              buffer22.set(data.subarray(pos, pos + take), this.pos);
+              buffer22.set(data2.subarray(pos, pos + take), this.pos);
               this.pos += take;
               pos += take;
               if (this.pos === blockLen) {
@@ -99803,7 +99907,7 @@ ${prettyStateOverride2(stateOverride)}`;
                 this.pos = 0;
               }
             }
-            this.length += data.length;
+            this.length += data2.length;
             this.roundClean();
             return this;
           }
@@ -100423,29 +100527,29 @@ ${prettyStateOverride2(stateOverride)}`;
           Err: DERErr2,
           // Basic building block is TLV (Tag-Length-Value)
           _tlv: {
-            encode: (tag, data) => {
+            encode: (tag, data2) => {
               const { Err: E } = DER2;
               if (tag < 0 || tag > 256)
                 throw new E("tlv.encode: wrong tag");
-              if (data.length & 1)
+              if (data2.length & 1)
                 throw new E("tlv.encode: unpadded data");
-              const dataLen = data.length / 2;
+              const dataLen = data2.length / 2;
               const len = numberToHexUnpadded2(dataLen);
               if (len.length / 2 & 128)
                 throw new E("tlv.encode: long form length too big");
               const lenLen = dataLen > 127 ? numberToHexUnpadded2(len.length / 2 | 128) : "";
               const t = numberToHexUnpadded2(tag);
-              return t + lenLen + len + data;
+              return t + lenLen + len + data2;
             },
             // v - value, l - left bytes (unparsed)
-            decode(tag, data) {
+            decode(tag, data2) {
               const { Err: E } = DER2;
               let pos = 0;
               if (tag < 0 || tag > 256)
                 throw new E("tlv.encode: wrong tag");
-              if (data.length < 2 || data[pos++] !== tag)
+              if (data2.length < 2 || data2[pos++] !== tag)
                 throw new E("tlv.decode: wrong tlv");
-              const first = data[pos++];
+              const first = data2[pos++];
               const isLong = !!(first & 128);
               let length = 0;
               if (!isLong)
@@ -100456,7 +100560,7 @@ ${prettyStateOverride2(stateOverride)}`;
                   throw new E("tlv.decode(long): indefinite length not supported");
                 if (lenLen > 4)
                   throw new E("tlv.decode(long): byte length is too big");
-                const lengthBytes = data.subarray(pos, pos + lenLen);
+                const lengthBytes = data2.subarray(pos, pos + lenLen);
                 if (lengthBytes.length !== lenLen)
                   throw new E("tlv.decode: length bytes not complete");
                 if (lengthBytes[0] === 0)
@@ -100467,10 +100571,10 @@ ${prettyStateOverride2(stateOverride)}`;
                 if (length < 128)
                   throw new E("tlv.decode(long): not minimal encoding");
               }
-              const v = data.subarray(pos, pos + length);
+              const v = data2.subarray(pos, pos + length);
               if (v.length !== length)
                 throw new E("tlv.decode: wrong value length");
-              return { v, l: data.subarray(pos + length) };
+              return { v, l: data2.subarray(pos + length) };
             }
           },
           // https://crypto.stackexchange.com/a/57734 Leftmost bit of first byte is 'negative' flag,
@@ -100489,19 +100593,19 @@ ${prettyStateOverride2(stateOverride)}`;
                 throw new E("unexpected DER parsing assertion: unpadded hex");
               return hex;
             },
-            decode(data) {
+            decode(data2) {
               const { Err: E } = DER2;
-              if (data[0] & 128)
+              if (data2[0] & 128)
                 throw new E("invalid signature integer: negative");
-              if (data[0] === 0 && !(data[1] & 128))
+              if (data2[0] === 0 && !(data2[1] & 128))
                 throw new E("invalid signature integer: unnecessary leading zero");
-              return bytesToNumberBE2(data);
+              return bytesToNumberBE2(data2);
             }
           },
           toSig(hex) {
             const { Err: E, _int: int, _tlv: tlv3 } = DER2;
-            const data = ensureBytes2("signature", hex);
-            const { v: seqBytes, l: seqLeftBytes } = tlv3.decode(48, data);
+            const data2 = ensureBytes2("signature", hex);
+            const { v: seqBytes, l: seqLeftBytes } = tlv3.decode(48, data2);
             if (seqLeftBytes.length)
               throw new E("invalid signature: left bytes after parsing");
             const { v: rBytes, l: rLeftBytes } = tlv3.decode(2, seqBytes);
@@ -100718,12 +100822,12 @@ ${prettyStateOverride2(stateOverride)}`;
         init_base3();
         init_transaction4();
         EstimateGasExecutionError2 = class extends BaseError22 {
-          constructor(cause, { account, docsPath: docsPath92, chain, data, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, to: to4, value }) {
+          constructor(cause, { account, docsPath: docsPath92, chain, data: data2, gas, gasPrice, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce22, to: to4, value }) {
             const prettyArgs = prettyPrint2({
               from: account?.address,
               to: to4,
               value: typeof value !== "undefined" && `${formatEther2(value)} ${chain?.nativeCurrency?.symbol || "ETH"}`,
-              data,
+              data: data2,
               gas,
               gasPrice: typeof gasPrice !== "undefined" && `${formatGwei3(gasPrice)} gwei`,
               maxFeePerGas: typeof maxFeePerGas !== "undefined" && `${formatGwei3(maxFeePerGas)} gwei`,
@@ -103840,7 +103944,7 @@ ${prettyStateOverride2(stateOverride)}`;
         init_base3();
         init_utils32();
         OffchainLookupError2 = class extends BaseError22 {
-          constructor({ callbackSelector, cause, data, extraData, sender, urls }) {
+          constructor({ callbackSelector, cause, data: data2, extraData, sender, urls }) {
             super(cause.shortMessage || "An error occurred while fetching for an offchain result.", {
               cause,
               metaMessages: [
@@ -103852,7 +103956,7 @@ ${prettyStateOverride2(stateOverride)}`;
                   ...urls.map((url) => `    ${getUrl2(url)}`)
                 ],
                 `  Sender: ${sender}`,
-                `  Data: ${data}`,
+                `  Data: ${data2}`,
                 `  Callback selector: ${callbackSelector}`,
                 `  Extra data: ${extraData}`
               ].flat(),
@@ -104146,14 +104250,14 @@ ${prettyStateOverride2(stateOverride)}`;
                 docsPath: "/docs/contract/writeContract"
               });
             const account = account_ ? parseAccount2(account_) : null;
-            const data = encodeFunctionData2({
+            const data2 = encodeFunctionData2({
               abi: abi22,
               args,
               functionName
             });
             try {
               return await getAction2(client, actionFn, name)({
-                data,
+                data: data2,
                 to: address3,
                 account,
                 ...request
@@ -104340,12 +104444,12 @@ ${prettyStateOverride2(stateOverride)}`;
       "node_modules/viem/_esm/errors/ens.js"() {
         init_base3();
         EnsAvatarInvalidMetadataError2 = class extends BaseError22 {
-          constructor({ data }) {
+          constructor({ data: data2 }) {
             super("Unable to extract image from metadata. The metadata may be malformed or invalid.", {
               metaMessages: [
                 "- Metadata must be a JSON object with at least an `image`, `image_url` or `image_data` property.",
                 "",
-                `Provided data: ${JSON.stringify(data)}`
+                `Provided data: ${JSON.stringify(data2)}`
               ],
               name: "EnsAvatarInvalidMetadataError"
             });
@@ -104929,16 +105033,16 @@ ${prettyStateOverride2(stateOverride)}`;
           }
           return buf2.buffer.slice(buf2.byteOffset, buf2.byteOffset + buf2.length);
         }
-        function toBuffer(data) {
+        function toBuffer(data2) {
           toBuffer.readOnly = true;
-          if (Buffer.isBuffer(data)) return data;
+          if (Buffer.isBuffer(data2)) return data2;
           let buf2;
-          if (data instanceof ArrayBuffer) {
-            buf2 = new FastBuffer(data);
-          } else if (ArrayBuffer.isView(data)) {
-            buf2 = new FastBuffer(data.buffer, data.byteOffset, data.byteLength);
+          if (data2 instanceof ArrayBuffer) {
+            buf2 = new FastBuffer(data2);
+          } else if (ArrayBuffer.isView(data2)) {
+            buf2 = new FastBuffer(data2.buffer, data2.byteOffset, data2.byteLength);
           } else {
-            buf2 = Buffer.from(data);
+            buf2 = Buffer.from(data2);
             toBuffer.readOnly = false;
           }
           return buf2;
@@ -105248,9 +105352,9 @@ ${prettyStateOverride2(stateOverride)}`;
            * @param {Function} callback Callback
            * @public
            */
-          decompress(data, fin, callback) {
+          decompress(data2, fin, callback) {
             zlibLimiter.add((done) => {
-              this._decompress(data, fin, (err2, result) => {
+              this._decompress(data2, fin, (err2, result) => {
                 done();
                 callback(err2, result);
               });
@@ -105264,9 +105368,9 @@ ${prettyStateOverride2(stateOverride)}`;
            * @param {Function} callback Callback
            * @public
            */
-          compress(data, fin, callback) {
+          compress(data2, fin, callback) {
             zlibLimiter.add((done) => {
-              this._compress(data, fin, (err2, result) => {
+              this._compress(data2, fin, (err2, result) => {
                 done();
                 callback(err2, result);
               });
@@ -105280,7 +105384,7 @@ ${prettyStateOverride2(stateOverride)}`;
            * @param {Function} callback Callback
            * @private
            */
-          _decompress(data, fin, callback) {
+          _decompress(data2, fin, callback) {
             const endpoint2 = this._isServer ? "client" : "server";
             if (!this._inflate) {
               const key = `${endpoint2}_max_window_bits`;
@@ -105296,7 +105400,7 @@ ${prettyStateOverride2(stateOverride)}`;
               this._inflate.on("data", inflateOnData);
             }
             this._inflate[kCallback] = callback;
-            this._inflate.write(data);
+            this._inflate.write(data2);
             if (fin) this._inflate.write(TRAILER);
             this._inflate.flush(() => {
               const err2 = this._inflate[kError];
@@ -105306,7 +105410,7 @@ ${prettyStateOverride2(stateOverride)}`;
                 callback(err2);
                 return;
               }
-              const data2 = bufferUtil.concat(
+              const data3 = bufferUtil.concat(
                 this._inflate[kBuffers],
                 this._inflate[kTotalLength]
               );
@@ -105320,7 +105424,7 @@ ${prettyStateOverride2(stateOverride)}`;
                   this._inflate.reset();
                 }
               }
-              callback(null, data2);
+              callback(null, data3);
             });
           }
           /**
@@ -105331,7 +105435,7 @@ ${prettyStateOverride2(stateOverride)}`;
            * @param {Function} callback Callback
            * @private
            */
-          _compress(data, fin, callback) {
+          _compress(data2, fin, callback) {
             const endpoint2 = this._isServer ? "server" : "client";
             if (!this._deflate) {
               const key = `${endpoint2}_max_window_bits`;
@@ -105345,17 +105449,17 @@ ${prettyStateOverride2(stateOverride)}`;
               this._deflate.on("data", deflateOnData);
             }
             this._deflate[kCallback] = callback;
-            this._deflate.write(data);
+            this._deflate.write(data2);
             this._deflate.flush(zlib.Z_SYNC_FLUSH, () => {
               if (!this._deflate) {
                 return;
               }
-              let data2 = bufferUtil.concat(
+              let data3 = bufferUtil.concat(
                 this._deflate[kBuffers],
                 this._deflate[kTotalLength]
               );
               if (fin) {
-                data2 = new FastBuffer(data2.buffer, data2.byteOffset, data2.length - 4);
+                data3 = new FastBuffer(data3.buffer, data3.byteOffset, data3.length - 4);
               }
               this._deflate[kCallback] = null;
               this._deflate[kTotalLength] = 0;
@@ -105363,7 +105467,7 @@ ${prettyStateOverride2(stateOverride)}`;
               if (fin && this.params[`${endpoint2}_no_context_takeover`]) {
                 this._deflate.reset();
               }
-              callback(null, data2);
+              callback(null, data3);
             });
           }
         };
@@ -105994,19 +106098,19 @@ ${prettyStateOverride2(stateOverride)}`;
            * @private
            */
           getData(cb3) {
-            let data = EMPTY_BUFFER;
+            let data2 = EMPTY_BUFFER;
             if (this._payloadLength) {
               if (this._bufferedBytes < this._payloadLength) {
                 this._loop = false;
                 return;
               }
-              data = this.consume(this._payloadLength);
+              data2 = this.consume(this._payloadLength);
               if (this._masked && (this._mask[0] | this._mask[1] | this._mask[2] | this._mask[3]) !== 0) {
-                unmask(data, this._mask);
+                unmask(data2, this._mask);
               }
             }
             if (this._opcode > 7) {
-              this.controlMessage(data, cb3);
+              this.controlMessage(data2, cb3);
               return;
             }
             if (this._maxFragments > 0 && ++this._numFragments > this._maxFragments) {
@@ -106022,12 +106126,12 @@ ${prettyStateOverride2(stateOverride)}`;
             }
             if (this._compressed) {
               this._state = INFLATING;
-              this.decompress(data, cb3);
+              this.decompress(data2, cb3);
               return;
             }
-            if (data.length) {
+            if (data2.length) {
               this._messageLength = this._totalPayloadLength;
-              this._fragments.push(data);
+              this._fragments.push(data2);
             }
             this.dataMessage(cb3);
           }
@@ -106038,9 +106142,9 @@ ${prettyStateOverride2(stateOverride)}`;
            * @param {Function} cb Callback
            * @private
            */
-          decompress(data, cb3) {
+          decompress(data2, cb3) {
             const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
-            perMessageDeflate.decompress(data, this._fin, (err2, buf2) => {
+            perMessageDeflate.decompress(data2, this._fin, (err2, buf2) => {
               if (err2) return cb3(err2);
               if (buf2.length) {
                 this._messageLength += buf2.length;
@@ -106080,23 +106184,23 @@ ${prettyStateOverride2(stateOverride)}`;
             this._numFragments = 0;
             this._fragments = [];
             if (this._opcode === 2) {
-              let data;
+              let data2;
               if (this._binaryType === "nodebuffer") {
-                data = concat5(fragments, messageLength);
+                data2 = concat5(fragments, messageLength);
               } else if (this._binaryType === "arraybuffer") {
-                data = toArrayBuffer(concat5(fragments, messageLength));
+                data2 = toArrayBuffer(concat5(fragments, messageLength));
               } else if (this._binaryType === "blob") {
-                data = new Blob(fragments);
+                data2 = new Blob(fragments);
               } else {
-                data = fragments;
+                data2 = fragments;
               }
               if (this._allowSynchronousEvents) {
-                this.emit("message", data, true);
+                this.emit("message", data2, true);
                 this._state = GET_INFO;
               } else {
                 this._state = DEFER_EVENT;
                 setImmediate(() => {
-                  this.emit("message", data, true);
+                  this.emit("message", data2, true);
                   this._state = GET_INFO;
                   this.startLoop(cb3);
                 });
@@ -106134,14 +106238,14 @@ ${prettyStateOverride2(stateOverride)}`;
            * @return {(Error|RangeError|undefined)} A possible error
            * @private
            */
-          controlMessage(data, cb3) {
+          controlMessage(data2, cb3) {
             if (this._opcode === 8) {
-              if (data.length === 0) {
+              if (data2.length === 0) {
                 this._loop = false;
                 this.emit("conclude", 1005, EMPTY_BUFFER);
                 this.end();
               } else {
-                const code = data.readUInt16BE(0);
+                const code = data2.readUInt16BE(0);
                 if (!isValidStatusCode(code)) {
                   const error = this.createError(
                     RangeError,
@@ -106154,9 +106258,9 @@ ${prettyStateOverride2(stateOverride)}`;
                   return;
                 }
                 const buf2 = new FastBuffer(
-                  data.buffer,
-                  data.byteOffset + 2,
-                  data.length - 2
+                  data2.buffer,
+                  data2.byteOffset + 2,
+                  data2.length - 2
                 );
                 if (!this._skipUTF8Validation && !isValidUTF8(buf2)) {
                   const error = this.createError(
@@ -106177,12 +106281,12 @@ ${prettyStateOverride2(stateOverride)}`;
               return;
             }
             if (this._allowSynchronousEvents) {
-              this.emit(this._opcode === 9 ? "ping" : "pong", data);
+              this.emit(this._opcode === 9 ? "ping" : "pong", data2);
               this._state = GET_INFO;
             } else {
               this._state = DEFER_EVENT;
               setImmediate(() => {
-                this.emit(this._opcode === 9 ? "ping" : "pong", data);
+                this.emit(this._opcode === 9 ? "ping" : "pong", data2);
                 this._state = GET_INFO;
                 this.startLoop(cb3);
               });
@@ -106280,7 +106384,7 @@ ${prettyStateOverride2(stateOverride)}`;
            * @return {(Buffer|String)[]} The framed data
            * @public
            */
-          static frame(data, options) {
+          static frame(data2, options) {
             let mask;
             let merge = false;
             let offset = 2;
@@ -106306,15 +106410,15 @@ ${prettyStateOverride2(stateOverride)}`;
               offset = 6;
             }
             let dataLength;
-            if (typeof data === "string") {
+            if (typeof data2 === "string") {
               if ((!options.mask || skipMasking) && options[kByteLength] !== void 0) {
                 dataLength = options[kByteLength];
               } else {
-                data = Buffer.from(data);
-                dataLength = data.length;
+                data2 = Buffer.from(data2);
+                dataLength = data2.length;
               }
             } else {
-              dataLength = data.length;
+              dataLength = data2.length;
               merge = options.mask && options.readOnly && !skipMasking;
             }
             let payloadLength = dataLength;
@@ -106335,19 +106439,19 @@ ${prettyStateOverride2(stateOverride)}`;
               target[2] = target[3] = 0;
               target.writeUIntBE(dataLength, 4, 6);
             }
-            if (!options.mask) return [target, data];
+            if (!options.mask) return [target, data2];
             target[1] |= 128;
             target[offset - 4] = mask[0];
             target[offset - 3] = mask[1];
             target[offset - 2] = mask[2];
             target[offset - 1] = mask[3];
-            if (skipMasking) return [target, data];
+            if (skipMasking) return [target, data2];
             if (merge) {
-              applyMask(data, mask, target, offset, dataLength);
+              applyMask(data2, mask, target, offset, dataLength);
               return [target];
             }
-            applyMask(data, mask, data, 0, dataLength);
-            return [target, data];
+            applyMask(data2, mask, data2, 0, dataLength);
+            return [target, data2];
           }
           /**
            * Sends a close message to the other peer.
@@ -106358,26 +106462,26 @@ ${prettyStateOverride2(stateOverride)}`;
            * @param {Function} [cb] Callback
            * @public
            */
-          close(code, data, mask, cb3) {
+          close(code, data2, mask, cb3) {
             let buf2;
             if (code === void 0) {
               buf2 = EMPTY_BUFFER;
             } else if (typeof code !== "number" || !isValidStatusCode(code)) {
               throw new TypeError("First argument must be a valid error code number");
-            } else if (data === void 0 || !data.length) {
+            } else if (data2 === void 0 || !data2.length) {
               buf2 = Buffer.allocUnsafe(2);
               buf2.writeUInt16BE(code, 0);
             } else {
-              const length = Buffer.byteLength(data);
+              const length = Buffer.byteLength(data2);
               if (length > 123) {
                 throw new RangeError("The message must not be greater than 123 bytes");
               }
               buf2 = Buffer.allocUnsafe(2 + length);
               buf2.writeUInt16BE(code, 0);
-              if (typeof data === "string") {
-                buf2.write(data, 2);
-              } else if (isUint8Array(data)) {
-                buf2.set(data, 2);
+              if (typeof data2 === "string") {
+                buf2.write(data2, 2);
+              } else if (isUint8Array(data2)) {
+                buf2.set(data2, 2);
               } else {
                 throw new TypeError("Second argument must be a string or a Uint8Array");
               }
@@ -106406,18 +106510,18 @@ ${prettyStateOverride2(stateOverride)}`;
            * @param {Function} [cb] Callback
            * @public
            */
-          ping(data, mask, cb3) {
+          ping(data2, mask, cb3) {
             let byteLength;
             let readOnly;
-            if (typeof data === "string") {
-              byteLength = Buffer.byteLength(data);
+            if (typeof data2 === "string") {
+              byteLength = Buffer.byteLength(data2);
               readOnly = false;
-            } else if (isBlob(data)) {
-              byteLength = data.size;
+            } else if (isBlob(data2)) {
+              byteLength = data2.size;
               readOnly = false;
             } else {
-              data = toBuffer(data);
-              byteLength = data.length;
+              data2 = toBuffer(data2);
+              byteLength = data2.length;
               readOnly = toBuffer.readOnly;
             }
             if (byteLength > 125) {
@@ -106433,16 +106537,16 @@ ${prettyStateOverride2(stateOverride)}`;
               readOnly,
               rsv1: false
             };
-            if (isBlob(data)) {
+            if (isBlob(data2)) {
               if (this._state !== DEFAULT) {
-                this.enqueue([this.getBlobData, data, false, options, cb3]);
+                this.enqueue([this.getBlobData, data2, false, options, cb3]);
               } else {
-                this.getBlobData(data, false, options, cb3);
+                this.getBlobData(data2, false, options, cb3);
               }
             } else if (this._state !== DEFAULT) {
-              this.enqueue([this.dispatch, data, false, options, cb3]);
+              this.enqueue([this.dispatch, data2, false, options, cb3]);
             } else {
-              this.sendFrame(_Sender.frame(data, options), cb3);
+              this.sendFrame(_Sender.frame(data2, options), cb3);
             }
           }
           /**
@@ -106453,18 +106557,18 @@ ${prettyStateOverride2(stateOverride)}`;
            * @param {Function} [cb] Callback
            * @public
            */
-          pong(data, mask, cb3) {
+          pong(data2, mask, cb3) {
             let byteLength;
             let readOnly;
-            if (typeof data === "string") {
-              byteLength = Buffer.byteLength(data);
+            if (typeof data2 === "string") {
+              byteLength = Buffer.byteLength(data2);
               readOnly = false;
-            } else if (isBlob(data)) {
-              byteLength = data.size;
+            } else if (isBlob(data2)) {
+              byteLength = data2.size;
               readOnly = false;
             } else {
-              data = toBuffer(data);
-              byteLength = data.length;
+              data2 = toBuffer(data2);
+              byteLength = data2.length;
               readOnly = toBuffer.readOnly;
             }
             if (byteLength > 125) {
@@ -106480,16 +106584,16 @@ ${prettyStateOverride2(stateOverride)}`;
               readOnly,
               rsv1: false
             };
-            if (isBlob(data)) {
+            if (isBlob(data2)) {
               if (this._state !== DEFAULT) {
-                this.enqueue([this.getBlobData, data, false, options, cb3]);
+                this.enqueue([this.getBlobData, data2, false, options, cb3]);
               } else {
-                this.getBlobData(data, false, options, cb3);
+                this.getBlobData(data2, false, options, cb3);
               }
             } else if (this._state !== DEFAULT) {
-              this.enqueue([this.dispatch, data, false, options, cb3]);
+              this.enqueue([this.dispatch, data2, false, options, cb3]);
             } else {
-              this.sendFrame(_Sender.frame(data, options), cb3);
+              this.sendFrame(_Sender.frame(data2, options), cb3);
             }
           }
           /**
@@ -106508,21 +106612,21 @@ ${prettyStateOverride2(stateOverride)}`;
            * @param {Function} [cb] Callback
            * @public
            */
-          send(data, options, cb3) {
+          send(data2, options, cb3) {
             const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
             let opcode = options.binary ? 2 : 1;
             let rsv1 = options.compress;
             let byteLength;
             let readOnly;
-            if (typeof data === "string") {
-              byteLength = Buffer.byteLength(data);
+            if (typeof data2 === "string") {
+              byteLength = Buffer.byteLength(data2);
               readOnly = false;
-            } else if (isBlob(data)) {
-              byteLength = data.size;
+            } else if (isBlob(data2)) {
+              byteLength = data2.size;
               readOnly = false;
             } else {
-              data = toBuffer(data);
-              byteLength = data.length;
+              data2 = toBuffer(data2);
+              byteLength = data2.length;
               readOnly = toBuffer.readOnly;
             }
             if (this._firstFragment) {
@@ -106546,16 +106650,16 @@ ${prettyStateOverride2(stateOverride)}`;
               readOnly,
               rsv1
             };
-            if (isBlob(data)) {
+            if (isBlob(data2)) {
               if (this._state !== DEFAULT) {
-                this.enqueue([this.getBlobData, data, this._compress, opts, cb3]);
+                this.enqueue([this.getBlobData, data2, this._compress, opts, cb3]);
               } else {
-                this.getBlobData(data, this._compress, opts, cb3);
+                this.getBlobData(data2, this._compress, opts, cb3);
               }
             } else if (this._state !== DEFAULT) {
-              this.enqueue([this.dispatch, data, this._compress, opts, cb3]);
+              this.enqueue([this.dispatch, data2, this._compress, opts, cb3]);
             } else {
-              this.dispatch(data, this._compress, opts, cb3);
+              this.dispatch(data2, this._compress, opts, cb3);
             }
           }
           /**
@@ -106593,13 +106697,13 @@ ${prettyStateOverride2(stateOverride)}`;
                 return;
               }
               this._bufferedBytes -= options[kByteLength];
-              const data = toBuffer(arrayBuffer);
+              const data2 = toBuffer(arrayBuffer);
               if (!compress) {
                 this._state = DEFAULT;
-                this.sendFrame(_Sender.frame(data, options), cb3);
+                this.sendFrame(_Sender.frame(data2, options), cb3);
                 this.dequeue();
               } else {
-                this.dispatch(data, compress, options, cb3);
+                this.dispatch(data2, compress, options, cb3);
               }
             }).catch((err2) => {
               process.nextTick(onError, this, err2, cb3);
@@ -106628,15 +106732,15 @@ ${prettyStateOverride2(stateOverride)}`;
            * @param {Function} [cb] Callback
            * @private
            */
-          dispatch(data, compress, options, cb3) {
+          dispatch(data2, compress, options, cb3) {
             if (!compress) {
-              this.sendFrame(_Sender.frame(data, options), cb3);
+              this.sendFrame(_Sender.frame(data2, options), cb3);
               return;
             }
             const perMessageDeflate = this._extensions[PerMessageDeflate2.extensionName];
             this._bufferedBytes += options[kByteLength];
             this._state = DEFLATING;
-            perMessageDeflate.compress(data, options.fin, (_, buf2) => {
+            perMessageDeflate.compress(data2, options.fin, (_, buf2) => {
               if (this._socket.destroyed) {
                 const err2 = new Error(
                   "The socket was closed while data was being compressed"
@@ -106858,9 +106962,9 @@ ${prettyStateOverride2(stateOverride)}`;
             }
             let wrapper;
             if (type22 === "message") {
-              wrapper = function onMessage(data, isBinary) {
+              wrapper = function onMessage(data2, isBinary) {
                 const event = new MessageEvent("message", {
-                  data: isBinary ? data : data.toString()
+                  data: isBinary ? data2 : data2.toString()
                 });
                 event[kTarget] = this;
                 callListener(handler, this, event);
@@ -107336,7 +107440,7 @@ ${prettyStateOverride2(stateOverride)}`;
            *     closing
            * @public
            */
-          close(code, data) {
+          close(code, data2) {
             if (this.readyState === _WebSocket.CLOSED) return;
             if (this.readyState === _WebSocket.CONNECTING) {
               const msg = "WebSocket was closed before the connection was established";
@@ -107350,7 +107454,7 @@ ${prettyStateOverride2(stateOverride)}`;
               return;
             }
             this._readyState = _WebSocket.CLOSING;
-            this._sender.close(code, data, !this._isServer, (err2) => {
+            this._sender.close(code, data2, !this._isServer, (err2) => {
               if (err2) return;
               this._closeFrameSent = true;
               if (this._closeFrameReceived || this._receiver._writableState.errorEmitted) {
@@ -107379,24 +107483,24 @@ ${prettyStateOverride2(stateOverride)}`;
            * @param {Function} [cb] Callback which is executed when the ping is sent
            * @public
            */
-          ping(data, mask, cb3) {
+          ping(data2, mask, cb3) {
             if (this.readyState === _WebSocket.CONNECTING) {
               throw new Error("WebSocket is not open: readyState 0 (CONNECTING)");
             }
-            if (typeof data === "function") {
-              cb3 = data;
-              data = mask = void 0;
+            if (typeof data2 === "function") {
+              cb3 = data2;
+              data2 = mask = void 0;
             } else if (typeof mask === "function") {
               cb3 = mask;
               mask = void 0;
             }
-            if (typeof data === "number") data = data.toString();
+            if (typeof data2 === "number") data2 = data2.toString();
             if (this.readyState !== _WebSocket.OPEN) {
-              sendAfterClose(this, data, cb3);
+              sendAfterClose(this, data2, cb3);
               return;
             }
             if (mask === void 0) mask = !this._isServer;
-            this._sender.ping(data || EMPTY_BUFFER, mask, cb3);
+            this._sender.ping(data2 || EMPTY_BUFFER, mask, cb3);
           }
           /**
            * Send a pong.
@@ -107406,24 +107510,24 @@ ${prettyStateOverride2(stateOverride)}`;
            * @param {Function} [cb] Callback which is executed when the pong is sent
            * @public
            */
-          pong(data, mask, cb3) {
+          pong(data2, mask, cb3) {
             if (this.readyState === _WebSocket.CONNECTING) {
               throw new Error("WebSocket is not open: readyState 0 (CONNECTING)");
             }
-            if (typeof data === "function") {
-              cb3 = data;
-              data = mask = void 0;
+            if (typeof data2 === "function") {
+              cb3 = data2;
+              data2 = mask = void 0;
             } else if (typeof mask === "function") {
               cb3 = mask;
               mask = void 0;
             }
-            if (typeof data === "number") data = data.toString();
+            if (typeof data2 === "number") data2 = data2.toString();
             if (this.readyState !== _WebSocket.OPEN) {
-              sendAfterClose(this, data, cb3);
+              sendAfterClose(this, data2, cb3);
               return;
             }
             if (mask === void 0) mask = !this._isServer;
-            this._sender.pong(data || EMPTY_BUFFER, mask, cb3);
+            this._sender.pong(data2 || EMPTY_BUFFER, mask, cb3);
           }
           /**
            * Resume the socket.
@@ -107452,7 +107556,7 @@ ${prettyStateOverride2(stateOverride)}`;
            * @param {Function} [cb] Callback which is executed when data is written out
            * @public
            */
-          send(data, options, cb3) {
+          send(data2, options, cb3) {
             if (this.readyState === _WebSocket.CONNECTING) {
               throw new Error("WebSocket is not open: readyState 0 (CONNECTING)");
             }
@@ -107460,13 +107564,13 @@ ${prettyStateOverride2(stateOverride)}`;
               cb3 = options;
               options = {};
             }
-            if (typeof data === "number") data = data.toString();
+            if (typeof data2 === "number") data2 = data2.toString();
             if (this.readyState !== _WebSocket.OPEN) {
-              sendAfterClose(this, data, cb3);
+              sendAfterClose(this, data2, cb3);
               return;
             }
             const opts = {
-              binary: typeof data !== "string",
+              binary: typeof data2 !== "string",
               mask: !this._isServer,
               compress: true,
               fin: true,
@@ -107475,7 +107579,7 @@ ${prettyStateOverride2(stateOverride)}`;
             if (!this._extensions[PerMessageDeflate2.extensionName]) {
               opts.compress = false;
             }
-            this._sender.send(data || EMPTY_BUFFER, opts, cb3);
+            this._sender.send(data2 || EMPTY_BUFFER, opts, cb3);
           }
           /**
            * Forcibly close the connection.
@@ -107860,9 +107964,9 @@ ${prettyStateOverride2(stateOverride)}`;
             stream.once("close", websocket.emitClose.bind(websocket));
           }
         }
-        function sendAfterClose(websocket, data, cb3) {
-          if (data) {
-            const length = isBlob(data) ? data.size : toBuffer(data).length;
+        function sendAfterClose(websocket, data2, cb3) {
+          if (data2) {
+            const length = isBlob(data2) ? data2.size : toBuffer(data2).length;
             if (websocket._socket) websocket._sender._bufferedBytes += length;
             else websocket._bufferedAmount += length;
           }
@@ -107903,16 +108007,16 @@ ${prettyStateOverride2(stateOverride)}`;
         function receiverOnFinish() {
           this[kWebSocket].emitClose();
         }
-        function receiverOnMessage(data, isBinary) {
-          this[kWebSocket].emit("message", data, isBinary);
+        function receiverOnMessage(data2, isBinary) {
+          this[kWebSocket].emit("message", data2, isBinary);
         }
-        function receiverOnPing(data) {
+        function receiverOnPing(data2) {
           const websocket = this[kWebSocket];
-          if (websocket._autoPong) websocket.pong(data, !this._isServer, NOOP);
-          websocket.emit("ping", data);
+          if (websocket._autoPong) websocket.pong(data2, !this._isServer, NOOP);
+          websocket.emit("ping", data2);
         }
-        function receiverOnPong(data) {
-          this[kWebSocket].emit("pong", data);
+        function receiverOnPong(data2) {
+          this[kWebSocket].emit("pong", data2);
         }
         function resume(stream) {
           stream.resume();
@@ -108008,8 +108112,8 @@ ${prettyStateOverride2(stateOverride)}`;
             writableObjectMode: false
           });
           ws3.on("message", function message2(msg, isBinary) {
-            const data = !isBinary && duplex._readableState.objectMode ? msg.toString() : msg;
-            if (!duplex.push(data)) ws3.pause();
+            const data2 = !isBinary && duplex._readableState.objectMode ? msg.toString() : msg;
+            if (!duplex.push(data2)) ws3.pause();
           });
           ws3.once("error", function error(err2) {
             if (duplex.destroyed) return;
@@ -109185,24 +109289,24 @@ ${prettyStateOverride2(stateOverride)}`;
             const arrayMatch = type22.match(arrayRegex22);
             if (arrayMatch && Array.isArray(value)) {
               const [_type, childType] = arrayMatch;
-              const data = [];
+              const data2 = [];
               for (let i = 0; i < value.length; i++) {
-                data.push(encode52(childType, value[i], true));
+                data2.push(encode52(childType, value[i], true));
               }
-              if (data.length === 0)
+              if (data2.length === 0)
                 return "0x";
-              return concat32(...data);
+              return concat32(...data2);
             }
             throw new InvalidTypeError2(type22);
           }
           encodePacked32.encode = encode52;
         })(encodePacked22 || (encodePacked22 = {}));
         DataSizeTooSmallError2 = class extends BaseError32 {
-          constructor({ data, parameters, size: size6 }) {
+          constructor({ data: data2, parameters, size: size6 }) {
             super(`Data size of ${size6} bytes is too small for given parameters.`, {
               metaMessages: [
                 `Params: (${formatAbiParameters2(parameters)})`,
-                `Data:   ${data} (${size6} bytes)`
+                `Data:   ${data2} (${size6} bytes)`
               ]
             });
             Object.defineProperty(this, "name", {
@@ -109656,12 +109760,12 @@ ${prettyStateOverride2(stateOverride)}`;
           }
         };
         NotFoundError2 = class extends BaseError32 {
-          constructor({ name, data, type: type22 = "item" }) {
+          constructor({ name, data: data2, type: type22 = "item" }) {
             const selector = (() => {
               if (name)
                 return ` with name "${name}"`;
-              if (data)
-                return ` with data "${data}"`;
+              if (data2)
+                return ` with data "${data2}"`;
               return "";
             })();
             super(`ABI ${type22}${selector} not found.`);
@@ -138312,21 +138416,21 @@ Provided: ${stringify22(envelope)}`);
             this.buffer = new Uint8Array(blockLen);
             this.view = createView22(this.buffer);
           }
-          update(data) {
+          update(data2) {
             aexists22(this);
-            data = toBytes6(data);
-            abytes32(data);
+            data2 = toBytes6(data2);
+            abytes32(data2);
             const { view, buffer: buffer22, blockLen } = this;
-            const len = data.length;
+            const len = data2.length;
             for (let pos = 0; pos < len; ) {
               const take = Math.min(blockLen - this.pos, len - pos);
               if (take === blockLen) {
-                const dataView = createView22(data);
+                const dataView = createView22(data2);
                 for (; blockLen <= len - pos; pos += blockLen)
                   this.process(dataView, pos);
                 continue;
               }
-              buffer22.set(data.subarray(pos, pos + take), this.pos);
+              buffer22.set(data2.subarray(pos, pos + take), this.pos);
               this.pos += take;
               pos += take;
               if (this.pos === blockLen) {
@@ -138334,7 +138438,7 @@ Provided: ${stringify22(envelope)}`);
                 this.pos = 0;
               }
             }
-            this.length += data.length;
+            this.length += data2.length;
             this.roundClean();
             return this;
           }
@@ -138946,16 +139050,16 @@ Provided: ${stringify22(envelope)}`);
             this.posOut = 0;
             this.pos = 0;
           }
-          update(data) {
+          update(data2) {
             aexists22(this);
-            data = toBytes6(data);
-            abytes32(data);
+            data2 = toBytes6(data2);
+            abytes32(data2);
             const { blockLen, state } = this;
-            const len = data.length;
+            const len = data2.length;
             for (let pos = 0; pos < len; ) {
               const take = Math.min(blockLen - this.pos, len - pos);
               for (let i = 0; i < take; i++)
-                state[this.pos++] ^= data[pos++];
+                state[this.pos++] ^= data2[pos++];
               if (this.pos === blockLen)
                 this.keccak();
             }
@@ -139266,29 +139370,29 @@ Provided: ${stringify22(envelope)}`);
           Err: DERErr22,
           // Basic building block is TLV (Tag-Length-Value)
           _tlv: {
-            encode: (tag, data) => {
+            encode: (tag, data2) => {
               const { Err: E } = DER22;
               if (tag < 0 || tag > 256)
                 throw new E("tlv.encode: wrong tag");
-              if (data.length & 1)
+              if (data2.length & 1)
                 throw new E("tlv.encode: unpadded data");
-              const dataLen = data.length / 2;
+              const dataLen = data2.length / 2;
               const len = numberToHexUnpadded22(dataLen);
               if (len.length / 2 & 128)
                 throw new E("tlv.encode: long form length too big");
               const lenLen = dataLen > 127 ? numberToHexUnpadded22(len.length / 2 | 128) : "";
               const t = numberToHexUnpadded22(tag);
-              return t + lenLen + len + data;
+              return t + lenLen + len + data2;
             },
             // v - value, l - left bytes (unparsed)
-            decode(tag, data) {
+            decode(tag, data2) {
               const { Err: E } = DER22;
               let pos = 0;
               if (tag < 0 || tag > 256)
                 throw new E("tlv.encode: wrong tag");
-              if (data.length < 2 || data[pos++] !== tag)
+              if (data2.length < 2 || data2[pos++] !== tag)
                 throw new E("tlv.decode: wrong tlv");
-              const first = data[pos++];
+              const first = data2[pos++];
               const isLong = !!(first & 128);
               let length = 0;
               if (!isLong)
@@ -139299,7 +139403,7 @@ Provided: ${stringify22(envelope)}`);
                   throw new E("tlv.decode(long): indefinite length not supported");
                 if (lenLen > 4)
                   throw new E("tlv.decode(long): byte length is too big");
-                const lengthBytes = data.subarray(pos, pos + lenLen);
+                const lengthBytes = data2.subarray(pos, pos + lenLen);
                 if (lengthBytes.length !== lenLen)
                   throw new E("tlv.decode: length bytes not complete");
                 if (lengthBytes[0] === 0)
@@ -139310,10 +139414,10 @@ Provided: ${stringify22(envelope)}`);
                 if (length < 128)
                   throw new E("tlv.decode(long): not minimal encoding");
               }
-              const v = data.subarray(pos, pos + length);
+              const v = data2.subarray(pos, pos + length);
               if (v.length !== length)
                 throw new E("tlv.decode: wrong value length");
-              return { v, l: data.subarray(pos + length) };
+              return { v, l: data2.subarray(pos + length) };
             }
           },
           // https://crypto.stackexchange.com/a/57734 Leftmost bit of first byte is 'negative' flag,
@@ -139332,19 +139436,19 @@ Provided: ${stringify22(envelope)}`);
                 throw new E("unexpected DER parsing assertion: unpadded hex");
               return hex;
             },
-            decode(data) {
+            decode(data2) {
               const { Err: E } = DER22;
-              if (data[0] & 128)
+              if (data2[0] & 128)
                 throw new E("invalid signature integer: negative");
-              if (data[0] === 0 && !(data[1] & 128))
+              if (data2[0] === 0 && !(data2[1] & 128))
                 throw new E("invalid signature integer: unnecessary leading zero");
-              return bytesToNumberBE22(data);
+              return bytesToNumberBE22(data2);
             }
           },
           toSig(hex) {
             const { Err: E, _int: int, _tlv: tlv3 } = DER22;
-            const data = ensureBytes22("signature", hex);
-            const { v: seqBytes, l: seqLeftBytes } = tlv3.decode(48, data);
+            const data2 = ensureBytes22("signature", hex);
+            const { v: seqBytes, l: seqLeftBytes } = tlv3.decode(48, data2);
             if (seqLeftBytes.length)
               throw new E("invalid signature: left bytes after parsing");
             const { v: rBytes, l: rLeftBytes } = tlv3.decode(2, seqBytes);
@@ -146242,9 +146346,9 @@ ${canonical(value)}`;
             return { number: b, hash: h3.hash, stateRoot: h3.stateRoot, timestamp: BigInt(h3.timestamp / 1e3) };
           },
           readContract: async ({ address: address3, abi: abi22, functionName, args, blockNumber, blockTag, account }) => {
-            const data = encodeFunctionData2({ abi: abi22, functionName, args });
+            const data2 = encodeFunctionData2({ abi: abi22, functionName, args });
             const from202 = typeof account === "string" ? account : account?.address;
-            const out = await call22("eth_call", [{ to: address3, data, ...from202 ? { from: from202 } : {} }, at3(blockNumber, blockTag)]);
+            const out = await call22("eth_call", [{ to: address3, data: data2, ...from202 ? { from: from202 } : {} }, at3(blockNumber, blockTag)]);
             return decodeFunctionResult2({ abi: abi22, functionName, data: out });
           },
           getCode: code,
@@ -147228,8 +147332,8 @@ VERDICT: ${res.ok ? `ACCEPT tier=${res.tier}` : "REJECT"}${res.capture ? " (capt
       cert: ({ der }) => new X509Certificate4(der),
       chain: ({ leaf, extra, trust, now }) => verifyEkChain(leaf, extra, trust, now),
       rsaKey: ({ modulus, exponent }) => rsaKeyFromModulus(modulus, exponent),
-      rsaPkcs1Sha256: ({ key, data, sig }) => cryptoVerify2("sha256", data, { key, padding: constants3.RSA_PKCS1_PADDING }, sig),
-      ed25519: ({ spki, data, sig }) => cryptoVerify2(null, data, createPublicKey6({ key: spki, format: "der", type: "spki" }), sig)
+      rsaPkcs1Sha256: ({ key, data: data2, sig }) => cryptoVerify2("sha256", data2, { key, padding: constants3.RSA_PKCS1_PADDING }, sig),
+      ed25519: ({ spki, data: data2, sig }) => cryptoVerify2(null, data2, createPublicKey6({ key: spki, format: "der", type: "spki" }), sig)
     });
     ED25519_SPKI_PREFIX3 = Buffer.from("302a300506032b6570032100", "hex");
     HV_NODE_REQUIRED_PCR12 = { ...VBS_REQUIRED_PCR12, TESTSIGNING: 0 };
@@ -147264,6 +147368,12 @@ ${zone}`).digest("hex");
       return b;
     };
     opFresh = makeReplayCache();
+    HEX = /^[0-9a-f]{64}$/;
+    u323 = (n) => Number.isInteger(n) && n >= 0 && n <= 4294967295;
+    fields2 = (p, names) => !!p && typeof p === "object" && !Array.isArray(p) && Reflect.ownKeys(p).length === names.length && names.every((k3) => {
+      const d = Object.getOwnPropertyDescriptor(p, k3);
+      return d && Object.hasOwn(d, "value") && d.enumerable;
+    });
     BASE = 1236;
     META = 1216;
     REPORT_SIZE = 560;
@@ -147277,15 +147387,15 @@ ${zone}`).digest("hex");
       for (let i = 0; i < a.length; i++) d |= a[i] ^ b[i];
       return d === 0;
     };
-    VBS_VM_REPORT_CHECKS = Object.freeze(["inputs", "envelope", "vtl", "svn", "measurement", "user-data", "signature"]);
+    VBS_VM_REPORT_CHECKS = Object.freeze(["inputs", "envelope", "vtl", "svn", "measurement", "image-identity", "user-data", "signature"]);
     VBS_VM_REPORT_SCOPE = "VBS image and guest input under supplied IDKS; caller must authenticate IDKS and app key custody";
     hash52 = (b) => createHash15("sha256").update(b).digest();
     equal = (a, b) => a.length === b.length && timingSafeEqual4(a, b);
     CORE = vbsVmReportWith({ sha256: hash52, equal });
     OPS = Object.freeze({
-      rsaPssSha256: ({ key, data, sig }) => verify7(
+      rsaPssSha256: ({ key, data: data2, sig }) => verify7(
         "sha256",
-        data,
+        data2,
         { key, padding: constants4.RSA_PKCS1_PSS_PADDING, saltLength: 32 },
         sig
       )
@@ -147310,10 +147420,41 @@ ${zone}`).digest("hex");
     platformsValid = (platforms) => platforms === "attested" || Array.isArray(platforms) && platforms.length > 0 && platforms.every((p) => HEX642.test(p?.ekCertSha256 || "") && HEX642.test(p?.pcr0 || ""));
     platformAdmitted = (platforms, boot) => platformsValid(platforms) && HEX642.test(boot?.ekCertSha256 || "") && (platforms === "attested" || platforms.some((p) => p.ekCertSha256 === boot.ekCertSha256 && p.pcr0 === boot.pcr0));
     vbsAppUserData = (binding, expectedAppSha256) => Buffer.concat([binding, Buffer.from(expectedAppSha256, "hex")]);
-    HEX = /^[0-9a-f]{64}$/;
+    MAX_CONFIG_BYTES = 32 << 10;
+    MAX_MANIFEST_BYTES = 64 << 10;
+    COMPONENT_PREAMBLE = Buffer.from([0, 97, 115, 109, 13, 0, 1, 0]);
+    DESKTOP_PORTS = Object.freeze([
+      "tcp:47984",
+      "tcp:47989",
+      "tcp:48010",
+      "udp:47998",
+      "udp:47999",
+      "udp:48000"
+    ]);
+    DESKTOP_RELEASE_SCHEMA = "enclave-desktop-release/1";
+    RELEASE_FIELDS = [
+      "schema",
+      "controllerCid",
+      "controllerSha256",
+      "runtimeId",
+      "igvmSha256",
+      "profileSha256",
+      "launchMeasurement",
+      "minimumCpuMilli",
+      "policy"
+    ];
+    HASH_FIELDS = ["controllerSha256", "runtimeId", "igvmSha256", "profileSha256", "launchMeasurement"];
+    HASH2 = /^[0-9a-f]{64}$/;
+    CID = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,120}|z[1-9A-HJ-NP-Za-km-z]{40,120})$/;
+    REQUIRED_PORTS = Object.freeze(["http:8000", ...DESKTOP_PORTS]);
+    MAX_DEPTH = 64;
+    nonzero = (x) => typeof x === "string" && x.length === 64 && HASH2.test(x) && x !== "0".repeat(64);
+    isCid = (x) => typeof x === "string" && CID.exec(x)?.[0] === x;
+    HEX2 = /^[0-9a-f]{64}$/;
+    HEX3 = /^[0-9a-f]{64}$/;
     SHIELD_DOC_FORMAT2 = "hyperv-partition-domain/v1";
     SHIELD_DOC_TIER = "T0-hv";
-    HEX2 = /^[0-9a-f]{64}$/;
+    HEX4 = /^[0-9a-f]{64}$/;
     deny3 = (status, why) => ({ ok: false, status, why });
     b64Chars = (cap) => 4 * Math.ceil(cap / 3) + 4;
     ENVELOPE_BYTES = 8 * 1024;
@@ -147345,12 +147486,12 @@ ${zone}`).digest("hex");
       ["payoutWallet", "address"]
     ];
     REGISTRY_GET_LAYOUTS = Object.freeze({ 4: V4, 5: [...V4, ["caps", "uint64"], ["region", "string"]] });
-    getAbi = (fields2) => [{
+    getAbi = (fields4) => [{
       type: "function",
       name: "get",
       stateMutability: "view",
       inputs: [{ type: "bytes32" }],
-      outputs: [{ type: "tuple", components: fields2.map(([name, type22]) => ({ name, type: type22 })) }]
+      outputs: [{ type: "tuple", components: fields4.map(([name, type22]) => ({ name, type: type22 })) }]
     }];
     SCHEMA_ABI2 = [{ type: "function", name: "registrySchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }];
     reverted = (e) => {
@@ -147595,7 +147736,7 @@ function installProcessGuards(name, log = console.error) {
   });
 }
 var DEFAULTS = {
-  baseRpc: "https://mainnet.base.org",
+  baseRpc: "https://api.enclave.host/rpc/base",
   registryPollSec: 300,
   staleAfterSec: 3600
 };
@@ -148601,7 +148742,7 @@ var u16 = (n) => {
   b.writeUInt16BE(n & 65535);
   return b;
 };
-var u323 = (n) => {
+var u324 = (n) => {
   const b = Buffer.alloc(4);
   b.writeUInt32BE(n >>> 0);
   return b;
@@ -148619,28 +148760,28 @@ function encodeName(name) {
 var rr3 = (name, type3, ttl, rdata) => Buffer.concat([encodeName(name), u16(type3), u16(
   1
   /* IN */
-), u323(ttl), u16(rdata.length), rdata]);
+), u324(ttl), u16(rdata.length), rdata]);
 var soaRR = (zone) => rr3(zone, T.SOA, NEG_TTL, Buffer.concat([
   encodeName(NS_NAME),
   encodeName(RNAME),
-  u323(SERIAL),
-  u323(3600),
-  u323(600),
-  u323(604800),
-  u323(NEG_TTL)
+  u324(SERIAL),
+  u324(3600),
+  u324(600),
+  u324(604800),
+  u324(NEG_TTL)
 ]));
 var nsRR = (zone, name) => rr3(zone, T.NS, 300, encodeName(name));
 var srvRR = (name, port2, target) => rr3(name, T.SRV, 60, Buffer.concat([u16(0), u16(0), u16(port2), encodeName(target)]));
 function txtRR(name, value) {
-  const data = Buffer.from(value, "utf8");
+  const data2 = Buffer.from(value, "utf8");
   const parts = [];
-  for (let i = 0; i === 0 || i < data.length; i += 255) {
-    const chunk = data.subarray(i, i + 255);
+  for (let i = 0; i === 0 || i < data2.length; i += 255) {
+    const chunk = data2.subarray(i, i + 255);
     parts.push(Buffer.from([chunk.length]), chunk);
   }
   return rr3(name, T.TXT, 30, Buffer.concat(parts));
 }
-var OPT_RR = Buffer.concat([Buffer.from([0]), u16(T.OPT), u16(UDP_MAX), u323(0), u16(0)]);
+var OPT_RR = Buffer.concat([Buffer.from([0]), u16(T.OPT), u16(UDP_MAX), u324(0), u16(0)]);
 var HIT = (an2, ad3 = []) => ({ rcode: RC2.NOERROR, aa: true, an: an2, au: [], ad: ad3 });
 var NODATA = (zone) => ({ rcode: RC2.NOERROR, aa: true, an: [], au: [soaRR(zone)], ad: [] });
 var NXDOM = (zone) => ({ rcode: RC2.NXDOMAIN, aa: true, an: [], au: [soaRR(zone)], ad: [] });

@@ -34599,7 +34599,7 @@ function intIn(v, lo, hi, dflt, what) {
   if (!Number.isSafeInteger(n) || n < lo || n > hi) throw new Error(`${what} must be an integer from ${lo} to ${hi}`);
   return n;
 }
-function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, contractPins, usdc, defaultUsdc, rpcs, quorum, confirmations, maxBlockAgeSec, chainVerifier }) {
+function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, contractPins, usdc, defaultUsdc, rpcs, quorum, confirmations, maxBlockAgeSec, chainVerifier, chainAuthority }) {
   let profile = null, digest = null, pins = contractPins || null, token = usdc ? String(usdc) : null;
   if (profileDigest2 && !profileFile) throw new Error("--profile-digest needs --profile");
   if (profileFile) {
@@ -34633,6 +34633,24 @@ function loadIndependentTrust({ profileFile, profileDigest: profileDigest2, cont
   if (!pins) throw new Error("independent mode needs explicit authorities: --profile FILE --profile-digest sha256:\u2026 or --contract-pins FILE");
   token = token || defaultUsdc;
   if (!nonZero(token)) throw new Error("independent mode needs a payment token address (--usdc)");
+  if (chainAuthority !== void 0 && chainAuthority !== null && chainAuthority !== "quorum") {
+    if (chainAuthority !== "verifier") throw new Error("chainAuthority must be quorum or verifier");
+    if (rpcs !== void 0 && rpcs !== null) throw new Error("chainAuthority verifier: rpcs must be absent (one explicit authority; a provider quorum is never mixed in)");
+    if (quorum !== void 0 && quorum !== null) throw new Error("chainAuthority verifier: quorum must be absent (the verifier is one proof-backed authority, not a vote)");
+    const only = chainVerifierOf({ chainAuthority: "verifier", chainVerifier }, "chainVerifier");
+    return Object.freeze({
+      pins,
+      usdc: getAddress(token),
+      profile,
+      digest,
+      rpcs: Object.freeze([]),
+      quorum: null,
+      chainAuthority: "verifier",
+      confirmations: intIn(confirmations, 0, 64, 2, "--confirmations"),
+      maxBlockAgeMs: intIn(maxBlockAgeSec, 10, 86400, 120, "--max-block-age") * 1e3,
+      chainVerifier: only
+    });
+  }
   const origins = validateRpcOrigins(rpcs);
   const q = intIn(quorum, 2, origins.length, 2, "--quorum");
   const verifier = chainVerifier ? chainVerifierOf({ chainAuthority: "verifier", chainVerifier }, "--chain-verifier") : null;
