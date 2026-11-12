@@ -589,7 +589,7 @@ the scripts, the rollback and what first runs live.
 The production steps are the operator's (`release-r13/run-cutover.sh`) and the three signatures the owner's.
 Production is unchanged until then: r12, catalog version 3, no app address, site r5.
 
-## r12 → r13 cutover run; metal0 unregistered after its restart (2026-11-12 08:44–15:07Z)
+## r12 → r13 cutover run; an outage while metal0 was unregistered after its restart (2026-11-12 08:44–16:19Z)
 
 Run and times: `release-r13/README.md`. Production is Enclave RPC 1.3.0 (image r13, measurement f3e72089…4b5c) on
 catalog version 4, with site release r6 on the four edges.
@@ -607,8 +607,12 @@ catalog version 4, with site release r6 on the four edges.
   allowlist extended (previous kept as `linux-leasegas-measurements.env.before-snpvm-16520ea`), metal0's config kept
   as `config.json.before-snpvm-16520ea`. Admitted 14:48:10Z.
 - *Gateway.* Chain policy on version 4 since 14:53Z (previous config kept as `.pre-r13` on the control VM).
-- *Open: metal0 is not registered.* A supervisor start needs one registry transaction from the operator key
-  `0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB`; the key holds 4.8e-7 ETH and the transaction is refused for cost.
-  Unregistered, metal0 neither renews nor claims: the lease ended 15:04:39Z, and the address, the agent and the
-  gateway refuse the still-running guest, as they should. The supervisor retries by itself; funding the key is the
-  operator's step. The proof-of-time checkpoints spend from the same key and emptied it (failing since 03:51Z).
+- *Outage 15:04:39Z to 16:18:34Z: metal0 unregistered.* A supervisor start needs one registry transaction from the
+  operator key `0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB`; the key held 4.8e-7 ETH and the transaction was refused
+  for cost from 14:48Z. Unregistered, metal0 neither renews nor claims: the lease ended 15:04:39Z, and the address,
+  the agent and the gateway refused the still-running guest, as they should. A retry was accepted when the fee fell,
+  16:16:43Z (3.17e-7 ETH); metal0 claimed 16:18:00Z and adopted the running VM; address, gateway and dashboard row
+  were back by 16:18:43Z.
+- *Open.* The operator key holds 1.6e-7 ETH: the next start of metal0 stops at the same transaction unless the key is
+  funded first (the operator's step). The proof-of-time checkpoints spend from the same key, emptied it, and have
+  failed since 03:51Z.
