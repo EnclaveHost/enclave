@@ -1,11 +1,11 @@
 # Enclave RPC r13 (1.3.0): the cutover from r12
 
-Status: **r13 RUNNING WITH ITS ADDRESS; GATEWAY AND CONTROL IMAGE PENDING** (2026-11-12 10:21Z). metal0 claimed the
-deployment 10:14:55Z and runs the r13 guest; `https://5ff56a4d.app.enclave.host` answers 200 on a publicly trusted
-certificate and the dashboard row shows RUNNING with its address and Open link. Two operator steps remain (see "The
-run"): the gateway's chain policy still names version 3, so public Ethereum through the gateway is down until
-`finish.sh` moves it, and metal0 still runs the control image whose policy quorum rarely answers
-(`control-image.sh apply` does both).
+Status: **r13 CUT OVER; OFFLINE SINCE 15:04:39Z UNTIL metal0's OPERATOR KEY HAS ETH** (2026-11-12 15:07Z). The
+cutover itself is complete: r13 guest, certificate, app address, dashboard row, gateway on version 4, metal0 on the
+control image whose policy quorum answers. The restart onto that image needs one registry transaction from metal0's
+operator key, which holds less than the transaction costs; unregistered, metal0 did not renew, and the lease ran out
+15:04:39Z. The guest keeps running and answers on the host; the address and the gateway refuse it without a lease, as
+they should. Remedy: ETH on Base to the operator key (see "The run"); nothing else has to be run.
 
 What r13 gives the deployment `0x5ff56a4d…454f`: the address `https://5ff56a4d.app.enclave.host`, a page behind it
 served by the VM itself, and with site release r6 (`../site-whole-vm-address-r6/`) the dashboard row's address and
@@ -56,12 +56,31 @@ back is a further owner transaction to version 3 with the r12 binding.
 | 10:17:22 | host-local proxy moved to r13; `eth_blockNumber` answers through it (the guest attests) |
 | 10:18:41 | `https://5ff56a4d.app.enclave.host/` 200, certificate verified, served through the edges; page, `/health` and the attestation panel render |
 | 10:19 | dashboard (owner's browser): `enclave-rpc:1.3.0`, RUNNING, on metal0, Open link "TLS verified by this browser", address |
+| 10:40 to 14:34 | metal0 stayed admitted on the old image and renewed the lease ten times (last: until 15:04:39) |
+| 14:47 | operator: `control-image.sh apply`. Relay allowlist now lists a74528dc…e1e8 (previous file kept), metal0 restarted on `dist-snpvm-16520ea` 14:47:56, relay accepted the measurement and the host policy gate admitted the host 14:48:10 |
+| 14:48 to 14:53 | `finish.sh`: gateway config `versionIndex` 4 (previous kept as `.pre-r13`), gateway restarted; `127.0.0.1:8190/rpc/ethereum` answers from the enclave 14:53:20 |
+| 14:55 | `/health`: L1, beacon and Base at head, none syncing; `/ethereum` and `/base` answer on the app address |
 
-**Still to do (operator).** The gateway on the control VM names version 3 and refuses the enclave ("chain refuses
-enclave: deployment runs a different app version"): `finish.sh` sets `versionIndex` 4 and restarts it; every other
-part of `finish.sh` is done and is skipped. metal0 is still on `dist-snpvm-b4446c3`: its admission at 10:14:35 was one
-lucky read, and while it is not serving it neither claims nor renews. `control-image.sh apply` switches the image and
-then runs `finish.sh`.
+**metal0 is not registered after the restart (open).** Every start of the supervisor sends one registry transaction
+from its operator key (`register`, or `setProofKey` where the supervisor has that path), and the claim loop stays
+locked until it lands: nothing is adopted, claimed or renewed. The key `0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB`
+(the registry row's operator; sender of the last registration,
+`0xc35a54f7ddfb895e7ac3e1d09ed6010e956c108c0bf0ce90bb160c97f7720a47`, 49,940 gas, 3.0e-7 ETH) holds 4.8e-7 ETH, which
+covers 60,609 gas at the fee the supervisor offers. The journal since 14:48:09Z: `[registry] self-registration failed:
+The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account`, every ten
+seconds (126 by 15:07Z). The same key pays the proof-of-time checkpoints, which landed about twelve an hour until
+03:51Z and have failed with the same message since; that is where its balance went. Not specific to the new image:
+any restart of metal0 would have stopped here, and going back to the previous image would need the same transaction.
+
+Consequences, 15:04:39Z on: the ledger shows no lease; the edges no longer resolve `5ff56a4d.app.enclave.host`; the
+network agent logs `app policy 0x5ff56a4d: policy requires the current lease`; the gateway answers Ethereum with
+`RPC upstream unavailable` (Base keeps its provider fallbacks). The guest (launched 10:14:59Z) is untouched: `/health`
+200 on the host, `eth_blockNumber` through the host-local proxy. Once the key is funded the supervisor's own retry
+registers, the claim loop claims the deployment and adopts the running VM; no command is needed.
+
+`control-image.sh apply` did not notice: it waited for the relay's acceptance, the policy admission and the lease,
+and the lease was still the one renewed at 14:34Z. It now also waits for the registration and says so when it does not
+land. The operator key's balance should have been checked before a restart was asked for.
 
 **The first certificate delivery failed inside the guest.** `front.py` took the chain and then raised on its own log
 line (`stage('certificate', name=…)` against `def stage(name, **fields)`), so the manager's POST got no answer. The

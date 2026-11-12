@@ -88,6 +88,11 @@ PY
 
   if wait_log 420 "$since" 'host-policy\] this host is ADMITTED'; then say "platform host policy read: metal0 is admitted and taking work"
   else log_since "$since" | grep 'host-policy' | tail -n 4 | cut -c1-220; say "metal0 is not admitted yet; see the lines above"; exit 1; fi
+  # every start of the supervisor needs one registry transaction from its operator key (register or setProofKey);
+  # until it lands the claim loop is locked: nothing is adopted, claimed or renewed
+  if wait_log 120 "$since" 'registry\] (registered |adopted the existing registration)'; then say "metal0 is registered"
+  else log_since "$since" | grep 'registry\]' | tail -n 2 | cut -c1-220
+    say "metal0 is not registered, so it neither claims nor renews; if the line above says the cost exceeds the balance, its operator key needs ETH on Base (the supervisor retries by itself)"; exit 1; fi
   wait_log 300 "$since" 'adopted: app=' || say "no app re-adopted yet"
   log_since "$since" | grep -E 'adopted: app=' | cut -c1-140 || true
 

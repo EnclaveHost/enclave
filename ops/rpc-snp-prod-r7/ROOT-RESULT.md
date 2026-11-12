@@ -588,3 +588,27 @@ the scripts, the rollback and what first runs live.
 
 The production steps are the operator's (`release-r13/run-cutover.sh`) and the three signatures the owner's.
 Production is unchanged until then: r12, catalog version 3, no app address, site r5.
+
+## r12 → r13 cutover run; metal0 unregistered after its restart (2026-11-12 08:44–15:07Z)
+
+Run and times: `release-r13/README.md`. Production is Enclave RPC 1.3.0 (image r13, measurement f3e72089…4b5c) on
+catalog version 4, with site release r6 on the four edges.
+
+- *What worked on the first live run.* Owner publish, stop and start; metal0's claim and the manager's launch on the
+  r13 binding (front ready 13 s after launch); the relay's certificate for `5ff56a4d.app.enclave.host` (ZeroSSL, not
+  after 2027-02-10), installed in the guest; route record, reconciler enrolment, agent admission, edge routing; the
+  dashboard row RUNNING with its address and Open link (10:19Z). L1, beacon and Base were at head by 14:55Z.
+- *Guest front.* The first certificate delivery raised on its own log line after the chain was in service; the
+  manager's retry a minute later was confirmed. Fixed in `rpc/snp/front.py` (bdacc0f1a); image r13 carries the bug.
+- *Platform host policy quorum.* metal0 did not claim for 45 minutes because the control image read the policy
+  through 3 of 4 Base RPCs of which two no longer answer keyless traffic. Main 5b292efce: five endpoints, majority 3.
+  Control image `~/enclave-prod/dist-snpvm-16520ea` (initramfs a6b7e1a7…51e0, measurement a74528dc…e1e8) is the
+  running tree with that one change; in service since 14:47:56Z (`release-r13/control-image.sh apply`): relay
+  allowlist extended (previous kept as `linux-leasegas-measurements.env.before-snpvm-16520ea`), metal0's config kept
+  as `config.json.before-snpvm-16520ea`. Admitted 14:48:10Z.
+- *Gateway.* Chain policy on version 4 since 14:53Z (previous config kept as `.pre-r13` on the control VM).
+- *Open: metal0 is not registered.* A supervisor start needs one registry transaction from the operator key
+  `0xC9D0835Cd8eBc7eaE84304d9DB0A76253EebE6aB`; the key holds 4.8e-7 ETH and the transaction is refused for cost.
+  Unregistered, metal0 neither renews nor claims: the lease ended 15:04:39Z, and the address, the agent and the
+  gateway refuse the still-running guest, as they should. The supervisor retries by itself; funding the key is the
+  operator's step. The proof-of-time checkpoints spend from the same key and emptied it (failing since 03:51Z).
