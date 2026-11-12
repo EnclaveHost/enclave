@@ -509,3 +509,19 @@ released).
 *Open.* The live control image predates the certificate-pass skip for whole-VM apps (this commit), so metal0 logs
 "no certificate for 5ff56a4d.app.enclave.host (guestd answered 404…)" on a growing back-off; harmless, gone with the
 next control image. The refill session for the RPC's reserve has a 5 USDC budget.
+
+*First app-funded renewal.* 06:08:40Z metal0 renewed the lease (0x4b930730…d456) to 06:38:39Z, the app's reserve
+paying 1223369848543 wei. The claim was not a one-off: the fleet path carries the RPC from one lease to the next.
+
+*Dashboard row.* The row showed its Open control in pulsing amber ("no answer yet"). The dashboard derived
+`https://5ff56a4d.app.enclave.host` and probed it, but a whole-VM app ends TLS on its own attested certificate and
+its host publishes no app-zone route, so nothing can answer there. Main c2b36aa62: a row whose catalog version is
+runtime `sev-snp-vm` has no address, no Open link and no phone pairing, and says so (catalog version 3's inline
+config, read off chain, carries the runtime). The live site is the additive composite r4, built from the
+reconstructed graph and not from main, so the fix reaches it as its own additive release:
+`site-whole-vm-row-r5/` (CID bafybeigmmb…slyaq, built and checked against all four edges, **not activated**; see its
+README). Until it is activated the live row keeps the amber control; the RPC itself is unaffected.
+
+*Not done.* A whole-VM app has no browser address at all. Giving it one needs a publicly trusted certificate held
+by the guest (a new image and catalog version) or a measured terminator in front of it, plus route proofs for
+whole-VM apps in the network agent, the relay and the checkers. Separate work.
