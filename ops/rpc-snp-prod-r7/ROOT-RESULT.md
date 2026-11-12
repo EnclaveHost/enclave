@@ -470,3 +470,42 @@ first-hour timing suggests the fstrim timer's catch-up run, which cannot be conf
 08:53Z the allocations track ext4 usage (L1 379→381, Base 1672→1678 GiB) and /vm went 498→490 GiB in 8 h,
 ~24 GiB/day of real chain growth instead of ~220 GiB/day of churn. The disk guard reports 0 GiB reclaimable,
 so its offline trim is no longer due.
+
+**Fleet app (2026-11-12).** The RPC deployment is now claimed and run by fleet host metal0 through the ordinary
+claim path, not by its dedicated runner. Source: `metal/snpvm-supervisor-patch.py`, `rpc/snp/vm-manager.mjs`,
+`runner.mjs --release`, `enclave-rpc-snp-disk-guard-fleet.service` (51b949df5, d947cefaa, 69c614782).
+
+*Preparation (05:10–05:38Z).* metal0's control image rebuilt from its deployed tree (metal-deabf8f90) plus the
+snpVm patch: `~/enclave-prod/dist-snpvm-b4446c3`, measurement c9fe2438…12d5, added to the relay's
+`METAL_ALLOWED_MEASUREMENTS` (backup `linux-leasegas-measurements.env.before-snpvm-b4446c3`); metal0 restarted on it
+(config backup `config.json.before-snpvm-b4446c3`), admitted, and re-adopted 0xda09d0f2 and 0xef514ed3. Host
+manager `enclave-snpvm-manager` on 127.0.0.1:8099 binds the deployment to image r12, the two chain disks of
+`prod-r12.json`, hostfwd 18443→8443, unit `enclave-rpc-snp-guest`, run dir `rpc-snp-fleet-r12`. Owner signed
+`setConfig` with `{"placement":{"hostId":0x4dde6d1b…68be},"snpVm":{"app":"enclave-rpc","measurementsFrom":
+"catalog://0x0f628585…b537/3"}}`.
+
+*First attempt (≈05:17Z) refused.* metal0 claims with app-funded lease gas only; the RPC's reserve was funded
+(0.0002 ETH by `enclave-gas-refill@rpc`) but its policy had never been configured, because the dedicated runner paid
+its own gas: "the app's owner has not enabled a lease-gas reserve". Rolled back to prod-r12 and the runner (RPC down
+~5 min). Owner then signed `EnclaveLeaseGasReserve.configure` (self-hosted policy, as 0xda09d0f2); `reserveOf`
+enabled at 05:38:45Z. Before the second attempt the rest of `_check` was read off chain: `rateFor` 0 against
+`capOf` 1, `leaseSec` 1800 ≥ `minExtension`, metal0's payout wallet = the owner.
+
+*Cutover.* 05:41:06Z runner stopped; 05:41:06–05:41:54 prod-r12 guest stopped (clean); 05:42:04 the runner's lease
+released (0xcabac1ae…a490, block 56358745); 05:42:52 metal0's claim landed (0xa79d91db…fba2), the app's reserve
+paying 2204523593855 wei; 05:42:55 the manager launched VM svc5c9c7e782de8357 as `enclave-rpc-snp-guest`. Port
+18443 attests measurement 220e5ec0…1159 and HOST_DATA 5ff56a4d…454f. L1 and Base answered from the guest by
+05:47:31Z (L1 at head), Base at the tip by 05:49:13Z; public Base stayed at the tip on the provider fallbacks
+meanwhile. Ledger runner is metal0's enclave id; the relay lists the deployment `running` on `metal0`.
+
+*Host state.* `enclave-rpc-snp-prod-r12` and `enclave-rpc-snp-runner` are stopped and disabled: starting either
+beside the fleet guest would contend for the chain disks (the manager refuses a launch while they are open) or for
+the lease (the runner ignores the placement pin). `enclave-rpc-snp-disk-guard-fleet` guards the fleet guest; the
+local proxy and LAN forward are unchanged (still 127.0.0.1:18443). At boot `enclave-metal` and
+`enclave-snpvm-manager` start and the supervisor relaunches the guest from its record. Rollback: stop
+`enclave-rpc-snp-guest`, start prod-r12 and the runner (the runner re-claims once metal0's lease lapses or is
+released).
+
+*Open.* The live control image predates the certificate-pass skip for whole-VM apps (this commit), so metal0 logs
+"no certificate for 5ff56a4d.app.enclave.host (guestd answered 404…)" on a growing back-off; harmless, gone with the
+next control image. The refill session for the RPC's reserve has a 5 USDC budget.

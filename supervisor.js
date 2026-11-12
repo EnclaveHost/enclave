@@ -9794,6 +9794,7 @@ async function guestCertPassOnce() {
   } catch (e) { console.warn(`[isolation] guest certificates unavailable: ${e.message}`); return; }
   for (const rec of deployments.values()) {
     if (rec.status !== "running" || !rec._vmId || !rec.public) continue;
+    if (rec._snpVm) continue;   // a whole-VM app ends TLS on its own attested certificate; guestd holds no instance for it
     const names = [appCertName(rec.id), ...await fetchDepDomains(rec.id)];
     for (const name of new Set(names)) {
       const cacheKey = name === appCertName(rec.id) ? rec.id : rec.id + ":" + name;

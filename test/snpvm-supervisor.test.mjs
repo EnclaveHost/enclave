@@ -95,13 +95,14 @@ test("routing: snp-vm instances and launches go to the snp-vm manager; guestd's 
   assert.equal(off.ctx.snpVmRoute("GET", "/vms/sv0123456789abcdef"), false);
 });
 
-test("the hooks: the namespace, the claim branch, the record's plan, the launch branch and the vmReq route are all wired", () => {
+test("the hooks: the namespace, the claim branch, the record's plan, the launch branch, the vmReq route and the certificate skip are all wired", () => {
   assert.match(SRC, /\.\.\.\(SNPVM_URL \? \["snpVm"\] : \[\]\)\];/);
   assert.match(SRC, /if \("snpVm" in o\) opts\.snpVm = parseSnpVmOption\(o\.snpVm\);/);
   assert.match(SRC, /if \(claimOpts\.snpVm\) return await snpVmConsider\(d, g, claimOpts\.snpVm, \{ resume, hinted \}\);/);
   assert.match(SRC, /\.\.\.\(g\._snpVm \? \{ _snpVm: g\._snpVm \} : \{\}\),/);
   assert.match(SRC, /if \(sv && sv\._snpVm\) return await snpVmSpawn\(deploymentId, sv\._snpVm\);/);
   assert.match(SRC, /function vmReq\(method, path, body, timeoutMs = 120000\) \{\n  if \(snpVmRoute\(method, path, body\)\) return snpVmReq/);
+  assert.match(SRC, /!rec\.public\) continue;\n    if \(rec\._snpVm\) continue;/, "no guestd certificate pass for a whole-VM app");
 });
 
 // metal0's control image overlays its own (older) supervisor.js: the same patch must apply there. Skipped off that host.

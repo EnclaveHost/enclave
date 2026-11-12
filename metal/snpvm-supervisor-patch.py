@@ -57,7 +57,11 @@ PATCHES = [
     ('    console.log(`[mock] ${PROVISION_BACKEND} tenant ${deploymentId}`);\n    return { internalPort: 0 };\n  }\n',
      '    console.log(`[mock] ${PROVISION_BACKEND} tenant ${deploymentId}`);\n    return { internalPort: 0 };\n  }\n'
      '  { const sv = deploymentId && deployments.get(deploymentId); if (sv && sv._snpVm) return await snpVmSpawn(deploymentId, sv._snpVm); }\n'),
-    # 7. the functions, ahead of spawnContainer
+    # 7. no guest certificate pass: guestd holds no instance for it, and its TLS is the VM's own attested certificate
+    ('    if (rec.status !== "running" || !rec._vmId || !rec.public) continue;\n',
+     '    if (rec.status !== "running" || !rec._vmId || !rec.public) continue;\n'
+     '    if (rec._snpVm) continue;   // a whole-VM app ends TLS on its own attested certificate; guestd holds no instance for it\n'),
+    # 8. the functions, ahead of spawnContainer
     ('async function spawnContainer({ deploymentId,',
      '''// ---- whole-VM SEV-SNP apps (snpVm) --------------------------------------------------------------------------
 // {"snpVm":{"app":"<name>","measurementsFrom":"catalog://<appId>/<index>"}}: the deployment runs its catalog version's
