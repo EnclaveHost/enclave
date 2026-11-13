@@ -35,9 +35,9 @@ A third refill session, for these two deployments only: 3 USDC budget, 2 USDC an
 
 ## The native desktop release (kvm-box-native)
 
-`C:\ProgramData\Enclave\run-shield.cmd` calls `releases\2e801d0f…\native-desktop-env.cmd` once, before its restart loop.
+`C:\ProgramData\Enclave\run-shield.cmd` calls `native-desktop\releases\2e801d0f…\native-desktop-env.cmd` once, before its restart loop.
 The node (`windows/vbslike/datapath/desktop-plan.mjs`) requires the manager's `runtimeId`, `igvmSha256`, `profileSha256`
-and `controllerSha256` to equal the pinned release's. SVN18's files are on the box under `releases\a2272bcd…`; read-only
+and `controllerSha256` to equal the pinned release's. SVN18's files are on the box under `C:\ProgramData\Enclave\native-desktop\releases\a2272bcd…`; read-only
 checks before any change:
 
 - every file matches the release's pins (native-igvm.bin a2272bcd…, root.iso 890bfd05…, hashes.iso df175466…, shielded-bridge.exe cc751de6…, desktop-config.json bf6bdc2a…, desktop-release.json d66b570a…, models.iso ddb1c303…);
@@ -115,3 +115,118 @@ app's page (controller 104468ce…, pinned by the release), so changing it means
   serving do not depend on it.
 - A restart of the Shield manager costs every app on the box about five to seven minutes; the launch refusals while
   recovered partitions are reconciled heal on later passes.
+
+## A release for the page: terminal, one Start/Stop button, a working Open desktop (prepared 23:20Z, NOT live)
+
+The owner asked for four things on the KVM Box page: a terminal like RISC Box's, Start desktop turning into Stop
+desktop, a public address for Moonlight's "Add PC", and an Open desktop button that works. The page is the app's
+controller, which the desktop release pins by hash, so the first, second and fourth need a new signed release and a
+new catalog version. The third is not in it (last section).
+
+**Why Open desktop failed for the owner while it worked when opened at `/desktop/vnc.html` directly.** The page's link
+is `/desktop/vnc.html?autoconnect=true&resize=remote` with no `path`. noVNC then opens its default WebSocket path,
+`websockify` at the site root, which the controller does not route; it showed "Failed to connect to server". With
+`&path=/desktop/websockify` the same page connects. That address works on the running SVN18 release today:
+`https://9a28642b.app.enclave.host/desktop/vnc.html?autoconnect=true&resize=remote&path=/desktop/websockify`
+(the desktop has to be started first).
+
+**Source.** enclave-apps commit d1f30c1524013d73fd97208e6de0c28be29146be, branch `kvm-box/page-terminal-20261113`,
+https://github.com/EnclaveHost/enclave-apps/pull/7 (open, base `codex/kvm-box-native-20261024`): the page, the
+controller's `/terminal` and `/a/` routes, the automation service's shell on a pseudo-terminal, both gateways. Its
+checks are in the commit message. Another owner's uncommitted work in the `enclave-apps-native` checkout (cursor files,
+root build schema 3) is not in this build and was not touched.
+
+**Candidate SVN19**, exported to `…/2026-10-23/it/outputs/kvm-box/native-platform-v15-owner-terminal/`:
+
+| file | bytes | sha256 |
+|---|---|---|
+| native-igvm.bin (signed) | 86,616,932 | de9e87e32cbacfa0dddb27422a36733dddadb3b87268aa14d7cc109bf9a1802e |
+| root.iso | 592,719,872 | fe27094279df44123c8e5cac6118860957b34092049d90e987bd694e1df67105 |
+| hashes.iso | 4,739,072 | fcbe54bc8190f8d5ca7bac35c060ee9f3f5543e22c4ba68824cca71b2972e09e |
+| profile.json | 1,066 | aa5cb74b0beeebff1fcb1aa6aaac4fb876f9ec823acf46b4fcdbc94a1433c1e8 |
+| shield-desktop.wasm (controller) | 507,502 | b3eb82bce8822d26ecbfb654b73a603debf9cde460845ff29a02c69a9f4e4704 |
+| models.iso, shielded-bridge.exe | unchanged | ddb1c303…, cc751de6… |
+
+- Against SVN18 the root image differs in four files: the controller, the outer and inner gateways and the automation
+  service (`root-diff.json`). Before packaging, the same restored toolchain rebuilt SVN18's archive bit for bit.
+- Signed with the release key by the pinned signer (the key was passed on standard input and is in no file here);
+  guest SVN 19, same module, product and signer identity as SVN18. An independent implementation verified the
+  signature. Launch measurement dd7e49bb5e80bf4b2f1d2daa2f86b8d72c7d2f4616df359facde7d3d02e149f4: computed, not read
+  from hardware.
+- Booted in an isolated KVM guest with no network device on the release's pinned runtime, 18 checks passed
+  (`desktop-test.json`): owner sign-in and action gates, desktop start, the page with one power button and the
+  terminal's files, a WebSocket through the page's Open desktop link reaching the VNC server, the terminal (shell is
+  the desktop user, resize, interrupt key, a second page sees the session, restart gives a new shell, it ends with the
+  desktop and starts fresh with the next), two clean stops. The worker, the runtime and gateway role adapters and the
+  owner credential in that run were synthetic.
+- **Not done:** no run on the NucBox; no production VBS hardware admission; the SVN18 graphics qualification, Shield
+  compute and Moonlight were not repeated for this image. `candidate.json` says so (`finalImageRuntimeQualified`,
+  `hardwareAttestationChainVerified`, `admissionEnabled`, `activated`: all false). Loading it on the NucBox is the same
+  kind of unqualified operator arrangement as SVN18 under the installed manager above.
+
+**What has to change for it to run**, and who does it:
+
+1. Catalog. The app 0xcdc1fa94…70ce (`kvm-box-native`) is published by the owner's session vault 0xB794…345D, and the
+   deployment is held by that vault. So: the vault publishes version 1 (`ownerCall(catalog, publishVersion)`), the
+   owner approves it (`setApproval`), and the vault promotes the deployment to `catalog://0xcdc1…70ce/1` (`promote`,
+   which also records the pair the relay releases secrets for; a bare `setAppRef` would not). The component is
+   uploaded first, for the owner's signature over `enclave-upload:<sha256>:<expiry>`. Its CID is
+   `bafybeidkdt5kv3bkyygeyofbkoo3abqd2oi7o5wgcsbrkodmjf5q3zzub4` (507 KB is more than one block, so a dag-pb root,
+   not the raw CID the SVN18 controller has). All four are the owner's signatures: `rpc/snp/owner-sign/` has a new plan
+   kind `vault-version` (`vault-version-plan.mjs`, `vault-version.mjs`, tests in
+   `test/owner-sign-vault-version.test.mjs`). The plan simulated on two Base RPCs in order publish, approve, promote
+   and ended on version 1. The page offers each step only when the one before it is done, the publish only once the
+   component is served under that CID, and the promote only once the host switch below has written its marker.
+2. Release files for the node, the manager and the relay, generated from the live SVN18 set by
+   `desktop-svn19-prepare.mjs` (kept here as it was run; it validates with the platform's own
+   `validateDesktopRelease`, `validateDesktopAdmission`, `validateDesktopPlatform` and `shieldImageCandidates`, and
+   first reproduces SVN18's known derived record): desktop-config.json fc564428…6440, desktop-release.json
+   fa61b80a…5b54, native-desktop-env.cmd f3c03189…a451, shield-policy.json a0e73502…e3ee (the native desktop entry
+   becomes SVN19, minimum guest SVN 19; the 12 other image entries are unchanged). The node will derive app id
+   cf5d4662…eca7 for version 1.
+3. Hosts, by `desktop-svn19.sh` and `desktop-svn19.ps1` here:
+   - `stage`: copies the files to `C:\ProgramData\Enclave\native-desktop\releases\de9e87e3…` and checks size and
+     SHA-256 there. **Done 23:19Z**, by the agent; nothing running changed.
+   - `policy`: replaces `/etc/nan-relay/shield-policy.json` on the control VM (only from the exact previous file
+     e41ac896…911b, which is kept) and restarts the relay; puts the file back if the relay is not healthy within three
+     minutes. From here SVN18 is not admitted, so KVM Box is down until the promote.
+   - `switch`: refuses unless the version is published and approved, the relay has the new policy and at least two of
+     the node's sources serve the controller as a verified CAR. Then pins the Node (`run-node.cmd`), then switches the
+     Shield manager (`run-shield.cmd`), each by the one `native-desktop-env.cmd` line, each put back if the task does
+     not come up on the release; waits until the app VMs are back and the node's log is quiet; writes the marker.
+   - `revert`, `policy-revert`: the same edits backwards.
+   The owner runs `policy` and `switch`: both restart services.
+
+Read before writing the scripts:
+
+- The node agent has run since 11-11 18:41:28Z (it was not restarted today) and lists itself in the registry about
+  seven seconds after it starts, with the operator key at 0 ETH. Tasks are `\Enclave\Node` and `\Enclave\Shield`.
+- The node takes the desktop plan only when the version's CID equals the pinned release's `controllerCid`
+  (`windows/vbslike/datapath/node-bridge.mjs`); it reads the pin at start. While the node's pin and the manager's
+  release differ, only the desktop is refused, which is why the Node goes first.
+- The node fetches a component through `control\windows\node\artifact-gateways.json`: the local replica on
+  127.0.0.1:18191 (a fixed set; it answers 404 for anything else), four edges on 8189, then the gateway app.
+  `wasm/ipfs_fetch.py` asks for a CAR and hashes every block for a dag-pb CID. Run from this host against an existing
+  23.7 MB multi-block component it verified from ipfs.enclave.host, the gateway app and two edges. The new controller
+  is not uploaded yet, so how soon the edges serve a fresh pin is not observed; `switch` checks it.
+- The manager itself grants each VM read access to its media at launch (`desktop-media.mjs`), so the staged folder
+  carries only SYSTEM and Administrators, like a new folder would.
+
+State at 23:20Z: staged on the NucBox; nothing uploaded, published, approved or promoted; relay policy and both
+launchers still SVN18; KVM Box runs the old page.
+
+## Moonlight "Add PC" with a public address: not possible with what is deployed
+
+Today Sunshine listens on loopback inside the desktop (`guest/native/network_policy.py`), and the only way in is the
+owner-side connector (`kvm-box/host/moonlight.mjs`), which listens on 127.0.0.2 on the owner's computer and carries
+TCP 47984, 47989, 48010 and UDP 47998 to 48000 through the owner-authenticated `/desktop/api/moonlight/tunnel`. That
+is why the page says 127.0.0.2. A public address needs things the platform does not have:
+
+- Enclave Direct is HTTPS on 443 routed by SNI, on qualified Linux hosts; the NucBox is a Windows host and the app has
+  no dedicated IP.
+- The WireGuard edges forward 443, 80 and 53 only. The public raw TCP/UDP relays were removed on 2026-10-01
+  (f0167b59f).
+- Moonlight's own pairing would then be the only gate on a public port; today the owner sign-in is in front of it.
+
+So it is platform work (a per-app raw port path through the edges or Direct, and a decision about what authenticates
+it), not a page change. Not started.

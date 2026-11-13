@@ -2,12 +2,15 @@
 // RPC app: node rpc/snp/owner-sign/server.mjs PLAN.json [PORT]
 //
 // PLAN.json (rpc/snp/owner-sign/plan.mjs writes it for a first release, upgrade-plan.mjs for a new
-// version of a running deployment, topup-plan.mjs for ETH to a host's operator key) lists each owner
+// version of a running deployment, topup-plan.mjs for ETH to a host's operator key, vault-version-plan.mjs for a
+// new version of an app the owner's session vault publishes and holds) lists each owner
 // transaction with its exact calldata and the
 // decoded arguments shown to the owner. The page sends a step only when the
 // owner clicks it, from the owner's own wallet; this server signs and sends nothing. /status
 // reads Base so the page can show which steps are already done and which are ready.
 // Listens on 127.0.0.1 only. Submitted hashes are appended to PLAN.json's journal file.
+// One step of a vault-version plan is a message, not a transaction: the owner signs enclave-upload:<sha256>:<expiry>
+// and POST /upload trades it at the relay for an upload token and pins the plan's component (vault-version.mjs).
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,6 +19,7 @@ import { createPublicClient, fallback, formatEther, http as viemHttp } from 'vie
 import { base } from 'viem/chains';
 import { CATALOG_ABI, LEDGER_ABI } from './abi.mjs';
 import { simulateTopup } from './topup.mjs';
+import { upload, vaultVersionStatus } from './vault-version.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const [planPath, port = '42290'] = process.argv.slice(2);
@@ -108,7 +112,9 @@ async function topupStatus() {
     note: { [step.id]: `The operator key holds ${formatEther(operatorBal)} ETH now.` }, operatorBalanceWei: String(operatorBal), journal };
 }
 
-const STATUS = { upgrade: upgradeStatus, topup: topupStatus };
+const readJournal = () => (fs.existsSync(plan.journal) ? fs.readFileSync(plan.journal, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
+const servedCache = {};
+const STATUS = { upgrade: upgradeStatus, topup: topupStatus, 'vault-version': () => vaultVersionStatus(plan, pub, { cache: servedCache, journal: readJournal() }) };
 
 http.createServer(async (req, res) => {
   const send = (code, body, type = 'application/json') => { res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store' }); res.end(type === 'application/json' ? JSON.stringify(body) : body); };
@@ -123,6 +129,14 @@ http.createServer(async (req, res) => {
       if (!plan.steps.some((s) => s.id === step) || !/^0x[0-9a-f]{64}$/.test(hash)) return send(400, { error: 'bad submission' });
       fs.appendFileSync(plan.journal, JSON.stringify({ step, hash, at: new Date().toISOString() }) + '\n');
       return send(200, { ok: true });
+    }
+    if (req.method === 'POST' && req.url === '/upload') {
+      let body = ''; for await (const c of req) { body += c; if (body.length > 4096) throw new Error('too large'); }
+      const { step, expiry, signature } = JSON.parse(body);
+      if (!plan.steps.some((s) => s.id === step && s.upload)) return send(400, { error: 'bad submission' });
+      const cid = await upload(plan.status.upload, plan.owner, { expiry, signature });
+      fs.appendFileSync(plan.journal, JSON.stringify({ step, cid, at: new Date().toISOString() }) + '\n');
+      return send(200, { ok: true, cid });
     }
     send(404, { error: 'not found' });
   } catch (e) { send(500, { error: String(e.shortMessage || e.message).slice(0, 300) }); }
