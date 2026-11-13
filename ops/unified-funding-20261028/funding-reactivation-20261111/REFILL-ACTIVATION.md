@@ -23,3 +23,7 @@ Every metal0 reboot still needs one operator-paid `setProofKey`; paying it from 
 - 0x7ae476a3 was sticky in the NucBox's `blocked` list from a fence-era start failure; cleared with the node's forced claim-hint.
 - Public Base RPCs rate-limited the hosts' shared address; the refiller now asks `https://api.enclave.host/rpc/base` first (2a000e456).
 - 22:35Z: 0xda09d0f2, 0x7ae476a3, 0xd9798e4c, 0xa77d0c57, 0xa69dcbba and 0xef514ed3 answer 200 publicly. enclave-cron 0x38f368d6 and depot 0xc13d4b6a answer 503 "storage unavailable" (their storage is sia-s3, which now answers S3); 0x59f1273d needs a gas grant; 0x9a28642b needs the held native Windows manager; eyesoff-ai stays down (49.6 GiB guest).
+
+## The two deployments left queued (2026-11-13)
+
+0x59f1273d (enclavedns) and 0x9a28642b (kvm-box-native): `queued-apps-20261113/README.md`. A third refill session covers both; enclavedns runs since 20:20Z; kvm-box-native waits on the Shield manager loading the pinned desktop release.
