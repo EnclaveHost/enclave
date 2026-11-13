@@ -648,6 +648,47 @@ Detail: `control-image-66335ab/README.md`.
   checkpoint since the restart; the key held 9.359e-4 ETH at 00:12Z and at 00:36Z. A restart costs it 5.0e-7 ETH
   (registration and price), so it now lasts for about 1,800 restarts instead of four days.
 
+## Image r14 (Enclave RPC 1.4.0): memory the guest was not asked for; built and qualified, not live (2026-11-13 02:20Z)
+
+*Why.* The owner asked for Enclave RPC to use less memory. Measured on r13: the guest's unit is charged 82.84 GiB
+on the host, about 61 GiB of it pinned guest memory (64 GiB given by the catalog version; SEV-SNP, no balloon, no
+swap) and about 18 GiB host page cache for the Base disk, which the host can take back. Inside, the root is a
+read-only verity image under a tmpfs overlay, so every log line is guest memory: Base writes about 1,243 MB of log
+text a day and r13 keeps it twice (journal and rsyslog's file). The client limits are bytes sized for 64 GiB, so
+the guest could not simply be made smaller, and nothing reports what the clients need.
+
+*Change.* Main 25dbcf4d6: journal capped at 256 MB and not copied to syslog, Base in its own 256 MB journal
+namespace, 39 stock units masked, limits as shares of the guest's memory, `GET /memory` on the guest's local name,
+and a working-set probe (`rpc/snp/memprobe.py`) that for 48 hours asks a quiet clients' slice for 0.2% of its
+memory a minute and sets no limit. Clients, versions and data layout unchanged.
+
+*Build.* `/vm/enclave-volumes/rpc-snp-image-r14` (115 s), root hash `d0b6040a…1a58`, kernel 6.8.0-147, 8 vCPU launch
+measurement `aa1807f5…42e0`, manifest `bafkreiepolr6ewdbfzvxd4forprmpyp57ey5mydrpn42xq4blki7xg2xma` (pinned on this
+host). Records, scripts and the order of the move in `release-r14/`.
+
+*Qualified.* Plain KVM, r13 and r14 on the same rig with the same 380 MB flood into each journal
+(`rpc/snp/kvm_check.py`):
+
+| | r13 | r14 |
+|---|---|---|
+| running services at idle | 16 | 13 |
+| resident memory at idle | 195,692 kB | 157,244 kB |
+| overlay (guest memory) after the flood | 1,286 MB, 536,684,887 bytes of it the syslog copy | 512 MB, at the two caps |
+| stock units | none of the 39 masked, 20 active | all masked |
+
+SEV-SNP boot on a scratch deployment id (`/vm/enclave-volumes/rpc-snp-smoke-r14`, 02:10:40Z to 02:12:46Z, since
+stopped): live measurement equals the offline one; the repository's verifier accepts it and refuses r13's
+measurement and another deployment; `/memory` answers on the local name only; limits are 90% / 94% of the 8 GiB
+the smoke guest was given.
+
+*Not exercised.* The clients on the real chain disks under r14, and the probe against real clients: both first
+run at the cutover.
+
+*Nothing here is live.* Production is still r13 (1.3.0, version 4). The move is the operator's
+`release-r14/run-cutover.sh` and three owner signatures (publish version 5, stop, start): an outage for the stop
+and start. r14 at 64 GiB does not lower what the host pins; it stops the growth and makes the need readable. The
+reduction is a later catalog-only version with a smaller memory size, chosen from the probe's report.
+
 ## Enclave RPC after a host boot: what brings it back (read 2026-11-12, not exercised)
 
 Read from the host's units and configuration; the host was not rebooted (up since 2026-11-01 19:28 MST).
