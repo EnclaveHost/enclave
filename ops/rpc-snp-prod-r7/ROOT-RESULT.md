@@ -684,10 +684,36 @@ the smoke guest was given.
 *Not exercised.* The clients on the real chain disks under r14, and the probe against real clients: both first
 run at the cutover.
 
-*Nothing here is live.* Production is still r13 (1.3.0, version 4). The move is the operator's
+*Not live when this was written* (live since 02:54Z, next section). Production was still r13 (1.3.0, version 4). The move is the operator's
 `release-r14/run-cutover.sh` and three owner signatures (publish version 5, stop, start): an outage for the stop
 and start. r14 at 64 GiB does not lower what the host pins; it stops the growth and makes the need readable. The
 reduction is a later catalog-only version with a smaller memory size, chosen from the probe's report.
+
+## r13 to r14 (Enclave RPC 1.4.0, catalog version 5): in production 2026-11-13 02:54Z; host memory unchanged, as expected
+
+*Run.* The operator ran `release-r14/run-cutover.sh` (manager bound to r14 at 02:33:35Z); the owner signed publish
+(02:34:49Z, `0x5bf5bbce…dd50`), stop (02:35:05Z, `0x1b086c6e…16ba`) and start (02:53:22Z, `0xda8d4cca…2180`). metal0
+tore r13 down at 02:35:55Z, claimed 45 seconds after the start (`0x44a9b830…5d7b`) and launched r14 at 02:54:11Z
+(8 vCPU, 65536 MiB). Front attested with `aa1807f5…42e0` at 02:54:32Z, certificate 02:55:26Z, gateway on
+`versionIndex` 5 at 02:56:52Z, app address 200 at 02:57:06Z, Ethereum at head 02:57:28Z, Base at head 03:15:40Z.
+Full table and hashes in `release-r14/README.md`.
+
+*Outage.* Public Ethereum about 21 minutes (02:35:55Z to 02:57Z), 17 of them the wait for the start signature.
+Base in the guest 40 minutes; public Base falls back to its providers by design (not read during the outage).
+
+*Memory, measured.* 03:26Z, all clients at head: clients' slice 55.65 GiB, on its high limit (anonymous 9.66,
+file 40.29); Base 43.79 GiB; `/var/log` 129 MB and capped at 512. The host charges the guest's unit 84.4 GiB
+(r13: 82.84): **r14 at 64 GiB lowers nothing on the host.** It was 27.5 GiB for the first minutes only.
+
+*The probe does not measure.* Base walks its mapped database at about 62 MB a second and re-reads 5% of what it
+gives up; the probe's 1.9 MB a second never brings the slice off its limit, and the limit's own reclaim is the
+pressure that holds the probe. Harmless (no limit set, stops after 48 hours), and not a working-set reading.
+
+*Next.* A catalog-only version with less memory (same image and measurement; owner-signed publish, stop, start).
+48 GiB leaves Base the 30 GiB it had on r13 if the Ethereum clients stay at the 12 GiB they hold on r14 (half of
+r13's reserve for them, seen for half an hour); lower is untested (8 GiB failed on 2026-11-05). Read the anonymous
+memory and the Ethereum node's re-read rate after a day first. Rollback from r14: an owner-signed start on version 4
+with `~/.config/enclave/snpvm.json.r13`.
 
 ## Enclave RPC after a host boot: what brings it back (read 2026-11-12, not exercised)
 

@@ -18,6 +18,12 @@ It sets no limit and stops no process. The reclaim runs in this unit, so its own
 clients' pressure; what they pay is the re-read of a page that turned out warm, at most STEP per INTERVAL, and
 nothing while they are under pressure from anything else. After MEASURE_SEC it stops asking and the page cache
 grows back. STATE is read by the front's /memory (local name only).
+
+Measured in production (image r14, 2026-11-13, ops/rpc-snp-prod-r7/release-r14/README.md): it does not find the
+working set while Base follows the chain. Base turns its page cache over at about 62 MB a second, thirty times
+STEP per INTERVAL, so the slice stays on its MemoryHigh, and the reclaim at that limit is itself the pressure that
+holds the probe. `held` rising with the slice level is then the limit, not the working set. What /memory does
+give is the anonymous memory and the re-read rate (workingset_refault_file against pgsteal).
 """
 import json
 import os

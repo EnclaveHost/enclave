@@ -1,8 +1,8 @@
 # Enclave RPC r14 (1.4.0): memory the guest was not asked for
 
-Status: **built and qualified, NOT live** (2026-11-13 02:20Z). Production is r13 (1.3.0, catalog version 4). r14
-goes live when the operator runs `run-cutover.sh` and the owner signs the three steps of `PLAN.json`; the move is
-a stop and a start of the guest, so an outage of Enclave RPC.
+Status: **in production since 2026-11-13 02:54:11Z** (catalog version index 5 on deployment `0x5ff56a4d…454f`,
+run by metal0). r13 (1.3.0, version 4) ran until the owner's stop at 02:35Z. The guest is still 64 GiB and the host
+is charged what it was charged for r13: see "The run" and "Does this lower the host's memory?".
 
 ## What was measured on r13 (2026-11-12)
 
@@ -94,8 +94,8 @@ the owner signs a, c and d there. The network agent, reconciler, site and metal0
 Between c and the r14 guest's clients answering, public Ethereum is down (the gateway serves it from the enclave
 only) and Base falls back to its providers. r14 starts on r13's chain disks: a replay, not a sync. At the r13
 cutover the guest's Ethereum node answered within three minutes of its launch, but metal0's claim came 45 minutes
-after the owner's start, because its control image then rarely got a policy answer. The image it runs now has that
-fixed; how long a claim takes on it has not been measured, and `finish.sh` waits up to two hours for it.
+after the owner's start, because its control image then rarely got a policy answer. On the image it runs now the
+claim landed 45 seconds after the owner's start (see "The run"); `finish.sh` waits up to two hours for it.
 
 After b the manager refuses to relaunch version 4 (the bound image is r14's). The running guest is not touched,
 but a restart of it before d would not come back. Rollback before d: `host-prepare.sh rollback-manager`, then the
@@ -103,25 +103,98 @@ owner's `setActive(true)` alone. After d the way back is a further owner transac
 binding (`~/.config/enclave/snpvm.json.r13`); the clients are the same versions in both images, so either runs
 on the disks the other left.
 
+## The run (2026-11-13, all times Z)
+
+| | |
+|---|---|
+| 02:33:35 | operator `run-cutover.sh`: the VM manager restarted bound to image r14 and adopted the running r13 guest |
+| 02:34:49 | owner, publish version index 5: `0x5bf5bbce99a7e879b9f1b77630243da2d38c69a4c6fc4fb15de892115c68dd50` |
+| 02:35:05 | owner, stop: `0x1b086c6e91c112870b6578e1493a060a97eaf61ec512b0dc0051b612a06716ba` |
+| 02:35:55 | metal0: "stopped by owner on-chain -> teardown + release"; r13 guest stopped by 02:36:43 (its unit ran 16 h 21 min; systemd's closing line: 99.3G memory peak) |
+| 02:36:48 | sponsored release `0x81e2ad448df5a716b7fd356be7b62563de241d86bf78bfd8e30b6c0a654e1f0f` (block 56735155) |
+| 02:53:22 | owner, start on `…/5`: `0xda8d4cca030003e5e3598efa162235ad08d82c98db86250c1850745b7a462180` (the 17 minutes before it were the wait for the signature) |
+| 02:54:07 | metal0's claim landed: `0x44a9b830e48adcecdba4add4a2b0c53648f2edd95d323c89bd9ded510f6a5d7b` |
+| 02:54:11 | launch (8 vCPU, 65536 MiB, `catalog://0x0f62…b537/5`), guest unit active, "adopted: app=enclave-rpc:1.4.0" |
+| 02:54:30 | host-local proxy `enclave-rpc-snp-local-proxy-r14` active (pinned to r14's measurement); `-r13` disabled |
+| 02:54:32 | front attested and ready with measurement `aa1807f5…42e0` |
+| 02:55:26 | certificate for `5ff56a4d.app.enclave.host` issued to the new guest |
+| 02:56:52 | gateway restarted with chain policy `versionIndex` 5 (old config kept as `.pre-r14` on the control VM) |
+| 02:57:06 | `https://5ff56a4d.app.enclave.host/` 200; route record on `…/5`, root hash `d0b6040a…1a58` |
+| 02:57:28 | Ethereum node no longer syncing; 02:59:44 beacon node `sync_distance` 0 |
+| 02:59:09 | reconciler ran, status 0 |
+| 03:00:21 | Ethereum through the gateway answered (first read made; the gateway had the policy from 02:56:52) |
+| 03:15:40 | Base at head (56746732, 18 s old) after two pipeline runs from 56734898 |
+
+Public Ethereum was down from the stop (02:35:55) until the r14 node was at head and the gateway had version 5
+(02:57), about 21 minutes, 17 of them the wait for the start signature. Base inside the guest was back at head 40
+minutes after the stop; public Base is served from its providers while the guest lags (by design; not read
+during this outage). Base's unit failed once at its first start
+(connection refused while the Ethereum node was still coming up) and systemd restarted it; nothing was done by hand.
+
+All three clients at head, gateway serving Ethereum and Base, app address 200: read again at 03:16:39.
+
+## What the guest reports (first half hour)
+
+`MEMORY-0300Z.json`, `MEMORY-0324Z.json`, `MEMORY-0326Z.json` are the guest's `/memory` at those times. GiB:
+
+| | 03:00:31 (6 min after launch) | 03:26:24 (all clients at head) |
+|---|---|---|
+| guest `MemTotal` / available / free | 61.84 / 53.77 / 40.25 | 61.84 / 48.50 / 4.83 |
+| clients' slice (limit: high 55.66) | 20.67 (anonymous 6.06, file 12.83) | 55.65 (anonymous 9.66, file 40.29, of it referenced twice 2.86) |
+| Base | 1.90 | 43.79 (anonymous 2.96, file 36.03) |
+| Ethereum execution | 12.63 | 6.18 (anonymous 2.11, file 3.23) |
+| Ethereum consensus | 6.14 | 5.67 (anonymous 4.59, file 1.02) |
+| front / everything else in the system | 0.03 / 0.17 | 0.03 / 0.29 |
+| `/var/log` (guest memory) | 18.1 MB | 129.3 MB, growing 4.0 MB a minute toward the two 256 MB caps |
+| probe | asked 5 times, held 0 | asked 16 times (1.04 GiB in all), held 15 |
+| host: memory charged to the guest's unit | 27.5 GiB (03:01) | 84.4 GiB (03:29) |
+| host: `MemAvailable` of 124.8 GiB | 70.5 GiB | 31.4 GiB |
+
+Between 03:24:24 and 03:26:24 the kernel took file pages from the clients' slice at 70.8 MB a second (Base 61.9,
+Ethereum execution 6.5, consensus 2.4), and 4.9 MB a second of what it had taken was read back (Base 3.1).
+
+What that says:
+
+- The slice reached its high limit 25 minutes after the launch and sits on it. Base maps its database and walks
+  through it at about 62 MB a second, so it turns over its whole 36 GiB of cache every ten minutes or so, and it
+  pushed the Ethereum node's cache from 10 GiB down to 3 GiB on the way. Of what Base gives up, 5% is read again.
+- **The probe cannot answer as built.** It asks for 0.2% of the slice a minute (about 1.9 MB a second) and Base
+  refills at thirty times that, so the slice never comes down; and the slice running on its limit by itself
+  produces the pressure the probe takes as "stop" (`some` 0.14% to 0.29%). `probe.held` rising with
+  `groups.clients.current` level is therefore **not** a working-set reading here. It does no harm (it sets no
+  limit, and stops after 48 hours); it also does not measure.
+- What can be read instead, with nothing changed in the guest: the anonymous memory (cannot be given back; 9.66 GiB
+  and still rising half an hour in), and the re-read rate (`groups.*.stat.workingset_refault_file` against
+  `pgsteal`, both counted since boot, so two reads a day apart give the day's average).
+
 ## Does this lower the host's memory?
 
-Not by itself. r14 at 64 GiB still pins what the guest touches, and the clients still fill their limits with page
-cache. What r14 does: the log growth that could never be given back stops, the self-updating services are gone,
-and for the first time the guest says what it needs.
+No, and that is now measured: half an hour after the launch the host charged the r14 guest 84.4 GiB, against
+82.84 GiB for r13. The 27.5 GiB right after the launch was a guest that had not touched its memory yet. r14 at
+64 GiB still pins what the guest touches, and the clients still fill their limits with page cache. What r14 does:
+the log growth that could never be given back is capped, the self-updating services are gone, and the guest
+reports its memory.
 
 The reduction is a second, catalog-only version: the same image and measurement with a smaller `res` memory
-(`release.py … --mem-mib N --version 1.4.1`, owner-signed publish, stop, start; a second outage). Choose N from
-the probe, a day or two after the cutover:
+(`release.py … --mem-mib N --version 1.4.1`, owner-signed publish, stop, start; a second outage). r14's limits
+are shares, so they follow N. What is known about N:
+
+- Base with an 8 GiB limit could not follow the chain (2026-11-05, `ROOT-RESULT.md`). r11 to r13 gave Base
+  30 GiB, the Ethereum execution node 11 and the consensus node 10, each its own (2026-11-06 to 2026-11-13).
+  Nothing between has been run.
+- On r14 the three share the slice, and Base takes from the other two: at 03:26 the Ethereum clients held 12 GiB
+  together, about half of what r13 reserved for them, and were at head.
+- A 48 GiB guest gives the slice about 41.7 GiB. If the Ethereum clients stay at those 12 GiB, Base is left about
+  30 GiB, what it had on r13. That is the best-supported size: 16 GiB less pinned on the host. It rests on half
+  an hour of the Ethereum clients running that small, not on a week.
+- A 40 GiB guest leaves Base about 23 GiB: untested. The 5% re-read rate suggests room and does not prove it.
+- Before either, read after a day (the command below): `groups.clients.stat.anon`, which no limit can squeeze
+  and which was still rising at 03:26, and whether the Ethereum node kept up with the cache Base leaves it
+  (`/health`, and `groups.el.stat.workingset_refault_file` against its `pgsteal`).
 
 ```
 curl -sk --resolve enclave-rpc:18443:127.0.0.1 https://enclave-rpc:18443/memory
 ```
 
-- `probe.held` rising while `groups.clients.current` stays level: the slice is at its working set. That size,
-  plus `groups.system.current`, `groups.front.current`, the overlay (`mounts./.used`) and headroom for a client's
-  restart, is what the guest needs.
-- `probe.asked` rising with `held` near 0 and `current` still falling: not there yet.
-- `groups.clients.stat.anon` is the floor: without swap it cannot be reclaimed.
-
-Until that is read, the size a smaller version could name is not known: nothing inside r13 reports it. 48 GiB is
-an estimate, not a measurement; 40 GiB is a guess.
+A smaller version is its own test: if Base falls behind on it, the gateway's `maxLag` keeps public Base on the
+providers, and the way back is an owner-signed start on version 5.
