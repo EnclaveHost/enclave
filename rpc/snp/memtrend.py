@@ -48,6 +48,14 @@ def samples(report):
     return [(s[0], s[2], s[3]) for s in (report.get('probe') or {}).get('samples', []) if s[1] > 0]
 
 
+def boot(reports, table):
+    """When the guest of the newest report started, as far as the reports say: its probe's start, else the first report
+    after the counters last went back"""
+    started = (reports[-1].get('probe') or {}).get('startedAt')
+    resets = [r['at'] for n, r in enumerate(table) if n and r['steal'].get('clients') is None]
+    return started or (resets[-1] if resets else table[0]['at'])
+
+
 def growth(points, hours=6):
     """GiB an hour over the last `hours` of [(at, bytes, ...)]; None when that spans less than an hour"""
     if not points:
@@ -83,11 +91,12 @@ def main(directory):
     if kept:
         print("the probe's samples of the slice, anon / file GiB: " + '  '.join(
             '%s %.2f/%.2f' % (time.strftime('%H:%M', time.gmtime(at)), anon / GIB, file / GIB) for at, anon, file in kept))
-    points = sorted(set([(at, anon) for at, anon, _ in kept] + [(r['at'], r['anon']['clients']) for r in table]))
+    since = boot(reports, table)                      # a restart empties the clients: no growth across one
+    points = sorted(p for p in set([(at, anon) for at, anon, _ in kept] + [(r['at'], r['anon']['clients']) for r in table]) if p[0] >= since)
     for hours in (2, 6, 24):
         g = growth(points, hours=hours) if points[-1][0] - points[0][0] >= hours * 3600 else None   # not a shorter record under a longer name
         if g is not None:
-            print("the clients' anonymous memory over the last %d h on record: %+.2f GiB an hour" % (hours, g))
+            print("the clients' anonymous memory over the last %d h of this boot: %+.2f GiB an hour" % (hours, g))
     return 0
 
 

@@ -1,9 +1,98 @@
 # Enclave RPC 1.4.1: image r14 in a 48 GiB guest
 
-Status: **prepared, not published, not live** (2026-11-13 06:50Z). Production is 1.4.0 (catalog version index 5,
-64 GiB), unchanged by anything here. The owner has signed nothing for 1.4.1. Whether 48 GiB is the right size is
-**not yet known**: the guest's anonymous memory was still rising four hours after its start (see "What is not
-known"). The move is to be signed only after a reading about a day after the start says it holds.
+Status: **in production since 2026-11-13 16:30:13Z** (written 18:30Z). The owner signed publish, stop and start
+between 16:26Z and 16:29Z, before the day-later reading this file asked for. Two hours in, the guest runs with
+49152 MiB, all three clients are at head and nothing was killed. Whether 48 GiB holds over a day is **not yet
+known**: the anonymous memory of a new boot is still rising, and at 64 GiB it was still creeping up after 13 hours.
+The sections from "What it is" down are the preparation as written at 06:50Z, kept as they were; where the run
+showed them wrong it is said here.
+
+## The run (2026-11-13)
+
+| Z | |
+|---|---|
+| 16:21:07 | `run-cutover.sh`: reading of the 64 GiB guest (`MEMORY-1621Z.json`, `HEALTH-1621Z.json`) |
+| 16:26:44 | publish version 6: `0x1c9b1e48d492b254928707f847f4f9c8f5e736096e8c3e16d882c858ff9b7724` (Base block 56984145) |
+| 16:27:08 | stop: `0x08fd352a100c6650ebb5b825c063e73b4486f72cb0efec29baa52f0a5d06b5f5` (56984268) |
+| 16:27:55 | metal0: "stopped by owner on-chain", guest torn down; public Ethereum stops here |
+| 16:28:38 | metal0's release of the lease landed (`0x06eb2976…`) |
+| 16:29:09 | start on `catalog://0x0f62…b537/6`: `0xada0d998457f4c1d44b14bb7d2920a49638d4ff54cfdb94ed545400fce85daef` (56984872) |
+| 16:30:10 | metal0's claim landed (`0x76fe1497…`) |
+| 16:30:13 | metal0: `launching (8 vCPU, 49152 MiB, …/6)`; qemu runs with `-m 49152`; adopted as `enclave-rpc:1.4.1` |
+| 16:33:11 | `finish.sh` moved the gateway to `versionIndex` 6 (`.pre-1.4.1` kept) and restarted it |
+| 16:36:49 | the gateway marks the guest's Base fresh again |
+
+All three owner transactions have status 1. The catalog-to-qemu path for the size ("read in source, not exercised"
+below) is now exercised: version 6's `res[2]` reached qemu as 49152 with no change on the host.
+
+Outage: public Ethereum from 16:27:55Z until the gateway was on version 6, 16:33Z or shortly after, so **about
+five to six minutes; the minute it answered again is not on record** (the terminal's output of `finish.sh` was not
+kept, and the gateway only logs an upstream's freshness when a request probes it: its "Ethereum fresh" line is
+from 18:13:20Z, my first request). The 21 minutes expected below did not happen: the owner signed stop and start
+two minutes apart. Base in the guest was back within the gateway's lag limit at 16:36:49Z, 9 minutes after the
+stop (expected: 40).
+
+Checked at 18:13Z to 18:20Z: signing page `/status` publish, stop and start done, deployment active and leased;
+route record on `/6`; `https://5ff56a4d.app.enclave.host/` 200; the gateway answers `eth_blockNumber` on
+`/rpc/ethereum` and `/rpc/base`; lease renewed every period; reth not syncing, Lighthouse `sync_distance` 0, Base
+not syncing. The two signing-page units (`enclave-rpc-owner-sign-r14-48g`, and r13's, left over) are stopped.
+
+Not looked into: metal0 logs `[isolation] 0x5ff56a4d: no certificate for 5ff56a4d.app.enclave.host (guestd
+answered 404 for the instance); retry in 3600s` at 16:30:55Z and 17:30:55Z, while the address answers 200 with its
+certificate and the route record carries `certNotAfter`.
+
+## Measured: the 64 GiB guest before the move, the 48 GiB guest after
+
+| GiB | 64 GiB, 16:21Z (13 h 27 min up) | 48 GiB, 18:17Z (1 h 47 min up) | estimated below for 48 |
+|---|---|---|---|
+| MemTotal | 61.84 | 46.09 | ≈ 46.3 |
+| clients' slice held / held to | 55.65 / 55.66 | 41.48 / 41.49 | ≈ 41.6 |
+| slice hard limit | 58.13 | 43.33 | ≈ 43.5 |
+| anonymous, all clients | 14.38 | 11.97, rising | "at least 13.28" |
+| reth: anonymous / held | 4.19 / 18.15 | 2.84 / 5.51 | |
+| Lighthouse: anonymous / held | 5.29 / 16.84 | 4.87 / 6.64 | |
+| Base: anonymous / held | 4.89 / **20.66** | 4.25 / 29.34 | ≈ 28.4 held |
+| page cache, all clients / Base | 36.28 / 12.32 | 24.45 / 20.84 | |
+| Base: taken back MB/s, read back | 42.7, 3.4 (06:42Z to 16:21Z) | 40.5, 3.1 (18:13Z to 18:17Z) | |
+| Base: read back of taken, whole boot | 7.8% | 6.0% | |
+| stall on memory, slice, 5 min | 0.2% | 0.13% | |
+| killed at a limit (`oom`, `oom_kill`) | 0 | 0 | |
+| newest block old, s: Ethereum, Base | 8, 0 | 10, 0 | |
+
+`MEMORY-1817Z.json`, `HEALTH-1817Z.json`; two more readings at 18:13Z are in the host's readings directory.
+
+What the 16:21Z reading says that the sizing below did not expect: at 64 GiB **Base was following the chain at
+head while holding 20.7 GiB**, because reth and Lighthouse had filled 35 GiB between them, 25.5 of it page cache.
+The condition below ("reth and Lighthouse at or below about 13.5 GiB") was not met, and Base was fine. So the
+model "Base gets what the other two leave, and needs about 28 GiB" was too simple in both halves: the other two
+take much more cache when it is there, and Base keeps up on much less than 28 GiB (how much less is not measured).
+
+The anonymous memory at 64 GiB, half-hourly from the probe: 13.25 at 06:54Z, 13.67 at 08:54Z, 13.67 at 10:54Z,
+13.88 at 12:54Z, 14.51 at 14:54Z, 14.50 at 15:54Z. That is about +0.14 GiB an hour over nine hours: slow, **not
+flat**. The 48 GiB guest runs the same processes; its own curve so far: 9.63 at 17:00Z, 10.92 at 17:30Z, 11.53 at
+18:00Z, 11.97 at 18:17Z.
+
+## What the host got back
+
+The guest's unit on the host (`enclave-rpc-snp-guest.service`, cgroup `memory.stat` at 18:20Z): 79.3 GiB charged,
+of which **46.37 GiB cannot be taken back** (`unevictable`: the guest's own memory, already nearly all of its
+48 GiB) and about 30 GiB is the host's page cache for the disk images (`inactive_file`), which the host drops when
+it needs the memory. Before the move the guest's own part was about 60 GiB of 64 and still filling (61.84 MemTotal
+less 2.76 never used at 16:21Z, plus the kernel's share). So **about 14 GiB less is pinned now, and 16 GiB less
+than the 64 GiB guest would have reached**. The unit's total charge barely moved (77.9 GiB at 06:40Z) because the
+page cache fills what is free; the figure to read is the host's MemAvailable: 28.3 GiB at 06:40Z, **50.7 GiB at
+18:20Z**, of 124.8.
+
+## Still not known, and the reading that settles it
+
+- where the anonymous memory stops in this boot (15 to 16 GiB would leave about 26 GiB of page cache in the slice);
+- whether Base stays at head once reth and Lighthouse have taken their page cache inside a 41.5 GiB slice (they
+  held 5.5 and 6.6 GiB at 18:17Z against 18.2 and 16.8 at 64 GiB);
+- the read-back share over a day.
+
+One reading about a day after the start (2026-11-14 16:30Z) answers these: the commands under "Before signing".
+Signs that it is too small and the way back are in the last section; the way back is still not scripted and not
+exercised.
 
 ## What it is
 
@@ -107,6 +196,9 @@ Per client between 03:26 and 06:40: reth +0.42 GiB/h, Lighthouse +0.15, Base +0.
 - MemTotal at 49152 MiB (estimated above).
 
 ### Before signing
+
+(As written at 06:50Z. The owner signed at 16:26Z without this reading; conditions 2 and 3 held at 16:21Z, condition 1
+did not: the anonymous memory was still rising slowly, and reth and Lighthouse held 35 GiB, not 13.5.)
 
 Take a reading about a day after the start (2026-11-13 02:54Z) and sign only if all of these hold:
 

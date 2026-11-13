@@ -45,6 +45,13 @@ class TrendTest(unittest.TestCase):
         self.assertIsNone(M.growth([(0, GIB), (600, 2*GIB)]))
         self.assertIsNone(M.growth([]))
 
+    def test_the_boot_is_the_probes_start_or_the_last_time_the_counters_went_back(self):
+        reports = [report(1000, GIB, 5000, 0), report(2000, GIB, 6000, 0), report(9000, GIB, 100, 0), report(9500, GIB, 200, 0)]
+        self.assertEqual(M.boot(reports, M.rows(reports)), 9000)
+        self.assertEqual(M.boot(reports[:2], M.rows(reports[:2])), 1000)
+        reports[-1]['probe'] = {'startedAt': 8000, 'samples': []}
+        self.assertEqual(M.boot(reports, M.rows(reports)), 8000)
+
     def test_the_probes_samples_start_when_the_clients_do(self):
         r = {**report(5000, GIB, 0, 0), 'probe': {'samples': [[1000, 0, 0, 0, 0.0], [2800, 50*GIB, 9*GIB, 40*GIB, 0.2]]}}
         self.assertEqual(M.samples(r), [(2800, 9*GIB, 40*GIB)])

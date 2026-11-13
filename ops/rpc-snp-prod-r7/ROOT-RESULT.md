@@ -715,7 +715,39 @@ r13's reserve for them, seen for half an hour); lower is untested (8 GiB failed 
 memory and the Ethereum node's re-read rate after a day first. Rollback from r14: an owner-signed start on version 4
 with `~/.config/enclave/snpvm.json.r13`.
 
-## Enclave RPC 1.4.1 (image r14 in a 48 GiB guest, catalog version 6): prepared, not published, not live (2026-11-13 06:55Z)
+## Enclave RPC 1.4.1 (image r14 in a 48 GiB guest, catalog version 6) in production since 2026-11-13 16:30Z
+
+*The run.* The owner signed publish (`0x1c9b1e48…7724`, 16:26:44Z), stop (`0x08fd352a…b5f5`, 16:27:08Z) and start
+(`0xada0d998…daef`, 16:29:09Z), before the day-later reading the section below asks for. metal0 tore the guest
+down at 16:27:55Z, released and claimed the lease, and launched at 16:30:13Z with `8 vCPU, 49152 MiB`; qemu runs
+with `-m 49152`, same image and measurement as 1.4.0. `finish.sh` moved the gateway to `versionIndex` 6 at
+16:33:11Z (`.pre-1.4.1` kept). Public Ethereum was out from 16:27:55Z for about five to six minutes; the minute it
+answered again is not on record. The guest's Base was within the gateway's lag limit again at 16:36:49Z.
+
+*Checked 18:13Z to 18:20Z.* Deployment active and leased on `/6`, route record on `/6`, app address 200, gateway
+answering both chains, reth, Lighthouse and Base at head, no `oom` or `oom_kill` in any client's `memory.events`.
+
+*Measured.* Before the move (64 GiB, 16:21Z, 13 h 27 min up): anonymous 14.38 GiB and still rising about 0.14 GiB
+an hour; reth held 18.15 and Lighthouse 16.84 (25.5 of it page cache), **Base 20.66, at head**: Base does not need
+the 28 to 30 GiB the sizing assumed. After (48 GiB, 18:17Z, 1 h 47 min up): MemTotal 46.09 GiB (estimated 46.3),
+slice 41.48 on its limit, anonymous 11.97 and rising as after any start, Base 29.34 (page cache 20.84), reth 5.51,
+Lighthouse 6.64; Base reads back 6.0% of what is taken from it (7.8% over the whole 64 GiB boot).
+
+*The host.* 46.37 GiB of the guest unit's charge is pinned (`unevictable`), against about 60 of 64 GiB before:
+about 14 GiB less now, 16 less than the old guest would have reached. The unit's total charge is still 79 GiB
+because the host's own page cache for the disk images is counted in it and fills what is free. Host MemAvailable
+50.7 of 124.8 GiB (28.3 at 06:40Z).
+
+*Not known.* Whether it holds over a day: where the anonymous memory stops, and whether Base stays at head once
+reth and Lighthouse have filled their page cache inside a 41.5 GiB slice. A reading is due about 2026-11-14
+16:30Z. Not looked into: metal0's hourly `[isolation] … no certificate … guestd answered 404` line for this
+deployment while its address answers with a certificate. The way back (owner-signed start on version 5 and the
+gateway's `.pre-1.4.1`) is not scripted and not exercised. Details and tables: `release-r14-48g/README.md`.
+
+*Also.* `rpc/snp/memtrend.py` no longer measures growth across a restart of the guest (it compared 14.38 GiB
+before with 11.84 after and printed a fall).
+
+## Enclave RPC 1.4.1: as prepared, before it was published (2026-11-13 06:55Z; live since 16:30Z, section above)
 
 *What exists.* Release `/vm/enclave-volumes/rpc-snp-release-r14-48g` (copies in `release-r14-48g/`): r14's image
 and measurement, `res [0,0,49152,0]`, manifest `bafkreieeaqac6x…qjv4` pinned on this host. Owner plan: publish
