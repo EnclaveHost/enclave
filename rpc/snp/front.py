@@ -13,6 +13,8 @@ and serves:
   POST /.well-known/enclave-cert         a CA-issued chain for that request (installed only if it verifies)
   GET  /health                           local L1/Base sync summary (no secrets)
   GET  /logs/{el,cl,base,front,identity}  bounded journal tail (operator view, local name only)
+  GET  /memory                           what holds the guest's memory: kernel, clients, logs, the working-set probe
+                                         (operator view, local name only)
   GET  /beacon/eth/...                   allowlisted read-only beacon API (blobs, blocks, headers)
   POST /l1 (or /ethereum), POST /base    JSON-RPC proxied to the local node
 
@@ -67,6 +69,20 @@ PEM_CERT = re.compile(rb'-----BEGIN CERTIFICATE-----[A-Za-z0-9+/=\s]+?-----END C
 # most this many wait; a caller beyond that is told to retry (the platform's probes wait that answer out).
 FRESH_WAITERS = 4
 HEALTH_TTL = 2.0
+PROC = Path('/proc')
+CGROUPS = Path('/sys/fs/cgroup')
+MEMORY_UNITS = {'clients': 'enclave-rpc-clients.slice', 'el': 'enclave-rpc-clients.slice/enclave-rpc-el.service',
+                'cl': 'enclave-rpc-clients.slice/enclave-rpc-cl.service', 'base': 'enclave-rpc-clients.slice/enclave-rpc-base.service',
+                'front': 'system.slice/enclave-rpc-front.service', 'system': 'system.slice'}
+MEMINFO = ('MemTotal', 'MemFree', 'MemAvailable', 'Buffers', 'Cached', 'Shmem', 'AnonPages', 'AnonHugePages', 'Mapped', 'Active(file)',
+           'Inactive(file)', 'Unevictable', 'Slab', 'SReclaimable', 'SUnreclaim', 'KernelStack', 'PageTables', 'Dirty', 'Writeback')
+MEMORY_STAT = ('anon', 'file', 'shmem', 'file_mapped', 'active_file', 'inactive_file', 'kernel', 'slab', 'workingset_refault_file',
+               'workingset_activate_file', 'pgscan', 'pgsteal')
+# The root is a read-only verity device under a tmpfs overlay, and /run is a tmpfs: a byte written to either is a
+# byte of guest memory that nothing can reclaim. The journal is the part of it that grows.
+RAM_MOUNTS = ('/', '/run', '/tmp', '/dev/shm')
+RAM_TREES = ('/var/log', '/var/log/journal', '/run/log/journal', '/var/lib', '/var/cache')
+PROBE_STATE = Path('/run/enclave-rpc-memprobe/state.json')
 
 
 def tsm_report(report_data):
@@ -253,9 +269,101 @@ def health():
 
 
 def journal(unit, lines):
-    r = subprocess.run(['/usr/bin/journalctl', '-u', unit, '-n', str(lines), '-o', 'short-iso', '--no-pager'],
+    # Every journal namespace: Base logs into its own (build_image.py), so its volume cannot push the others out.
+    r = subprocess.run(['/usr/bin/journalctl', '--namespace=*', '-u', unit, '-n', str(lines), '-o', 'short-iso', '--no-pager'],
                        capture_output=True, timeout=15)
     return r.stdout[-(4 << 20):]
+
+
+def cgroup_dir(unit):
+    """systemd nests a slice under every dash-separated prefix of its name: a-b-c.slice is a.slice/a-b.slice/a-b-c.slice."""
+    head, _, rest = unit.partition('/')
+    parts = head[:-len('.slice')].split('-')
+    return CGROUPS.joinpath(*('-'.join(parts[:i+1]) + '.slice' for i in range(len(parts))), *([rest] if rest else []))
+
+
+def psi(path):
+    """A pressure file: {'some': {'avg10': .., 'avg60': .., 'avg300': .., 'total': ..}, 'full': {...}}; None where the kernel has none."""
+    try:
+        return {kind: {k: float(v) for k, v in (f.split('=', 1) for f in rest.split())}
+                for kind, _, rest in (line.partition(' ') for line in path.read_text().splitlines())}
+    except (OSError, ValueError):
+        return None
+
+
+def tree_bytes(root, limit=20000):
+    """Bytes a directory tree holds (allocated, not apparent), without crossing into another filesystem."""
+    total, seen, todo = 0, 0, [str(root)]
+    try:
+        dev = os.lstat(root).st_dev
+    except OSError:
+        return None
+    while todo and seen < limit:
+        try:
+            entries = list(os.scandir(todo.pop()))
+        except OSError:
+            continue
+        for e in entries:
+            seen += 1
+            try:
+                st = e.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            if st.st_dev != dev:
+                continue
+            total += st.st_blocks * 512
+            if e.is_dir(follow_symlinks=False):
+                todo.append(e.path)
+    return total
+
+
+def memory():
+    """What holds the guest's memory. Nothing outside the guest can see this: the host sees every page the guest ever
+    touched as pinned, whether a client needs it, the page cache filled it once, or a log file on the overlay holds it."""
+    def number(path):
+        try:
+            text = path.read_text().strip()
+        except OSError:
+            return None
+        return None if text == 'max' else int(text) if text.isdigit() else None
+
+    def table(path, keys=None):
+        try:
+            rows = dict(line.split(None, 1) for line in path.read_text().splitlines() if ' ' in line)
+        except OSError:
+            return None
+        return {k: int(v) for k, v in rows.items() if (keys is None or k in keys) and v.strip().isdigit()}
+
+    out = {'at': int(time.time()), 'meminfo': {}, 'pressure': psi(PROC/'pressure/memory'), 'mounts': {}, 'trees': {},
+           'groups': {}, 'probe': None}
+    try:
+        for line in (PROC/'meminfo').read_text().splitlines():
+            key, _, rest = line.partition(':')
+            if key in MEMINFO:
+                out['meminfo'][key] = int(rest.split()[0]) << 10
+    except (OSError, ValueError, IndexError):
+        pass
+    for mount in RAM_MOUNTS:
+        try:
+            v = os.statvfs(mount)
+            out['mounts'][mount] = {'size': v.f_blocks*v.f_frsize, 'used': (v.f_blocks-v.f_bfree)*v.f_frsize}
+        except OSError:
+            pass
+    for tree in RAM_TREES:
+        out['trees'][tree] = tree_bytes(tree)
+    for name, unit in MEMORY_UNITS.items():
+        d = cgroup_dir(unit)
+        if not (d/'memory.current').exists():
+            continue
+        out['groups'][name] = {'current': number(d/'memory.current'), 'peak': number(d/'memory.peak'),
+                               'high': number(d/'memory.high'), 'max': number(d/'memory.max'),
+                               'stat': table(d/'memory.stat', MEMORY_STAT), 'events': table(d/'memory.events'),
+                               'pressure': psi(d/'memory.pressure')}
+    try:
+        out['probe'] = json.loads(PROBE_STATE.read_text())
+    except (OSError, ValueError):
+        pass
+    return json.dumps(out, separators=(',', ':')).encode()
 
 
 def allowed(call):
@@ -340,6 +448,8 @@ class Handler(BaseHTTPRequestHandler):
             fields = dict(x.split('=', 1) for x in query.split('&') if '=' in x)
             lines = min(max(int(fields.get('lines', '200')) if fields.get('lines', '').isdigit() else 200, 1), 2000)
             self.reply(200, journal(LOG_UNITS[path], lines), 'text/plain; charset=utf-8')
+        elif path == '/memory' and self.local():
+            self.reply(200, memory(), headers=(('cache-control', 'no-store'),))
         else:
             self.reply(404, b'{"error":"not found"}')
 

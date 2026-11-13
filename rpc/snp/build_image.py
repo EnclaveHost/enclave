@@ -77,6 +77,36 @@ CHECK_PINS = (
     "assert not bad, bad")
 
 
+# The clients' memory limits, as shares of whatever memory the guest is launched with (systemd takes a percentage of
+# physical memory). The lease's catalog version sets that size and it is not in the SNP measurement; these limits
+# are, so limits in bytes tied one image to one size. The slice is the budget: the three clients share one pool and
+# the kernel takes the coldest page of any of them first. A client has no MemoryHigh of its own: each time one sat
+# below a client's working set the client thrashed (see seed_config). Its MemoryMax only stops a runaway.
+CLIENTS_HIGH, CLIENTS_MAX = 90, 94
+CLIENT_MAX = {'el': 45, 'cl': 45, 'base': 75}
+# The root is read-only under a tmpfs overlay, so a log file is guest memory that nothing reclaims, and with no
+# balloon the host never gets it back. The stock image kept the journal (default cap 4 GiB) and had rsyslog write
+# every line a second time into /var/log/syslog, rotated weekly and kept four weeks. Base alone logs about 1.2 GB of
+# text a day (measured on prod r13, 2026-11-12): by that rotation about 20 GiB of the guest after two weeks up.
+JOURNAL_CAP = (b'[Journal]\nStorage=persistent\nSystemMaxUse=256M\nSystemMaxFileSize=32M\nRuntimeMaxUse=32M\n'
+               b'ForwardToSyslog=no\n')
+# Stock Ubuntu services the guest has no use for. The first row writes logs into memory. The second fetches and
+# installs packages by itself: code that is not in the measured image, written to the overlay (memory again). The
+# rest wake up to write caches and reports nobody reads. Nothing here is a chain client, the network, the clock,
+# or the disks.
+MASKED_UNITS = (
+    'rsyslog.service', 'syslog.socket',
+    'apt-daily.timer', 'apt-daily.service', 'apt-daily-upgrade.timer', 'apt-daily-upgrade.service',
+    'unattended-upgrades.service', 'update-notifier-download.timer', 'update-notifier-download.service',
+    'update-notifier-motd.timer', 'update-notifier-motd.service', 'snapd.service', 'snapd.socket', 'snapd.seeded.service',
+    'snapd.snap-repair.timer', 'snapd.autoimport.service', 'snapd.core-fixup.service',
+    'snapd.recovery-chooser-trigger.service', 'snapd.apparmor.service', 'lxd-installer.socket', 'fwupd-refresh.timer',
+    'fwupd-refresh.service', 'fwupd.service', 'ua-timer.timer', 'ua-timer.service', 'ubuntu-advantage.service',
+    'ua-reboot-cmds.service', 'motd-news.timer', 'motd-news.service',
+    'man-db.timer', 'dpkg-db-backup.timer', 'apport.service', 'apport-autoreport.timer', 'apport-autoreport.path',
+    'apport-forward.socket', 'sysstat.service', 'sysstat-collect.timer', 'sysstat-summary.timer', 'ModemManager.service')
+
+
 def discard_mounts(writes):
     """The seed's chain-disk mount units, which the image gives `discard`; their options must be exactly rw,noatime."""
     mounts = []
@@ -144,14 +174,14 @@ def seed_config(owner_pub, coverage=None):
         b'Restart=on-failure\nRestartSec=5\nMemoryMax=512M\nNoNewPrivileges=yes\nProtectHome=yes\n'
         b'StandardOutput=journal+console\nStandardError=journal+console\n'
         b'[Install]\nWantedBy=multi-user.target\n'))
-    # Measured limits (ops/rpc-l1-catchup): the image's 4.5/6.5 GiB MemoryHigh throttled
-    # Lighthouse into thrashing during range sync. Base's page cache counts against its limit: at
-    # 7/8 GiB it re-read its database at 1.5 GB/s with every vCPU busy and could not execute one
-    # block within reth's 5-minute read timeout (prod r10, 2026-11-05 16:37Z). Sized for a 64 GiB
-    # guest; memory is not in the SNP measurement, but these limits are.
-    for side, high, cap in (('el', 11264, 12288), ('cl', 10240, 11264), ('base', 30720, 32768)):
+    # Measured (ops/rpc-l1-catchup): the seed units' 4.5/6.5 GiB MemoryHigh throttled Lighthouse into thrashing
+    # during range sync. Base's page cache counts against its limit: at 7/8 GiB it re-read its database at
+    # 1.5 GB/s with every vCPU busy and could not execute one block within reth's 5-minute read timeout
+    # (prod r10, 2026-11-05 16:37Z). Up to r13 each client then had a limit in bytes sized for a 64 GiB guest
+    # (el 11/12, cl 10/11, base 30/32 GiB); now they share the slice's budget (CLIENTS_HIGH above).
+    for side, cap in CLIENT_MAX.items():
         add('/etc/systemd/system/enclave-rpc-%s.service.d/limits.conf' % side,
-            b'[Service]\nTimeoutStopSec=300\nMemoryHigh=%dM\nMemoryMax=%dM\n' % (high, cap))
+            b'[Service]\nTimeoutStopSec=300\nMemoryHigh=infinity\nMemoryMax=%d%%\n' % cap)
     # Base's start checks need L1 synced and answering, which after a restart can take reth
     # minutes (prod r8, 2026-11-03: refused once with ECONNREFUSED and stayed down). Each
     # retry re-runs every fail-closed check; a refusal still refuses, it is just asked again.
@@ -160,7 +190,23 @@ def seed_config(owner_pub, coverage=None):
     add('/etc/systemd/system/enclave-rpc-base.service.d/restart.conf',
         b'[Unit]\nStartLimitIntervalSec=0\n[Service]\nRestart=always\nRestartSec=60\n')
     add('/etc/systemd/system/enclave-rpc-clients.slice.d/limits.conf',
-        b'[Slice]\nMemoryHigh=59392M\nMemoryMax=61440M\n')
+        b'[Slice]\nMemoryHigh=%d%%\nMemoryMax=%d%%\n' % (CLIENTS_HIGH, CLIENTS_MAX))
+    # Logs are held in memory (JOURNAL_CAP above): the journal is capped, and Base, which writes about a hundred
+    # times what the other units write together, logs into a journal namespace of its own with its own cap, so its
+    # volume cannot push the other units' lines out. The file name sorts after the distribution's syslog.conf,
+    # which turns forwarding on. front.py reads every namespace.
+    add('/etc/systemd/journald.conf.d/zz-enclave-rpc.conf', JOURNAL_CAP)
+    add('/etc/systemd/journald@base.conf', JOURNAL_CAP)
+    add('/etc/systemd/system/enclave-rpc-base.service.d/log-namespace.conf', b'[Service]\nLogNamespace=base\n')
+    # How much of the guest the clients need, asked of the kernel inside the guest (memprobe.py); read at the
+    # front's /memory. It may write the clients' memory.reclaim and nothing else: no network, a read-only system.
+    add('/opt/enclave-rpc/memprobe.py', (HERE/'memprobe.py').read_bytes(), '0755')
+    add('/etc/systemd/system/enclave-rpc-memprobe.service', (
+        b'[Unit]\nDescription=Working-set probe for the chain clients (memprobe.py)\n'
+        b'[Service]\nType=exec\nExecStart=/usr/bin/python3 -I /opt/enclave-rpc/memprobe.py\n'
+        b'Restart=always\nRestartSec=30\nRuntimeDirectory=enclave-rpc-memprobe\nRuntimeDirectoryMode=0755\n'
+        b'MemoryMax=64M\nPrivateNetwork=yes\nNoNewPrivileges=yes\nProtectSystem=strict\nProtectHome=yes\nPrivateTmp=yes\n'
+        b'[Install]\nWantedBy=multi-user.target\n'))
     # The chain disks hand freed blocks back to the host as they are freed. The qcow2 on /vm otherwise keeps
     # every block the clients ever wrote: L1 held 673 GiB for 427 GiB of data and regrew 16 GiB in 2.5 h after
     # an offline trim (prod r11, 2026-11-08). The stock fstrim.service never reached these disks: it trims
@@ -193,6 +239,8 @@ def seed_config(owner_pub, coverage=None):
         'update-initramfs -u -k all',
         'for u in enclave-rpc-el enclave-rpc-cl enclave-rpc-base; do ln -sf /etc/systemd/system/$u.service /etc/systemd/system/multi-user.target.wants/$u.service; done',
         'systemctl enable enclave-rpc-front.service',
+        'systemctl enable enclave-rpc-memprobe.service',
+        'systemctl mask ' + ' '.join(MASKED_UNITS),
         'systemctl disable ssh.service ssh.socket || true',
         'systemctl mask ssh.service ssh.socket',
         'touch /etc/cloud/cloud-init.disabled',
@@ -279,7 +327,7 @@ def main(out, coverage=None):
              'buildSeconds': round(time.time()-t), 'bootImageSha256': BOOT_SHA256,
              'artifacts': {n: {'bytes': (out/n).stat().st_size, 'sha256': sha(out/n)}
                            for n in ('vmlinuz', 'initrd.img', 'root.img', 'root.verity')},
-             'sources': {n: sha(HERE/n) for n in ('front.py', 'front.html', 'enclave-verity-hook', 'enclave-verity-local-top', 'build_image.py',
+             'sources': {n: sha(HERE/n) for n in ('front.py', 'front.html', 'memprobe.py', 'enclave-verity-hook', 'enclave-verity-local-top', 'build_image.py',
                                                     'l1_identity_patch.py', 'base_restart_patch.py', 'base_merkle_patch.py',
                                                     'base_history_patch.py')},
              'coverage': {n: sha(coverage/n) for n in COVERAGE_FILES + ('base-bootstrap.json', 'blob-patch.json')

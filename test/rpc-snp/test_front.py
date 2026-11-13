@@ -26,6 +26,7 @@ import front as F  # noqa: E402
 
 DEP = '5ff56a4d600191f13ac43e1c600965673555f229472846a9da201785d396454f'
 MEASUREMENT = bytes(range(48))
+JOURNAL = F.journal
 APP = '5ff56a4d.app.enclave.host'
 REPORTS = []
 
@@ -237,6 +238,70 @@ class FrontTest(unittest.TestCase):
             F.tsm_report, F.STATE = fake_report, self.dir/'state'
         self.assertEqual((f.app_name, f.csr), ('', b''))
         self.assertEqual(f.install(b'x')[0], False)
+
+    def test_9_memory_is_the_guests_own_account_on_the_local_name_only(self):
+        proc, groups, logs = self.dir/'proc', self.dir/'cgroup', self.dir/'log'
+        clients = groups/'enclave.slice/enclave-rpc.slice/enclave-rpc-clients.slice'
+        self.assertEqual(F.cgroup_dir('enclave-rpc-clients.slice/enclave-rpc-base.service').relative_to(F.CGROUPS),
+                         Path('enclave.slice/enclave-rpc.slice/enclave-rpc-clients.slice/enclave-rpc-base.service'))
+        self.assertEqual(F.cgroup_dir('system.slice/enclave-rpc-front.service').relative_to(F.CGROUPS),
+                         Path('system.slice/enclave-rpc-front.service'))
+        (proc/'pressure').mkdir(parents=True)
+        (proc/'meminfo').write_text('MemTotal:       65829000 kB\nMemFree:          412000 kB\nMemAvailable:   30100200 kB\n'
+                                    'Shmem:           2400000 kB\nHugePages_Total:       0\nVmallocUsed:      50000 kB\n')
+        (proc/'pressure/memory').write_text('some avg10=0.00 avg60=0.12 avg300=0.05 total=123456\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=99\n')
+        for d, current, high in ((clients, 60 << 30, 59392 << 20), (clients/'enclave-rpc-base.service', 31 << 30, 'max')):
+            d.mkdir(parents=True)
+            (d/'memory.current').write_text('%d\n' % current)
+            (d/'memory.peak').write_text('%d\n' % (current + 5))
+            (d/'memory.high').write_text('%s\n' % high)
+            (d/'memory.max').write_text('max\n')
+            (d/'memory.stat').write_text('anon 100\nfile 200\nunlisted 7\nworkingset_refault_file 3\n')
+            (d/'memory.events').write_text('low 0\nhigh 12\nmax 0\noom 0\noom_kill 0\n')
+            (d/'memory.pressure').write_text('some avg10=1.50 avg60=0.40 avg300=0.10 total=5\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=1\n')
+        (logs/'journal/abc').mkdir(parents=True)
+        (logs/'journal/abc/system.journal').write_bytes(b'j' * 8192)
+        (logs/'syslog').write_bytes(b's' * 4096)
+        (self.dir/'probe.json').write_text(json.dumps({'phase': 'measuring', 'asked': 3}))
+        old = F.PROC, F.CGROUPS, F.RAM_MOUNTS, F.RAM_TREES, F.PROBE_STATE
+        F.PROC, F.CGROUPS, F.RAM_MOUNTS, F.RAM_TREES, F.PROBE_STATE = proc, groups, (str(self.dir),), (str(logs), str(logs/'journal'), str(logs/'none')), self.dir/'probe.json'
+        try:
+            status, headers, body, _ = self.call('GET', '/memory')
+            self.assertEqual((status, headers['content-type'], headers['cache-control']), (200, 'application/json', 'no-store'))
+            m = json.loads(body)
+            self.assertEqual(m['meminfo'], {'MemTotal': 65829000 << 10, 'MemFree': 412000 << 10, 'MemAvailable': 30100200 << 10, 'Shmem': 2400000 << 10})
+            self.assertEqual(m['pressure']['some'], {'avg10': 0.0, 'avg60': 0.12, 'avg300': 0.05, 'total': 123456.0})
+            self.assertEqual(sorted(m['groups']), ['base', 'clients'])       # a unit that is not running is left out
+            self.assertEqual(m['groups']['clients'], {
+                'current': 60 << 30, 'peak': (60 << 30) + 5, 'high': 59392 << 20, 'max': None,
+                'stat': {'anon': 100, 'file': 200, 'workingset_refault_file': 3},
+                'events': {'low': 0, 'high': 12, 'max': 0, 'oom': 0, 'oom_kill': 0},
+                'pressure': {'some': {'avg10': 1.5, 'avg60': 0.4, 'avg300': 0.1, 'total': 5.0}, 'full': {'avg10': 0.0, 'avg60': 0.0, 'avg300': 0.0, 'total': 1.0}}})
+            self.assertIsNone(m['groups']['base']['high'])
+            self.assertGreater(m['mounts'][str(self.dir)]['size'], m['mounts'][str(self.dir)]['used'])
+            self.assertEqual(m['trees'][str(logs/'none')], None)
+            self.assertGreaterEqual(m['trees'][str(logs/'journal')], 8192)
+            self.assertGreaterEqual(m['trees'][str(logs)], m['trees'][str(logs/'journal')] + 4096)
+            self.assertEqual(m['probe'], {'phase': 'measuring', 'asked': 3})
+            # the app name is public: it gets no view of the guest's internals
+            self.assertEqual(self.call('GET', '/memory', sni=APP)[0], 404)
+            self.assertEqual(self.call('GET', '/memory', sni=None)[0], 404)
+            # a guest without the probe, the cgroups or PSI still answers
+            F.PROC, F.CGROUPS, F.PROBE_STATE = self.dir/'no-proc', self.dir/'no-cgroup', self.dir/'no-probe'
+            m = json.loads(self.call('GET', '/memory')[2])
+            self.assertEqual((m['meminfo'], m['pressure'], m['groups'], m['probe']), ({}, None, {}, None))
+        finally:
+            F.PROC, F.CGROUPS, F.RAM_MOUNTS, F.RAM_TREES, F.PROBE_STATE = old
+
+    def test_10_the_log_tail_reads_every_journal_namespace(self):
+        seen, real = [], F.subprocess.run
+        F.subprocess.run = lambda argv, **k: seen.append(argv) or subprocess.CompletedProcess(argv, 0, b'x' * (5 << 20), b'')
+        try:
+            out = JOURNAL('enclave-rpc-base.service', 9)
+        finally:
+            F.subprocess.run = real
+        self.assertEqual(seen, [['/usr/bin/journalctl', '--namespace=*', '-u', 'enclave-rpc-base.service', '-n', '9', '-o', 'short-iso', '--no-pager']])
+        self.assertEqual(len(out), 4 << 20)
 
 
 if __name__ == '__main__':

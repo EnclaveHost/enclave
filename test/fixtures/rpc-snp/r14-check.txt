@@ -1,0 +1,162 @@
+QUAL boot multi-user=active waited=90s kernel=6.8.0-147-generic systemd=systemd-255
+QUAL memtotal-kb 8130712
+QUAL overlay-mb-at-boot 10
+QUAL journal-mb-at-boot 10
+QUAL unit rsyslog.service masked inactive
+QUAL unit syslog.socket masked inactive
+QUAL unit apt-daily.timer masked inactive
+QUAL unit apt-daily.service masked inactive
+QUAL unit apt-daily-upgrade.timer masked inactive
+QUAL unit apt-daily-upgrade.service masked inactive
+QUAL unit unattended-upgrades.service masked inactive
+QUAL unit update-notifier-download.timer masked inactive
+QUAL unit update-notifier-download.service masked inactive
+QUAL unit update-notifier-motd.timer masked inactive
+QUAL unit update-notifier-motd.service masked inactive
+QUAL unit snapd.service masked inactive
+QUAL unit snapd.socket masked inactive
+QUAL unit snapd.seeded.service masked inactive
+QUAL unit snapd.snap-repair.timer masked inactive
+QUAL unit snapd.autoimport.service masked inactive
+QUAL unit snapd.core-fixup.service masked inactive
+QUAL unit snapd.recovery-chooser-trigger.service masked inactive
+QUAL unit snapd.apparmor.service masked inactive
+QUAL unit lxd-installer.socket masked inactive
+QUAL unit fwupd-refresh.timer masked inactive
+QUAL unit fwupd-refresh.service masked inactive
+QUAL unit fwupd.service masked inactive
+QUAL unit ua-timer.timer masked inactive
+QUAL unit ua-timer.service masked inactive
+QUAL unit ubuntu-advantage.service masked inactive
+QUAL unit ua-reboot-cmds.service masked inactive
+QUAL unit motd-news.timer masked inactive
+QUAL unit motd-news.service masked inactive
+QUAL unit man-db.timer masked inactive
+QUAL unit dpkg-db-backup.timer masked inactive
+QUAL unit apport.service masked inactive
+QUAL unit apport-autoreport.timer masked inactive
+QUAL unit apport-autoreport.path masked inactive
+QUAL unit apport-forward.socket masked inactive
+QUAL unit sysstat.service masked inactive
+QUAL unit sysstat-collect.timer masked inactive
+QUAL unit sysstat-summary.timer masked inactive
+QUAL unit ModemManager.service masked inactive
+QUAL timer systemd-tmpfiles-clean.timer
+QUAL timer logrotate.timer
+QUAL timer fstrim.timer
+QUAL timer e2scrub_all.timer
+QUAL timer enclave-rpc-base-history.timer
+QUAL timer apport-autoreport.timer
+QUAL timer apt-daily-upgrade.timer
+QUAL timer apt-daily.timer
+QUAL timer dpkg-db-backup.timer
+QUAL timer fwupd-refresh.timer
+QUAL timer man-db.timer
+QUAL timer motd-news.timer
+QUAL timer snapd.snap-repair.timer
+QUAL timer sysstat-collect.timer
+QUAL timer sysstat-summary.timer
+QUAL timer ua-timer.timer
+QUAL timer update-notifier-download.timer
+QUAL timer update-notifier-motd.timer
+QUAL running cron.service
+QUAL running dbus.service
+QUAL running enclave-rpc-beacon-patch.service
+QUAL running enclave-rpc-memprobe.service
+QUAL running getty@tty1.service
+QUAL running multipathd.service
+QUAL running serial-getty@ttyS0.service
+QUAL running systemd-journald.service
+QUAL running systemd-logind.service
+QUAL running systemd-networkd.service
+QUAL running systemd-resolved.service
+QUAL running systemd-timesyncd.service
+QUAL running systemd-udevd.service
+QUAL rss-kb 27300 multipathd
+QUAL rss-kb 23412 python3
+QUAL rss-kb 13484 systemd
+QUAL rss-kb 13016 systemd-resolve
+QUAL rss-kb 12556 python3
+QUAL rss-kb 10152 systemd-journal
+QUAL rss-kb 9572 systemd-network
+QUAL rss-kb 8068 systemd-udevd
+QUAL rss-kb 8048 systemd-timesyn
+QUAL rss-kb 8048 systemd-logind
+QUAL rss-kb 5340 dbus-daemon
+QUAL rss-kb 4264 ps
+QUAL rss-kb 3924 awk
+QUAL rss-kb 2880 cron
+QUAL rss-kb 2284 agetty
+QUAL rss-kb 2232 agetty
+QUAL rss-kb 2064 head
+QUAL rss-kb 1996 sh
+QUAL rss-kb 0 kthreadd
+QUAL rss-kb 0 pool_workqueue_release
+QUAL rss-kb 0 kworker/R-rcu_g
+QUAL rss-kb 0 kworker/R-rcu_p
+QUAL rss-kb 0 kworker/R-slub_
+QUAL rss-kb 0 kworker/R-netns
+QUAL rss-kb 0 kworker/0:0-events
+QUAL rss-kb-all 157244
+QUAL meminfo-kb MemFree: 7806028
+QUAL meminfo-kb MemAvailable: 7719908
+QUAL meminfo-kb Cached: 102224
+QUAL meminfo-kb AnonPages: 50496
+QUAL meminfo-kb Shmem: 10984
+QUAL meminfo-kb Slab: 65288
+QUAL journald-conf ForwardToSyslog=yes
+QUAL journald-conf Storage=persistent
+QUAL journald-conf SystemMaxUse=256M
+QUAL journald-conf SystemMaxFileSize=32M
+QUAL journald-conf RuntimeMaxUse=32M
+QUAL journald-conf ForwardToSyslog=no
+QUAL journald-base-conf Storage=persistent
+QUAL journald-base-conf SystemMaxUse=256M
+QUAL journald-base-conf SystemMaxFileSize=32M
+QUAL journald-base-conf RuntimeMaxUse=32M
+QUAL journald-base-conf ForwardToSyslog=no
+QUAL syslog-file 188502
+QUAL limit enclave-rpc-clients.slice MemoryHigh=7493263360 MemoryMax=7826296832
+QUAL limit enclave-rpc-el.service TimeoutStopUSec=5min MemoryHigh=infinity MemoryMax=3746631680
+QUAL limit enclave-rpc-cl.service TimeoutStopUSec=5min MemoryHigh=infinity MemoryMax=3746631680
+QUAL limit enclave-rpc-base.service TimeoutStopUSec=5min MemoryHigh=infinity MemoryMax=6244384768
+QUAL probe-unit enabled active
+QUAL probe-before measuring 2 0 0 0 None
+QUAL front activating
+QUAL base-dropin beacon-patch.conf
+QUAL base-dropin host.conf
+QUAL base-dropin identity.conf
+QUAL base-dropin limits.conf
+QUAL base-dropin log-namespace.conf
+QUAL base-dropin restart.conf
+QUAL qual-base active Slice=enclave-rpc-clients.slice MemoryHigh=infinity MemoryMax=6244384768 LogNamespace=base User=rpcbase
+QUAL ns-tail 2026-11-13T02:04:22+00:00 rpc-owned-856ca36204b44e39816d6894807c8c6d systemd[1]: Starting qual-base.service - Owned RPC base client with pinned state and binary...
+QUAL ns-tail 2026-11-13T02:04:22+00:00 rpc-owned-856ca36204b44e39816d6894807c8c6d systemd[1]: Started qual-base.service - Owned RPC base client with pinned state and binary.
+QUAL ns-tail 2026-11-13T02:04:22+00:00 rpc-owned-856ca36204b44e39816d6894807c8c6d sh[1443]: NSLINE-base-sandbox rpcbase
+QUAL ns-tail 2026-11-13T02:04:31+00:00 rpc-owned-856ca36204b44e39816d6894807c8c6d sh[1443]: NSLINE-base-loaded
+QUAL ns-every-namespace-sees-base 2
+QUAL ns-default-sees-base 0
+QUAL ns-base-sees-base 2
+QUAL ns-every-namespace-sees-default 2
+QUAL journald-base active
+QUAL journal-dir /var/log/journal/b858b5ba1d0b42b69c282753c9562de4
+QUAL journal-dir /var/log/journal/b858b5ba1d0b42b69c282753c9562de4.base
+QUAL slice-loaded current=1696665600 high=7493263360 max=7826296832 reclaim=present
+QUAL qual-base-cgroup current=1696653312 high=max max=6244384768
+QUAL slice-pressure some avg10=0.00 avg60=0.00 avg300=0.00 total=0
+QUAL flood seconds=17 base=inactive main=inactive
+QUAL journal-mb-after-flood /var/log/journal/b858b5ba1d0b42b69c282753c9562de4 253
+QUAL journal-mb-after-flood /var/log/journal/b858b5ba1d0b42b69c282753c9562de4.base 259
+QUAL flood-suppressed base=0 main=0
+QUAL journal-lines-kept base=427961 main=430750
+QUAL syslog-file-after-flood 188502
+QUAL overlay-mb-after-flood 512
+QUAL df-mb / used 512 of 3971
+QUAL df-mb /run used 1 of 795
+QUAL probe-after measuring 4 2 6779068 0 0 None
+QUAL probe-state {"schema":"enclave-rpc-memprobe/1","cgroup":"/sys/fs/cgroup/enclave.slice/enclave-rpc.slice/enclave-rpc-clients.slice","startedAt":1794535371,"updatedAt":1794535551,"measureSec":172800,"intervalSec":60,"quietPercent":0.1,"step":0.002,"phase":"measuring","ticks":4,"asked":2,"askedBytes":6779068,"short":0,"held":0,"lastError":null,"holds":[],"samples":[[1794535371,0,0,0,0.0]],"measuringSince":1794535371}
+QUAL slice-probed current=1689198592 high=7493263360 max=7826296832
+QUAL qual-base-still active
+QUAL front-memory {"at":1794535553,"meminfo":{"MemTotal":8325849088,"MemFree":5729853440,"MemAvailable":7219933184,"Buffers":65708032,"Cached":2075406336,"Active(file)":109961216,"Inactive(file)":1485283328,"Unevictable":27947008,"Dirty":0,"Writeback":0,"AnonPages":63336448,"Mapped":116310016,"Shmem":536899584,"Slab":276373504,"SReclaimable":212000768,"SUnreclaim":64372736,"KernelStack":2633728,"PageTables":1900544,"AnonHugePages":0},"pressure":{"some":{"avg10":0.0,"avg60":0.0,"avg300":0.0,"total":1.0},"full":{"avg10":0.0,"avg60":0.0,"avg300":0.0,"total":1.0}},"mounts":{"/":{"size":4162924544,"used":535916544},"/run":{"size":832585728,"used":1028096},"/tmp":{"size":4162924544,"used":535916544},"/dev/shm":{"size":4162924544,"used":0}},"trees":{"/var/log":536162304,"/var/log/journal":535691264,"/run/log/journal":0,"/var/lib":258383872,"/var/cache":16838656},"groups":{"clients":{"current":1689198592,"peak":1700560896,"high":7493263360,"max":7826296832,"stat":{"anon":114688,"file":1499414528,"kernel":189669376,"shmem":0,"file_mapped":8192,"inactive_file":1443561472,"active_file":55853056,"slab":189588280,"workingset_refault_file":0,"workingset_activate_file":0,"pgscan":1816,"pgsteal":1815},"events":{"low":0,"high":0,"max":0,"oom":0,"oom_kill":0,"oom_group_kill":0},"pressure":{"some":{"avg10":0.0,"avg60":0.0,"avg300":0.0,"total":0.0},"full":{"avg10":0.0,"avg60":0.0,"avg300":0.0,"total":0.0}}},"system":{"current":698679296,"peak":740970496,"high":null,"max":null,"stat":{"anon":60964864,"file":614756352,"kernel":22482944,"shmem":536866816,"file_mapped":103079936,"inactive_file":35098624,"active_file":38440960,"slab":19171072,"workingset_refault_file":0,"workingset_activate_file":0,"pgscan":0,"pgsteal":0},"events":{"low":0,"high":0,"max":0,"oom":0,"oom_kill":0,"oom_group_kill":0},"pressure":{"some":{"avg10":0.0,"avg60":0.0,"avg300":0.0,"total":0.0},"full":{"avg10":0.0,"avg60":0.0,"avg300":0.0,"total":0.0}}}},"probe":{"schema":"enclave-rpc-memprobe/1","cgroup":"/sys/fs/cgroup/enclave.slice/enclave-rpc.slice/enclave-rpc-clients.slice","startedAt":1794535371,"updatedAt":1794535551,"measureSec":172800,"intervalSec":60,"quietPercent":0.1,"step":0.002,"phase":"measuring","ticks":4,"asked":2,"askedBytes":6779068,"short":0,"held":0,"lastError":null,"holds":[],"samples":[[1794535371,0,0,0,0.0]],"measuringSince":1794535371}}
+QUAL front-journal 200 200
+QUAL end
