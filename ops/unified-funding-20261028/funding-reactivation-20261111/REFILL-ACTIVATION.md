@@ -26,4 +26,4 @@ Every metal0 reboot still needs one operator-paid `setProofKey`; paying it from 
 
 ## The two deployments left queued (2026-11-13)
 
-0x59f1273d (enclavedns) and 0x9a28642b (kvm-box-native): `queued-apps-20261113/README.md`. A third refill session covers both; enclavedns runs since 20:20Z; kvm-box-native waits on the Shield manager loading the pinned desktop release.
+0x59f1273d (enclavedns) and 0x9a28642b (kvm-box-native): `queued-apps-20261113/README.md`. A third refill session covers both; enclavedns runs since 20:20Z and kvm-box-native since 20:45Z, after the Shield manager was switched to the pinned desktop release.

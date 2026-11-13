@@ -10,10 +10,14 @@ The Dashboard's Queued tab held two deployments, both owned on the ledger by the
 
 Neither was in a refill session: the 11-11 grant covers the seven other NucBox deployments.
 
-## State at 20:23Z
+## State at 20:53Z: both run
 
-- **enclavedns runs.** Claimed 20:20:02Z (tx 0xbff26e91…967f), started 20:20:33Z, `https://59f1273d.app.enclave.host/` answers 200 with its page.
-- **kvm-box-native is still queued.** The manager is still on release 2e801d0f (see "What went wrong"). Its first refill had not been paid yet at 20:23Z (one refill at a time, the next when the previous is final on Base, ~20 minutes).
+- **enclavedns**: claimed 20:20:02Z (tx 0xbff26e91…967f), started 20:20:33Z; given a fresh boot by the manager restart at
+  20:24Z (20:26:36Z). `https://59f1273d.app.enclave.host/` answers 200 with its page.
+- **kvm-box-native**: claimed 20:45:34Z (tx 0xd4b0b06b…274b), 36 GiB desktop partition created 20:45:44Z on image
+  a2272bcd…, secrets delivered 20:47:35Z, certificate installed 20:51:05Z. `https://9a28642b.app.enclave.host/` answers
+  401 with `Basic realm="KVM Box"`: the app's own sign-in. Nothing was signed in, so the desktop behind it is not checked.
+- The seven other NucBox apps answer 200.
 
 ## Gas
 
@@ -23,7 +27,10 @@ A third refill session, for these two deployments only: 3 USDC budget, 2 USDC an
 0x7f76d20d…1ea7, session 0x2fc90910…ca48, vault 0x86960ED8…F055a. It is run by the user unit
 `enclave-gas-refill@vault` on warden-host (config `~/.config/enclave/gas-refill-vault.json`, enabled 20:19Z).
 
-- 20:19:17Z, first refill: 0x59f1273d, 0.0002 ETH for 0.390897 USDC + 0.056257 USDC fee (tx 0x0da7db34…951e). 2.552846 USDC left.
+- 20:19:17Z, first refill: 0x59f1273d, 0.0002 ETH for 0.390897 USDC + 0.056257 USDC fee (tx 0x0da7db34…951e).
+- 20:45:31Z, second, once the first was final on Base (26 minutes): 0x9a28642b, 0.0002 ETH for 0.389399 + 0.055987 USDC
+  (tx 0x5267d65d…b879). 2.107460 USDC left; each app has ~3 days of gas, so the budget is about four more refills,
+  roughly six more days for the two.
 
 ## The native desktop release (kvm-box-native)
 
@@ -61,11 +68,26 @@ minutes after the second restart, and all seven answered 200 on their public URL
 
 The corrected copy looks the task up in `\Enclave\` and stops before changing anything if it is not found, and ends
 the old loop before the manager. Parsed on the NucBox with no errors; the lookup and the guard were tried read-only.
-It has not yet been run.
 
-## Still to do
+## The switch, 20:24Z
 
-- The owner runs `shield-svn18.sh` once more: one more restart of the manager, so the eight running apps are down for
-  about five minutes again.
-- Then: `/health` on 8091 reports igvm a2272bcd… and ready; the node's desktop check on 0x9a28642b passes or names the
-  next gate; with its refill paid, the claim; `https://9a28642b.app.enclave.host/` answers.
+The owner ran the corrected script. Task loop restarted 20:24:44Z; the manager's `/health` then reported igvm a2272bcd…,
+profile dffd7d80…, runtimeId f548e338…, controller 104468ce…, `desktop.ready` true, 9 recovered partitions; nothing was
+put back. `run-shield.cmd` now calls `releases\a2272bcd…\native-desktop-env.cmd`; the previous file stays beside it.
+
+- The node retired the nine recovered partitions and booted fresh ones, 20:26:36Z to 20:31:09Z, after one round of
+  `isolation held` as before. All eight apps answered 200 by 20:39Z (two waited on a certificate order: the first try
+  got `DNS_API … HTTP 403`, the retry was issued).
+- 0x9a28642b: the desktop identity check no longer refuses it. The claim then failed for gas until the refill, and
+  landed three seconds after it. The launch's `POST /vms` did not answer within the node's 30 s (`isolation held`, then
+  `version change … replacing the domain`, then `NOT retired: instance is still launching`); the same partition finished
+  launching and the node adopted it at 20:47:38Z as running on the planned image. So the node's later gates passed
+  under the installed manager on this box; that is one launch, not a qualification.
+
+## Left as it is
+
+- The NucBox operator key 0x1a01…94e0 holds no ETH, so `checkpoint 0x9a28642b,0x59f1273d failed` every five minutes:
+  the box earns nothing from these two paid leases (`proveAll`, windows/node/host.mjs). The leases, renewals and
+  serving do not depend on it.
+- A restart of the Shield manager costs every app on the box about five to seven minutes; the launch refusals while
+  recovered partitions are reconciled heal on later passes.
