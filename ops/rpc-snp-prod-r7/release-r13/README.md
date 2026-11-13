@@ -4,8 +4,8 @@ Status: **r13 IN PRODUCTION** (2026-11-12 16:19Z). r13 guest, certificate, app a
 Open link, gateway on version 4, metal0 on the control image whose policy quorum answers. One outage on the way,
 15:04:39Z to 16:18:34Z: after its restart metal0 could not pay its registry transaction and did not renew (see "The
 run"). The operator key was topped up with 0.001 ETH at 18:09Z; at the measured checkpoint cost that lasts about four days.
-The checkpoints that spend it are for a free lease and buy nothing: main 1186ab801 stops them, and the control image
-with that change is built but not active (`../control-image-66335ab/`).
+The checkpoints that spent it were for a free lease and bought nothing: main 1186ab801 stops them, and metal0 runs
+the control image with that change since 2026-11-13 00:11:42Z (`../control-image-66335ab/`).
 
 What r13 gives the deployment `0x5ff56a4d…454f`: the address `https://5ff56a4d.app.enclave.host`, a page behind it
 served by the VM itself, and with site release r6 (`../site-whole-vm-address-r6/`) the dashboard row's address and
@@ -109,8 +109,8 @@ When it runs out the checkpoints fail again (the leases do not depend on them, a
 restart of metal0 in that state stops at its registration as on 2026-11-12. Nothing refills this key by itself.
 
 The drain itself is removed in source (main 1186ab801: no checkpoint for a lease at rate 0, and the key's runway is
-measured and said while low). metal0 gets it with the control image `dist-snpvm-66335ab`, which the operator
-activates: `../control-image-66335ab/control-image.sh apply`. Until then the paragraph above holds.
+measured and said while low). metal0 runs it since 2026-11-13 00:11:42Z (control image `dist-snpvm-66335ab`,
+`../control-image-66335ab/`): no checkpoint since, and the key's balance no longer falls between restarts.
 
 `control-image.sh apply` did not notice: it waited for the relay's acceptance, the policy admission and the lease,
 and the lease was still the one renewed at 14:34Z. It now also waits for the registration and says so when it does not

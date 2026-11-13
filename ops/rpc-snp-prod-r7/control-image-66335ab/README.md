@@ -1,7 +1,7 @@
 # metal0 control image 66335ab: no proof-of-time checkpoints for a free lease
 
-Status: **BUILT AND MEASURED, NOT ACTIVE** (2026-11-12 18:55Z). metal0 still runs `dist-snpvm-16520ea` and still
-posts one checkpoint every 300 s for Enclave RPC. Activation is the operator's step: `control-image.sh apply`.
+Status: **ACTIVE on metal0** since 2026-11-13 00:11:42Z (the operator ran `control-image.sh apply`). No checkpoint
+has been posted for Enclave RPC since; see "The run".
 
 ## Why
 
@@ -25,7 +25,7 @@ node already followed the same rule (`windows/node/host.mjs` proveAll).
 to the supervisor that image overlays (the patch's six anchors exist in both generations; `test/free-lease-proof.test.mjs`
 checks that the deployed generation gets main's text).
 
-| | 16520ea (running) | 66335ab |
+| | 16520ea (previous) | 66335ab |
 |---|---|---|
 | initramfs sha256 | a6b7e1a7694087ef2e00c1f8d53d90923bd68aaaf1b55d7891a6451b7e3d51e0 | 1a6e0cf05e28fb983619df35e721f8455c84225e29852892076070b961679ae1 |
 | launch measurement | a74528dc6910b64656f5c9e5126e2f4eb04b39232a5358c1248c206ea03a9fbe10c0a4d509f2d8d22ed08cea3e0ee1e8 | 5d91b40202371dd8ece935953f2d353d8587eda0e9c87f1772858077c8d1f6fae21f26e65e8c0cace007342ef63a536a |
@@ -46,7 +46,7 @@ Measured with the command line metal0 launches with. The image's `cmdline` file 
       --append "$(sed 's/\${MODE}/snp/' $D/cmdline)" --output-format hex
 
 The same command reproduces the two measurements the relay has accepted from this host: b4446c3 → c9fe2438…12d5 and
-16520ea → a74528dc…e1e8. The new measurement is computed, not yet attested by a launch.
+16520ea → a74528dc…e1e8. The relay accepted the new one from metal0's launch on 2026-11-13 00:11:56Z.
 
 ## Activating it
 
@@ -70,7 +70,26 @@ The same command reproduces the two measurements the relay has accepted from thi
 
 The Enclave RPC guest is not restarted: the supervisor adopts the running VM by name, as on 2026-11-12 16:18Z.
 One restart costs the key one registry transaction (3.2e-7 ETH at that day's fee). After it the key is spent only on
-registry writes at starts, so what it holds lasts for thousands of them.
+registry writes at starts.
+
+## The run (2026-11-13, UTC)
+
+| | |
+|---|---|
+| 00:10:14 | last renewal on 16520ea (until 00:40:13); 00:10:17 its last checkpoint |
+| 00:11:42 | `enclave-metal.service` restarted on `dist-snpvm-66335ab` |
+| 00:11:56 | `[agent] attest ACCEPTED meas=5d91b40202371dd8…`; `[host-policy] this host is ADMITTED` |
+| 00:12:02 | `[registry] registered` (`0x622baa40…9671`, block 56691736, 3.0e-7 ETH); 00:12:03 price published (`0x8981fd64…362b`, 2.0e-7 ETH) |
+| 00:12:55 | `[claim] … resuming our own live lease after a restart`; 00:13:00 `[snp-vm] 0x5ff56a4d: adopted VM svc5c9c7e782de8357, already running on this host` |
+| 00:17:54 | `[proof] no checkpoints for 0x5ff56a4d…454f: a free lease (rate 0) has nothing to credit` |
+| 00:36:01 | lease renewed until 01:06:00 (`0x9c7e1d42…94ba`, paid by the app's reserve) |
+
+Checked at 00:36Z: no `checkpoint(s) landed` line and no proof error since the restart (the previous image posted
+one every 300 s up to 00:10:17Z); the operator key held 935902623024987 wei at 00:12Z, 00:18Z and 00:36Z, unchanged
+across the proof rounds; the app address answered 200; the guest was not restarted (QEMU started 2026-11-12
+10:14:59Z still running). The relay's allowlist carries the measurement (previous file kept as
+`linux-leasegas-measurements.env.before-snpvm-66335ab`), metal0's previous config is kept as
+`config.json.before-snpvm-66335ab`. The restart cost the key 5.0e-7 ETH; what it holds pays for about 1,800 more.
 
 ## Not covered
 

@@ -625,7 +625,7 @@ catalog version 4, with site release r6 on the four edges.
 - *Open.* A checkpoint costs the key about 9e-7 ETH, about 2.6e-4 ETH a day, so the top-up lasts about 3.8 days at
   this fee and nothing refills the key by itself. Before any restart of metal0, read the key's balance first.
 
-## Operator key drain: checkpoints for a free lease; control image 66335ab built, not active (2026-11-12 18:20–19:00Z)
+## Operator key drain: checkpoints for a free lease; control image 66335ab, active 2026-11-13 00:11Z
 
 Detail: `control-image-66335ab/README.md`.
 
@@ -642,10 +642,11 @@ Detail: `control-image-66335ab/README.md`.
   5d91b402…536a. Only `/app/supervisor.js` and the added `/app/windows/node/gas-runway.mjs` differ. The measurement
   is computed with the command line the host launches with (`metal.mode=snp` in place of the `cmdline` file's
   `${MODE}`); the same command reproduces b4446c3 and 16520ea as the relay accepted them.
-- *Not active.* metal0 runs 16520ea and still posts the checkpoints (key 9.93e-4 ETH at 18:53Z). Activation is the
-  operator's: `control-image-66335ab/control-image.sh apply` reads the key's balance before the restart, lists the
-  measurement on the relay, switches the image with rollback, and waits for registration, adoption, the free-lease
-  line, a renewal and the app address.
+- *Active.* The operator ran `control-image-66335ab/control-image.sh apply`: metal0 restarted on the image
+  2026-11-13 00:11:42Z, the relay accepted measurement 5d91b402… at 00:11:56Z, registered 00:12:02Z, adopted the
+  running VM 00:13:00Z (guest not restarted), named the free lease 00:17:54Z, renewed 00:36:01Z until 01:06:00Z. No
+  checkpoint since the restart; the key held 9.359e-4 ETH at 00:12Z and at 00:36Z. A restart costs it 5.0e-7 ETH
+  (registration and price), so it now lasts for about 1,800 restarts instead of four days.
 
 ## Enclave RPC after a host boot: what brings it back (read 2026-11-12, not exercised)
 
@@ -665,8 +666,8 @@ Read from the host's units and configuration; the host was not rebooted (up sinc
   with it Enclave RPC, stays down until someone types that passphrase.** That is the machine's design, not changed.
 - *Kernel.* The host runs 7.2.11 with only 7.2.14 (and older) modules on disk, so the next boot is a kernel change.
   None of the three running guests uses vhost-vsock. SEV-SNP launch under 7.2.14 is not tested.
-- *Gas.* Each boot costs the operator key one registration. With the checkpoints stopped (above) the key lasts; with
-  them it is empty about 2026-11-16 and a boot after that leaves metal0 unregistered and the guest never asked for.
+- *Gas.* Each boot costs the operator key one registration and one price write (5.0e-7 ETH on 2026-11-13). With the
+  checkpoints stopped (above) the key holds about 1,800 of those.
 - *Lease.* If the host is down past the lease end (30 minutes at most), the address, the agent and the gateway
   refuse the app until metal0 claims again; the chain data needs no resync beyond the downtime.
 - *Not exercised.* A reboot of this host with Enclave RPC as a fleet app. The first certificate delivery after a
