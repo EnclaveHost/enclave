@@ -16,7 +16,8 @@ Neither was in a refill session: the 11-11 grant covers the seven other NucBox d
   20:24Z (20:26:36Z). `https://59f1273d.app.enclave.host/` answers 200 with its page.
 - **kvm-box-native**: claimed 20:45:34Z (tx 0xd4b0b06b…274b), 36 GiB desktop partition created 20:45:44Z on image
   a2272bcd…, secrets delivered 20:47:35Z, certificate installed 20:51:05Z. `https://9a28642b.app.enclave.host/` answers
-  401 with `Basic realm="KVM Box"`: the app's own sign-in. Nothing was signed in, so the desktop behind it is not checked.
+  401 with `Basic realm="KVM Box"`: the app's own sign-in. Nothing was signed in at that time; the desktop behind it
+  was opened at 21:02Z (below).
 - The seven other NucBox apps answer 200.
 
 ## Gas
@@ -84,7 +85,30 @@ put back. `run-shield.cmd` now calls `releases\a2272bcd…\native-desktop-env.cm
   launching and the node adopted it at 20:47:38Z as running on the planned image. So the node's later gates passed
   under the installed manager on this box; that is one launch, not a qualification.
 
+## "Open desktop" answered `{"error":"bad gateway"}` (21:00Z)
+
+The owner signed in and selected Open desktop. The desktop inside the partition had not been started: the app's page
+has a separate Start desktop button, and after every boot of the partition the desktop is `stopped`. The page's Open
+desktop link works in that state too, and the guest's gateway (127.0.0.1:19080, `guest/native/gateway/gateway.go` in
+the kvm-box source) answers it with that body because nothing listens on the inner desktop address 127.0.0.1:18080
+until the desktop runs. Nothing was wrong with the partition, the manager or the release.
+
+Read on the box before anything was changed: the manager lists the partition `running`, `appReady` true, image
+a2272bcd…, profile `kvm-box-masked-v1`; the release's `shielded-bridge.exe` for it has run since 20:46:44Z against the
+worker on 19595.
+
+In the owner's browser, already signed in (no password was entered by the agent): the page showed `Desktop stopped`,
+4 virtual CPUs, 24 GiB. Start desktop at about 21:01Z: `starting`, then `running` within 30 seconds. Open desktop then
+loaded noVNC and connected to `kvm-box:0`, the Fluxbox desktop with its toolbar and clock. Nothing was run inside the
+desktop; Moonlight, Shield compute and the GPU path are not checked.
+
+Not changed: the page still offers Open desktop while the desktop is stopped and shows the raw answer. That is the
+app's page (controller 104468ce…, pinned by the release), so changing it means a new signed release.
+
 ## Left as it is
+
+- The desktop does not start by itself. After any new boot of the partition (a Shield manager restart, a new claim)
+  it is `stopped` again until Start desktop is selected, and what was in it is gone ("Desktop changes are temporary").
 
 - The NucBox operator key 0x1a01…94e0 holds no ETH, so `checkpoint 0x9a28642b,0x59f1273d failed` every five minutes:
   the box earns nothing from these two paid leases (`proveAll`, windows/node/host.mjs). The leases, renewals and
