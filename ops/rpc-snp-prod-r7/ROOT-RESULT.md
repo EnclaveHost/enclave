@@ -715,6 +715,35 @@ r13's reserve for them, seen for half an hour); lower is untested (8 GiB failed 
 memory and the Ethereum node's re-read rate after a day first. Rollback from r14: an owner-signed start on version 4
 with `~/.config/enclave/snpvm.json.r13`.
 
+## Enclave RPC 1.4.1 (image r14 in a 48 GiB guest, catalog version 6): prepared, not published, not live (2026-11-13 06:55Z)
+
+*What exists.* Release `/vm/enclave-volumes/rpc-snp-release-r14-48g` (copies in `release-r14-48g/`): r14's image
+and measurement, `res [0,0,49152,0]`, manifest `bafkreieeaqac6x…qjv4` pinned on this host. Owner plan: publish
+version 6, stop, start (publish simulated from the owner, nothing sent). Signing page up at
+http://127.0.0.1:42295 (unit `enclave-rpc-owner-sign-r14-48g`), nothing signed; its lead text says not to sign
+before the day-later reading. `release-r14-48g/run-cutover.sh` and `finish.sh` are written and syntax-checked,
+**not run**: `finish.sh` reads the launched qemu's `-m` (the reader was tried on the running guest: 65536) and stops
+if it is not 49152. The host needs no change: the size comes from the catalog version, the image and the proxy's
+pin are r14's.
+
+*Reading 06:40Z, 3 h 46 min after the start, all clients at head.* Slice 55.64 GiB on its limit; anonymous 13.28
+(reth 3.48, Lighthouse 5.06, Base 4.74), page cache 36.63 (Base 32.84); Base re-reads about 7% of the 35 to 48
+MB/s taken from it. **The anonymous memory is still rising**: 9.23 GiB at 03:24Z, 13.26 at 06:24Z, +0.75 GiB an
+hour over the last two hours.
+
+*What 48 GiB would give (estimated, not measured).* MemTotal about 46.3 GiB, slice about 41.6; with reth and
+Lighthouse at today's 13.2 GiB Base gets about 28.4 GiB in total, **below the 30 GiB it had on r13**, and less by
+whatever the anonymous memory still adds. This corrects the "48 GiB leaves Base the 30 GiB" of the section
+above. The host gets back at most 16 GiB.
+
+*Not known.* Where the anonymous memory stops; how much page cache Base needs to keep following the chain.
+Conditions for signing, the larger size to make instead (52 GiB) and the way back (owner-signed start on version
+5, not scripted, not exercised) are in `release-r14-48g/README.md`.
+
+*Also here.* `rpc/snp/memtrend.py` (host-side: a table and the anonymous-memory growth from stored `/memory`
+reports and the probe's half-hourly samples), `test/rpc-snp/test_memtrend.py`; `release-r14-48g/reading.sh` stores
+one reading. No timer takes readings.
+
 ## Enclave RPC after a host boot: what brings it back (read 2026-11-12, not exercised)
 
 Read from the host's units and configuration; the host was not rebooted (up since 2026-11-01 19:28 MST).
