@@ -5,6 +5,7 @@
 #
 #   desktop-svn19.sh status          read only: launchers, manager, staged files, relay policy, marker, signing page
 #   desktop-svn19.sh stage           copy the release files to the NucBox and check them there; nothing running changes
+#   desktop-svn19.sh fetch           read only: can the NucBox node's own fetcher get the new controller
 #   desktop-svn19.sh policy          control VM: admit SVN19 in the relay's Shield policy; restarts the relay
 #   desktop-svn19.sh switch          NucBox: pin the Node, then switch the Shield manager; writes the marker when settled
 #   desktop-svn19.sh revert          NucBox: back to SVN18, Shield manager first, then the Node
@@ -27,12 +28,9 @@ CVM=${CVM:-/vm/enclave-volumes/rpc-snp-release-r14/cvm.sh}
 SIGN=${SIGN:-http://127.0.0.1:42291}
 NEW=de9e87e32cbacfa0dddb27422a36733dddadb3b87268aa14d7cc109bf9a1802e
 CID=bafybeidkdt5kv3bkyygeyofbkoo3abqd2oi7o5wgcsbrkodmjf5q3zzub4
-CONTROLLER_SHA=b3eb82bce8822d26ecbfb654b73a603debf9cde460845ff29a02c69a9f4e4704
 OLD_POLICY=e41ac8960c5112e55770c9350d85e135e15184e90d5a22790906791b6a4f911b
 NEW_POLICY=a0e735027bb3d04cfb037574485206673a7cda8f7b81eda73d43eac7d995e3ee
 DEST="C:/ProgramData/Enclave/native-desktop/releases/$NEW"
-# where the NucBox node asks for a component, after its local replica (control\windows\node\artifact-gateways.json)
-SOURCES="http://134.199.235.187:8189 http://134.209.248.172:8189 http://165.245.191.129:8189 http://146.190.246.39:8189 https://7ae476a3.app.enclave.host"
 MARKER=$ACT/switched.json
 LOG=$ACT/host-switch.log
 OUT=$(mktemp)
@@ -147,21 +145,11 @@ PY
 
 policy_sha() { CVM_TIMEOUT=60 "$CVM" 'sha256sum /etc/nan-relay/shield-policy.json' 2>/dev/null | cut -d' ' -f1; }
 
-# Can the node get the controller the way it will ask for it: as a CAR, every block hashed (wasm/ipfs_fetch.py)?
-fetchable() {
-  python3 -I - "$repo/wasm" "$CID" "$CONTROLLER_SHA" $SOURCES <<'PY'
-import hashlib, sys
-sys.path.insert(0, sys.argv[1])
-import ipfs_fetch
-cid, want, good = sys.argv[2], sys.argv[3], 0
-for g in sys.argv[4:]:
-    try:
-        ok = hashlib.sha256(ipfs_fetch.fetch_verified(cid, g, 64 << 20, 30)).hexdigest() == want
-        print("  %s: %s" % (g, "serves the controller" if ok else "serves OTHER bytes")); good += ok
-    except Exception as e: print("  %s: no (%s)" % (g, str(e)[:90]))
-sys.exit(0 if good >= 2 else 1)
-PY
-}
+# Can the node get the controller: its own fetcher on the NucBox, through its own source list, every block hashed
+# (the ps1's fetch mode). The first copy of this check asked each source from this host and wanted two of them; the
+# edges and the local replica hold a fixed set and answer 404 for any app component, the SVN18 controller included,
+# so that check could never pass and stopped the owner's first switch at 23:42Z with nothing changed.
+fetchable() { box fetch; did 'DONE fetch'; }
 
 signed() { curl -s -m 20 "$SIGN/status" | python3 -I -c 'import json,sys; s=json.load(sys.stdin); sys.exit(0 if s.get("publish") is True and s.get("approve") is True else 1)' 2>/dev/null; }
 
@@ -183,7 +171,7 @@ switch() {
   fi
   [ "$(policy_sha)" = "$NEW_POLICY" ] || stop "the relay does not admit SVN19 yet: run '$0 policy' first (nothing changed)"
   say "can the node fetch the controller $CID?"
-  fetchable | tee -a "$LOG" || stop "fewer than two of the node's sources serve the controller; nothing changed"
+  fetchable || stop "the node's fetcher on the NucBox cannot get the controller; nothing changed"
   local want
   if [ -s "$ACT/switch-want" ]; then want=$(cat "$ACT/switch-want")
   else box count; want=$(sed -n 's/^DONE count \([0-9]*\)$/\1/p' "$OUT"); [ -n "$want" ] || stop "the manager's VM list could not be read; nothing changed"; echo "$want" > "$ACT/switch-want"; fi
@@ -225,9 +213,10 @@ mkdir -p "$ACT"
 case ${1:-} in
   status) status;;
   stage) stage;;
+  fetch) say "can the node fetch the controller $CID?"; fetchable && say "yes" || stop "the node's fetcher on the NucBox cannot get the controller";;
   policy) policy apply;;
   policy-revert) policy revert;;
   switch) switch "${2:-}";;
   revert) revert;;
-  *) sed -n 2,19p "$0"; exit 2;;
+  *) sed -n 2,20p "$0"; exit 2;;
 esac

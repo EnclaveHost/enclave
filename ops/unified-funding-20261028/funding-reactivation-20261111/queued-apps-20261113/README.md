@@ -215,6 +215,33 @@ Read before writing the scripts:
 State at 23:20Z: staged on the NucBox; nothing uploaded, published, approved or promoted; relay policy and both
 launchers still SVN18; KVM Box runs the old page.
 
+### The owner's run, 23:3xZ to 23:42Z: signed and policy done, the switch stopped by a wrong check
+
+The owner signed the upload, the publish and the approve (the signing page shows all three done) and ran `policy`:
+the relay had `ok=True enclaves=3 of 6` before, restarted healthy on the new policy file a0e73502…, and reads 3 of 6
+again at 23:46Z. `switch` then stopped at 23:42:37Z before changing anything on the NucBox:
+
+```
+http://134.199.235.187:8189: no (HTTP Error 404: Not Found)      (the same for the other three edges)
+https://7ae476a3.app.enclave.host: serves the controller
+STOP: fewer than two of the node's sources serve the controller; nothing changed
+```
+
+The check was wrong, not the upload. It asked each source from this host and wanted two. The edges on 8189 and the
+local replica hold a fixed set of artifacts; asked at 23:44Z, all four edges answer 404 for the SVN18 controller as
+well, which the node has been running. An app's component reaches the node through the last entry in its list, the
+gateway app (`wasm/ipfs_fetch.py` goes to the next source on any error). Requiring two sources could never pass.
+
+The check now is the fetch itself where it will happen: `desktop-svn19.ps1` mode `fetch` runs the node's own
+`C:\Program Files\Enclave\control\windows\node\fetch-cid.py` with the `artifact-gateways.json` beside it, into a
+file under TEMP that it removes, and compares the SHA-256. Run at 23:46Z: `DONE fetch 507502 bytes, SHA-256
+b3eb82bce8822d26`. `desktop-svn19.sh fetch` runs only that. One source means the desktop does not start while the
+gateway app is unreachable; it does not weaken what is accepted, since every block is hashed against the CID.
+
+State at 23:47Z: version 1 published and approved; relay admits SVN19 only; both launchers still SVN18, 9 app VMs
+running; no marker, promote not offered. KVM Box's page answers (401, its sign-in) but a desktop start is not admitted
+until the switch and the promote.
+
 ## Moonlight "Add PC" with a public address: not possible with what is deployed
 
 Today Sunshine listens on loopback inside the desktop (`guest/native/network_policy.py`), and the only way in is the

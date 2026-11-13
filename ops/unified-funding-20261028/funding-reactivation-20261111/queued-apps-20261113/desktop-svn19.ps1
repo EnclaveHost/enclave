@@ -16,8 +16,10 @@
 # always started again, also when a step in between fails. A launcher is put back by the reverse of the same edit.
 #
 # The controller component is not staged here. The node fetches it by CID as a CAR and hashes every block
-# (windows/node/fetch-cid.py), asking in order the local replica on 127.0.0.1:18191 (which holds the SVN18
-# controller only and answers 404 for this one), the four edges on 8189 and the gateway app.
+# (windows/node/fetch-cid.py), asking in order the sources in artifact-gateways.json beside that script: the local
+# replica on 127.0.0.1:18191, the four edges on 8189 and the gateway app. The replica and the edges hold a fixed set
+# and answer 404 for an app's component (on 2026-11-13 the edges did so for the SVN18 controller too), so it arrives
+# from the gateway app. The fetch mode runs that same script with that same list and checks what it wrote.
 $ErrorActionPreference='Stop'
 $old='a2272bcd8f7d5db883ae212ee1cb499a8bf100f9cc6f23073e61b68343f185f9'
 $new='de9e87e32cbacfa0dddb27422a36733dddadb3b87268aa14d7cc109bf9a1802e'
@@ -30,6 +32,9 @@ $nf="$root\run-node.cmd"
 $slog="$root\logs\shield.log"
 $nlog="$root\logs\node.log"
 $stamp='bak-20261113-before-svn19'
+$fetcher='C:\Program Files\Enclave\control\windows\node\fetch-cid.py'
+$cid='bafybeidkdt5kv3bkyygeyofbkoo3abqd2oi7o5wgcsbrkodmjf5q3zzub4'
+$controller='b3eb82bce8822d26ecbfb654b73a603debf9cde460845ff29a02c69a9f4e4704'
 $private='key|secret|token|password'
 # name = bytes, sha256. shielded-bridge.exe is the SVN18 release's file, copied on the box.
 $files=[ordered]@{
@@ -171,6 +176,23 @@ function Do-Status {
   "DONE status"
 }
 
+# Can this box get the controller the way the node will: its fetcher, its source list, every block hashed? Writes
+# one file under the caller's TEMP and removes it. Changes nothing the node or the manager reads.
+function Do-Fetch {
+  $ErrorActionPreference='Continue'
+  $py=Get-Command python -ErrorAction SilentlyContinue
+  if (-not $py) { 'STOP: no python on PATH; nothing changed'; return }
+  if (-not (Test-Path -LiteralPath $fetcher)) { 'STOP: the node fetcher is not where it is expected; nothing changed'; return }
+  $out=Join-Path $env:TEMP "svn19-controller-$PID.wasm"
+  $said=@(& $py.Source $fetcher $cid $out 67108864 2>&1 | ForEach-Object { "$_" } | Where-Object { $_ -notmatch $private })
+  $code=$LASTEXITCODE
+  $got=$null
+  if (Test-Path -LiteralPath $out) { $got=(Get-FileHash -LiteralPath $out -Algorithm SHA256).Hash.ToLower(); $bytes=(Get-Item -LiteralPath $out).Length; Remove-Item -LiteralPath $out -Force }
+  if ($code -eq 0 -and $got -eq $controller) { "DONE fetch $bytes bytes, SHA-256 $(Cut $got 16), by the node's fetcher through its own source list"; return }
+  $said | Select-Object -First 4 | ForEach-Object { '  ' + (Cut $_ 600) }
+  if ($got) { "STOP: the fetcher wrote other bytes ($(Cut $got 16)); nothing changed" } else { 'STOP: the node fetcher could not get the controller from any of its sources; nothing changed' }
+}
+
 function Do-Count { $n=AppVms; if ($n -lt 0) { 'STOP: the manager does not answer; nothing changed' } else { "DONE count $n" } }
 
 # Has the reconcile after a manager restart ended: the app VMs are back and the node has logged no recovery,
@@ -250,6 +272,7 @@ switch ($mode) {
   'prepare'       { Do-Prepare }
   'verify'        { Do-Verify }
   'status'        { Do-Status }
+  'fetch'         { Do-Fetch }
   'count'         { Do-Count }
   'settled'       { Do-Settled }
   'node'          { Set-Node $old $new }
