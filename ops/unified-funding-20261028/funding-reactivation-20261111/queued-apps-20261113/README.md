@@ -10,10 +10,10 @@ The Dashboard's Queued tab held two deployments, both owned on the ledger by the
 
 Neither was in a refill session: the 11-11 grant covers the seven other NucBox deployments.
 
-## State at 20:25Z
+## State at 20:23Z
 
 - **enclavedns runs.** Claimed 20:20:02Z (tx 0xbff26e91…967f), started 20:20:33Z, `https://59f1273d.app.enclave.host/` answers 200 with its page.
-- **kvm-box-native is still queued.** The manager is still on release 2e801d0f (see "What went wrong"). Its first refill had not been paid yet at 20:25Z (one refill at a time, the next when the previous is final on Base, ~20 minutes).
+- **kvm-box-native is still queued.** The manager is still on release 2e801d0f (see "What went wrong"). Its first refill had not been paid yet at 20:23Z (one refill at a time, the next when the previous is final on Base, ~20 minutes).
 
 ## Gas
 
@@ -57,7 +57,7 @@ Each restart makes the manager list the running app VMs as recovered; the node r
 recovered partitions were still being reconciled the manager answered launches with "RAM allocation is unknown until
 recovered partitions are reconciled" and the node logged `isolation held` for six apps; it tried again on later passes,
 one app about every 30 seconds. All seven apps and the readiness witness were running again by 20:15:27Z, about five
-minutes after the second restart, and all seven answered 200 on their public URLs by 20:20Z.
+minutes after the second restart, and all seven answered 200 on their public URLs by 20:21Z.
 
 The corrected copy looks the task up in `\Enclave\` and stops before changing anything if it is not found, and ends
 the old loop before the manager. Parsed on the NucBox with no errors; the lookup and the guard were tried read-only.
