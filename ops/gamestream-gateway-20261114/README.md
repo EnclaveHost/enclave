@@ -135,7 +135,9 @@ that do route an app, so a real client does not get there.
 
 - The KVM Box page keeps saying `127.0.0.2` until its own release (enclave-apps branch
   `kvm-box/page-moonlight-public-20261114`, a signed desktop release, owner signatures, a host switch). That release
-  was waiting for the pairs to be carried, which `activation/check-0750Z.txt` now shows.
+  was waiting for the pairs to be carried, which `activation/check-0750Z.txt` now shows. It was prepared at 08:25Z
+  as SVN20 / catalog version 2 and is not live: see "A release for the Moonlight paragraph" in
+  `ops/unified-funding-20261028/funding-reactivation-20261111/queued-apps-20261113/README.md`.
 - Seen while reading the edges' journals, not caused by this work: Ubuntu's unattended upgrades restarted
   `enclave-network-provider` on three edges between 06:06Z and 06:38Z (ap-southeast 06:06:02Z, us-west 06:12:10Z,
   eu-central 06:37:22-27Z).

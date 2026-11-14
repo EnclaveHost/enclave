@@ -734,3 +734,91 @@ Not done, not known:
 - The page still says 127.0.0.2. Its release (enclave-apps branch `kvm-box/page-moonlight-public-20261114`, a signed
   desktop release, owner signatures, a host switch) is the next step and has not been started.
 - Why two early pairing tries answered "Incorrect PIN" is still not known.
+
+## A release for the Moonlight paragraph: SVN20, catalog version 2 (prepared 08:25Z on 2026-11-14, NOT live)
+
+The page still tells the owner to add PC `127.0.0.2`. The public path works since 07:47Z (section above), so what is
+left is the page's text, and the page is the controller the desktop release pins by hash. Changing one paragraph
+therefore takes everything SVN19 took: a signed image, a catalog version, both Shield policies and a host switch.
+
+**Source.** enclave-apps commit b9e4adcae7e0742cb6518dd151a9fea57dc69d64, branch
+`kvm-box/page-moonlight-public-20261114`, https://github.com/EnclaveHost/enclave-apps/pull/8 (open, stacked on pull 7).
+Opened under a public name the page names that name (`location.hostname`) as the PC to add; opened through the local
+connector it keeps `127.0.0.2`. The other owner's uncommitted work in the `enclave-apps-native` checkout is not in
+this build either.
+
+**Candidate SVN20**, exported to `…/2026-10-23/it/outputs/kvm-box/native-platform-v16-moonlight-page/` (work directory
+`…/2026-10-23/it/work/native-page-image-v16/`):
+
+| file | bytes | sha256 |
+|---|---|---|
+| native-igvm.bin (signed) | 86,616,932 | 08f69fa415268c0211ec6867ad3b334aa62c56cb5bb8ed67257e876e9910747b |
+| root.iso | 592,719,872 | 1874a48475b0d3f44e55a9a17c61f0b20f9f7ccce730a2ff0a1dfc9bd92fda8b |
+| hashes.iso | 4,739,072 | 2c3060d4c8ef0177dd3acdff239c616c3f6e3b8ed5a324b7861aa88b41daddbc |
+| profile.json | 1,066 | 8f494c3b1c4ffd1c8416c1e6c2660ed0a01969327aa4f8960f5cbf0f1b828e44 |
+| shield-desktop.wasm (controller) | 508,270 | e05247f88eb521d48507ff49bb88d16b5bba2df75fb2794b2082382ae7506630 |
+| models.iso, shielded-bridge.exe | unchanged | ddb1c303…, cc751de6… |
+
+- Against SVN19 the root image differs in one file of 26,035, the controller (`root-diff.json`). Before packaging,
+  the same toolchain rebuilt SVN19's platform archive bit for bit.
+- Signed with the release key by the pinned signer (key on standard input, in no file here); guest SVN 20, same
+  module, product and signer identity as SVN19; verified by the independent implementation. Launch measurement
+  70b76e9495da40a5e1413ccd041c82af4b66f0e53463237a471939bff45ab8f4: computed, not read from hardware.
+- Isolated KVM guest, no network device, the release's pinned runtime: 19 checks passed (`desktop-test.json`), SVN19's
+  18 and `owner-page-names-the-public-moonlight-pc`. The corrupted-data and corrupted-hash images were refused. The
+  controller component alone: 11 tests under Wasmtime, no failure.
+- `verify-export.py`: 18 files and 3 payloads checked, 10 mutations rejected.
+- **Not done:** no run on the NucBox; no hardware admission or attestation; no GPU, Shield compute or Moonlight run
+  on this image; the page was not opened in a browser under the public name (the check reads the served page).
+  `candidate.json` keeps `admissionEnabled` and `activated` false. Loading it is the same unqualified operator
+  arrangement as SVN19.
+
+**Activation files** (`…/native-page-image-v16/activation/`, made by `desktop-svn20-prepare.mjs` from the live SVN19
+set, each of whose four files it first checks by hash):
+
+| file | sha256 |
+|---|---|
+| shield-policy.json | 54fed2c8eadd809770103ee63efdfd99540611efcfe0d99f3362b4f13c3ce60e |
+| desktop-config.json | 258006e76e565090cb7ce83504a85bc5eefe3f4dcecf4dcd0a0fa12280d55829 |
+| desktop-release.json | 04a3e6c7230b2965d52ed40fdd1c457f892a54956ff642be6797df95903bafbd |
+| native-desktop-env.cmd | e74f25db96d148a7db57f99870b7964f1bcc1af4f1c25e9f83655e67facbe9b0 |
+
+The policy keeps its 12 other entries and differs from the live one only in the desktop entry (measurement, image,
+profile, controller, minimum SVN 19 to 20) and the `desktop` block. Controller CID
+`bafybeig564vcjghux3gnfgzpcdddtxl6mlvrzelmhe7qnapi7ejnsmpoxa` (the method reproduces SVN19's CID from SVN19's
+component). The node's derived app id for version 2 is 3d98424d…0659; the derivation was first checked against
+SVN19's known record for version 1.
+
+**Signing plan.** `activation/plan.json`, written at 08:21Z because every RPC simulated publish, approve and promote:
+vault 0xB794…345D publishes version 2 of 0xcdc1fa94…70ce (label 0.9.2), the owner approves it, the vault promotes the
+deployment from `catalog://0xcdc1…70ce/1` to `/2`. Served on `http://127.0.0.1:42293` (this workstation only).
+
+**On the NucBox now:** the release folder `…\releases\08f69fa4…747b` with the eight files and `shield-policy.json`,
+each verified there by size and SHA-256 (`desktop-svn20.sh stage`, 08:23Z). Nothing that runs reads it yet:
+
+| 08:23Z, `desktop-svn20.sh status` | |
+|---|---|
+| launchers, manager | both name SVN19; manager ready on `de9e87e3…`, 7 app VMs besides the desktop |
+| host policy, relay policy | SVN19, SVN19 |
+| signing page | upload ready; publish, approve, promote waiting |
+| `fetch` | refused: no source serves the new controller before the upload is signed (expected) |
+| loopback-exemption list | 39 of 682 |
+
+**Order** (`desktop-svn20.sh`, with `desktop-svn20.ps1`; made from the SVN19 pair, same guards):
+
+1. Owner: upload, publish, approve on the signing page.
+2. `policy`: the relay admits SVN20 and no longer SVN19. **KVM Box is down from here until step 5.**
+3. `hostpolicy`: the NucBox's own policy; its network agent restarts, and the box's apps have no route until it has
+   its circuits and a chain read again (about a minute at 04:25Z, it can be longer).
+4. `switch`: Shield manager, settle, Node, settle, marker. Every app VM on the NucBox gets a fresh boot (about eight
+   minutes at 20:24Z on 2026-11-13). It refuses unless 1, 2 and 3 are in place and the node's fetcher can get the
+   controller. The whole of this order, manager first and the Node only after it settled, has not been run end to
+   end before: SVN19's run restarted the two 90 s apart and was out for over half an hour.
+5. Owner: promote, offered by the page once the marker exists.
+
+Changed against SVN19's order: `hostpolicy` comes before `switch`, and `switch` requires it, so the promote cannot
+launch a desktop the host does not admit (what happened at 03:43Z). If the node has given up on the deployment by
+the time of the promote, `retry` asks it to claim again.
+
+Way back, at any point: `revert` (if the switch ran), `hostpolicy-revert`, `policy-revert`, and if the promote was
+signed, promote version 1 again. Each costs what its forward step cost.
