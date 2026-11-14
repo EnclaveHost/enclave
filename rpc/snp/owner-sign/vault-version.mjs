@@ -46,6 +46,8 @@ export async function upload(u, owner, { expiry, signature }, fetchImpl = fetch)
   return up.cid;
 }
 
+const SERVED_RECHECK_MS = 60000;
+
 // Does the host load the release this version needs? The promote is offered only then: a host still on the old
 // release refuses the new version and the deployment stays down. The host switch writes the marker when it succeeds.
 function hostSwitched(s) {
@@ -55,7 +57,10 @@ function hostSwitched(s) {
 
 // upload, publish, approve, promote. A transaction is ready only while the chain is in the state it expects and it
 // simulates from the owner's address. `cache` keeps the served check from fetching the component again once it passed.
-export async function vaultVersionStatus(plan, pub, { fetchImpl = fetch, cache = {}, journal = [] } = {}) {
+// The promote is the exception: the host fetches the component when the deployment moves, so while that step is next
+// the gateways are asked again, at most once a minute (2026-11-14: the gateway app had restarted with an empty index and
+// answered 404 for a component it had served the day before, and the page offered the promote).
+export async function vaultVersionStatus(plan, pub, { fetchImpl = fetch, cache = {}, journal = [], now = Date.now } = {}) {
   const s = plan.status, read = (address, abi, functionName, args) => pub.readContract({ address, abi, functionName, args });
   const [versions, d, held] = await Promise.all([read(s.catalog, CATALOG_ABI, 'numVersions', [s.appId]),
     read(s.ledger, LEDGER_ABI, 'get', [s.deployment]), read(s.vault, VAULT_ABI, 'held', [s.deployment])]);
@@ -65,14 +70,19 @@ export async function vaultVersionStatus(plan, pub, { fetchImpl = fetch, cache =
     : v.cid !== s.upload.cid || v.version !== s.label || v.config !== s.versionConfig || v.ports !== s.ports ? `version ${s.versionIndex} on chain is not this release`
     : v.yanked ? `version ${s.versionIndex} is yanked` : null;
   const approved = !versionProblem && v.approval === 1;
-  if (!cache.served) cache.served = (cache.missing = await served(s.upload, fetchImpl)) === null;
+  if (!cache.served) { cache.served = (cache.gone = cache.missing = await served(s.upload, fetchImpl)) === null; cache.checkedAt = now(); }
   const onNew = d.appRef === s.newAppRef && d.configCid === s.configCid && held[1] === promotedHash(s.newAppRef, s.configCid);
   const done = { upload: cache.served, publish: published && !versionProblem, approve: approved, promote: onNew };
+  let gone = null;
+  if (approved && !onNew) {
+    if (!(now() - cache.checkedAt < SERVED_RECHECK_MS)) { cache.gone = await served(s.upload, fetchImpl); cache.checkedAt = now(); }
+    gone = cache.gone && cache.gone.replace(' yet', ' now');
+  }
   const blocked = {
     upload: null,
     publish: !cache.served ? cache.missing : published ? versionProblem : null,
     approve: versionProblem,
-    promote: versionProblem || (!approved ? `version ${s.versionIndex} is not approved` : null) || hostSwitched(s)
+    promote: versionProblem || (!approved ? `version ${s.versionIndex} is not approved` : null) || hostSwitched(s) || gone
       || (d.appRef !== s.oldAppRef && d.appRef !== s.newAppRef ? `the deployment runs ${d.appRef}` : null),
   };
   const ready = {};

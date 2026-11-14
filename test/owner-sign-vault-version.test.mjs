@@ -1,6 +1,7 @@
 // rpc/snp/owner-sign/vault-version.mjs: a new version of an app the owner's session vault publishes and holds. The
 // upload is made only for the owner's signature over exactly the plan's component and only accepted under the plan's
-// CID; the publish waits for the component to be served, the promote for the approved version and the host.
+// CID; the publish waits for the component to be served, the promote for the approved version, the host and the
+// component still being served.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
@@ -140,4 +141,37 @@ test("the served check is not repeated once it has passed", async () => {
   const counting = async () => { fetched++; return reply(200, bytes); };
   for (let i = 0; i < 3; i++) await vaultVersionStatus(plan, chain({ versions: 1, appRef: OLD, promoted: promotedHash(OLD, OPTION) }), { fetchImpl: counting, cache });
   assert.equal(fetched, U.gateways.length);
+});
+
+test("the promote waits while a gateway that served the component no longer does", async () => {
+  fs.writeFileSync(marker, JSON.stringify({ igvmSha256: "de".repeat(32) }));
+  const cache = {}, state = { versions: 2, approval: 1, appRef: OLD, promoted: promotedHash(OLD, OPTION) };
+  let clock = 1000000, up = true, fetched = 0;
+  const gateway = async () => { fetched++; return up ? reply(200, bytes) : reply(404, ""); };
+  const status = () => vaultVersionStatus(plan, chain(state), { fetchImpl: gateway, cache, now: () => clock });
+  assert.equal((await status()).ready.promote, true);
+  // the answer is kept for a minute
+  up = false; clock += 59000;
+  const before = fetched;
+  assert.equal((await status()).ready.promote, true);
+  assert.equal(fetched, before);
+  clock += 2000;
+  let st = await status();
+  assert.equal(st.upload, true);
+  assert.equal(st.ready.promote, false);
+  assert.match(st.blocked.promote, /pin\.test does not serve the component now/);
+  up = true; clock += 61000;
+  st = await status();
+  assert.equal(st.ready.promote, true);
+  assert.equal(st.blocked.promote, null);
+  // a page started while the gateways do not serve it holds the promote too
+  up = false;
+  st = await vaultVersionStatus(plan, chain(state), { fetchImpl: gateway, cache: {}, now: () => clock });
+  assert.equal(st.ready.promote, false);
+  assert.match(st.blocked.promote, /does not serve the component now/);
+  up = true;
+  // once the deployment runs the version, the gateways are not asked
+  const after = fetched;
+  await vaultVersionStatus(plan, chain({ ...state, appRef: NEW, promoted: promotedHash(NEW, OPTION) }), { fetchImpl: gateway, cache, now: () => clock + 120000 });
+  assert.equal(fetched, after);
 });

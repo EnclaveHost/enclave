@@ -35,3 +35,45 @@ test('a direct route needs the host\'s current direct-hosting qualification',asy
  assert.deepEqual(bundle.record.qualification,qualification);assert.ok(bundle.record.expiresAt<=now+30000,'never outlives the qualification');
  assert.deepEqual((await publisher.publish(id,[])).record.routes,[],'a withdrawal needs no qualification');
 });
+// 2026-11-14: the NucBox lost sia-s3 to metal0 for 41 minutes and, with the lease back, published under the delegation it
+// had signed the morning before. The directories held metal0's, 16 hours younger, and refused every record.
+test('a host that regains a lease another host published under signs a new delegation once readers refuse its old one',async t=>{
+ const directory=await mkdtemp(path.join(os.tmpdir(),'enclave-publisher-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+ const other=privateKeyToAccount('0x'+'02'.repeat(32)),start=Date.now();let clock=start;
+ const leaseOf=(runner,operator)=>({id,chainId:8453,deployments:'0x'+'11'.repeat(20),runner,runnerOperator:operator.address,
+  owner:account.address,validUntil:clock+60000,leaseUntil:clock+120000,active:true,isPublic:true});
+ const ours=()=>leaseOf('0x'+'22'.repeat(32),account),theirs=()=>leaseOf('0x'+'33'.repeat(32),other);
+ let lease=ours();
+ const policy=validateNetworkPolicy(defaultNetworkPolicy(id));
+ const networkProviders=[{providerId:'0'.repeat(32),address:'8.8.4.4',eligibleRoles:['guard','ingress','egress'],qualifiedUntil:start+86400000,pricePerGiB6:0}];
+ const routes=[{circuit:'ab'.repeat(16),address:'8.8.4.4',port:443,transport:'enclave-network'}];
+ const publisher=(name,who)=>new RoutePublisher({directory:path.join(directory,name),account:who,lease:()=>lease,policy:()=>policy,distribute:async()=>{},now:()=>clock});
+ const a=publisher('a',account),b=publisher('b',other),memory=new DurableState(path.join(directory,'reader'));
+ const read=bundle=>verifyRoute(bundle,{deploymentId:id,policy,lease,memory,networkProviders,now:clock});
+ const epoch=bundle=>bundle.authorization.delegation.epoch;
+
+ const first=await a.publish(id,routes);await read(first);
+ clock+=600000;lease=theirs();
+ assert.equal(await a.publish(id,routes),null,'not our lease: withdrawn');
+ const between=await b.publish(id,routes);await read(between);
+ assert.ok(epoch(between)>epoch(first));
+
+ clock+=600000;lease=ours();
+ const stale=await a.publish(id,routes);
+ assert.equal(epoch(stale),epoch(first),'the delegation has most of its day left and is reused');
+ await assert.rejects(read(stale),/route rollback or equivocation/);
+ assert.equal(a.superseded(id,epoch(stale)),true);assert.equal(a.superseded(id,epoch(stale)),false,'said once');
+ const renewed=await a.publish(id,routes);
+ assert.equal(epoch(renewed),clock);assert.equal(renewed.authorization.delegation.publicKey,first.authorization.delegation.publicKey,'the route key stays');
+ assert.equal(renewed.record.sequence,stale.record.sequence+1);
+ assert.deepEqual((await read(renewed)).routes,routes);
+
+ // a delegation is not replaced within five minutes of its signing, whatever readers say
+ a.superseded(id,epoch(renewed));clock+=240000;lease=ours();
+ assert.equal(epoch(await a.publish(id,routes)),epoch(renewed));
+ clock+=60000;lease=ours();
+ const again=await a.publish(id,routes);assert.equal(epoch(again),clock);
+ // and a refusal that names a delegation no longer in use changes nothing
+ a.superseded(id,epoch(renewed));clock+=600000;lease=ours();
+ assert.equal(epoch(await a.publish(id,routes)),epoch(again));
+});

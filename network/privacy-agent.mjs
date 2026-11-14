@@ -423,6 +423,9 @@ export async function runPrivacy(configFile){
       })());
       if(circuits.length)for(const origin of cfg.ipnsRouters||[])tasks.push(delegatedIPNS(origin,circuits[0].egress).publish(value.name,value.ipns));
       const results=await Promise.allSettled(tasks);for(const r of results)if(r.status==='rejected')log('optional discovery transport: '+r.reason.message);
+      // no directory took the record and one holds a later delegation for the app: the publisher signs a new one
+      if(results.some(r=>r.status==='rejected'&&/route rollback or equivocation/.test(r.reason.message))&&
+        agent.publisher.superseded(id,value.bundle.authorization.delegation.epoch))log(`route delegation ${id.slice(0,10)}: refused as older than one the directories hold; the next record is signed under a new one`);
     },
     // Only local attestations need serialization: pinned route probes make no
     // TPM reports and must not delay the 60-second authorization renewal.

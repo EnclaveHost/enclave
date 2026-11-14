@@ -304,6 +304,58 @@ metal0, which also runs the RPC.
 After it: sia-s3 ready on the NucBox, cron and depot 200, both gateways serving the 0.9.1 component; only then the
 KVM Box promote.
 
+### The pin, signed 00:57:58Z: sia-s3 runs on the NucBox, and its name has no address (read 02:03Z)
+
+- Owner transaction `0x79e312aec5cb1ddd10366d3225b0fb2e2ebded31977229e71359dccc12c88dd9` (`sia-s3-pin/journal.jsonl`).
+  metal0 released the lease (`0x6ac49de218c069e5b44e51d934a9ddc028ec5cf40b00c59aae19a7204cfdcd99`), the NucBox
+  claimed it at 00:59:16Z (`0x1bfd2910a82eb5910b1e8b58b2ee7fc3c9fe37c9a5af1bb5d44b0ef8eb33bd22`), started the guest
+  at 00:59:47Z (8504 MB), had its certificate at 01:03:06Z and its egress at 01:04:44Z.
+- sia-s3 itself is well. Asked by name through every app's local egress front on the NucBox, `/healthz` answers in
+  30 to 200 ms: `sia-s3/0.1.8`, ready, 22,893,596,067 bytes in 1505 objects, a compaction at 01:36:08Z without
+  error. A signed listing of the gateway's bucket and four object reads through the gateway app's own front,
+  including an object the gateway reported as failed, took 0.03 to 1.3 s each (01:59Z).
+- Its public name does not resolve: `ef514ed3.app.enclave.host` is SERVFAIL, the public address answers nothing.
+  All four directories refuse the app's route record with `route rollback or equivocation` (593 of the NucBox
+  agent's last 4000 log lines). `network/route-record.mjs` refuses a record whose delegation epoch is lower than
+  one it has seen. The NucBox publishes under the delegation it cached on 11-13 07:44:08Z (good until 11-14
+  07:44:08Z); metal0, which held the lease in between, published under one signed 11-14 00:17:57Z.
+  `network/route-publisher.mjs` signed a new delegation only when the cached one was within five minutes of its
+  end, so by itself the NucBox signs one at about 07:39Z on 11-14.
+- That one fact is behind everything else that is down. An app's outbound connection resolves the name first
+  (`isolation/m2/egress/app_routes.go`, DNS over the app's own circuit) and is refused when it has no answer, also
+  when the target runs on the same host. `shield.log` on the NucBox shows the gateway guest (`8b60cf9f`) at
+  `egress refused:resolve` about every 68 s since 01:25Z. The gateway app restarted at 00:26Z with storage away,
+  lost its index and has to hash the whole bucket again (1432 files, 5,539,783,436 bytes). It hashed 137 MB from
+  01:23Z to 01:25Z, while the name still resolved from metal0's last record, another 37 MB in a half minute at
+  02:01Z when the name resolved briefly (why then is not established), and otherwise fails one file every four
+  and a half minutes with `send: I/O error (os error 29)`. Both gateways answer 404 for the 0.9.1 component.
+  cron `0x38f368d6` on metal0 answers 503 since some time between 01:16Z and 01:40Z.
+- The NucBox node holds no copy of the 0.9.1 component (`desktop-public` has the 10-26 file only), so the KVM Box
+  promote needs the gateway. It is not safe to sign until both gateways serve
+  `bafybeidkdt5kv3bkyygeyofbkoo3abqd2oi7o5wgcsbrkodmjf5q3zzub4`. The signing page offered it all the same: its
+  served check passed on 11-13 and was never repeated. Changed in `rpc/snp/owner-sign/vault-version.mjs`: while
+  the promote is the next step the gateways are asked again, at most once a minute, and the promote is held while
+  one does not serve the component (`test/owner-sign-vault-version.test.mjs`). The page at 42291 runs that since
+  02:03Z and says `ipfs.enclave.host does not serve the component now`.
+- Source fix for the cause, in main, installed on no host: a directory's rollback refusal makes the publisher sign
+  a new delegation for the next record, if the refused one is at least five minutes old
+  (`RoutePublisher.superseded`, called from the agent's `distribute`; `test/route-publisher.test.mjs`).
+  Checked by running each of the 18 test files that import the agent or the publisher alone: 16 pass. The two
+  that fail, fail the same way on a clean checkout of the commit before this change:
+  `test/network-consumer-bundle.test.mjs` (the build cannot resolve `relay/network-runtime.bundle.mjs`, a
+  generated file that is not in the repository) and `test/relay-hvnode-owner-only.test.mjs` (13 of 15 fail and
+  the file does not finish in 150 s). Neither was fixed here.
+- The remedy on the running NucBox is to drop the cached delegation from the app's route identity so the agent
+  signs a new one at its next publish. Doing that from the agent session was refused by its permission check, so it
+  is a script for the owner: `sia-s3-pin/renew-route-delegation.sh apply` (`status` is read only and was run at
+  02:02Z). It keeps the route key and the sequence, leaves a copy of the file beside it, restarts nothing, and
+  waits up to five minutes for the name and the public `/healthz`. Not run at the time of writing. Without it, the
+  name returns at about 07:39Z; the gateway then needs about an hour for the bucket at the rate it showed.
+- Not established: whether the 01:25:15Z `chain authorization read failed: no fresh agreeing chain quorum` line in
+  the agent's log has any part in this (the resolve failures explain the stall without it). The storage VM's
+  ZeroTier address (10.241.113.248) answers neither from this host nor from the NucBox; the VM runs and answers on
+  the Default Switch. ssh to it through the NucBox failed host-key verification and was not forced.
+
 ### Changes to the script
 
 `switch` now restarts the Shield manager first, waits until the NucBox has settled (manager on the release, no
