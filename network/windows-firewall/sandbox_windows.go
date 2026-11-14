@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 	"unsafe"
 )
 
@@ -128,7 +129,7 @@ func sandbox(file string) {
 	}
 	defer windows.FreeSid(sid)
 	grantCircuit(dir, sid)
-	exemptLoopback(sid.String())
+	exemptLoopback(sid.String(), filepath.Dir(dir))
 	// App workers have zero capabilities. A separately identified guard has
 	// InternetClient only, still constrained by its package-wide WFP rules.
 	capabilities := securityCapabilities{SID: sid}
@@ -299,18 +300,84 @@ func privateDesktop(profile string, sid *windows.SID) (string, func()) {
 	return profile + `\Worker`, func() { user32.NewProc("CloseDesktop").Call(desk); user32.NewProc("CloseWindowStation").Call(station) }
 }
 
-// exemptLoopback adds this circuit's loopback exemption. When Windows refuses it (exit status 87 once hundreds of stale
-// exemptions of killed circuits piled up, 2026-10-14), the exemptions whose AppContainer no longer exists are removed and
-// the add is tried once more.
-func exemptLoopback(sid string) {
+// exemptLoopback adds this circuit's loopback exemption. When Windows refuses it (exit status 87 once the list is full:
+// 682 entries on nucbox-k11-4, 2026-10-14 and 2026-11-14), the stale exemptions are removed (staleLoopbackSIDs) and the
+// add is tried once more. root holds this host's circuit directories.
+func exemptLoopback(sid, root string) {
 	tool := filepath.Join(os.Getenv("SystemRoot"), "System32", "CheckNetIsolation.exe")
 	if exec.Command(tool, "LoopbackExempt", "-a", "-p="+sid).Run() == nil {
 		return
 	}
 	listing, e := exec.Command(tool, "LoopbackExempt", "-s").Output()
 	check(e)
-	for _, stale := range staleLoopbackSIDs(string(listing)) {
+	for _, stale := range staleLoopbackSIDs(string(listing), deadCircuits(root)) {
 		_ = exec.Command(tool, "LoopbackExempt", "-d", "-p="+stale).Run()
 	}
 	check(exec.Command(tool, "LoopbackExempt", "-a", "-p="+sid).Run())
+}
+
+// A circuit another helper is starting has its exemption before it has a process.
+const startingGrace = 5 * time.Minute
+
+// deadCircuits reads which AppContainers have a process now and returns the test staleLoopbackSIDs asks. No exemption
+// of an AppContainer with a process is dead, whatever the listing calls it. One named after a circuit of this host is
+// dead only when also the SID is the one Windows derives for that circuit's profile, no process that could not be read
+// has the name of a file in the circuit's directory, and its firewall.json is older than startingGrace or gone. In
+// doubt the exemption stays: on 2026-11-14 a cleanup by hand from an administrator's session, where SYSTEM's running
+// circuits are listed NOT FOUND, removed their exemptions with the stale ones and four apps had no route for nine minutes.
+func deadCircuits(root string) func(circuit, sid string) bool {
+	running := map[string]bool{}
+	var unread []string
+	snap, e := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
+	check(e)
+	defer windows.CloseHandle(snap)
+	var entry windows.ProcessEntry32
+	entry.Size = uint32(unsafe.Sizeof(entry))
+	info := make([]byte, 1024)
+	for e = windows.Process32First(snap, &entry); e == nil; e = windows.Process32Next(snap, &entry) {
+		var token windows.Token
+		var length uint32
+		h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, entry.ProcessID)
+		if err == nil {
+			err = windows.OpenProcessToken(h, windows.TOKEN_QUERY, &token)
+			windows.CloseHandle(h)
+		}
+		if err == nil {
+			err = windows.GetTokenInformation(token, 31, &info[0], uint32(len(info)), &length)
+			token.Close()
+		}
+		if err != nil {
+			unread = append(unread, windows.UTF16ToString(entry.ExeFile[:]))
+		} else if container := *(**windows.SID)(unsafe.Pointer(&info[0])); container != nil {
+			running[container.String()] = true
+		}
+	}
+	if e != windows.ERROR_NO_MORE_FILES {
+		check(e)
+	}
+	derive := windows.NewLazySystemDLL("userenv.dll").NewProc("DeriveAppContainerSidFromAppContainerName")
+	return func(circuit, sid string) bool {
+		if running[sid] {
+			return false
+		}
+		if circuit == "" {
+			return true
+		}
+		var own *windows.SID
+		if hr, _, _ := derive.Call(uintptr(unsafe.Pointer(wide("Enclave.Circuit."+circuit))), uintptr(unsafe.Pointer(&own))); uint32(hr) != 0 {
+			return false
+		}
+		defer windows.FreeSid(own)
+		if own.String() != sid {
+			return false
+		}
+		dir := filepath.Join(root, "enclave-circuit-"+circuit)
+		for _, name := range unread {
+			if _, e := os.Stat(filepath.Join(dir, name)); name != "" && e == nil {
+				return false
+			}
+		}
+		started, e := os.Stat(filepath.Join(dir, "firewall.json"))
+		return e != nil || time.Since(started.ModTime()) > startingGrace
+	}
 }
