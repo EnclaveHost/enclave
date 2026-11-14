@@ -894,3 +894,136 @@ Also seen, not caused by this: the relay answers the forced claim hint with `acc
 the node claims about 15 s later. And `checkpoint 0x59f1273d failed: The total cost … exceeds the balance of the
 account` repeats every 5 minutes since at least 14:12Z: the NucBox operator account held 2.519e-7 ETH at 17:43Z.
 Lease renewals of the other apps keep succeeding. Funding that account is the owner's (`rpc/snp/owner-sign/topup-plan.mjs`).
+
+## A release for pairing a second time: SVN21, image only (live since 20:39Z on 2026-11-14)
+
+**Status at 20:47Z:** KVM Box 0.9.2 runs on the NucBox on the SVN21 image since 20:39:30Z. It was down from
+20:18:12Z until 20:41:49Z (the first 401 under the public name), about 23 minutes. Read on the running desktop: one
+client paired twice stays authorized, and Sunshine holds one record for it. The image is unqualified on the NucBox's
+hardware, like SVN19 and SVN20.
+
+**The report.** Moonlight, pairing with the desktop: "GeForce Experience returned error: The client is not
+authorized. Certificate verification failed. (Error 401)".
+
+**Cause.** The guest's Sunshine (`2026.914.233613`) appends a paired-client record for every completed pairing and
+authorizes a client certificate only while exactly one record carries it. Moonlight keeps its certificate, so a
+second pairing of one Moonlight leaves it refused on every HTTPS request (port 47984), and each further try adds a
+record. Read on the SVN20 guest before this release: seven records, five of the owner's client and two of a test
+client. A desktop restart empties the list (temporary desktop storage), which is why the first pairing after a start
+always worked.
+
+**Source.** enclave-apps commit `2bcae21`, branch `kvm-box/pair-again-20261114`,
+https://github.com/EnclaveHost/enclave-apps/pull/9 (open, stacked on pull 8). After Sunshine accepts a PIN the inner
+gateway lists Sunshine's records, asks the desktop automation service which certificate each carries (a SHA-256 per
+record of Sunshine's state file; nothing else of that file leaves the service), removes every record that a later
+record of the same certificate repeats through Sunshine's own admin API, and checks the list afterwards. New
+connections to 47984 are held meanwhile. The owner page and the controller are SVN20's bytes.
+
+**Candidate SVN21**, exported to `…/2026-10-23/it/outputs/kvm-box/native-platform-v17-pair-again/` (work directory
+`…/2026-10-23/it/work/native-pair-image-v17/`):
+
+| file | bytes | sha256 |
+|---|---|---|
+| native-igvm.bin (signed) | 86,616,932 | df63b6266e5528c04e9be7d335296013ba6fecb4e0c94d7d1dd183e8637ca28a |
+| root.iso | 595,763,200 | 9aa586e62091b4e21c4c4abf0336837c7e671b6a472d29c189adc8e4b05c7e5c |
+| hashes.iso | 4,763,648 | 7473bd292a956502550d61e8fd3d91a9b28411ed23ced597d18072d5a68e82aa |
+| profile.json | 1,066 | f4580af90fa20aadb3fe4a6c7b8f296aeabb2cb4bf991b358a5e195a995c2ac4 |
+| shield-desktop.wasm (controller) | 508,270 | e05247f8…6630, SVN20's |
+| models.iso | unchanged | ddb1c303… |
+
+- Against SVN20 the root image differs in two files of 26,035: `inner` and `automation` (`root-diff.json`).
+- Signed with the release key by the pinned signer (key on standard input); guest SVN 21, same module, product and
+  signer identity; verified by the independent implementation. Launch measurement
+  9b071931eb658ca5f9ef9d76dd4511c86f22899affb4e539926c444fc40bd9cf: computed, not read from hardware.
+- Isolated KVM guest, no network device, pinned runtime: SVN20's checks, plus that the new internal request
+  (`/paired`) is not reachable from the web at any sign-in level, plus that the pairing route reaches Sunshine. Both
+  corruption cases refused. Two earlier isolated runs are set aside in the work directory and are not evidence (one
+  a mistake in the new check, one "Device /dev/sda is too small" at boot, not explained; an unchanged rerun passed).
+- Before the release, pairing twice was exercised only against this root's Sunshine binary in a sandbox on the build
+  host (the `sunshine_live` Go tests, with a control that reproduces the 401 without the change).
+- Derived desktop appId `a6072ed02014c92b8b040040d3ba90c770d055c0471112e3b371e02508c9e1b5`, Shield policy sha256
+  `2d245e6566f1e98389379430ed49de45c6583601ec7157023a884fddeceb0540` (SVN20: `3d98424d…`, `54fed2c8…e60e`).
+
+**No owner signature.** The controller CID (`bafybeig564vcjghux3gnfgzpcdddtxl6mlvrzelmhe7qnapi7ejnsmpoxa`) and the
+catalog version (2) are SVN20's; the relay and the node derive the desktop appId from the admitted policy's release.
+What it took: both Shield policies and a host switch, run by the operator from `desktop-svn21.sh`
+(`policy`, `hostpolicy`, `switch`), then `retry`.
+
+**The retry is timed.** The NucBox still runs the node without the enrollment-cadence fix (section above), so
+`desktop-svn21.sh retry` reads the node's start time and its last enrollment line (`passes`), works out the next
+pass (first pass 60 s after the start, then about 305.2 s apart) and sends the claim hint 60 s before it. It
+predicted 20:37:50Z; the pass wrote the expectation at 20:38:06Z. One claim, no failed launch.
+
+### Activation log (SVN21)
+
+| When (Z, 2026-11-14) | Who | What | Result |
+| --- | --- | --- | --- |
+| 19:54:05-19:54:36 | - | `stage`, `fetch` | files copied and verified on the NucBox, nothing running changed; the node's fetcher gets the controller |
+| ≈20:17 | operator | `desktop-svn21.sh policy` | relay policy `2d245e65…0540`, relay healthy afterwards |
+| 20:18:12 | operator | `desktop-svn21.sh hostpolicy` | host policy SVN21, the network agent restarted. **KVM Box down from here.** At 20:19Z three of the six other NucBox apps did not answer yet and cron (`38f368d6`, on metal0, storage on the NucBox) answered 503; at 20:20Z the six NucBox apps and depot answered 200 |
+| 20:22:25-20:34:26 | operator | `desktop-svn21.sh switch` | manager switched 20:22:25Z; the node gave KVM Box up at 20:25:09Z and released the lease at 20:25:15Z (manager image differs from its pin, as in the SVN20 switch); manager settled 20:30:59Z; Node pinned and restarted 20:31:45Z; settled and marker written 20:34:26Z. Manager first, then Node. The other apps answered 200 at 20:35Z |
+| 20:35:11 | - | `retry` | "next enrollment pass is due about 20:37:50Z … the hint goes out in 100 s" |
+| 20:36:51 | - | claim hint | the relay answered `accepted:false … over rate cap`, as on SVN20; the node claimed at 20:37:01Z |
+| 20:38:06 | - | node.log | `[network] 0x9a28642b: expectation now 2 app a6072ed0` |
+| 20:38:43-20:39:30 | - | node.log, `launch` | egress back 20:38:43Z; desktop VM `hvb207af164e54` running, `DONE launch running` 20:39:30Z |
+| 20:39:32-20:39:42 | - | public names | the six other NucBox apps and depot (metal0) answer 200; cron (`38f368d6`, metal0) answers 503. It answered 200 at 17:49:59Z and 17:57Z; the first 503 on record is 20:19:25Z (section below) |
+| 20:41:49 | - | `9a28642b.app.enclave.host` | `/` 401 (up, asks for the owner's sign-in) |
+| ≈20:42 | - | Start desktop, from the page in the owner's browser | "Desktop running"; Sunshine by name: `SUNSHINE_SERVER_FREE`, PairStatus 0 |
+| 20:42:57-20:43:10 | - | first pairing of a throwaway test client, by name, PIN typed into the page | every step 200; the page says "Paired."; `pairchallenge` and `serverinfo` over HTTPS 200, PairStatus 1 |
+| 20:45:27-20:45:40 | - | **second pairing of the same client**, new PIN | every step 200; "Paired."; `pairchallenge` and `serverinfo` over HTTPS **200, PairStatus 1**. On SVN20 these two answered 401 |
+| 20:45:58 | - | `serverinfo` over HTTPS with that certificate, no pairing | 200, PairStatus 1 |
+| 20:46:07 | - | records in Sunshine's state file, counted in the page's terminal | 1 |
+| 20:46:40 | - | public names | the six other NucBox apps and depot 200, cron 503, KVM Box 401, ready 200, Enclave RPC 200 |
+| 20:58:45 | - | public names | the same: cron still 503, 25 minutes after its storage came back |
+| 21:03:26 | - | public names | cron `/` and `/healthz` 503; sia-s3 `/healthz` 200; KVM Box 401 |
+
+The claim was the sixth of eight in the app's 24-hour epoch (two left until about 00:00Z); it is paid from the app's
+gas reserve through the lease relay.
+
+### Found during the release: cron (`0x38f368d6`, on metal0) answers 503 (first seen 20:19:25Z), not recovered by 21:03Z
+
+- Readings: 200 at 17:49:59Z and 17:57Z. 503 `Scheduler storage unavailable; recovering safely` (`enclave-cron`
+  0.1.3) at 20:19:25Z, 20:39:42Z, 20:46:40Z, 20:47:56Z, 20:49:42Z, 20:50:25Z, 20:53:21Z, 20:54:23Z, 20:57:29Z,
+  20:58:45Z, 21:00:12Z and 21:03:26Z, on `/` and `/healthz`. Nothing was read between 17:57Z and 20:19Z, so the start is not known to the
+  minute; the first 503 is 73 s after `hostpolicy` restarted the NucBox network agent.
+- cron runs on metal0 (lease renewed there at 20:27:07Z and 20:53:10Z) and keeps its state in sia-s3
+  (`0xef514ed3`), which runs on the NucBox. sia-s3 was unreachable for a minute or two after `hostpolicy` and from
+  about 20:22Z to 20:33:45Z during `switch` (its egress back 20:33:45Z). Its `/healthz` answers 200 and `ready` at
+  20:20Z, 20:35Z, 20:39Z, 20:46Z, 20:53Z, 20:54Z and 20:58Z; the gateway serves the controller (20:57:29Z).
+- What the scheduler does (`cron/src/main.rs`, `store.rs`, branch `fix/cron-cas-retry-20261014` of enclave-apps;
+  whether 0.1.3 is built from exactly that is not checked): a failed read or write of its state ends its ownership
+  ("fenced") and it answers 503 while it retries, at most 30 s apart: read the object, refuse while the lease stored
+  in it (600 s) has not run out, then write it back. A retry therefore fails when the read fails, when the stored
+  lease is still running, or when the write fails. After the SVN20 switch earlier the same day it answered 200
+  again within about three minutes.
+- **Why it does not recover this time is not established.** What metal0's guest log (`enclave-guestd`) shows for
+  cron's guest (the one started at 00:01:26Z on 11-14): no refused outbound connection since 16:54:44Z (the 15:47Z
+  to 16:11Z `refused:resolve` run of the SVN20 switch is there); two connections a minute at all quiet hours; from
+  20:35Z a steady four a minute, the added ones 31 to 33 s apart, which fits a retry that gets an answer and fails
+  within two or three seconds; from 20:21Z to 20:34Z only the routine two. The scheduler's own reason goes to its
+  standard error, which the release guest does not write to the serial log, and its 503 does not carry it. A stored
+  lease alone cannot explain more than ten minutes.
+- **Whether the release steps started it is not established either.** The same guest already opened added
+  connections, irregularly (none to two a minute), from 19:56Z, 21 minutes before the first release step; whether
+  that was scheduled work or a failure already under way cannot be told from the count (it also had bursts at
+  17:40Z to 17:49Z, with a 200 at 17:49:59Z, and at 18:40Z to 18:59Z, with no reading near them). Its serial log has `proxy: GET unreachable` at
+  16:54:41Z to 16:55:19Z and four times at 19:26:44Z to 19:26:45Z, not explained.
+- Not done: a signed read of the state object's metadata from the workstation (it would tell a readable object
+  from one storage cannot serve). The command was refused for me because it reads the scheduler's storage keys;
+  `cron-state-head.py` in this directory is that read for the owner to run (status, date, size and whether an ETag
+  is there; nothing else printed). The config it is pointed at is the one from the 2026-10-15 move to sia-s3; whether
+  the running app still uses those keys is not checked (a 403 would say it does not).
+- Not done either: a restart of the cron app. It gives up the guest's TLS key, and it repeats the same read and
+  write, so it helps only if the fault is in the running process.
+
+### What this does not show (SVN21)
+
+- The owner's Moonlight has not paired with this guest yet. The test client speaks the same pairing protocol and was
+  refused on SVN20 in the same way; it is not Moonlight.
+- A pairing that completes after the page's request has ended is tidied only at the next pairing.
+- Paired clients are still lost when the desktop restarts (temporary desktop storage). After a restart: remove the
+  PC in Moonlight, add it again, pair.
+- The test client's record stays in the guest until the desktop restarts.
+- No hardware qualification of the image. `checkpoint 0x59f1273d,0x9a28642b failed … exceeds the balance` continues
+  (the NucBox operator account's gas; owner's to fund with `rpc/snp/owner-sign/topup-plan.mjs`).
+- The node on the NucBox is unchanged: the next version change there needs the timed retry again.

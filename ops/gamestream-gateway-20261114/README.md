@@ -132,6 +132,8 @@ that do route an app, so a real client does not get there.
   RTSP goes to one address and UDP to the other would still fail. Moonlight takes the UDP address from the RTSP
   session, so this is not expected, and it has not been observed either way.
 - Why two early pairing tries answered "Incorrect PIN".
+- Since 20:39Z the desktop runs the SVN21 image (below). A whole Moonlight stream has not been run against it; the
+  pairing steps and `serverinfo` by name have.
 
 ## After
 
@@ -140,6 +142,12 @@ that do route an app, so a real client does not get there.
   was waiting for the pairs to be carried, which `activation/check-0750Z.txt` now shows. It was prepared at 08:25Z
   as SVN20 / catalog version 2 and went live at 17:49Z: see "A release for the Moonlight paragraph" in
   `ops/unified-funding-20261028/funding-reactivation-20261111/queued-apps-20261113/README.md`.
+- Pairing a second time (added 20:47Z). A Moonlight that paired with the desktop twice was refused with "The client
+  is not authorized. Certificate verification failed. (Error 401)". Not the gateway: the guest's Sunshine keeps one
+  record per pairing and authorizes a certificate only while one record carries it. The guest image SVN21 removes
+  the older records after an accepted PIN; it runs since 20:39:30Z, and a test client paired twice by name stayed
+  authorized (HTTPS 200, PairStatus 1, one record). See "A release for pairing a second time" in the queued-apps
+  README named above. Pairings are still lost when the desktop restarts.
 - Seen while reading the edges' journals, not caused by this work: Ubuntu's unattended upgrades restarted
   `enclave-network-provider` on three edges between 06:06Z and 06:38Z (ap-southeast 06:06:02Z, us-west 06:12:10Z,
   eu-central 06:37:22-27Z).
