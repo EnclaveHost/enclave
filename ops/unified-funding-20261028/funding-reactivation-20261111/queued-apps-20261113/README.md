@@ -469,6 +469,49 @@ the cleanup described below, which was this session's mistake.
   anything running; what removes a circuit's AppContainer profile and leaves its exemption. 16,798 circuit
   directories lie under `network-circuits`.
 
+### The routes came back by themselves and the third launch worked: KVM Box 0.9.1 runs since 05:04:25Z (read to 05:11Z)
+
+This continues the section above, whose opening and whose "prepared, not applied" item describe 04:58Z.
+
+- `nucbox-loopback.sh agent` was never run, by anyone, and is not needed now: running it would take the box's
+  routes away again for about a minute. The agent (pid 15988, the one from 04:25:12Z) built circuits again by
+  itself when its holds ran out, from 04:59:34Z, and with room in the list every exemption was accepted. Egress was
+  back for the four apps between 04:59:38Z and 04:59:54Z, so the outage the cleanup caused lasted about nine and a
+  half minutes (04:50:14Z to 04:59:5xZ). ef514ed3 and 59f1273d, unresolvable since before the cleanup, came back in
+  the same minute. Public answers at 05:02:30Z: ef514ed3, 59f1273d, 7ae476a3, d9798e4c, a77d0c57, a69dcbba 200;
+  again at 05:04:28Z to 05:04:42Z and at 05:10:40Z (1.7 to 3.2 s each, c13d4b6a 200 too).
+- `desktop-svn19.sh retry`, run by the agent session at 05:02:45Z. `node.log`: 05:02:52 `unblocking 0x9a28642b`;
+  05:02:58 claimed (`0x91a7c4765d61589bf602cdd106437c67bac13de7f8118a37083188acc43b886c`); 05:02:59 `isolated
+  domain retired (forced relaunch)`; 05:03:30 one `isolation held … (timeout: POST /vms…)`; `network.log` 05:03:53
+  `app 0x9a28642b egress back`; the VM (`hv2d75cd30920d3f785d750e214a495e2c`) running and app-ready at 05:04:25Z.
+  Partition console: `DOM egress: public web: SOCKS front and DNS stub listening…`, `DOM serving … ready_ms=44255`,
+  `DOM certificate installed for 9a28642b.app.enclave.host: issuer "ZeroSSL ECC DV SSL CA 2", valid until
+  2027-02-12T23:59:59Z`. For about two minutes the name answered with a certificate error (curl exit 60); at
+  05:06:40Z `/` answered 401 and `/.well-known/enclave-ready` 200. This is the first launch of SVN19 on the
+  NucBox that got past startup. It is not a hardware qualification of SVN19.
+- The relay answered the forced claim hint with `{"accepted":false,"reason":"claim would revert on-chain: … over
+  rate cap"}` (05:03:22Z) although the NucBox had claimed 24 s earlier. The text is wrong for a deployment pinned
+  to a host that claims it; it is the same text the owner saw in the app list at 03:47Z.
+- 05:03:26 `node.log` has `startup guest identity or loopback relay differs` lines. The launch went on; what they
+  mean for it was not looked into.
+- The page, in the owner's Chrome (which holds the sign-in; no password was entered), 05:09Z to 05:10Z:
+  - A Terminal section is on the page ("A shell inside the desktop, as the desktop user…"). With the desktop
+    stopped it reads "Start the desktop to use the terminal."
+  - One button: "Start desktop" with the desktop stopped; clicked, it read "Starting…" and the status "Desktop
+    starting", and within 30 s "Stop desktop" and "Desktop running". Stop was not clicked.
+  - The terminal then showed `desktop@kvm-box:~$`; `whoami; uname -r; date -u` printed `desktop`,
+    `6.6.87.2-enclave-kvm-box`, `Sat Nov 14 05:10:08 UTC 2026`.
+  - "Open desktop" opened `/desktop/vnc.html?autoconnect=true&resize=remote&path=/desktop/websockify` in a new
+    tab; noVNC connected (tab title `kvm-box:0 - noVNC`), showed the desktop with its panel, and was still
+    connected about 15 s later. Console: three 404s for noVNC's optional `defaults.json`, `mandatory.json`,
+    `package.json`, nothing else.
+  - The page shows no version label. The Moonlight section still says to add PC `127.0.0.2` through the connector
+    (see the last section: unchanged, not deliverable with what is deployed).
+  The desktop was left running.
+- Loopback-exemption list at 05:11:06Z: 30 entries (`nucbox-loopback.sh status`: 24 "of an AppContainer that no
+  longer exists" as seen from the ssh session, which includes the running circuits' own; 6 other). It grows with
+  every circuit whose removal does not clear its entry; at 682 the helper fails as above. Nothing watches it.
+
 ### Changes to the script
 
 `switch` now restarts the Shield manager first, waits until the NucBox has settled (manager on the release, no
@@ -483,7 +526,8 @@ network agent, which its task starts again within about 10 s; if no agent stays 
 The box's apps have no route while the agent is away and until its first agreeing chain read. `hostpolicy-revert`
 is the way back. `retry` refuses unless the host admits SVN19, sends the forced claim hint for KVM Box and watches
 the launch for eight minutes; each failed try costs the host a claim and a release. `launch` and the two new
-`status` lines read only. `status`, `launch` and the policy staging were run; `hostpolicy` and `retry` were not.
+`status` lines read only. `status`, `launch` and the policy staging were run; `hostpolicy` and `retry` were not. (That was 04:20Z. Since then the owner ran
+`hostpolicy` and `retry`, and the agent session ran `retry` at 05:02:45Z; see the two sections above.)
 
 ## Moonlight "Add PC" with a public address: not possible with what is deployed
 
