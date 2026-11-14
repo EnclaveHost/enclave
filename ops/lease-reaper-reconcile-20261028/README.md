@@ -28,3 +28,16 @@ Rollout requires a separately reviewed production overlay build, artifact verifi
 Each provider retains its own slot until every head/row/header request it started settles, even after another pair returns a successful quorum. Twenty-five sequential reads in each of four stalled-provider phases (head, first header, row, header recheck) retain exactly one stalled request, then admit that provider again after it recovers. This bounds request accumulation across successful calls as well as timed-out calls.
 
 Both canonical header reads must carry the exact requested bigint block number, a nonzero 32-byte hash, and matching valid timestamps. Identical missing, zero, truncated, malformed or wrong-block metadata from two providers fails closed. Snapshot freshness/identity and coalesced callers with stricter block floors are checked too. This helper consumes block-pinned contract reads, not event logs; it does not introduce an alternative receipt/log parser.
+
+## 2026-11-14: the same failure on metal0, and an image that carries the patch
+
+The patch was still not deployed when it happened again: metal0's supervisor stopped Enclave RPC
+(`0x5ff56a4d…454f`) at 22:16:33 UTC on a cached expiry of 22:15:02 although its renewal had landed at 22:11:14 in
+Base block 57519494 (transaction `0x18beef7e…`, lease until 22:41:14); the relay had answered 502 for it. The app was
+away for 40 minutes.
+
+`production-supervisor.patch` applies with line offsets only to the supervisor metal0 runs today (control image
+66335ab, sha256 8f44ccea…5533; the hashes in `evidence.json` are those of the 2026-10-28 generation). The patched
+file (bfd8a170…2ae4) passes this record's 20 tests through `SUPERVISOR_JS`. The control image built from it, its
+measurement and the operator's apply script are in `../rpc-snp-prod-r7/control-image-7baabe2/`. Status there:
+built and measured, not active until the operator runs it.
