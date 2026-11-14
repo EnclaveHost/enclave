@@ -412,6 +412,63 @@ KVM Box is down at the time of writing. Nothing below was changed on any host by
   120 s readiness limit, which the retry needs; whether the other copies of the policy (the capacity audit's, and
   the installer seed `windows/installer/admitted-shield-policy.json`) should name SVN19.
 
+### The owner ran `hostpolicy` and `retry`: the second launch failed too, and a cleanup by the agent session took the NucBox's apps off the network (04:25Z to 04:57Z)
+
+Written at 04:58Z. KVM Box is down. The other apps on the NucBox have had no route since about 04:50Z because of
+the cleanup described below, which was this session's mistake.
+
+- `hostpolicy`, run by the owner: the host's `admitted-shield-policy.json` is the SVN19 one since 04:25:01Z, and a
+  new network agent (pid 15988) started at 04:25:12Z. After it the chain reads agreed again (3 failures in 04:2x,
+  none later) and the agent used 18% of a core (103% before), RSS 223 MiB.
+- `retry`, run by the owner. `node.log`: 04:26:47 `unblocking 0x9a28642b: a forced claim overrides …`; 04:26:55
+  claimed (`0x74adebaeef96558cd14c2fbeb949c87de7ba5085c67b3e92661eb7a3e32d760a`); three `isolation held …
+  (unavailable: the manager did not launch …)` and one `timeout: POST /vms`; the partition's console attached at
+  04:29:59Z; from 04:30:02 every 15 s `sealed secrets for 0x9a28642b waiting for its startup egress route`;
+  04:31:11 `[network] 0x9a28642b: expectation now 1 app cf5d4662`, 72 s into the launch; 04:32:12 `isolated domain
+  retired (… not ready within 120000 ms: the domain answered 503: still starting)`, `giving up on 0x9a28642b`;
+  04:32:17 released (`0x103dab8318ccfbb82fa1fcb0b466967a0517cd563e67910d6cc90f0ff3655beb`). The deployment is
+  blocked on the node again. The earlier refusal (`no independently approved controller release`) did not recur.
+- The partition's console log of both failed launches is 463 bytes: `DOM certificate: this domain may certify
+  9a28642b.app.enclave.host …`, then `MON domain 1 ended: native worker lease or broker ended`. A good SVN18 launch
+  (11-13 20:46Z) went on to `DOM egress: public web: SOCKS front and DNS stub listening…` and `DOM serving …
+  ready_ms=52034`. The guest never got its startup egress route, so its secrets were never delivered
+  (`docs/operations/native-desktop-startup.md`). Whether SVN19 boots correctly on this hardware past that point is
+  still unmeasured.
+- Why no route: the agent's circuit helper could not start tunnel processes. `network.log`: `panic: exit status 87`
+  in `main.exemptLoopback` (`sandbox_windows.go:315`, the add after the helper's own pruning), about one per 30
+  minutes from 20:45Z to 23:50Z, then 19 in 04:25 to 04:29, 18 in 04:30 to 04:34, 10 in 04:35 to 04:39, 10 in
+  04:45 to 04:49 (the last at 04:44:08Z as logged), each followed by `app 0x…: tunnel process exited`
+  (0xef514ed3 12 times, 0x59f1273d 10, four others 3 or 4 times, 0x9a28642b once, at 04:31:51Z). The Windows
+  loopback-exemption list (`CheckNetIsolation LoopbackExempt -s`) held 682 entries, 676 of them `AppContainer NOT
+  FOUND`: the same total as on 10-14 (commit `6b7b4e476`), so 682 is its capacity, and the helper's pruning has not
+  lowered it once since (the installed helper is from 10-15 07:15Z and its stack shows the pruning code). The agent
+  restart `hostpolicy` performs made this frequent: every circuit had to be created again in a full list.
+- Public answers at 04:47:40Z, before the cleanup: 7ae476a3, d9798e4c, a77d0c57, a69dcbba, c13d4b6a answered 200
+  in 0.6 to 1.3 s; ef514ed3 (storage) and 59f1273d did not resolve; 38f368d6 answered 503.
+- The cleanup, `nucbox-loopback.sh prune`, run by the agent session at 04:49:56Z to 04:50:16Z: all 676 entries
+  listed as `AppContainer NOT FOUND` removed, 6 left. That listing was read from an administrator's ssh session,
+  and from there the agent's running circuits (created as SYSTEM) are listed as NOT FOUND as well. Their
+  exemptions went with the stale ones. `network.log` from 04:50:14Z: `probe 1/3 failed: Client network socket
+  disconnected before secure TLS connection was established` for 0xd9798e4c, 0x7ae476a3, 0xa69dcbba, 0xa77d0c57,
+  then `route verification failed` and `egress OFF: no healthy egress circuit (0 circuit(s))` for each by
+  04:50:55Z. At 04:52:16Z none of those four names resolved. c13d4b6a still answered 200. (A first `status` call
+  at 04:49Z entered the removal path by a quoting error; both its removals were malformed and refused, nothing
+  was removed by it.)
+- The agent has built no circuit since 04:44:08Z (the newest circuit directory; two control tunnels from
+  04:25Z still run). It holds an edge back after each failed circuit, doubling from one minute up to 30
+  (`wg-manager.mjs`, `COOLDOWN_MAX_MS`), and that count is kept in memory. A new agent starts without it: after
+  the 04:25Z start the apps had egress within 31 to 48 s (7ae476a3 after 3.7 min). The list now has room, so the
+  new circuits' exemptions will be accepted.
+- Prepared, not applied: `nucbox-loopback.sh agent` (ends the agent; the `\Enclave\Network` task starts a new one).
+  Running it from the agent session was refused by its permission check; it is the owner's to run. Without it
+  the agent should build circuits again when its holds run out, at the latest about 30 minutes after the last
+  failure (about 05:21Z); that has not been observed.
+- `prune` now keeps the SID in `firewall.json` of every circuit directory with a running process.
+- Not established: why the helper's pruning, which parses the listing correctly (`loopback.go`, same format),
+  removes nothing when it runs as SYSTEM; whether the 6 entries that are named from the ssh session belong to
+  anything running; what removes a circuit's AppContainer profile and leaves its exemption. 16,798 circuit
+  directories lie under `network-circuits`.
+
 ### Changes to the script
 
 `switch` now restarts the Shield manager first, waits until the NucBox has settled (manager on the release, no
