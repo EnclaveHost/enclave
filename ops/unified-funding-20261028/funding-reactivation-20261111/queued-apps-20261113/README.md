@@ -822,3 +822,14 @@ the time of the promote, `retry` asks it to claim again.
 
 Way back, at any point: `revert` (if the switch ran), `hostpolicy-revert`, `policy-revert`, and if the promote was
 signed, promote version 1 again. Each costs what its forward step cost.
+
+### Activation log (SVN20)
+
+| When (Z, 2026-11-14) | Who | What | Result |
+| --- | --- | --- | --- |
+| 08:36:06 | owner | upload signature | both gateways serve the controller, 508,270 bytes, SHA-256 `e05247f8…6630` (read 08:38Z) |
+| 08:36:26 | owner | publish, `0x139425975b576328e551abf3ccdabeb19332198c8d8310f98a6d8964a9559f0d` | the catalog app has 3 versions |
+| 08:36:39 | owner | approve, `0x75f34645244b7dc60aaa139f3203971f635f5dd2ab773023c41fb5328d13d365` | done on the signing page; the deployment still names version 1 |
+| 08:37-08:38 | operator | `desktop-svn20.sh policy` | relay policy `54fed2c8…e60e`; relay health before 3 of 6, right after the restart 0 of 2, at 08:41:25Z 3 of 6 again |
+| 08:38:25 | - | `fetch` | the node's fetcher on the NucBox gets the controller through its own source list |
+| 08:41 | - | `status` | NucBox unchanged: both launchers and the manager on SVN19, 7 app VMs, host policy SVN19; loopback list 39 of 682; KVM Box answers 401 (up, on 0.9.1), `ef514ed3…/healthz` 200 |
