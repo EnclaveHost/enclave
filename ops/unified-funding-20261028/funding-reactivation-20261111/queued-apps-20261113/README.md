@@ -356,6 +356,18 @@ KVM Box promote.
   ZeroTier address (10.241.113.248) answers neither from this host nor from the NucBox; the VM runs and answers on
   the Default Switch. ssh to it through the NucBox failed host-key verification and was not forced.
 
+### The owner ran the renewal: the name resolves since about 03:31Z (read 03:36Z)
+
+- The owner ran `sia-s3-pin/renew-route-delegation.sh apply`. Its output was not kept; what follows was read
+  afterwards. The NucBox now holds a delegation signed 2026-11-14 03:31:22Z (sequence 309967 at 03:36Z).
+- `ef514ed3.app.enclave.host` resolves (146.190.246.39, 134.209.248.172) and the public `/healthz` answers 200
+  (03:32:44Z and 03:36:23Z). The last `refused:resolve` for the gateway guest in `shield.log` is 03:30:21Z.
+- The gateway reads storage again: hashed 201,889,072 bytes at 03:31:38Z, 349,851,318 at 03:33:32Z and
+  529,060,077 at 03:36:23Z of 5,539,783,436, queue 1296. At that rate (about 63 MB a minute) the bucket takes
+  until about 04:55Z. Both gateways still answered 404 for the 0.9.1 component at 03:32Z; the KVM Box deployment
+  is still on version 0 and down, and the promote is still unsigned.
+- Public answers at 03:32Z: 200 for 7ae476a3, 38f368d6, c13d4b6a, 5ff56a4d; none for 9a28642b.
+
 ### Changes to the script
 
 `switch` now restarts the Shield manager first, waits until the NucBox has settled (manager on the release, no
