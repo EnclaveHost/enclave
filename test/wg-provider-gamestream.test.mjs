@@ -134,3 +134,70 @@ test('a front that refuses the tunnel closes the client; openTunnel reports the 
   assert.deepEqual(f.seen,['desk.app.test|tcp/48010|']);
  }finally{f.close();}
 });
+
+test('a nameless flow follows what another box was told: asked once for a burst, never by UDP',async()=>{
+ const asks=[];let answer={name:'desk.app.test',age:700};
+ const r=await rig({ask:async addr=>{asks.push(addr);return answer;}}),sock=dgram.createSocket('udp4');
+ try{
+  // UDP alone does not ask (and is dropped): a stream's RTSP comes first
+  sock.bind(0,'127.0.0.7');await once(sock,'listening');
+  sock.send(Buffer.from('early'),r.g.ports.udp[0],'127.0.0.1');await new Promise(resolve=>setTimeout(resolve,150));
+  assert.deepEqual(asks,[]);assert.deepEqual(r.f.seen,[]);
+  assert.equal(await tcp(r.g.ports.rtsp,'127.0.0.7','x'),'desk.app.test|tcp/48010|x');
+  assert.equal(await tcp(r.g.ports.rtsp,'127.0.0.7','y'),'desk.app.test|tcp/48010|y');
+  assert.equal(await tcp(r.g.ports.http,'127.0.0.7',get('203.0.113.7:47989')),'desk.app.test|tcp/47989|'+get('203.0.113.7:47989'));
+  assert.deepEqual(asks,['127.0.0.7']);assert.equal(r.g.stats().learned,1);
+  // what this box now tells a box that asks it: the name, and the age of the NAMING (not of the learning)
+  assert.deepEqual(r.g.bindingOf('127.0.0.7'),{name:'desk.app.test',age:700});
+  r.advance(3000);assert.equal(await tcp(r.g.ports.rtsp,'127.0.0.7','z'),'desk.app.test|tcp/48010|z');
+  assert.deepEqual(asks,['127.0.0.7']);assert.deepEqual(r.g.bindingOf('127.0.0.7'),{name:'desk.app.test',age:3700});
+  // asked again five seconds after the last ask; the same naming is not learned twice
+  r.advance(2000);answer={name:'desk.app.test',age:5700};assert.equal(await tcp(r.g.ports.rtsp,'127.0.0.7','z'),'desk.app.test|tcp/48010|z');
+  assert.deepEqual(asks,['127.0.0.7','127.0.0.7']);assert.equal(r.g.stats().learned,1);
+  assert.deepEqual(r.g.bindingOf('127.0.0.7'),{name:'desk.app.test',age:5700});
+  assert.equal(r.g.bindingOf('127.0.0.8'),null);
+  // a learned binding ends like any other
+  answer=null;r.advance(10*60000+1);assert.equal(await tcp(r.g.ports.rtsp,'127.0.0.7','x'),'');assert.equal(r.g.bindings.size,0);
+ }finally{sock.close();r.close();}
+});
+
+test('the most recently named binding wins, here or there; a client that just named an app here is not asked about',async()=>{
+ const asks=[];let answer=null;
+ const r=await rig({ask:async addr=>{asks.push(addr);return answer;}});
+ try{
+  await tcp(r.g.ports.http,'127.0.0.8',get('other.app.test'));
+  answer={name:'desk.app.test',age:0};
+  assert.equal(await tcp(r.g.ports.rtsp,'127.0.0.8','x'),'other.app.test|tcp/48010|x');assert.deepEqual(asks,[]);
+  // later, the other box holds an OLDER naming of another app: this box's own stays
+  r.advance(6000);answer={name:'desk.app.test',age:20000};
+  assert.equal(await tcp(r.g.ports.rtsp,'127.0.0.8','x'),'other.app.test|tcp/48010|x');assert.deepEqual(asks,['127.0.0.8']);
+  // later still, the client named the other app THERE a second ago: the nameless flow follows it
+  r.advance(6000);answer={name:'desk.app.test',age:1000};
+  assert.equal(await tcp(r.g.ports.rtsp,'127.0.0.8','x'),'desk.app.test|tcp/48010|x');
+  assert.deepEqual(r.g.bindingOf('127.0.0.8'),{name:'desk.app.test',age:1000});
+  // and a name given here afterwards wins again, at once
+  await tcp(r.g.ports.http,'127.0.0.8',get('other.app.test'));
+  assert.equal(await tcp(r.g.ports.rtsp,'127.0.0.8','x'),'other.app.test|tcp/48010|x');
+  assert.equal(asks.length,2);assert.deepEqual(r.g.bindingOf('127.0.0.8'),{name:'other.app.test',age:0});
+ }finally{r.close();}
+});
+
+test('an answer is taken only for a name a peer holds; a failing or silent ask leaves the decision here',async()=>{
+ const asks=[];let answer;
+ const r=await rig({maxAsking:1,ask:addr=>{asks.push(addr);if(answer instanceof Error)throw answer;return answer;}});
+ try{
+  for(answer of [{name:'unknown.app.test',age:0},{name:'custodian.test',age:0},{name:'desk.app.test',age:-1},{name:'desk.app.test',age:1.5},{name:'desk.app.test'},
+    {name:7,age:0},'desk.app.test',null,Error('down')]){
+   assert.equal(await tcp(r.g.ports.rtsp,'127.0.0.9','x'),'',JSON.stringify(answer));
+   // nothing bound after an ask: not asked again within a second
+   assert.equal(await tcp(r.g.ports.rtsp,'127.0.0.9','x'),'');r.advance(1000);
+  }
+  assert.equal(asks.length,9);assert.deepEqual(r.f.seen,[]);assert.equal(r.g.bindings.size,0);assert.equal(r.g.stats().learned,0);
+  // one ask at a time here (maxAsking): while one client's is open, another client's flow is decided without asking
+  let release;answer=new Promise(resolve=>{release=resolve;});
+  const slow=tcp(r.g.ports.rtsp,'127.0.0.9','x');
+  while(asks.length<10)await new Promise(resolve=>setTimeout(resolve,5));
+  assert.equal(await tcp(r.g.ports.rtsp,'127.0.0.10','x'),'');assert.equal(asks.length,10);
+  release({name:'desk.app.test',age:5});assert.equal(await slow,'desk.app.test|tcp/48010|x');
+ }finally{r.close();}
+});

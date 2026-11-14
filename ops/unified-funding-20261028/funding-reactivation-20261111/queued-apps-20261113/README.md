@@ -666,3 +666,45 @@ Not done, not known:
 
 The trial bundle process on 127.0.0.4 was stopped at 06:29Z. The earlier trial gateway on 127.0.0.3 still runs on the
 workstation so the workstation's Moonlight entry keeps answering.
+
+### Follow-up, 07:30Z: the gateway runs on the four edges; Moonlight by name works through one edge, not across two; the fix is in source and on no edge
+
+The owner ran `run.sh activate` (then a revert, then activate again). Evidence of the last run is in
+`ops/gamestream-gateway-20261114/activation/`: all four edges installed and verified at 06:37:41-06:38:34Z with the
+first bundle (`982463a2…85f5af`), providers untouched by it.
+
+| When (Z) | Check | Result |
+| --- | --- | --- |
+| 06:44 | `run.sh check` from the workstation | passed on all four edges |
+| 06:48 | `moonlight list 9a28642b.app.enclave.host` (moonlight-qt 6.2.0, PC added and paired by name) | `KVM Box Desktop` |
+| 06:51-06:58 | five streams by name, 1280x720 at 30 fps | video 19-30 fps, 0-2.07% network frame drops, audio; a screenshot of the client shows the KVM Box desktop. All five through us-west (5 gateway connections to its router, 0 on eu-central) |
+| 06:58 | first address returned for the name, 12 lookups per resolver | 8.8.8.8: us-west 4, eu-central 8; 1.1.1.1: 10, 2; 9.9.9.9: 4, 6 |
+| 06:58:25 | app named at us-west only, then nameless `/serverinfo` at each address | us-west 200, eu-central closed |
+
+So the risk listed above is real: the name has two addresses, resolvers rotate them, each edge keeps its own
+bindings, and a client whose requests land on both gets nothing. The five streams worked because this workstation's
+lookups happened to agree.
+
+The fix, in source (not on an edge): edges of one operator ask each other which app a client named
+(`siblings` in the gateway's configuration, TCP 47997, opened by ufw to the sibling addresses only; design and trust
+statement in `docs/network/gamestream-ingress.md`, "Siblings"). New bundle sha256
+`2387eb9d36f4661e2835376d373d3cf2bbc09ca9bf34632736aac3a109f50e98`, pinned in the plan. `run.sh activate` now replaces
+each edge's gateway, then checks the twelve edge-to-edge links and, from outside, that a name given at one edge is
+honoured at another, into `activation/final.txt`.
+
+| When (Z) | Check | Result |
+| --- | --- | --- |
+| ≈07:20 | TCP/UDP 47997 and ufw rules naming it, four edges (read-only) | free; none |
+| 07:22 | `rehearse.sh`: two boxes on loopback addresses, real bundle, installer and `run.sh` | passed (`ops/gamestream-gateway-20261114/rehearsal-20261114.txt`) |
+| 07:22-07:23 | the new outside check against the edges as they are | each edge passes alone; 6 of 6 pairs not carried, as expected before the update |
+| 07:25 | `test/wg-provider-gamestream*.test.mjs`, `test/service-index.test.mjs` | 36 of 36 pass |
+
+Not done, not known:
+
+- No edge runs the second bundle. `bash ops/gamestream-gateway-20261114/run.sh activate` is the owner's run.
+- Edge-to-edge reachability on 47997, real ufw `from` rules, and a client carried across two real edges are shown
+  only by that run. A Moonlight stream forced through two edges has not been run.
+- The page still says 127.0.0.2. Its release waits for `activation/final.txt`.
+- Why two early pairing tries answered "Incorrect PIN" is still not known.
+- Seen in the edges' journals, not caused by this: Ubuntu's unattended upgrades restarted `enclave-network-provider`
+  on ap-southeast (06:06:02Z), us-west (06:12:10Z) and eu-central (06:37:22-27Z).

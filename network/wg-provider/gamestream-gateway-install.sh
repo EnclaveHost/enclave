@@ -11,22 +11,34 @@
 #            the configuration, requires its listen address on this box and Sunshine's six ports free, then installs
 #            /opt/enclave-gamestream-gateway, /etc/enclave-gamestream-gateway/config.json and
 #            enclave-gamestream-gateway.service (a dynamic user, no key, no state), opens the six ports in ufw and
-#            starts it. A service that does not come up listening is removed again (as `remove`).
+#            starts it. With "siblings" in the configuration it also opens the sibling port (TCP 47997) to each
+#            sibling's address, and to nobody else. An install over a running one replaces it, its sibling rules
+#            included. A service that does not come up listening is removed again (as `remove`), also when it replaced
+#            one that did.
 #   status   read-only: the service, the installed bundle's sha256, its configuration, listeners, firewall rules.
-#   remove   stops and removes the service, its two directories and the six ufw rules. A provider that itself runs
-#            "gameStream": true needs those rules: do not run both forms on one box.
+#   remove   stops and removes the service, its two directories and its ufw rules. A provider that itself runs
+#            "gameStream": true needs the six port rules: do not run both forms on one box.
 #   ENCLAVE_NETWORK_ROOT=<dir> prefixes /opt and /etc (a staging tree; default: the real ones).
 set -euo pipefail
-usage() { sed -n '2,18p' "$0" >&2; exit 2; }
+usage() { sed -n '2,21p' "$0" >&2; exit 2; }
 NAME=enclave-gamestream-gateway
 R=${ENCLAVE_NETWORK_ROOT:-}; OPT=$R/opt/$NAME ETC=$R/etc/$NAME UNIT=$R/etc/systemd/system/$NAME.service
 TCP="47984 47989 48010" UDP="47998 47999 48000" RULES="47984/tcp 47989/tcp 48010/tcp 47998:48000/udp"
 [ "$(id -u)" = 0 ] || { echo "run as root" >&2; exit 1; }
 # (whole outputs are read before they are searched: under pipefail a reader that stops early fails the pipeline)
 ufw_on() { command -v ufw >/dev/null && [[ "$(ufw status 2>/dev/null)" == "Status: active"* ]]; }
-# -> the listeners on Sunshine's ports, one per line: proto address:port process
+# the siblings of the installed configuration, one per line: <sibling address> <listen address, or any> <sibling port>
+SIBS=$ETC/siblings
+siblings() { if [ -f $SIBS ]; then grep -E '^[0-9.]+ ([0-9.]+|any) [0-9]+$' $SIBS || true; fi; }
+close_siblings() {
+  ufw_on || return 0
+  siblings | while read -r from to port; do ufw delete allow from "$from" to "$to" port "$port" proto tcp >/dev/null 2>&1 </dev/null || true; done
+}
+# -> the listeners on Sunshine's ports and on a sibling port (default: the installed one, if any), one per line:
+#    proto address:port process
 listeners() {
-  for p in $TCP; do ss -H -ltnp "sport = :$p" | awk '{print "tcp", $4, $NF}'; done
+  local sibling=${1-$(siblings | awk 'NR==1{print $3}')}
+  for p in $TCP $sibling; do ss -H -ltnp "sport = :$p" | awk '{print "tcp", $4, $NF}'; done
   for p in $UDP; do ss -H -lunp "sport = :$p" | awk '{print "udp", $4, $NF}'; done
 }
 status() {
@@ -34,12 +46,13 @@ status() {
   if [ -f $OPT/gamestream-gateway.mjs ]; then echo "bundle: $(sha256sum $OPT/gamestream-gateway.mjs | cut -d' ' -f1)"; else echo "bundle: none"; fi
   if [ -f $ETC/config.json ]; then echo "config: $(tr -d '\n' < $ETC/config.json)"; else echo "config: none"; fi
   echo "listeners:"; listeners | sed 's/^/  /'
-  echo "ufw:"; if ufw_on; then ufw status | { grep -E '^(47984|47989|48010|47998:48000)/' || true; } | sed 's/^/  /'; else echo "  (ufw not active)"; fi
+  echo "ufw:"; if ufw_on; then ufw status | { grep -E '^(47984|47989|48010|47998:48000)/|# enclave gamestream gateway' || true; } | sed 's/^/  /'; else echo "  (ufw not active)"; fi
 }
 remove() {
   systemctl disable -q --now $NAME 2>/dev/null || true
   rm -f $UNIT; systemctl daemon-reload
   if ufw_on; then for r in $RULES; do ufw delete allow "$r" >/dev/null 2>&1 || true; done; fi
+  close_siblings
   rm -rf $OPT $ETC
 }
 case "${1:-}" in
@@ -57,13 +70,22 @@ CHECKED=$("$NODE" "$BUNDLE" --check-config "$CFG") || { echo "configuration reje
 HOST=$("$NODE" -e 'process.stdout.write(JSON.parse(process.argv[1]).host)' "$CHECKED")
 ADDRS=$(ip -4 -o addr show | awk '{print $4}' | cut -d/ -f1)
 [ "$HOST" = 0.0.0.0 ] || grep -qxF "$HOST" <<<"$ADDRS" || { echo "listen address $HOST is not on this box; nothing changed" >&2; exit 1; }
-# the six ports must be free, or held by a previous install of this service (which is then replaced)
+# the siblings this configuration names (its own address is not one), and the port they ask each other on
+WANTED=$("$NODE" -e 'const c=JSON.parse(process.argv[1]);for(const s of c.siblings||[])console.log(s,c.host==="0.0.0.0"?"any":c.host,c.siblingPort)' "$CHECKED")
+SPORT=; [ -z "$WANTED" ] || SPORT=$(awk 'NR==1{print $3}' <<<"$WANTED")
+# the ports must be free, or held by a previous install of this service (which is then replaced)
 if ! systemctl is-active -q $NAME; then
-  BUSY=$(listeners); [ -z "$BUSY" ] || { echo "Sunshine's ports are in use; nothing changed:" >&2; echo "$BUSY" >&2; exit 1; }
+  BUSY=$(listeners "$SPORT"); [ -z "$BUSY" ] || { echo "Sunshine's ports are in use; nothing changed:" >&2; echo "$BUSY" >&2; exit 1; }
+elif [ -n "$SPORT" ] && [ "$SPORT" != "$(siblings | awk 'NR==1{print $3}')" ]; then
+  # (the running install has no sibling port, or another one: it does not hold this one)
+  BUSY=$(ss -H -ltnp "sport = :$SPORT" | awk '{print "tcp", $4, $NF}')
+  [ -z "$BUSY" ] || { echo "the sibling port is in use; nothing changed:" >&2; echo "$BUSY" >&2; exit 1; }
 fi
 install -d -m 0755 $OPT $ETC "$(dirname $UNIT)"
+close_siblings   # (those of the install this replaces)
 install -m 0644 "$BUNDLE" $OPT/gamestream-gateway.mjs.new && mv $OPT/gamestream-gateway.mjs.new $OPT/gamestream-gateway.mjs
 install -m 0644 "$CFG" $ETC/config.json.new && mv $ETC/config.json.new $ETC/config.json
+if [ -n "$WANTED" ]; then printf '%s\n' "$WANTED" > $SIBS.new && chmod 0644 $SIBS.new && mv $SIBS.new $SIBS; else rm -f $SIBS; fi
 # no key and no state: a dynamic user on a read-only system; bounded so it cannot starve the provider beside it
 cat > $UNIT <<UNITEOF
 [Unit]
@@ -93,12 +115,16 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 [Install]
 WantedBy=multi-user.target
 UNITEOF
-if ufw_on; then for r in $RULES; do ufw allow "$r" comment 'enclave gamestream gateway' >/dev/null; done; else echo "ufw is not active: no firewall rule added"; fi
+if ufw_on; then
+  for r in $RULES; do ufw allow "$r" comment 'enclave gamestream gateway' >/dev/null; done
+  siblings | while read -r from to port; do ufw allow from "$from" to "$to" port "$port" proto tcp comment 'enclave gamestream gateway' >/dev/null </dev/null; done
+else echo "ufw is not active: no firewall rule added"; fi
 systemctl daemon-reload && systemctl enable -q $NAME && systemctl restart $NAME
-# up means: active, and all six ports listening on the configured address
+# up means: active, and all six ports (and the sibling port, with siblings) listening on the configured address
+UP=6; [ -z "$SPORT" ] || UP=7
 for _ in 1 2 3 4 5 6 7 8 9 10; do
   sleep 1
-  if systemctl is-active -q $NAME && [ "$(listeners | awk -v h="$HOST" '$2 ~ "^" h ":" ' | wc -l)" = 6 ]; then echo "installed"; status; exit 0; fi
+  if systemctl is-active -q $NAME && [ "$(listeners "$SPORT" | awk -v h="$HOST" '$2 ~ "^" h ":" ' | wc -l)" = $UP ]; then echo "installed"; status; exit 0; fi
 done
 echo "the gateway did not come up listening; removing it again" >&2
 journalctl -u $NAME -n 20 --no-pager >&2 || true

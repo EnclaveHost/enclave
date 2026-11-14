@@ -10,7 +10,8 @@ const here=new URL('..',import.meta.url).pathname,script=path.join(here,'network
 const run=(cmd,args,env)=>new Promise(resolve=>execFile(cmd,args,{env,cwd:here},(error,stdout,stderr)=>resolve({code:error?error.code:0,stdout,stderr})));
 
 // stand-ins: `systemctl restart` makes the service active (unless NOSTART), and `ss` then shows its six listeners on
-// LISTEN; BUSY makes another program hold a port. Every call is appended to $STATE/calls.
+// LISTEN, and one on the sibling port when it was installed with siblings; BUSY makes another program hold a port.
+// Every call is appended to $STATE/calls.
 const STUBS={
  id:'echo 0',
  sleep:':',
@@ -27,11 +28,14 @@ esac`,
  ufw:`echo "ufw $*" >> "$STATE/calls"
 case "$1" in
  status) echo "Status: active"; echo; echo "To                         Action      From"; cat "$STATE/rules" 2>/dev/null ;;
- allow) echo "$2                  ALLOW       Anywhere" >> "$STATE/rules" ;;
- delete) grep -v "^$3 " "$STATE/rules" > "$STATE/rules.new" || true; mv "$STATE/rules.new" "$STATE/rules" ;;
+ allow) if [ "$2" = from ]; then echo "$5 $7/$9           ALLOW       $3                # enclave gamestream gateway" >> "$STATE/rules"
+        else echo "$2                  ALLOW       Anywhere                   # enclave gamestream gateway" >> "$STATE/rules"; fi ;;
+ delete) if [ "$3" = from ]; then grep -v "^$6 $8/\${10} .* $4 " "$STATE/rules" > "$STATE/rules.new" || true
+         else grep -v "^$3 " "$STATE/rules" > "$STATE/rules.new" || true; fi; mv "$STATE/rules.new" "$STATE/rules" ;;
 esac`,
  ss:`port=\${@: -1}; port=\${port##*:}; proto=tcp; state=LISTEN; case "$*" in *-lunp*) proto=udp; state=UNCONN;; esac
-if [ -f "$STATE/active" ]; then echo "$state 0 511 $LISTEN:$port 0.0.0.0:* users:((\\"node\\",pid=7,fd=20))"
+own=; if [ -f "$STATE/active" ]; then own=1; [ "$port" != 47997 ] || [ -f "$ENCLAVE_NETWORK_ROOT/etc/enclave-gamestream-gateway/siblings" ] || own=; fi
+if [ -n "$own" ]; then echo "$state 0 511 $LISTEN:$port 0.0.0.0:* users:((\\"node\\",pid=7,fd=20))"
 elif [ "\${BUSY:-}" = "$proto/$port" ]; then echo "$state 0 5 0.0.0.0:$port 0.0.0.0:* users:((\\"sunshine\\",pid=9,fd=3))"; fi`,
 };
 async function rig(){
@@ -86,6 +90,40 @@ test('install leaves the held bundle, the configuration, a keyless sandboxed uni
   const s=await r.sh(['status']);assert.equal(s.code,0);assert.match(s.stdout,/^service: active \/ enabled\n/);assert.ok(s.stdout.includes('config: {"zones":["app.test"],"host":"203.0.113.9"}'));
   const d=await r.sh(['remove']);assert.equal(d.code,0,d.stderr);
   assert.match(d.stdout,/^removed\nservice: inactive \/ disabled\nbundle: none\nconfig: none\nlisteners:\nufw:\n$/);
+  assert.equal(changed(r),false);assert.equal((await readFile(path.join(r.state,'rules'),'utf8')).trim(),'');
+ }finally{await r.close();}
+});
+
+test('with siblings: the sibling port is opened to each sibling alone, listened on, replaced with the install and removed with it',async()=>{
+ const r=await rig();
+ try{
+  const cfg=path.join(r.dir,'siblings.json'),write=siblings=>writeFile(cfg,JSON.stringify({zones:['app.test'],host:'203.0.113.9',siblings}));
+  await write(['203.0.113.9','198.51.100.7','198.51.100.8']);
+  // the sibling port in use by another program: refused, nothing changed
+  let a=await r.sh(['install',r.bundle,r.sha,cfg],{BUSY:'tcp/47997'});assert.equal(a.code,1);assert.match(a.stderr,/tcp 0\.0\.0\.0:47997 .*sunshine/);assert.equal(changed(r),false);
+  a=await r.sh(['install',r.bundle,r.sha,cfg]);assert.equal(a.code,0,a.stderr);
+  assert.equal((a.stdout.match(/^  (tcp|udp) 203\.0\.113\.9:/gm)||[]).length,7);assert.match(a.stdout,/^  tcp 203\.0\.113\.9:47997 /m);
+  assert.deepEqual((a.stdout.match(/^  203\.0\.113\.9 47997\/tcp +ALLOW +\S+/gm)||[]).map(l=>l.split(/\s+/).pop()),['198.51.100.7','198.51.100.8']);
+  assert.equal(await readFile(path.join(r.etc,'siblings'),'utf8'),'198.51.100.7 203.0.113.9 47997\n198.51.100.8 203.0.113.9 47997\n');
+  assert.deepEqual(mutating(await r.calls()).filter(c=>c.includes('from')),['ufw allow from 198.51.100.7 to 203.0.113.9 port 47997 proto tcp comment enclave gamestream gateway',
+   'ufw allow from 198.51.100.8 to 203.0.113.9 port 47997 proto tcp comment enclave gamestream gateway']);
+  // an install with another list replaces the rules: the sibling that left is closed out
+  await write(['198.51.100.8','198.51.100.9']);
+  a=await r.sh(['install',r.bundle,r.sha,cfg]);assert.equal(a.code,0,a.stderr);
+  assert.deepEqual((a.stdout.match(/^  203\.0\.113\.9 47997\/tcp +ALLOW +\S+/gm)||[]).map(l=>l.split(/\s+/).pop()),['198.51.100.8','198.51.100.9']);
+  // an install without siblings closes the port to all of them
+  a=await r.sh(['install',r.bundle,r.sha,r.cfg]);assert.equal(a.code,0,a.stderr);
+  assert.doesNotMatch(a.stdout,/47997/);assert.deepEqual(await readdir(r.etc),['config.json']);
+  // over that running install: the sibling port held by another program is refused, and the install stays as it was
+  await write(['198.51.100.7']);const before=(await r.calls()).length;
+  a=await r.sh(['install',r.bundle,r.sha,cfg],{BUSY:'tcp/47997'});assert.equal(a.code,1);assert.match(a.stderr,/sibling port is in use; nothing changed/);
+  assert.deepEqual(mutating((await r.calls()).slice(before)),[]);assert.deepEqual(await readdir(r.etc),['config.json']);
+  assert.equal((await r.sh(['install',r.bundle,r.sha,cfg])).code,0);
+  const d=await r.sh(['remove']);assert.equal(d.code,0,d.stderr);
+  assert.match(d.stdout,/^removed\nservice: inactive \/ disabled\nbundle: none\nconfig: none\nlisteners:\nufw:\n$/);
+  assert.equal(changed(r),false);assert.equal((await readFile(path.join(r.state,'rules'),'utf8')).trim(),'');
+  // and one that does not come up takes its sibling rules with it
+  a=await r.sh(['install',r.bundle,r.sha,cfg],{NOSTART:'1'});assert.equal(a.code,1);
   assert.equal(changed(r),false);assert.equal((await readFile(path.join(r.state,'rules'),'utf8')).trim(),'');
  }finally{await r.close();}
 });

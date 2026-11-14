@@ -1,13 +1,15 @@
 # Public GameStream ingress on a provider
 
-Status: source only. The code is in `network/wg-provider/gamestream.mjs`; as of 2026-11-14 06:35Z it is installed on
-no provider. A trial copy of it, run on a workstation against one production edge, carried a real Moonlight pairing
-and stream (see "What was tried" below). The KVM Box page still names the local connector's `127.0.0.2`.
+Status at 2026-11-14 07:30Z. The code is in `network/wg-provider/gamestream.mjs`. It has two forms: a field of a
+provider that runs this source (`"gameStream": true`), installed on no provider; and a service of its own beside a
+provider that runs another release ("Beside a provider that runs another release" below).
 
-It has two forms: a field of a provider that runs this source (`"gameStream": true`), and a service of its own beside
-a provider that runs another release ("Beside a provider that runs another release" below). Enclave's four edges run
-older releases, so the second form is what `ops/gamestream-gateway-20261114/` prepares for them; that activation has
-been rehearsed on a workstation and run on no edge.
+Enclave's four edges run older provider releases, so they got the service form: its first bundle has run on all four
+since 2026-11-14 06:38Z (`ops/gamestream-gateway-20261114/`). Through it a stock Moonlight, with the PC added as
+`9a28642b.app.enclave.host`, lists and streams the KVM Box desktop with a picture, as long as all of the client's
+connections reach one edge. They do not always: the name has two addresses, and a client split across them gets
+nothing (measured, see "By name through the edges"). The answer to that, edges that ask each other ("Siblings"), is
+in source and rehearsed and runs on no edge yet. The KVM Box page still names the local connector's `127.0.0.2`.
 
 ## What it is for
 
@@ -57,9 +59,12 @@ public address a user adds.
 
 - Two clients behind one source address that stream different apps through one provider share a binding; the later
   name wins for new flows.
-- Bindings are per provider. An app name that resolves to several providers works when a client keeps to one address
-  for a session. Moonlight sends the name on every HTTP(S) request, and resolver address ordering is stable per
-  client, but this has not been observed with a real multi-address name.
+- Bindings are per provider. An app name that resolves to several providers works only while a client keeps to one
+  address, and clients do not: Moonlight resolves the name again for its stream, and public resolvers rotate the
+  order of the addresses. The service form closes this between boxes of one operator ("Siblings"). The field form
+  does not ask anybody yet, and nothing covers a name served by providers of different operators.
+- UDP follows the binding that the same client's RTSP settled on the same box. A client that sent RTSP to one
+  address and UDP to another would not be carried. Moonlight takes both from one resolution; not observed either way.
 - Video and audio ride TCP inside TLS between the provider and the app's front: loss causes head-of-line delay.
 - A host on Enclave Direct has no provider in front of it and would need the same listener itself. Not built.
 
@@ -94,6 +99,28 @@ Configuration (`/etc/enclave-gamestream-gateway/config.json`; unknown fields are
 | `host` | the IPv4 address to listen on (the box's public address) |
 | `router` | where the provider's 443 router answers; default `127.0.0.1` |
 | `maxFlows`, `maxPerClient`, `maxBindings` | caps, defaults above |
+| `siblings` | up to 8 IPv4 addresses: the other boxes of the same operator that serve the zones; default none |
+| `siblingPort` | the TCP port siblings ask each other on; default 47997 |
+
+### Siblings
+
+A request that names an app binds the client's address on the box that received it. With `siblings` set, a box that
+gets a nameless TCP flow (RTSP, or HTTP(S) under a bare address) asks the others before it decides:
+
+- It asks unless a name set the client's binding on this box within the last 5 seconds, or it asked within the last
+  5 seconds (1 second after an empty answer). One question per client at a time, at most 64 clients being asked about.
+- The question is one line on `siblingPort`, from the box's own `host` address: `enclave-gs-binding/1 <client>`. The
+  answer is `<name> <ms since a name set it>` or `-`. All siblings are asked at once with one second to answer; a
+  sibling that fails is left out for 30 seconds. Without an answer the box decides from what it has.
+- The most recently named binding wins, here or there. A name heard from a sibling is taken only if it is under this
+  box's own zones.
+- UDP never asks; a stream's RTSP comes first and has asked.
+
+Trust: a box answers only connections that come from a sibling's address, and the installer opens the port to those
+addresses alone. The source address of an established TCP connection is the whole authentication, so `siblings` must
+be boxes of one operator. A sibling, or someone on the path between two of them, can at most point a client's
+nameless flows at another app under the zones. That app's Sunshine does not know the client: its stream fails and
+nothing is exposed. A box tells a sibling nothing but the name a client address last gave.
 
 Build and install:
 
@@ -102,8 +129,13 @@ Build and install:
 - `network/wg-provider/gamestream-gateway-install.sh install <bundle> <sha256> <config.json>`, as root on the box,
   checks the configuration with the bundle, requires the listen address on the box and the six ports free, installs
   the service (a dynamic user, read-only system, 192 MB and 60% of a CPU at most), opens
-  `47984/tcp 47989/tcp 48010/tcp 47998:48000/udp` in ufw and starts it. A service that does not come up listening is
-  removed again. `status` is read-only; `remove` takes out the service, its files and the rules.
+  `47984/tcp 47989/tcp 48010/tcp 47998:48000/udp` in ufw and starts it. With `siblings` it also requires the sibling
+  port free, opens it to each sibling's address alone, and records those rules in
+  `/etc/enclave-gamestream-gateway/siblings` so that the next install or `remove` takes out exactly them. A service
+  that does not come up listening is removed again. `status` is read-only; `remove` takes out the service, its files
+  and the rules.
+- Installing over a running gateway replaces it. If the new one does not come up, the box is left with none (the
+  previous one is not put back); install again.
 - Do not run both forms on one box: they want the same ports, and `remove` deletes the rules the field form needs.
 
 Tried on 2026-11-14 (between 06:10Z and 06:29Z) with the built bundle on a workstation loopback address and one production edge as
@@ -129,10 +161,30 @@ overflows in every run); behaviour with a name that resolves to more than one pr
 the PC by name (the trial added it by address, so its 47984 requests followed the binding; SNI with the name was
 later shown with a plain TLS client, above).
 
+## By name through the edges (2026-11-14, 06:44-07:23Z)
+
+With the first bundle (no siblings) on the four edges, from a workstation, moonlight-qt 6.2.0 paired with the PC added
+as `9a28642b.app.enclave.host`:
+
+- `moonlight list`: `KVM Box Desktop`.
+- Five streams at 1280x720, 30 fps: video at 19-30 fps, 0-2.07% of frames dropped by the network, audio. A screenshot
+  of the client window shows the KVM Box desktop. All five ran through us-west.
+- Which of the name's two addresses a resolver puts first, 12 lookups each: 8.8.8.8 us-west 4, eu-central 8; 1.1.1.1
+  10 and 2; 9.9.9.9 4 and 6.
+- After naming the app at us-west only, a nameless `/serverinfo`: us-west 200, eu-central closed.
+- The activation's outside check, in the form that goes with the second bundle, run against the first: every edge
+  passes on its own, and none of the six pairs (named at one edge, nameless at another that routes the app) is
+  carried.
+
+Not established: a client carried across two real edges (the second bundle runs on none); a Moonlight stream that was
+forced through two edges; why two early pairing tries answered "Incorrect PIN".
+
 ## Tests
 
 `node --test test/wg-provider-gamestream.test.mjs` and the config test in `test/service-index.test.mjs`. The service
 form: `test/wg-provider-gamestream-gateway.test.mjs` (names, configuration, flows through a stand-in router, the entry)
 and `test/wg-provider-gamestream-gateway-install.test.mjs` (the installer against a staging root with stand-in
 `systemctl`, `ufw`, `ss` and `ip`: refusals change nothing, install and remove are exact, a gateway that does not come
-up is removed).
+up is removed, sibling rules are opened, replaced and removed with the install). Asking: the core's rules for when to
+ask and whose binding wins are in the first file; two gateways that are siblings of each other, a stand-in router and
+a client that names the app at one and sends a nameless request to the other are in the second.

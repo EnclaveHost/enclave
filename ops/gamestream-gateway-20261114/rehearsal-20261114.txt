@@ -1,91 +1,252 @@
 
 ### run.sh activate
-[06:32:30Z] bundle 982463a28a9939d71d9e07fe040f019f5ec6f22a71b8014eb6604f867385f5af built from this checkout
-[06:32:30Z] rehearsal: ready (warden-host, node v22.23.5, 46878 MB available, gateway inactive)
-[06:32:30Z] rehearsal: installing
+[07:22:12Z] bundle 2387eb9d36f4661e2835376d373d3cf2bbc09ca9bf34632736aac3a109f50e98 built from this checkout
+[07:22:12Z] rehearsal-a: ready (warden-host, node v22.23.5, 45311 MB available, gateway inactive)
+[07:22:12Z] rehearsal-a: installing
     installed
     service: active / enabled
-    bundle: 982463a28a9939d71d9e07fe040f019f5ec6f22a71b8014eb6604f867385f5af
-    config: {"zones":["app.enclave.host"],"router":"127.0.0.1","host":"127.0.0.5","maxFlows":256,"maxPerClient":32,"maxBindings":4096}
+    bundle: 2387eb9d36f4661e2835376d373d3cf2bbc09ca9bf34632736aac3a109f50e98
+    config: {"zones":["app.enclave.host"],"router":"127.0.0.1","host":"127.0.0.5","maxFlows":256,"maxPerClient":32,"maxBindings":4096,"siblings":["127.0.0.6"]}
     listeners:
-      tcp 127.0.0.5:47984 users:(("node",pid=3754362,fd=23))
-      tcp 127.0.0.5:47989 users:(("node",pid=3754362,fd=22))
-      tcp 127.0.0.5:48010 users:(("node",pid=3754362,fd=24))
-      udp 127.0.0.5:47998 users:(("node",pid=3754362,fd=25))
-      udp 127.0.0.5:47999 users:(("node",pid=3754362,fd=26))
-      udp 127.0.0.5:48000 users:(("node",pid=3754362,fd=27))
+      tcp 127.0.0.5:47984 users:(("node",pid=3813923,fd=24))
+      tcp 127.0.0.5:47989 users:(("node",pid=3813923,fd=23))
+      tcp 127.0.0.5:48010 users:(("node",pid=3813923,fd=25))
+      tcp 127.0.0.5:47997 users:(("node",pid=3813923,fd=22))
+      udp 127.0.0.5:47998 users:(("node",pid=3813923,fd=26))
+      udp 127.0.0.5:47999 users:(("node",pid=3813923,fd=27))
+      udp 127.0.0.5:48000 users:(("node",pid=3813923,fd=28))
     ufw:
       47984/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
       47989/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
       48010/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
       47998:48000/udp                 ALLOW       Anywhere                   # enclave gamestream gateway
-[06:32:32Z] rehearsal: provider unchanged (active MainPID=4242 ActiveEnterTimestamp=Fri 2026-11-13 00:00:00 UTC ); gateway up, 56 MB
-[06:32:32Z] rehearsal: 47989 without a name: closed, nothing sent (as designed)
-[06:32:32Z] rehearsal: TCP 47984 and 48010 connect
-[06:32:32Z] rehearsal: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
-[06:32:32Z] rehearsal: VERIFIED
-[06:32:32Z] ALL DONE: gateway verified on rehearsal
+      127.0.0.5 47997/tcp           ALLOW       127.0.0.6             # enclave gamestream gateway
+[07:22:14Z] rehearsal-a: provider unchanged (active MainPID=4242 ActiveEnterTimestamp=Fri 2026-11-13 00:00:00 UTC ); gateway up, asking 1 sibling(s), 58 MB
+[07:22:14Z] rehearsal-a: 47989 without a name: closed, nothing sent (as designed)
+[07:22:14Z] rehearsal-a: TCP 47984 and 48010 connect
+[07:22:14Z] rehearsal-a: the sibling port 47997 gives this machine nothing
+[07:22:14Z] rehearsal-a: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
+[07:22:14Z] rehearsal-a: VERIFIED
+[07:22:14Z] rehearsal-b: ready (warden-host, node v22.23.5, 45338 MB available, gateway inactive)
+[07:22:14Z] rehearsal-b: installing
+    installed
+    service: active / enabled
+    bundle: 2387eb9d36f4661e2835376d373d3cf2bbc09ca9bf34632736aac3a109f50e98
+    config: {"zones":["app.enclave.host"],"router":"127.0.0.1","host":"127.0.0.6","maxFlows":256,"maxPerClient":32,"maxBindings":4096,"siblings":["127.0.0.5"]}
+    listeners:
+      tcp 127.0.0.6:47984 users:(("node",pid=3814413,fd=24))
+      tcp 127.0.0.6:47989 users:(("node",pid=3814413,fd=23))
+      tcp 127.0.0.6:48010 users:(("node",pid=3814413,fd=25))
+      tcp 127.0.0.6:47997 users:(("node",pid=3814413,fd=22))
+      udp 127.0.0.6:47998 users:(("node",pid=3814413,fd=26))
+      udp 127.0.0.6:47999 users:(("node",pid=3814413,fd=27))
+      udp 127.0.0.6:48000 users:(("node",pid=3814413,fd=28))
+    ufw:
+      47984/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
+      47989/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
+      48010/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
+      47998:48000/udp                 ALLOW       Anywhere                   # enclave gamestream gateway
+      127.0.0.6 47997/tcp           ALLOW       127.0.0.5             # enclave gamestream gateway
+[07:22:16Z] rehearsal-b: provider unchanged (active MainPID=4242 ActiveEnterTimestamp=Fri 2026-11-13 00:00:00 UTC ); gateway up, asking 1 sibling(s), 58 MB
+[07:22:16Z] rehearsal-b: 47989 without a name: closed, nothing sent (as designed)
+[07:22:16Z] rehearsal-b: TCP 47984 and 48010 connect
+[07:22:16Z] rehearsal-b: the sibling port 47997 gives this machine nothing
+[07:22:16Z] rehearsal-b: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
+[07:22:16Z] rehearsal-b: VERIFIED
+[07:22:16Z] all of them together
+    127.0.0.5 asks 127.0.0.6: answered
+    127.0.0.6 asks 127.0.0.5: answered
+[07:22:16Z] rehearsal-a: 47989 without a name: closed, nothing sent (as designed)
+[07:22:16Z] rehearsal-a: TCP 47984 and 48010 connect
+[07:22:16Z] rehearsal-a: the sibling port 47997 gives this machine nothing
+[07:22:16Z] rehearsal-a: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
+[07:22:16Z] rehearsal-b: 47989 without a name: closed, nothing sent (as designed)
+[07:22:16Z] rehearsal-b: TCP 47984 and 48010 connect
+[07:22:16Z] rehearsal-b: the sibling port 47997 gives this machine nothing
+[07:22:16Z] rehearsal-b: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
+[07:22:16Z] no edge here routes 9a28642b.app.enclave.host: a client split over two edges is not exercised
+[07:22:16Z] ALL DONE: gateway verified on rehearsal-a rehearsal-b
 
 ### run.sh status
-== rehearsal
+== rehearsal-a
 service: active / enabled
-bundle: 982463a28a9939d71d9e07fe040f019f5ec6f22a71b8014eb6604f867385f5af
-config: {"zones":["app.enclave.host"],"router":"127.0.0.1","host":"127.0.0.5","maxFlows":256,"maxPerClient":32,"maxBindings":4096}
+bundle: 2387eb9d36f4661e2835376d373d3cf2bbc09ca9bf34632736aac3a109f50e98
+config: {"zones":["app.enclave.host"],"router":"127.0.0.1","host":"127.0.0.5","maxFlows":256,"maxPerClient":32,"maxBindings":4096,"siblings":["127.0.0.6"]}
 listeners:
-  tcp 127.0.0.5:47984 users:(("node",pid=3754362,fd=23))
-  tcp 127.0.0.5:47989 users:(("node",pid=3754362,fd=22))
-  tcp 127.0.0.5:48010 users:(("node",pid=3754362,fd=24))
-  udp 127.0.0.5:47998 users:(("node",pid=3754362,fd=25))
-  udp 127.0.0.5:47999 users:(("node",pid=3754362,fd=26))
-  udp 127.0.0.5:48000 users:(("node",pid=3754362,fd=27))
+  tcp 127.0.0.5:47984 users:(("node",pid=3813923,fd=24))
+  tcp 127.0.0.5:47989 users:(("node",pid=3813923,fd=23))
+  tcp 127.0.0.5:48010 users:(("node",pid=3813923,fd=25))
+  tcp 127.0.0.5:47997 users:(("node",pid=3813923,fd=22))
+  udp 127.0.0.5:47998 users:(("node",pid=3813923,fd=26))
+  udp 127.0.0.5:47999 users:(("node",pid=3813923,fd=27))
+  udp 127.0.0.5:48000 users:(("node",pid=3813923,fd=28))
 ufw:
   47984/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
   47989/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
   48010/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
   47998:48000/udp                 ALLOW       Anywhere                   # enclave gamestream gateway
+  127.0.0.5 47997/tcp           ALLOW       127.0.0.6             # enclave gamestream gateway
+== rehearsal-b
+service: active / enabled
+bundle: 2387eb9d36f4661e2835376d373d3cf2bbc09ca9bf34632736aac3a109f50e98
+config: {"zones":["app.enclave.host"],"router":"127.0.0.1","host":"127.0.0.6","maxFlows":256,"maxPerClient":32,"maxBindings":4096,"siblings":["127.0.0.5"]}
+listeners:
+  tcp 127.0.0.6:47984 users:(("node",pid=3814413,fd=24))
+  tcp 127.0.0.6:47989 users:(("node",pid=3814413,fd=23))
+  tcp 127.0.0.6:48010 users:(("node",pid=3814413,fd=25))
+  tcp 127.0.0.6:47997 users:(("node",pid=3814413,fd=22))
+  udp 127.0.0.6:47998 users:(("node",pid=3814413,fd=26))
+  udp 127.0.0.6:47999 users:(("node",pid=3814413,fd=27))
+  udp 127.0.0.6:48000 users:(("node",pid=3814413,fd=28))
+ufw:
+  47984/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
+  47989/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
+  48010/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
+  47998:48000/udp                 ALLOW       Anywhere                   # enclave gamestream gateway
+  127.0.0.6 47997/tcp           ALLOW       127.0.0.5             # enclave gamestream gateway
 
 ### run.sh check
-[06:32:32Z] rehearsal: 47989 without a name: closed, nothing sent (as designed)
-[06:32:32Z] rehearsal: TCP 47984 and 48010 connect
-[06:32:32Z] rehearsal: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
-[06:32:32Z] check passed for: rehearsal
+[07:22:17Z] rehearsal-a: 47989 without a name: closed, nothing sent (as designed)
+[07:22:17Z] rehearsal-a: TCP 47984 and 48010 connect
+[07:22:17Z] rehearsal-a: the sibling port 47997 gives this machine nothing
+[07:22:17Z] rehearsal-a: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
+[07:22:17Z] rehearsal-b: 47989 without a name: closed, nothing sent (as designed)
+[07:22:17Z] rehearsal-b: TCP 47984 and 48010 connect
+[07:22:17Z] rehearsal-b: the sibling port 47997 gives this machine nothing
+[07:22:17Z] rehearsal-b: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
+[07:22:17Z] no edge here routes 9a28642b.app.enclave.host: a client split over two edges is not exercised
+[07:22:17Z] check passed for: rehearsal-a rehearsal-b
+
+### run.sh links
+    127.0.0.5 asks 127.0.0.6: answered
+    127.0.0.6 asks 127.0.0.5: answered
+[07:22:17Z] links answered for: rehearsal-a rehearsal-b
+
+### the sibling port, asked by hand
+box b asks box a about 127.0.0.1: 9a28642b.app.enclave.host 31
+box b asks box a about 127.0.0.9: -
+this machine asks box a about itself: (nothing)
 
 ### run.sh activate
-[06:32:32Z] bundle 982463a28a9939d71d9e07fe040f019f5ec6f22a71b8014eb6604f867385f5af built from this checkout
-[06:32:32Z] rehearsal: already verified, skipped
-[06:32:32Z] ALL DONE: gateway verified on rehearsal
+[07:22:18Z] bundle 2387eb9d36f4661e2835376d373d3cf2bbc09ca9bf34632736aac3a109f50e98 built from this checkout
+[07:22:18Z] rehearsal-a: already verified, skipped
+[07:22:18Z] rehearsal-b: already verified, skipped
+[07:22:18Z] all of them together
+    127.0.0.5 asks 127.0.0.6: answered
+    127.0.0.6 asks 127.0.0.5: answered
+[07:22:18Z] rehearsal-a: 47989 without a name: closed, nothing sent (as designed)
+[07:22:18Z] rehearsal-a: TCP 47984 and 48010 connect
+[07:22:18Z] rehearsal-a: the sibling port 47997 gives this machine nothing
+[07:22:18Z] rehearsal-a: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
+[07:22:18Z] rehearsal-b: 47989 without a name: closed, nothing sent (as designed)
+[07:22:18Z] rehearsal-b: TCP 47984 and 48010 connect
+[07:22:18Z] rehearsal-b: the sibling port 47997 gives this machine nothing
+[07:22:18Z] rehearsal-b: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
+[07:22:18Z] no edge here routes 9a28642b.app.enclave.host: a client split over two edges is not exercised
+[07:22:18Z] ALL DONE: gateway verified on rehearsal-a rehearsal-b
 
 ### evidence
-rehearsal.preflight.txt
-rehearsal.result.txt
-rehearsal.verified.json
+final.txt
+rehearsal-a.preflight.txt
+rehearsal-a.result.txt
+rehearsal-a.verified.json
+rehearsal-b.preflight.txt
+rehearsal-b.result.txt
+rehearsal-b.verified.json
 {
- "edge": "rehearsal",
+ "edge": "rehearsal-a",
  "address": "127.0.0.5",
- "bundleSha256": "982463a28a9939d71d9e07fe040f019f5ec6f22a71b8014eb6604f867385f5af",
+ "bundleSha256": "2387eb9d36f4661e2835376d373d3cf2bbc09ca9bf34632736aac3a109f50e98",
+ "siblings": [
+  "127.0.0.6"
+ ],
+ "siblingPort": 47997,
  "verifiedAt": "(time)",
  "providerUnchanged": "active MainPID=4242 ActiveEnterTimestamp=Fri 2026-11-13 00:00:00 UTC",
  "namedProbe": "9a28642b.app.enclave.host: not routed here"
 }
 
+### an update: box a was verified with another bundle
+
+### run.sh activate
+[07:22:18Z] bundle 2387eb9d36f4661e2835376d373d3cf2bbc09ca9bf34632736aac3a109f50e98 built from this checkout
+[07:22:18Z] rehearsal-a: verified with another bundle or other siblings: replacing that install
+[07:22:18Z] rehearsal-a: ready (warden-host, node v22.23.5, 45304 MB available, gateway active)
+[07:22:18Z] rehearsal-a: installing
+    installed
+    service: active / enabled
+    bundle: 2387eb9d36f4661e2835376d373d3cf2bbc09ca9bf34632736aac3a109f50e98
+    config: {"zones":["app.enclave.host"],"router":"127.0.0.1","host":"127.0.0.5","maxFlows":256,"maxPerClient":32,"maxBindings":4096,"siblings":["127.0.0.6"]}
+    listeners:
+      tcp 127.0.0.5:47984 users:(("node",pid=3815710,fd=24))
+      tcp 127.0.0.5:47989 users:(("node",pid=3815710,fd=23))
+      tcp 127.0.0.5:48010 users:(("node",pid=3815710,fd=25))
+      tcp 127.0.0.5:47997 users:(("node",pid=3815710,fd=22))
+      udp 127.0.0.5:47998 users:(("node",pid=3815710,fd=26))
+      udp 127.0.0.5:47999 users:(("node",pid=3815710,fd=27))
+      udp 127.0.0.5:48000 users:(("node",pid=3815710,fd=28))
+    ufw:
+      47984/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
+      47989/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
+      48010/tcp                 ALLOW       Anywhere                   # enclave gamestream gateway
+      47998:48000/udp                 ALLOW       Anywhere                   # enclave gamestream gateway
+      127.0.0.5 47997/tcp           ALLOW       127.0.0.6             # enclave gamestream gateway
+[07:22:20Z] rehearsal-a: provider unchanged (active MainPID=4242 ActiveEnterTimestamp=Fri 2026-11-13 00:00:00 UTC ); gateway up, asking 1 sibling(s), 58 MB
+[07:22:20Z] rehearsal-a: 47989 without a name: closed, nothing sent (as designed)
+[07:22:20Z] rehearsal-a: TCP 47984 and 48010 connect
+[07:22:20Z] rehearsal-a: the sibling port 47997 gives this machine nothing
+[07:22:20Z] rehearsal-a: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
+[07:22:20Z] rehearsal-a: VERIFIED
+[07:22:20Z] rehearsal-b: already verified, skipped
+[07:22:20Z] all of them together
+    127.0.0.5 asks 127.0.0.6: answered
+    127.0.0.6 asks 127.0.0.5: answered
+[07:22:20Z] rehearsal-a: 47989 without a name: closed, nothing sent (as designed)
+[07:22:20Z] rehearsal-a: TCP 47984 and 48010 connect
+[07:22:20Z] rehearsal-a: the sibling port 47997 gives this machine nothing
+[07:22:20Z] rehearsal-a: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
+[07:22:20Z] rehearsal-b: 47989 without a name: closed, nothing sent (as designed)
+[07:22:20Z] rehearsal-b: TCP 47984 and 48010 connect
+[07:22:20Z] rehearsal-b: the sibling port 47997 gives this machine nothing
+[07:22:20Z] rehearsal-b: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
+[07:22:20Z] no edge here routes 9a28642b.app.enclave.host: a client split over two edges is not exercised
+[07:22:20Z] ALL DONE: gateway verified on rehearsal-a rehearsal-b
+
 ### run.sh revert
-[06:32:32Z] rehearsal: removing
+[07:22:20Z] rehearsal-a: removing
     removed
     service: inactive / not-found
     bundle: none
     config: none
     listeners:
     ufw:
-[06:32:33Z] reverted: rehearsal
+[07:22:21Z] rehearsal-b: removing
+    removed
+    service: inactive / not-found
+    bundle: none
+    config: none
+    listeners:
+    ufw:
+[07:22:21Z] reverted: rehearsal-a rehearsal-b
 
 ### what is left
-nothing: no file under the staging root, no staging directory in /root, no rule, no listener on 127.0.0.5
+nothing: no file under either staging root, no staging directory in /root, no rule, no listener on 127.0.0.5 127.0.0.6
 
-### what the box was asked to change, in order
+### what rehearsal-a was asked to change, in order
 ufw allow 47984/tcp
 ufw allow 47989/tcp
 ufw allow 48010/tcp
 ufw allow 47998:48000/udp
+ufw allow from 127.0.0.6 to 127.0.0.5 port 47997
+systemctl daemon-reload 
+systemctl enable enclave-gamestream-gateway
+systemctl restart enclave-gamestream-gateway
+ufw delete allow from 127.0.0.6 to 127.0.0.5 port 47997
+ufw allow 47984/tcp
+ufw allow 47989/tcp
+ufw allow 48010/tcp
+ufw allow 47998:48000/udp
+ufw allow from 127.0.0.6 to 127.0.0.5 port 47997
 systemctl daemon-reload 
 systemctl enable enclave-gamestream-gateway
 systemctl restart enclave-gamestream-gateway
@@ -95,5 +256,23 @@ ufw delete allow 47984/tcp
 ufw delete allow 47989/tcp
 ufw delete allow 48010/tcp
 ufw delete allow 47998:48000/udp
+ufw delete allow from 127.0.0.6 to 127.0.0.5 port 47997
+
+### what rehearsal-b was asked to change, in order
+ufw allow 47984/tcp
+ufw allow 47989/tcp
+ufw allow 48010/tcp
+ufw allow 47998:48000/udp
+ufw allow from 127.0.0.5 to 127.0.0.6 port 47997
+systemctl daemon-reload 
+systemctl enable enclave-gamestream-gateway
+systemctl restart enclave-gamestream-gateway
+systemctl disable enclave-gamestream-gateway
+systemctl daemon-reload 
+ufw delete allow 47984/tcp
+ufw delete allow 47989/tcp
+ufw delete allow 48010/tcp
+ufw delete allow 47998:48000/udp
+ufw delete allow from 127.0.0.5 to 127.0.0.6 port 47997
 
 REHEARSAL PASSED

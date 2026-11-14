@@ -11,6 +11,12 @@
 // requests without a name, follow the binding. No name and no binding: closed or dropped. A name no peer holds, or one
 // served on this box (localRoutes): never bound. Two clients behind one address that stream different apps through one
 // provider share a binding (the later name wins for new flows). Opt-in: provider.json "gameStream": true.
+//
+// An app's name can resolve to several boxes, and a client resolves it more than once (Moonlight: its HTTPS requests
+// and its stream separately), so the name may arrive at one box and the nameless flows at another. `ask(addr)` lets a
+// box learn the binding from the others of its operator (-> {name, age in ms since a name last set it} | null): a
+// nameless TCP flow asks first, and the most recently NAMED binding wins, here or there. UDP never asks (a stream's
+// RTSP comes first and has asked). Without `ask` nothing changes.
 import net from 'node:net';
 import tls from 'node:tls';
 import dgram from 'node:dgram';
@@ -57,17 +63,44 @@ function deframer(onFrame,onError){
 }
 
 export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PORTS,connect=tlsConnect,count=()=>{},log=()=>{},now=Date.now,
-  bindingMs=10*60000,udpIdleMs=90000,maxFlows=4096,maxPerClient=64,maxBindings=16384}){
+  bindingMs=10*60000,udpIdleMs=90000,maxFlows=4096,maxPerClient=64,maxBindings=16384,ask=null,askAgainMs=5000,askMissMs=1000,maxAsking=64}){
  // only a peer's tunnel address: a name served on this box is not an app
  const peerOf=name=>{const to=name&&route(name);return typeof to==='string'?to:null;};
  const bindings=new Map(),perClient=new Map(),open=new Set();let flows=0;
  const bound=addr=>{const b=bindings.get(addr);if(!b)return null;if(!b.flows&&now()-b.at>bindingMs){bindings.delete(addr);return null;}return b;};
  const sweep=()=>{for(const addr of [...bindings.keys()])bound(addr);};
- const bind=(addr,name)=>{
-  const b=bindings.get(addr);if(b?.name===name){b.at=now();return b;}
+ // `named`: when a name last set this binding, `here` or at the box it was learned from; `at` is the expiry clock
+ const bind=(addr,name,named=now())=>{
+  const b=bindings.get(addr);if(b?.name===name){b.at=now();if(named>=b.named){b.named=named;b.here=true;}return b;}
   if(!b&&bindings.size>=maxBindings){sweep();if(bindings.size>=maxBindings)return null;}
-  const fresh={name,at:now(),flows:0};bindings.set(addr,fresh);return fresh;
+  const fresh={name,at:now(),named,here:true,flows:0};bindings.set(addr,fresh);return fresh;
  };
+ // -> the binding a nameless TCP flow of this client follows, after asking the other boxes. Not asked: a client that
+ // named an app HERE within askAgainMs, one asked within askAgainMs (askMissMs when nothing was bound after it), and
+ // anything beyond maxAsking clients at a time; then, and on any failure, what is known here decides.
+ const asking=new Map(),quiet=new Map();let learned=0;
+ async function settle(addr){
+  const own=bound(addr);
+  if(!ask||(own&&own.here&&now()-own.named<askAgainMs)||quiet.get(addr)>now())return own;
+  let p=asking.get(addr);
+  if(!p){
+   if(asking.size>=maxAsking||quiet.size>=maxBindings)return own;
+   p=(async()=>{
+    await null;   // (so that `asking` holds this before it can end)
+    let heard=null;try{heard=await ask(addr);}catch{}
+    try{
+     if(heard&&typeof heard.name==='string'&&Number.isSafeInteger(heard.age)&&heard.age>=0&&peerOf(heard.name)){
+      const mine=bound(addr),named=now()-heard.age;
+      if(mine?.name===heard.name){if(named>mine.named){mine.named=named;mine.here=false;}}
+      else if(!mine||named>mine.named){const b=bind(addr,heard.name,named);if(b){b.here=false;learned++;}}
+     }
+    }catch{}
+    asking.delete(addr);quiet.set(addr,now()+(bound(addr)?askAgainMs:askMissMs));
+   })();
+   asking.set(addr,p);
+  }
+  await p;return bound(addr);
+ }
  // a flow holds its client's binding (it does not expire under a stream) and counts against the per-client and total caps
  const admit=addr=>{if(flows>=maxFlows||(perClient.get(addr)||0)>=maxPerClient)return false;flows++;perClient.set(addr,(perClient.get(addr)||0)+1);return true;};
  const hold=(addr,b)=>{b.flows++;let done=false;return()=>{if(done)return;done=true;b.flows--;b.at=now();flows--;const n=perClient.get(addr)-1;if(n>0)perClient.set(addr,n);else perClient.delete(addr);};};
@@ -108,17 +141,16 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
    head=Buffer.concat([head,chunk]);if(head.length>65536)return socket.destroy();
    const name=isTls?clientHelloName(head):hostHeader(head);if(name===null)return;
    socket.removeListener('data',read);socket.pause();started=true;
-   const b=name&&peerOf(name)?bind(socket.remoteAddress,name):bound(socket.remoteAddress);
-   if(!b)return socket.destroy();
-   void tcpFlow(socket,b,isTls?GAMESTREAM_PORTS.https:GAMESTREAM_PORTS.http,head);
+   const go=b=>{if(!b||socket.destroyed)return socket.destroy();void tcpFlow(socket,b,isTls?GAMESTREAM_PORTS.https:GAMESTREAM_PORTS.http,head);};
+   if(name&&peerOf(name))go(bind(socket.remoteAddress,name));else void settle(socket.remoteAddress).then(go);
   };
   socket.on('data',read);
  });
- // 48010 (RTSP): no name in it; the client's binding decides, at once
+ // 48010 (RTSP): no name in it; the client's binding decides
  const rtsp=net.createServer({allowHalfOpen:true},socket=>{
   sockets.add(socket);socket.once('close',()=>sockets.delete(socket));socket.on('error',()=>{});
-  const b=bound(socket.remoteAddress);if(!b)return socket.destroy();
-  socket.pause();void tcpFlow(socket,b,GAMESTREAM_PORTS.rtsp,Buffer.alloc(0));
+  socket.pause();
+  void settle(socket.remoteAddress).then(b=>{if(!b||socket.destroyed)return socket.destroy();void tcpFlow(socket,b,GAMESTREAM_PORTS.rtsp,Buffer.alloc(0));});
  });
 
  // UDP: one tunnel per client address and port (an association), each datagram one frame, boundaries kept
@@ -152,7 +184,9 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
  const http=named(false),https=named(true),udps=ports.udp.map(udp);
  const bound_={http:await listenTcp(http,ports.http),https:await listenTcp(https,ports.https),rtsp:await listenTcp(rtsp,ports.rtsp),udp:[]};
  for(let i=0;i<udps.length;i++)bound_.udp.push(await new Promise((resolve,reject)=>{udps[i].sock.once('error',reject);udps[i].sock.bind(ports.udp[i],host,()=>resolve(udps[i].sock.address().port));}));
- const timer=setInterval(()=>{sweep();for(const u of udps)for(const a of [...u.assoc.values()])if(now()-a.at>udpIdleMs)a.end();},15000);timer.unref?.();
- return {ports:bound_,bindings,stats:()=>({flows,bindings:bindings.size}),
+ const timer=setInterval(()=>{sweep();for(const [addr,until] of quiet)if(until<=now())quiet.delete(addr);for(const u of udps)for(const a of [...u.assoc.values()])if(now()-a.at>udpIdleMs)a.end();},15000);timer.unref?.();
+ return {ports:bound_,bindings,stats:()=>({flows,bindings:bindings.size,learned}),
+  // what this box tells another that asks: the live binding of a client and how long ago a name set it
+  bindingOf(addr){const b=bound(addr);return b?{name:b.name,age:Math.max(0,now()-b.named)}:null;},
   close(){clearInterval(timer);for(const s of [http,https,rtsp])s.close();for(const u of udps){for(const a of [...u.assoc.values()])a.end();u.sock.close();}for(const s of [...sockets,...open])s.destroy();}};
 }

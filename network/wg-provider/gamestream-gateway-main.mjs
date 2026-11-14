@@ -12,6 +12,6 @@ let gateway;
 try{gateway=await startGateway(cfg,{log});}catch(e){console.error('gamestream gateway: '+e.message);process.exit(1);}
 // a line every ten minutes while anything is bound, so the journal shows use without naming a client
 let last='';
-setInterval(()=>{const s=gateway.stats(),line=`gamestream gateway: ${s.flows} flow(s), ${s.bindings} bound client(s)`;if(s.flows||s.bindings||line!==last)console.log(line);last=line;},600000).unref();
+setInterval(()=>{const s=gateway.stats(),line=`gamestream gateway: ${s.flows} flow(s), ${s.bindings} bound client(s)`+(cfg.siblings.length?`, ${s.learned} learned from a sibling since start`:'');if(s.flows||s.bindings||line!==last)console.log(line);last=line;},600000).unref();
 const stop=()=>{gateway.close();process.exit(0);};
 process.on('SIGTERM',stop);process.on('SIGINT',stop);
