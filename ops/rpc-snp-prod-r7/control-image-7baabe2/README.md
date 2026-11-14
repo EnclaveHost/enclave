@@ -30,7 +30,9 @@ metal0's journal for the same minutes:
   the next claim (22:24:10) could not launch for the same 409. That claim was released 22:29:37, and from 22:35:04 every claim was refused for the reserve's claim cooldown (30 minutes after
   this host's last sponsored claim, `contracts/EnclaveLeaseGasReserve.sol`).
 - 22:55:06 claimed, 22:55:09 guest launching, 22:57:00 `https://5ff56a4d.app.enclave.host` answers 200. The app was
-  away for 40 minutes; the clients then caught up from where they stopped.
+  away for 40 minutes. Ethereum was at head at 22:59; Base restarted from block 57521090 (the stop) and was at head
+  at 23:21:21 (public Base is served from its providers while the guest lags). First renewal of the new lease
+  23:21:02, until 23:51:01.
 
 This is the failure `ops/lease-reaper-reconcile-20261028/` describes (relay 502 at 16:33:35, renewal landed
 16:33:53, guest stopped 16:39:03 on 2026-10-28). Its fix is in main since e7ee6e34f and 822aa7cb8, and that record
