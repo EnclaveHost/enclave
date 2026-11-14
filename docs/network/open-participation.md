@@ -48,7 +48,11 @@ bash install.sh 2026.10.19 fra \
 - `ENCLAVE_NETWORK_ROOT=<dir>` stages the whole tree elsewhere.
 
 **Kept on update:** fields you manage in `provider.json`: `kind`, `hostId`, `pricePerGiB6`, `proofKeyFile`,
-`localRoutes`, `noSniRoute`, `budget`, `ports`.
+`localRoutes`, `noSniRoute`, `budget`, `ports`, `gameStream`.
+
+**GameStream ingress (optional):** `"gameStream": true` in `provider.json` serves Sunshine's six ports on the provider's
+public address for desktop apps (Moonlight's "Add PC" with the app's name) and opens them in ufw. Off unless set. See
+[gamestream-ingress.md](gamestream-ingress.md).
 
 **What explicit mode means at runtime** (`network/service-index.mjs` `resolveProviderBootstrap`):
 

@@ -25,6 +25,7 @@ import {LeaseReader,chainAuthorityOptions} from '../lease-reader.mjs';
 import {WgProvider} from './provider.mjs';
 import {Kernel,ruleset} from './kernel.mjs';
 import {createRouter} from './router.mjs';
+import {createGameStream} from './gamestream.mjs';
 import {createControl} from './control.mjs';
 import {providerIdFor,signProviderRecord,verifyProviderRecord} from '../provider-directory.mjs';
 import {verifyOwnerSignature} from '../owner-signature.mjs';
@@ -59,7 +60,8 @@ if(rulesetOnly){process.stdout.write(ruleset({publicAddress:cfg.publicAddress,up
 // EVERY chain read (registry, leases, owner signatures AND the host-services admission policy) - never mixed, no fallback
 const chainAuth=providerChainAuthority(cfg,{log});
 if(checkOnly){
- console.log(JSON.stringify({ok:true,chainAuthority:chainAuth.mode,...(chainAuth.txBackend?{txBackend:chainAuth.txBackend.label}:{}),mode:boot.mode,directories:boot.directories,zone:boot.zone,probeZone:boot.probeZone,relay:boot.relay,
+ if('gameStream' in cfg&&typeof cfg.gameStream!=='boolean'){console.error('gameStream must be true or false');process.exit(1);}
+ console.log(JSON.stringify({ok:true,gameStream:cfg.gameStream===true,chainAuthority:chainAuth.mode,...(chainAuth.txBackend?{txBackend:chainAuth.txBackend.label}:{}),mode:boot.mode,directories:boot.directories,zone:boot.zone,probeZone:boot.probeZone,relay:boot.relay,
   pinned:!!boot.authorityPins,checkers:(cfg.checkers||[]).length,notes:boot.notes,
   hostServices:hostServices&&{zone:hostServices.zone,platformHostPolicy:typeof hostServices.platformHostPolicy==='string'?hostServices.platformHostPolicy:'explicit',maxHosts:hostServices.maxHosts,dnsHosts:hostServices.dns?.hosts.length||0,
    ...(hostServices.dns?{conntrack:conntrack||null}:{})}}));
@@ -181,6 +183,9 @@ const localRoutes=new Map(Object.entries(cfg.localRoutes||{}).filter(([n,r])=>/^
  &&Number.isInteger(r.tls)&&Number.isInteger(r.http)).map(([n,r])=>[n,{host:r.host,tls:r.tls,http:r.http}]));
 const routeOf=n=>localRoutes.get(n)||provider.route(n);
 const routes=[await createRouter({port:443,route:routeOf,tls:true,noSniRoute:cfg.noSniRoute??null,count,log}),await createRouter({port:80,route:routeOf,tls:false,count,log})];
+// gameStream (opt-in): Sunshine's six ports to desktop apps, by the name the client sends and its binding (gamestream.mjs)
+const gameStream=cfg.gameStream===true?await createGameStream({route:routeOf,count,log}):null;
+if(gameStream)log('gamestream: TCP 47984, 47989, 48010 and UDP 47998-48000 to desktop apps through their port tunnels');
 const control=await createControl({provider,receipt,port:ports.control,log,info:()=>({providerId,operator:account.address.toLowerCase(),address:cfg.publicAddress,roles:cfg.roles,
  pricePerGiB6:config.pricePerGiB6,keys:{exit:keys['wg-exit'],guard:keys['wg-guard']},ports,region:cfg.region,kind:cfg.kind||'enclave'})});
 
@@ -209,5 +214,5 @@ await every(60000,checkBudget,'budget');
 every(30000,()=>provider.sweep(),'sweep');
 every(10*60000,publish,'publish');
 log(`provider ${providerId} up: ${cfg.publicAddress} roles ${cfg.roles.join(',')} exit ${keys['wg-exit']} guard ${keys['wg-guard']}`);
-const stop=()=>{for(const r of routes)r.close();control.close();process.exit(0);};
+const stop=()=>{for(const r of routes)r.close();gameStream?.close();control.close();process.exit(0);};
 process.on('SIGTERM',stop);process.on('SIGINT',stop);

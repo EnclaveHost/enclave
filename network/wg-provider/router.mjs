@@ -4,7 +4,7 @@
 import net from 'node:net';
 import {clientHelloName} from '../client-hello.mjs';
 
-function hostHeader(buf){
+export function hostHeader(buf){
  const end=buf.indexOf('\r\n\r\n');if(end<0)return buf.length>16384?'':null;
  const m=/\r\nhost:[ \t]*([^\r\n:]+)(?::\d+)?[ \t]*\r\n/i.exec(buf.subarray(0,end+2).toString('latin1'));return m?m[1].trim().toLowerCase():'';
 }

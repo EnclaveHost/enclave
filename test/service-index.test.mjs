@@ -236,6 +236,14 @@ test('main.mjs --check-config and install.sh --config-only: explicit authorities
   await install(explicitArgs);
   const kept = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
   assert.deepEqual([kept.kind, kept.pricePerGiB6, Object.keys(kept.localRoutes)], ['community', 7, ['custodian.alice-net.org']]);
+  // the GameStream ingress is the operator's opt-in: off unless true, kept across an update, and only true or false
+  assert.match((await install(explicitArgs)).stdout, /"gameStream":false/);
+  fs.writeFileSync(cfgFile, JSON.stringify({ ...kept, gameStream: true }));
+  assert.match((await install(explicitArgs)).stdout, /"gameStream":true/);
+  assert.equal(JSON.parse(fs.readFileSync(cfgFile, 'utf8')).gameStream, true);
+  fs.writeFileSync(cfgFile, JSON.stringify({ ...kept, gameStream: 'yes' }));
+  await assert.rejects(install(explicitArgs), /rejected; nothing changed/);
+  fs.writeFileSync(cfgFile, JSON.stringify(kept));
   // a rejected configuration changes nothing
   fs.writeFileSync(pinsFile, JSON.stringify({ deployments: PINS.deployments, registry: PINS.registry }));
   await assert.rejects(install(explicitArgs), /rejected; nothing changed/);

@@ -20,7 +20,7 @@
 #
 # Idempotent: keys and state are kept across updates; the previous release stays for rollback
 # (/opt/enclave-network/previous). Fields the operator manages in provider.json (kind, hostId, pricePerGiB6,
-# proofKeyFile, localRoutes, noSniRoute, budget, ports) are kept on update. It does not touch any other service or
+# proofKeyFile, localRoutes, noSniRoute, budget, ports, gameStream) are kept on update. It does not touch any other service or
 # firewall table, and it publishes nothing anywhere: advertising in a service index is a separate, explicit step.
 set -euo pipefail
 usage() { sed -n '2,26p' "$0" >&2; exit 2; }
@@ -72,7 +72,7 @@ ETC=$ETC VAR=$VAR LEGACY=$LEGACY PUBLIC=$PUBLIC UPLINK=$UPLINK ROLES=$ROLES REGI
 RPCS="$(IFS=,; echo "${RPCS[*]-}")" DIRS="$(IFS=,; echo "${DIRS[*]-}")" "$NODE" -e '
   const fs = require("fs"), e = process.env, list = (s) => (s ? s.split(",") : []);
   let old = {}; try { old = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); } catch {}
-  const kept = Object.fromEntries(["kind","hostId","pricePerGiB6","proofKeyFile","localRoutes","noSniRoute","budget","ports","hostServices"].filter((k) => k in old).map((k) => [k, old[k]]));
+  const kept = Object.fromEntries(["kind","hostId","pricePerGiB6","proofKeyFile","localRoutes","noSniRoute","budget","ports","hostServices","gameStream"].filter((k) => k in old).map((k) => [k, old[k]]));
   const base = { operatorKeyFile: e.ETC + "/operator.key", publicAddress: e.PUBLIC, uplink: e.UPLINK, roles: list(e.ROLES), pricePerGiB6: 0,
     region: e.REGION, kind: "enclave", hostId: null, ports: { exit: 51820, guard: 51821, control: 51822 }, checkers: list(e.CHECKER.toLowerCase()),
     stateDir: e.VAR, budget: { monthlyBytes: 1000000000000, stopAt: 850000000000 } };
@@ -86,6 +86,8 @@ RPCS="$(IFS=,; echo "${RPCS[*]-}")" DIRS="$(IFS=,; echo "${DIRS[*]-}")" "$NODE" 
 # DNS 53 forwarding (hostServices.dns, kept from the operator's config) needs conntrack-tools: a DNS failover deletes the UDP
 # flows still DNATed to the old host. Only then; a provider without it installs nothing more.
 DNS53=$("$NODE" -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).hostServices?.dns?"1":"0")}catch{process.stdout.write("0")}' "$CFG.new")
+# GameStream ingress (gameStream: true, kept from the operator's config) opens Sunshine's six ports; without it nothing more
+GAMESTREAM=$("$NODE" -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).gameStream===true?"1":"0")}catch{process.stdout.write("0")}' "$CFG.new")
 [ $CONFIG_ONLY = 1 ] || [ "$DNS53" = 0 ] || command -v conntrack >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y -q conntrack >/dev/null
 install -d -m 0755 "$OPT/$REL"
 install -m 0644 "$HERE/wg-provider.mjs" "$OPT/$REL/wg-provider.mjs"
@@ -98,6 +100,7 @@ if [ $CONFIG_ONLY = 1 ]; then echo "configured $CFG (--config-only: no packages,
 # forwarding, and the ports the provider serves (ufw stays in charge of everything else)
 printf 'net.ipv4.ip_forward=1\n' > /etc/sysctl.d/90-enclave-network.conf && sysctl -q -p /etc/sysctl.d/90-enclave-network.conf
 for r in 51820/udp 51821/udp 51822/tcp 443/tcp 80/tcp; do ufw allow "$r" >/dev/null; done
+if [ "$GAMESTREAM" = 1 ]; then for r in 47984/tcp 47989/tcp 48010/tcp 47998:48000/udp; do ufw allow "$r" >/dev/null; done; fi
 ufw route allow in on wg-exit out on "$UPLINK" >/dev/null
 ufw route allow in on wg-guard out on "$UPLINK" >/dev/null
 # DNS 53 DNATed to a host's tunnel crosses ufw's FORWARD chain too (our table's accept does not skip another table's chain)

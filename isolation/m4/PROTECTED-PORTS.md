@@ -37,6 +37,11 @@ owns SSH authentication and GameStream pairing. This transport carries UDP
 inside TLS/TCP: loss can cause head-of-line delay. It does not supply GPU
 hardware encode or prove acceptable video latency; test those with the app.
 
+A provider can also serve the GameStream ports on its public address for clients
+that run no connector (`docs/network/gamestream-ingress.md`). That path carries no
+attestation check of its own: the client trusts the provider as it would any
+network hop, and Sunshine's pairing and stream encryption are what protect it.
+
 ## Validation and rollout
 
 The hardware canary executes seven real socket workers as a SET Wasm app
