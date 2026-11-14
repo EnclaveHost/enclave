@@ -1,0 +1,39 @@
+{
+ "kind": "placement",
+ "title": "Pin deployment 0xef514ed3…b238 to nucbox-k11-4",
+ "lead": "One transaction from your wallet on Base. Check the details on the Trezor screen before confirming. This page never signs or sends anything by itself.",
+ "chainId": 8453,
+ "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+ "rpcs": [
+  "https://mainnet.base.org",
+  "https://base-rpc.publicnode.com"
+ ],
+ "journal": "/home/steven/Documents/Codex/2026-10-18/wo/work/rpc-production-final-20261025/source/ops/unified-funding-20261028/funding-reactivation-20261111/queued-apps-20261113/sia-s3-pin/journal.jsonl",
+ "status": {
+  "ledger": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+  "deployment": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+  "hostId": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+  "oldOption": "{\"isolation\":{\"cpuTee\":false,\"gpuTee\":false}}",
+  "newOption": "{\"isolation\":{\"cpuTee\":false,\"gpuTee\":false},\"placement\":{\"hostId\":\"0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a\"}}"
+ },
+ "steps": [
+  {
+   "id": "place",
+   "title": "Pin the deployment to nucbox-k11-4",
+   "why": "Writes the host into the deployment’s option. Every other host then refuses it. The host that runs it now stops it and releases its lease when it next renews, within one lease period, and the pinned host claims it. While the pinned host is away the deployment is down, because no other host takes it. To undo, lift the pin with a plan for `none`.",
+   "to": "0xb1783b61e1fdee6a6163dc3cdac27bf32e7d117b",
+   "data": "0xdf6e40baef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000897b2269736f6c6174696f6e223a7b22637075546565223a66616c73652c22677075546565223a66616c73657d2c22706c6163656d656e74223a7b22686f73744964223a22307832666365663438643661643639313961363236343037343539326231333835353936386239663762653532633436333736343630396136386166343134343761227d7d0000000000000000000000000000000000000000000000",
+   "value": "0x0",
+   "valueEth": "0",
+   "show": {
+    "Deployment": "0xef514ed3af4e891d9718fe26552bf2637a59ec80c7fbac2bb292e8891212b238",
+    "App ref": "catalog://0x093fa91736c2639e93867b76074c6c4dbc5e49150faf4e8618bdf45e30d275c6/8",
+    "Host": "https://api.enclave.host/t/nucbox-k11-4",
+    "Host id": "0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a",
+    "Option now": "{\"isolation\":{\"cpuTee\":false,\"gpuTee\":false}}",
+    "Option after": "{\"isolation\":{\"cpuTee\":false,\"gpuTee\":false},\"placement\":{\"hostId\":\"0x2fcef48d6ad6919a6264074592b13855968b9f7be52c463764609a68af41447a\"}}",
+    "Call": "setConfig(deployment, option)"
+   }
+  }
+ ]
+}

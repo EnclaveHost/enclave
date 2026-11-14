@@ -7,9 +7,12 @@
 #
 # C:\ProgramData\Enclave\run-node.cmd and run-shield.cmd each call the release's native-desktop-env.cmd before their
 # restart loop, so a release is selected by that one line and takes effect when the task is ended and started again.
-# The order is the one that worked on 2026-11-13 for SVN18: the Node is pinned first (while the manager still loads
-# the old release the node refuses the desktop only, and every other app keeps running), then the Shield manager is
-# switched to match; the manager then lists the running app VMs as recovered and the node gives each a fresh boot.
+# The two are never restarted close together. A restarted manager lists the app VMs as recovered and, until none is
+# left, does not know its RAM and refuses every launch, the node's readiness witness included. A node that has been
+# up for a while gives each recovered VM a fresh boot (the SVN18 switch at 20:24Z on 2026-11-13: about eight
+# minutes). A node restarted just before has no witness yet, cannot get one, serves only its operator's apps and
+# holds every other app until its lease lapses (the SVN19 switch at 23:53Z: Node, then the manager 90 s later; the
+# last lease lapsed 29 minutes after). So: the Shield manager first, the settled mode until it says yes, then the Node.
 #
 # Guards: a mode that changes anything first requires both tasks under \Enclave\, the staged files with their sizes
 # and SHA-256, and the launcher line in the state it expects; otherwise it stops with nothing changed. The task is
@@ -195,12 +198,24 @@ function Do-Fetch {
 
 function Do-Count { $n=AppVms; if ($n -lt 0) { 'STOP: the manager does not answer; nothing changed' } else { "DONE count $n" } }
 
-# Has the reconcile after a manager restart ended: the app VMs are back and the node has logged no recovery,
-# held or spawned launch for two minutes. Reads only.
+# Has the host come back after a restart: the manager reports the wanted release ready ($to='old' for SVN18, else
+# SVN19), lists no partition it only recovered, knows its RAM again, and the node has logged no recovery, held,
+# spawned or refused launch and no witness failure for two minutes. $want is the count from before, shown only: an
+# app whose lease lapsed during the wait may run on another host now. Reads only.
 function Do-Settled {
-  $n=AppVms
+  $rel=$new; if ($to -eq 'old') { $rel=$old }
+  $h=Health
+  $rec=-1; $n=-1
+  try {
+    $v=(Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8091/vms' -TimeoutSec 8).Content | ConvertFrom-Json
+    $l=@($v); if ($v.vms) { $l=@($v.vms) }
+    $rec=@($l | Where-Object { $_.recovered -eq $true -or $_.unattributed -eq $true }).Count
+    $n=@($l | Where-Object { $_.recovered -ne $true -and $_.status -eq 'running' -and $_.image -ne $old -and $_.image -ne $new }).Count
+  } catch { }
+  $mgr=[bool]($h -and $h.desktop.ready -eq $true -and $h.desktop.igvmSha256 -eq $rel)
+  $ram=[bool]($h -and $h.physicalMemory -and ($null -ne $h.physicalMemory.allocatedMiB))
   $t=ReadFrom $nlog ((Get-Item -LiteralPath $nlog).Length-400000)
-  $last=@($t -split "`n" | Where-Object { $_ -notmatch '9a28642b' -and $_ -match 'restart recovery|isolation held|isolation spawned|no ready partition|manager health unavailable|/health is not known' }) | Select-Object -Last 1
+  $last=@($t -split "`n" | Where-Object { $_ -notmatch '9a28642b' -and $_ -match 'restart recovery|isolation held|isolation spawned|no ready partition|manager health unavailable|/health is not known|readiness witness' }) | Select-Object -Last 1
   $quiet=99999
   if ($last -and $last -match '^(\d\d):(\d\d):(\d\d) ') {
     $now=(Get-Date).ToUniversalTime()
@@ -208,11 +223,12 @@ function Do-Settled {
     if ($at -gt $now.AddMinutes(2)) { $at=$at.AddDays(-1) }
     $quiet=[int]($now-$at).TotalSeconds
   }
-  $ok=($n -ge $want) -and ($quiet -ge 120)
-  "SETTLED " + $(if ($ok) { 'yes' } else { 'no' }) + " appVms=$n want=$want quietSeconds=$quiet $(Utc)"
+  $ok=$mgr -and ($rec -eq 0) -and $ram -and ($quiet -ge 120)
+  "SETTLED " + $(if ($ok) { 'yes' } else { 'no' }) + " manager=" + $(if ($mgr) { 'ready' } else { 'NOT on the release' }) + " recovered=$rec ram=" + $(if ($ram) { 'known' } else { 'unknown' }) + " quietSeconds=$quiet appVms=$n before=$want $(Utc)"
 }
 
-# Pin the Node to $to. While the manager loads the other release the node refuses the desktop only.
+# Pin the Node to $to. While the manager loads the other release the node refuses the desktop only. Not within
+# minutes of a manager restart: see the order at the top.
 function Set-Node($from,$to) {
   $g=Guard; if ($g) { "STOP: $g; nothing changed"; return }
   $is=Names $nf

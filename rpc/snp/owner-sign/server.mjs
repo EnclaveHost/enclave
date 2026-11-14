@@ -3,7 +3,8 @@
 //
 // PLAN.json (rpc/snp/owner-sign/plan.mjs writes it for a first release, upgrade-plan.mjs for a new
 // version of a running deployment, topup-plan.mjs for ETH to a host's operator key, vault-version-plan.mjs for a
-// new version of an app the owner's session vault publishes and holds) lists each owner
+// new version of an app the owner's session vault publishes and holds, placement-plan.mjs for pinning a deployment
+// to one host) lists each owner
 // transaction with its exact calldata and the
 // decoded arguments shown to the owner. The page sends a step only when the
 // owner clicks it, from the owner's own wallet; this server signs and sends nothing. /status
@@ -19,6 +20,7 @@ import { createPublicClient, fallback, formatEther, http as viemHttp } from 'vie
 import { base } from 'viem/chains';
 import { CATALOG_ABI, LEDGER_ABI } from './abi.mjs';
 import { simulateTopup } from './topup.mjs';
+import { placementStatus } from './placement.mjs';
 import { upload, vaultVersionStatus } from './vault-version.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -114,7 +116,8 @@ async function topupStatus() {
 
 const readJournal = () => (fs.existsSync(plan.journal) ? fs.readFileSync(plan.journal, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
 const servedCache = {};
-const STATUS = { upgrade: upgradeStatus, topup: topupStatus, 'vault-version': () => vaultVersionStatus(plan, pub, { cache: servedCache, journal: readJournal() }) };
+const STATUS = { upgrade: upgradeStatus, topup: topupStatus, placement: () => placementStatus(plan, pub, { journal: readJournal() }),
+  'vault-version': () => vaultVersionStatus(plan, pub, { cache: servedCache, journal: readJournal() }) };
 
 http.createServer(async (req, res) => {
   const send = (code, body, type = 'application/json') => { res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store' }); res.end(type === 'application/json' ? JSON.stringify(body) : body); };

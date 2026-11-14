@@ -242,6 +242,76 @@ State at 23:47Z: version 1 published and approved; relay admits SVN19 only; both
 running; no marker, promote not offered. KVM Box's page answers (401, its sign-in) but a desktop start is not admitted
 until the switch and the promote.
 
+## The switch to SVN19, 23:53Z: the NucBox out of the market for 32 minutes, and the storage app left on metal0
+
+The owner ran `desktop-svn19.sh switch` again after the fetch check was corrected. That copy of the script restarted
+the Node first and the Shield manager 90 seconds later. That order was my mistake and it is what made this an outage.
+
+| UTC | What happened |
+| --- | --- |
+| 23:53:58 | Node restarted, pinned to SVN19. It has no readiness witness, so it is in owner-only scope and holds every app of another owner until that app's lease lapses |
+| 23:55:29 | Shield manager restarted on SVN19. It lists the running VMs as `recovered` and refuses every launch until none is left, so the node cannot get a witness |
+| 00:01:07 to 00:22:33 | the node retires the held VMs one by one as their leases lapse |
+| 00:01:16, 00:12:07, 00:17:45 | metal0 claims enclave-cron `0x38f368d6`, depot `0xc13d4b6a` and sia-s3 `0xef514ed3` |
+| 00:23:30 | witness `shield-readiness-v1` passes on SVN19 |
+| 00:25:30 | the node is back in the market and claims one app per pass |
+| 00:25:56 | `desktop-svn19.sh settle` writes the marker `switched.json` |
+| 00:30:54 | six VMs running and ready on the NucBox: the witness and five apps |
+| 00:33:16 | `0x7ae476a3`, `0xd9798e4c`, `0xa77d0c57`, `0xa69dcbba`, `0x59f1273d` answer 200; the RPC `0x5ff56a4d` (metal0) answers 200 |
+
+The first `switch` run also hung on an ssh call to the NucBox and never reached its own end; the marker was written
+by the separate `settle` run.
+
+### Still down at 00:51Z: everything behind sia-s3
+
+sia-s3 on metal0 answers its page but is not ready: `/healthz` says
+`{"app":"sia-s3/0.1.8","error":"app error: Reqwest(Error(\"truncated chunk\"))","ready":false}`, the same from
+00:34Z to 00:50:58Z. It loads its index from the indexer (`sia.enclave.host`, the `enclave-storage` VM on the NucBox
+behind the four edges) in pages of 500 events at start, retries with a backoff up to five minutes, and each try ends
+with a response cut short. The indexer VM was not touched and answers small requests through all four edges. On the
+NucBox the same app last started at 07:02Z on 2026-11-13 and was ready until it was retired at 00:17:37Z.
+
+Why it fails on metal0 is not established. On 2026-11-11 metal0 ran it and it answered S3, so "never works on metal0"
+is wrong; what differs today is not known (metal0's software changed on 11-12 and 11-13, and the index has grown). It
+is also not excluded that a start on the NucBox would hit the same cut.
+
+What that takes down:
+
+- enclave-cron `0x38f368d6` (metal0): 503 `Scheduler storage unavailable; recovering safely`
+- depot `0xc13d4b6a` (metal0): 503 `depot is starting: storage is not reachable yet`
+- both gateways, `ipfs.enclave.host` and `0x7ae476a3`: 404 `not in this gateway's index` for every CID, the KVM Box
+  0.9.1 component among them. The signing page for KVM Box still offers the promote because its served check passed
+  earlier and is not repeated. Signing it now would point the deployment at a component no host can fetch.
+- jot's notes and KVM Box's `machines` bucket live in the same storage.
+- KVM Box `0x9a28642b` is down as planned until the promote.
+
+### What was prepared: an owner pin of sia-s3 to the NucBox
+
+`0xef514ed3` is held by the owner directly; its option was `{"isolation":{"cpuTee":false,"gpuTee":false}}`. A host
+that runs a deployment pinned to another host stops it and releases the lease when it next renews
+(`placementRefusal` in the renew loop, then `retireForPlacement`), so adding
+`"placement":{"hostId":"0x2fcef48d…447a"}` moves it to the NucBox within one lease period without restarting
+metal0, which also runs the RPC.
+
+- New in maintained source: `rpc/snp/owner-sign/placement-plan.mjs` and `placement.mjs` (one `setConfig`, the option
+  changed in its placement key only, simulated on both RPCs before the plan is written; `none` lifts the pin), a
+  `placement` status in `server.mjs`, `test/owner-sign-placement.test.mjs`.
+- Plan: `sia-s3-pin/PLAN.json`, written 00:54Z, served at `http://127.0.0.1:42292/`. Not signed at the time of
+  writing.
+- Cost of the pin: while the NucBox is away, sia-s3 is down and no other host takes it. Lifting it is the same
+  transaction with `none`.
+
+After it: sia-s3 ready on the NucBox, cron and depot 200, both gateways serving the 0.9.1 component; only then the
+KVM Box promote.
+
+### Changes to the script
+
+`switch` now restarts the Shield manager first, waits until the NucBox has settled (manager on the release, no
+recovered VM, RAM known, node quiet for two minutes), then restarts the Node and waits again; `revert` does the same
+and stops if the wait times out. Calls to the NucBox have a time limit. `settle` is the wait alone. The settled test
+said yes with one app VM running, and it knows nothing about apps another host took meanwhile: it means the host
+loads the release, not that every app is back.
+
 ## Moonlight "Add PC" with a public address: not possible with what is deployed
 
 Today Sunshine listens on loopback inside the desktop (`guest/native/network_policy.py`), and the only way in is the

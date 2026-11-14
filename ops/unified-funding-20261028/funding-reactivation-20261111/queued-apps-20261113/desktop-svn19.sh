@@ -7,7 +7,8 @@
 #   desktop-svn19.sh stage           copy the release files to the NucBox and check them there; nothing running changes
 #   desktop-svn19.sh fetch           read only: can the NucBox node's own fetcher get the new controller
 #   desktop-svn19.sh policy          control VM: admit SVN19 in the relay's Shield policy; restarts the relay
-#   desktop-svn19.sh switch          NucBox: pin the Node, then switch the Shield manager; writes the marker when settled
+#   desktop-svn19.sh switch          NucBox: switch the Shield manager, wait, pin the Node; writes the marker when settled
+#   desktop-svn19.sh settle          NucBox, read only: wait until it is back on SVN19, then write the marker
 #   desktop-svn19.sh revert          NucBox: back to SVN18, Shield manager first, then the Node
 #   desktop-svn19.sh policy-revert   control VM: the previous policy file back; restarts the relay
 #
@@ -15,9 +16,16 @@
 # promote, which the page offers once the marker exists.
 #
 # What it costs. policy: the relay restarts, host tunnels drop for some seconds, and SVN18 is no longer admitted, so
-# KVM Box is down from here until the promote. switch: the Node restart is refused the desktop only; the Shield
-# manager restart gives every app VM on the NucBox a fresh boot (about eight minutes on 2026-11-13). Going back costs
-# the same again. SVN19 passed an isolated KVM run; it has not been qualified on the NucBox's hardware.
+# KVM Box is down from here until the promote. switch: the Shield manager restart gives every app VM on the NucBox a
+# fresh boot (about eight minutes at 20:24Z on 2026-11-13); the Node is restarted only after that has settled. Going
+# back costs the same again. SVN19 passed an isolated KVM run; it has not been qualified on the NucBox's hardware.
+#
+# The first copy of switch restarted the Node and, 90 seconds later, the manager (2026-11-13 23:53Z). The node had no
+# readiness witness yet and could not get one from a manager that still listed recovered partitions, so it served
+# only its operator's apps and held every other app until its lease lapsed. The NucBox was out of the market for 32
+# minutes and its apps answered again 32 to 39 minutes after the restart instead of eight. In that time metal0 took
+# cron, depot and the storage app sia-s3, and sia-s3 did not become ready there (README.md). Never restart the two
+# close together. The marker says the host loads SVN19 with no recovered VM left; it does not say every app is back.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -42,9 +50,10 @@ stop() { say "STOP: $*"; exit 1; }
 quiet() { sed '/post-quantum\|store now\|openssh.com\/pq/d'; }
 
 # box MODE [POWERSHELL LINE]: run one mode of desktop-svn19.ps1 on the NucBox; what it printed is left in $OUT
+# BOX_TIMEOUT=SECONDS ends a read-only call that hangs (one did, for ten minutes, on 2026-11-14); 0 is no limit.
 box() {
   { printf "\$mode='%s'\n%s\n" "$1" "${2:-}"; cat "$here/desktop-svn19.ps1"; } |
-    "${SSH[@]}" 'powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create([Console]::In.ReadToEnd()))"' 2>&1 |
+    timeout "${BOX_TIMEOUT:-0}" "${SSH[@]}" 'powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create([Console]::In.ReadToEnd()))"' 2>&1 |
     tr -d '\r' | quiet | tee "$OUT" | tee -a "$LOG" || true
 }
 did() { grep -q "^$1" "$OUT"; }
@@ -153,19 +162,38 @@ fetchable() { box fetch; did 'DONE fetch'; }
 
 signed() { curl -s -m 20 "$SIGN/status" | python3 -I -c 'import json,sys; s=json.load(sys.stdin); sys.exit(0 if s.get("publish") is True and s.get("approve") is True else 1)' 2>/dev/null; }
 
+# settle WANT new|old [FIRST_WAIT]: poll the ps1's settled mode until it says yes twice running, 35 minutes at most
 settle() {
-  local want=$1 yes=0 i
-  say "waiting for the app VMs to come back ($want before; the node gives each a fresh boot)"
-  sleep 240
-  for i in $(seq 1 40); do
-    box settled "\$want=$want"
+  local want=$1 to=$2 yes=0 i
+  say "waiting for the NucBox to settle ($want app VMs before): no recovered partition, RAM known, node quiet"
+  sleep "${3:-240}"
+  for i in $(seq 1 60); do
+    BOX_TIMEOUT=120 box settled "\$want=$want; \$to='$to'"
     if did 'SETTLED yes'; then yes=$((yes+1)); [ $yes -ge 2 ] && return 0; else yes=0; fi
     sleep 30
   done
   return 1
 }
 
+mark() {
+  printf '{"igvmSha256":"%s","at":"%s"}\n' "$NEW" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$MARKER"
+  rm -f "$ACT/switch-want"
+  say "DONE: the NucBox loads SVN19 and has settled. Sign step 4 (promote) on the signing page now"
+}
+
+# both launchers name SVN19 and the manager reports it (the ps1's status mode)
+on_new() { BOX_TIMEOUT=120 box status; did 'run-node.cmd names:   new' && did 'run-shield.cmd names: new' && grep -q '^manager: .*igvm=de9e87e32cba' "$OUT"; }
+
+# Restarts nothing. For a switch whose restarts are done and whose wait ran out or was interrupted.
+settle_only() {
+  [ "${1:-}" = checked ] || on_new || stop "the NucBox is not on SVN19 in both launchers and the manager: this waits only, run '$0 switch' (nothing changed)"
+  local want=0; [ -s "$ACT/switch-want" ] && want=$(cat "$ACT/switch-want")
+  settle "$want" new 0 || stop "the NucBox had not settled within 35 minutes; the marker is not written. Run '$0 settle' again to keep waiting"
+  mark
+}
+
 switch() {
+  if on_new; then say "both launchers and the manager are on SVN19 already: waiting only"; settle_only checked; return; fi
   if [ "${1:-}" != --unchecked ]; then
     signed || stop "the signing page at $SIGN does not show the new version published and approved: sign steps 1 to 3 there first (nothing changed)"
   fi
@@ -175,19 +203,13 @@ switch() {
   local want
   if [ -s "$ACT/switch-want" ]; then want=$(cat "$ACT/switch-want")
   else box count; want=$(sed -n 's/^DONE count \([0-9]*\)$/\1/p' "$OUT"); [ -n "$want" ] || stop "the manager's VM list could not be read; nothing changed"; echo "$want" > "$ACT/switch-want"; fi
+  say "switching the Shield manager to SVN19"
+  box shield; did 'DONE shield' || stop "the Shield manager is on the release it was on; see the lines above"
+  settle "$want" new || stop "the NucBox had not settled within 39 minutes; the Node is not pinned and the marker is not written. Run '$0 switch' again to keep waiting"
   say "pinning the Node to SVN19"
   box node; did 'DONE node' || stop "the Node step did not finish; see the lines above"
-  say "switching the Shield manager to SVN19"
-  box shield
-  if ! did 'DONE shield'; then
-    say "the manager did not load SVN19: putting the Node back on SVN18"
-    box revert-node
-    stop "the Shield manager is on the release it was on; see the lines above"
-  fi
-  settle "$want" || stop "the app VMs were not all back and quiet within 24 minutes; the marker is not written. Run '$0 switch' again to keep waiting"
-  printf '{"igvmSha256":"%s","at":"%s"}\n' "$NEW" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$MARKER"
-  rm -f "$ACT/switch-want"
-  say "DONE: the NucBox loads SVN19 and its apps are back. Sign step 4 (promote) on the signing page now"
+  settle "$want" new 120 || stop "the NucBox had not settled after the Node restart within 37 minutes; the marker is not written. Run '$0 settle' to keep waiting"
+  mark
 }
 
 revert() {
@@ -195,7 +217,7 @@ revert() {
   box count; want=$(sed -n 's/^DONE count \([0-9]*\)$/\1/p' "$OUT"); [ -n "$want" ] || want=0
   [ -f "$MARKER" ] && mv "$MARKER" "$MARKER.reverted-$(date -u +%Y%m%dT%H%M%SZ)"
   box revert-shield; did 'DONE shield' || stop "the Shield manager step did not finish; see the lines above"
-  settle "$want" || say "the app VMs were not all back and quiet within 24 minutes; '$0 status' shows where they are"
+  settle "$want" old || stop "the NucBox had not settled within 39 minutes; the Node is still pinned to SVN19. Run '$0 revert' again to keep waiting"
   box revert-node; did 'DONE node' || stop "the Node step did not finish; see the lines above"
   say "the NucBox is back on SVN18. Still to do for KVM Box to run: '$0 policy-revert', and if the promote was signed, promote version 0 again"
 }
@@ -217,6 +239,7 @@ case ${1:-} in
   policy) policy apply;;
   policy-revert) policy revert;;
   switch) switch "${2:-}";;
+  settle) settle_only;;
   revert) revert;;
-  *) sed -n 2,20p "$0"; exit 2;;
+  *) sed -n 2,28p "$0"; exit 2;;
 esac
