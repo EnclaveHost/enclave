@@ -1,0 +1,20 @@
+installed
+service: active / enabled
+bundle: 982463a28a9939d71d9e07fe040f019f5ec6f22a71b8014eb6604f867385f5af
+config: {"zones":["app.enclave.host"],"router":"127.0.0.1","host":"134.209.248.172","maxFlows":256,"maxPerClient":32,"maxBindings":4096}
+listeners:
+  tcp 134.209.248.172:47984 users:(("node",pid=923683,fd=22))
+  tcp 134.209.248.172:47989 users:(("node",pid=923683,fd=21))
+  tcp 134.209.248.172:48010 users:(("node",pid=923683,fd=23))
+  udp 134.209.248.172:47998 users:(("node",pid=923683,fd=24))
+  udp 134.209.248.172:47999 users:(("node",pid=923683,fd=25))
+  udp 134.209.248.172:48000 users:(("node",pid=923683,fd=26))
+ufw:
+  47984/tcp                  ALLOW       Anywhere                   # enclave gamestream gateway
+  47989/tcp                  ALLOW       Anywhere                   # enclave gamestream gateway
+  48010/tcp                  ALLOW       Anywhere                   # enclave gamestream gateway
+  47998:48000/udp            ALLOW       Anywhere                   # enclave gamestream gateway
+  47984/tcp (v6)             ALLOW       Anywhere (v6)              # enclave gamestream gateway
+  47989/tcp (v6)             ALLOW       Anywhere (v6)              # enclave gamestream gateway
+  48010/tcp (v6)             ALLOW       Anywhere (v6)              # enclave gamestream gateway
+  47998:48000/udp (v6)       ALLOW       Anywhere (v6)              # enclave gamestream gateway

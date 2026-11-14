@@ -1,0 +1,8 @@
+{
+ "edge": "ca-east",
+ "address": "146.190.246.39",
+ "bundleSha256": "982463a28a9939d71d9e07fe040f019f5ec6f22a71b8014eb6604f867385f5af",
+ "verifiedAt": "2026-11-14T06:37:44.903Z",
+ "providerUnchanged": "active MainPID=884045 ActiveEnterTimestamp=Fri 2026-11-13 06:21:46 UTC",
+ "namedProbe": "9a28642b.app.enclave.host: not routed here"
+}
