@@ -19,6 +19,18 @@ runtime, image, profile, catalog and allocation to those results. An ambiguous,
 recovered or launching partition waits; mismatched identity is refused. This
 also works for a starting partition, before owner secrets make the app ready.
 
+The owner secrets wait for the startup route, and the agent opens that route
+only once the pinned expectation names the version that is starting. So the
+enrollment pass has to run inside the supervisor's 120-second startup. The node
+runs a pass every five minutes when nothing changes, and every 15 seconds while
+it launches or runs an app whose expectation is missing or names another app
+reference than the lease (`createEnrollPacer` in
+`windows/node/network-enroll.mjs`; for at most ten minutes per app reference).
+`test/windows-node-network-enroll.test.mjs` covers the pacing with a stand-in
+clock. A host running a node release older than this paces a version change of
+an enrolled app at five minutes, and its launch succeeds only when a pass
+happens to fall inside the startup limit.
+
 The enrollment writes `requiresDesktop: true` and `startupEgress: true`. The
 startup transport only opens the matching loopback partition relay. The guest
 probe verifies fresh, TLS-key-bound evidence against the full Shield policy,

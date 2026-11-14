@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createNetworkEnroll, RETIRED_KEYS } from "../windows/node/network-enroll.mjs";
+import { createNetworkEnroll, createEnrollPacer, createEnrollLoop, RETIRED_KEYS } from "../windows/node/network-enroll.mjs";
 import { rawDigest } from "../network/shield-expectation.mjs";
 
 const RID = "ab".repeat(32), APP = "0x" + "5a".repeat(32), RUNNER = "0x" + "22".repeat(32), D = "0x" + "11".repeat(32);
@@ -199,4 +199,104 @@ test("the agent's chain RPCs follow the node's list: a changed list is written o
   await w.enroll.pass();
   assert.deepEqual(w.read().chain.rpc, ["https://base-rpc.publicnode.com", "https://base.gateway.tenderly.co", "https://base-public.nodies.app"],
     "a list too short for a 2-agreeing quorum is not applied");
+});
+
+// the pacer: how soon the node runs the next pass (createEnrollPacer), read from the node's records and the agent's files
+const MIN = 60_000;
+function paced(w, recs) {
+  const clock = { t: 1_000_000 };
+  return { clock, pacer: createEnrollPacer({ agentDir: w.agentDir, records: () => recs.entries(), now: () => clock.t }) };
+}
+
+test("the next pass is due in 5 minutes when nothing waits, in 30 s while a pass reported an app waiting", async () => {
+  const w = world(); await w.enroll.pass();
+  const recs = new Map([[D, { status: "running", appRef: `catalog://${APP}/4`, isolation: { instance: "hv1" } }]]);
+  const { pacer } = paced(w, recs);
+  assert.equal(pacer.behind(), false);
+  assert.equal(pacer.interval(0), 300_000);
+  assert.equal(pacer.interval(1), 30_000);
+});
+
+test("a running partition that is not in the agent's config yet brings the next pass to 15 s, for 10 minutes", async () => {
+  const w = world();
+  const recs = new Map([[D.toUpperCase().replace("0X", "0x"), { status: "running", appRef: `catalog://${APP}/4`, isolation: { instance: "hv1" } }]]);
+  const { pacer, clock } = paced(w, recs);
+  assert.equal(pacer.interval(0), 15_000);
+  clock.t += 9 * MIN; assert.equal(pacer.interval(0), 15_000);
+  clock.t += 2 * MIN; assert.equal(pacer.interval(0), 300_000, "an app enrollment skips on purpose does not keep the passes at 15 s");
+  await w.enroll.pass();
+  assert.equal(pacer.behind(), false, "enrolled: nothing is behind");
+});
+
+test("a launch of another version of an enrolled app brings the next pass to 15 s until the expectation names it", async () => {
+  // 2026-11-14, KVM Box version 1 -> 2: the starting guest waits for a route the agent opens only for the pinned version
+  const w = world(); await w.enroll.pass();
+  const recs = new Map([[D, { status: "provisioning", appRef: `catalog://${APP}/5`, isolationHeld: "hv2" }]]);
+  const { pacer } = paced(w, recs);
+  assert.equal(pacer.interval(0), 15_000, "the pinned expectation still names version 4");
+  // the pass that sees version 5's partition rewrites the expectation; the app is no longer behind
+  const next = world(); fs.rmSync(next.agentDir, { recursive: true }); fs.cpSync(w.agentDir, next.agentDir, { recursive: true });
+  const rows = [{ id: D, appRef: `catalog://${APP}/5`, configCid: "{}", runner: RUNNER, active: true, isPublic: true, leaseUntil: 9999999999n }];
+  const logs = [];
+  const enroll = createNetworkEnroll({ agentDir: next.agentDir, binDir: next.config.binDir, runner: RUNNER, relayBase: "https://api.enclave.host",
+    fetch: async () => ({ ok: true, json: async () => ({ domains: { "shop.example": D } }) }), log: (m) => logs.push(m), config: { ...next.config, agentDir: next.agentDir },
+    rows: async () => rows, version: async () => ({ cid: CID }), vms: async () => [{ ...next.vm, catalog: { app: APP, version: 5 }, startedAt: 2 }] });
+  const after = createEnrollPacer({ agentDir: next.agentDir, records: () => recs.entries() });
+  assert.equal(after.interval(0), 15_000);
+  await enroll.pass();
+  assert.ok(logs.some((l) => /expectation now 5 app/.test(l)), logs.join("\n"));
+  assert.equal(after.interval(0), 300_000);
+});
+
+test("a launching app that is not enrolled at all counts too; claiming, queued and failed records do not", () => {
+  const w = world();
+  const recs = new Map([[D, { status: "claiming", appRef: `catalog://${APP}/4` }]]);
+  const { pacer } = paced(w, recs);
+  assert.equal(pacer.interval(0), 300_000);
+  for (const status of ["queued", "failed", "refused", "held"]) { recs.set(D, { status, appRef: `catalog://${APP}/4` }); assert.equal(pacer.behind(), false, status); }
+  recs.set(D, { status: "running", appRef: `catalog://${APP}/4` });
+  assert.equal(pacer.behind(), false, "running without a partition (not isolated) is not the agent's");
+  recs.set(D, { status: "provisioning", appRef: `catalog://${APP}/4` });
+  assert.equal(pacer.interval(0), 15_000);
+});
+
+test("the 10 minutes count per app reference: a newer version of a stuck app counts anew, a record that went is forgotten", async () => {
+  const w = world(); await w.enroll.pass();
+  const recs = new Map([[D, { status: "provisioning", appRef: `catalog://${APP}/5` }]]);
+  const { pacer, clock } = paced(w, recs);
+  assert.equal(pacer.interval(0), 15_000);
+  clock.t += 11 * MIN; assert.equal(pacer.interval(0), 300_000);
+  recs.set(D, { status: "provisioning", appRef: `catalog://${APP}/6` });
+  assert.equal(pacer.interval(0), 15_000);
+  clock.t += 11 * MIN; assert.equal(pacer.interval(0), 300_000);
+  recs.delete(D); assert.equal(pacer.behind(), false);
+  recs.set(D, { status: "provisioning", appRef: `catalog://${APP}/6` });
+  assert.equal(pacer.interval(0), 15_000, "claimed again later: its 10 minutes start again");
+});
+
+test("the loop runs a pass when the pacer's interval since the last one has gone by, never two at once", async () => {
+  let t = 0, due = 300_000, passes = 0, release = null;
+  const seen = [];
+  const loop = createEnrollLoop({ now: () => t, pacer: { interval: (waiting) => { seen.push(waiting); return due; } },
+    pass: async () => { passes++; if (release) await release; return passes === 1 ? 2 : undefined; } });
+  assert.equal(await loop.check(), true, "the first check runs a pass");
+  t += 5_000; assert.equal(await loop.check(), false);
+  assert.equal(seen.at(-1), 2, "the pacer is asked with the count the pass returned");
+  // a claim 5 s after a pass: the pacer now says 15 s, and the pass comes 15 s after the last one, not 5 minutes
+  due = 15_000;
+  t += 5_000; assert.equal(await loop.check(), false);
+  t += 5_000; assert.equal(await loop.check(), true);
+  assert.equal(passes, 2);
+  t += 20_000; await loop.check();
+  assert.equal(seen.at(-1), 2, "a pass that returns nothing (failed, or not registered yet) leaves the count as it was");
+  // a pass still running is not started again
+  let open; release = new Promise((r) => { open = r; });
+  t += 20_000; const running = loop.check();
+  t += 60_000; assert.equal(await loop.check(), false);
+  open(); assert.equal(await running, true);
+  assert.equal(passes, 4);
+  // a pass that throws still counts as run: the next one waits its interval
+  const failing = createEnrollLoop({ now: () => t, pacer: { interval: () => 15_000 }, pass: async () => { throw new Error("ledger"); } });
+  await assert.rejects(failing.check(), /ledger/);
+  t += 5_000; assert.equal(await failing.check(), false);
 });

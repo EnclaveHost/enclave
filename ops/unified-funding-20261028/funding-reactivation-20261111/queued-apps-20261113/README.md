@@ -858,7 +858,7 @@ signed, promote version 1 again. Each costs what its forward step cost.
 | 17:55:16-17:56:34 | - | `run.sh check` of the GameStream gateway, from outside | passed on all four edges. The app is now routed through ap-southeast and us-west (before the restart: us-west and eu-central); by name through each: 200 `SUNSHINE_SERVER_FREE`; all six pairs carried |
 | 17:57:00 | - | public names | eight other apps 200, KVM Box 401, ready 200 |
 
-### Why the first retry failed (a defect in the node, not fixed)
+### Why the first retry failed (a defect in the node; fixed in source, not installed on the NucBox)
 
 A version change of a native desktop app that is already enrolled needs the node's network enrollment pass
 (`windows/node/network-enroll.mjs`) to rewrite the app's `expected.json` for the new version. Only then does the
@@ -869,8 +869,20 @@ limit is 120 s (`windows/vbslike/manager/ready.mjs`). So after a version change 
 300-second pass happens to fall between the claim and the limit. In the first lease (17:34:27-17:37:35Z) none did.
 
 The second retry was started so that the claim came shortly before the next pass, inferred from the first lease
-having seen none. That is a workaround by timing. The fix belongs in the node: run an enrollment pass when it
-launches a version of an enrolled app whose expectation names another version. Not written.
+having seen none. That is a workaround by timing.
+
+The fix is in the maintained source since 2026-11-14 (the commit that adds this paragraph). The node now asks every
+5 s whether a pass is due, instead of sleeping on a timer set at the end of the last pass, and a pass is due after
+15 s while the node launches or runs an app whose `expected.json` is missing or names another app reference than the
+lease (`createEnrollPacer` and `createEnrollLoop` in `windows/node/network-enroll.mjs`). That holds for ten minutes
+per app reference, so an app that enrollment skips on purpose does not keep the passes at 15 s.
+
+What that is worth: `test/windows-node-network-enroll.test.mjs` shows the pacing with a stand-in clock, including
+this case (enrolled at one version, launching the next). It has not run on a host. **The NucBox still runs the node
+it had**, so the next version change there needs the timed retry again until a node release with this change is
+installed. And the margin on the NucBox is not large: in the launch that worked, the guest was ready 49 s after the
+pass that rewrote the expectation (17:48:47Z to 17:49:36Z), and the VM had been starting for 43 s before that pass.
+With a pass within 15 to 30 s of the start that comes to about 80 s of the 120.
 
 Two lines in node.log look like the cause and are not. "unblocking … overrides \"isolation:
 manager.desktop.igvmSha256: the manager's native desktop identity differs from the independently approved release\""

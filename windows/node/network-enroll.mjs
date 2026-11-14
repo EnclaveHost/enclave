@@ -18,6 +18,7 @@
 // agent's directory: a box whose agent directory moved (ProgramData\Enclave\tuna -> network, release .35) has its
 // state directory and expectations repointed, and its agent restarted once.
 import fs from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { shieldExpectation, catalogRef } from "../../network/shield-expectation.mjs";
@@ -320,6 +321,60 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
     return { ready: true, apps: cfg.apps.length, changed: write, waiting, ...(hostServicesError ? { hostServicesError } : {}), ...(hostServicesPolicyError ? { hostServicesPolicyError } : {}), ...(optIn.error ? { hostServicesOptInError: optIn.error } : {}) };
   }
   return { pass };
+}
+
+/**
+ * createEnrollPacer({ agentDir, records }) -> { interval(waiting), behind() }: how long after one pass the next is due.
+ * records() yields the node's [deployment id, record] pairs (host.records); for tests: now.
+ * 300 s when nothing changes; 30 s while the last pass reported an app waiting for its partition (2026-10-13:
+ * ipns-publisher's /5 partition was ready just after a pass and waited ~5 min with no route); 15 s while this box
+ * launches or runs an app the agent's config is behind on:
+ *   - running in a partition and not in the config yet: a newly claimed app waited for the 5-minute cycle before it had
+ *     any route (2026-10-18, audit job 0x5b0c79e8: spawned 09:09:01, cert 09:10:45, enrolled 09:12:21 - half of its 450-s
+ *     lease gone before its name resolved);
+ *   - launching (provisioning) or running while the pinned expectation names another app reference than the lease, or
+ *     while the app is not in the config at all: a native desktop's sealed owner secrets wait for its startup egress
+ *     route, the agent opens that route only once the expectation names the version that is starting, and the launch is
+ *     given up after 120 s. With a pass only every 5 minutes it worked when one happened to fall inside those 120 s
+ *     (2026-11-14, KVM Box 0x9a28642b, version 1 -> 2: claimed 17:34:27Z, no pass before the limit, released 17:37:35Z).
+ * Each app counts only for the first 10 minutes its app reference is in that state: one a pass skips on purpose (not a
+ * catalog app, outside the policy, held) must not keep every pass, a full ledger read, at 15 s. A new version counts anew.
+ * The caller asks often (it reads the config and each such app's small expectation file) and runs a pass when the
+ * interval since the last one has gone by: a timer set for 5 minutes just before a claim would otherwise still sleep.
+ */
+export function createEnrollPacer({ agentDir, records, now = Date.now }) {
+  const firstSeen = new Map();   // deployment id -> { ref, at }: since when this app reference has been behind
+  const json = (f) => { try { return JSON.parse(readFileSync(f, "utf8")); } catch { return null; } };
+  function behind() {
+    const t = now(), late = new Set(); let enrolled = null, fast = false;
+    for (const [id, r] of records()) {
+      const key = String(id).toLowerCase(), ref = String(r?.appRef || "").toLowerCase();
+      if (!(r?.status === "running" && r.isolation?.instance) && r?.status !== "provisioning") continue;
+      enrolled ||= new Set((json(path.join(agentDir, "privacy-config.json"))?.apps || []).map((a) => String(a.deploymentId || "").toLowerCase()));
+      if (enrolled.has(key) && (!ref || String(json(path.join(agentDir, key, "expected.json"))?.appRef ?? "").toLowerCase() === ref)) continue;
+      late.add(key);
+      if (firstSeen.get(key)?.ref !== ref) firstSeen.set(key, { ref, at: t });
+      if (t - firstSeen.get(key).at < 600_000) fast = true;
+    }
+    for (const key of [...firstSeen.keys()]) if (!late.has(key)) firstSeen.delete(key);
+    return fast;
+  }
+  return { behind, interval: (waiting) => behind() ? 15_000 : Number(waiting) > 0 ? 30_000 : 300_000 };
+}
+
+/**
+ * createEnrollLoop({ pass, pacer }) -> { check() }: runs pass() when the pacer's interval since the end of the last one
+ * has gone by, never two at once. pass() resolves to the number of apps still waiting (or undefined: the last count
+ * stands). check() -> whether a pass ran; the caller calls it every few seconds. For tests: now.
+ */
+export function createEnrollLoop({ pass, pacer, now = Date.now }) {
+  let last = -Infinity, waiting = 0, busy = false;
+  return { async check() {
+    if (busy || now() - last < pacer.interval(waiting)) return false;
+    busy = true;
+    try { const n = await pass(); if (n !== undefined) waiting = Number(n) || 0; } finally { last = now(); busy = false; }
+    return true;
+  } };
 }
 
 /** sha256 of a file, hex (the TPM tool's pin in the privacy agent's config). */

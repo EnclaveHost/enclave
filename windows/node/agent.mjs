@@ -1054,7 +1054,7 @@ async function startHostingControls() {
       } catch (e) { log(`blob cache: not started (${e.message})`); }
     }
     // An open-market host keeps its own network agent enrolled on the Enclave network (network-enroll.mjs): the config the
-    // \Enclave\Network task waits for. Every 5 minutes, once the
+    // \Enclave\Network task waits for. Every 5 minutes, sooner while an app waits on it, once the
     // box is registered.
     const NET = { agentDir: process.env.ENCLAVE_NETWORK_AGENT_DIR, binDir: process.env.ENCLAVE_NETWORK_BIN_DIR, policy: process.env.ENCLAVE_NETWORK_SHIELD_POLICY };
     // An independent host enrolls only against the public directories its operator listed (ENCLAVE_NETWORK_DIRECTORIES):
@@ -1063,11 +1063,11 @@ async function startHostingControls() {
     if (netReady && ID.mode !== 'relay' && !ID.networkDirectories.length)
       log('[network] enrollment: off (independent mode needs ENCLAVE_NETWORK_DIRECTORIES: the public directories to use)');
     else if (netReady) {
-      const { createNetworkEnroll, fileSha256 } = await import('./network-enroll.mjs');
+      const { createNetworkEnroll, createEnrollPacer, createEnrollLoop, fileSha256 } = await import('./network-enroll.mjs');
       const { nativeEnrollmentInputs } = await import('./desktop-inputs.mjs');
       const chainMod = await import('./chain.mjs');
       const relayBase = ID.mode === 'relay' ? ID.relayHttp : ID.relayBase;
-      let enroll = null, enrolling = false, lastEnrollError = '', enrollWaiting = 0;
+      let enroll = null, enrolling = false, lastEnrollError = '';
       const tickEnroll = async () => {
         if (enrolling || !host.registered) return;
         enrolling = true;
@@ -1104,30 +1104,17 @@ async function startHostingControls() {
             // an app-less config (host services only) is not written while this node's platform host policy refuses this host
             hostServiceRefusal: () => host.platformPolicy?.serviceRefusal?.() || null,
             log: (m) => log('[network]', m) });
-          const r = await enroll.pass(); lastEnrollError = ''; enrollWaiting = Number(r?.waiting) || 0;
+          const r = await enroll.pass(); lastEnrollError = '';
+          return Number(r?.waiting) || 0;   // apps whose partition is not ready yet: the loop looks again soon
         } catch (e) { if (e.message !== lastEnrollError) log('[network]', `enrollment: ${e.message}`); lastEnrollError = e.message; }
         finally { enrolling = false; }
       };
-      // every 5 minutes, but every 30 s while an app's new version waits for its partition: its expectation (and with it
-      // the app's route) follows the partition within seconds instead of up to a whole cycle (2026-10-13: ipns-publisher's
-      // /5 partition was ready just after a pass and waited ~5 min with no route)
-      // ...and every 15 s while a partition this box runs is not in the agent's config yet: a newly claimed app waited for
-      // the 5-minute cycle before it had any route (2026-10-18, audit job 0x5b0c79e8: spawned 09:09:01, cert 09:10:45,
-      // enrolled 09:12:21 - half of its 450-s lease gone before its name resolved)
-      const enrolledIds = () => { try { return new Set((JSON.parse(fs.readFileSync(path.join(NET.agentDir, 'privacy-config.json'), 'utf8')).apps || [])
-        .map((a) => String(a.deploymentId || '').toLowerCase())); } catch { return new Set(); } };
-      // only for its first 10 minutes: an app enrollment skips on purpose must not keep every pass (a full ledger read) at 15 s
-      const firstSeenUnenrolled = new Map();
-      const unenrolled = () => { const have = enrolledIds(), now = Date.now(); let fast = false;
-        for (const [id, r] of host.records.entries()) {
-          const key = String(id).toLowerCase();
-          if (r?.status !== 'running' || !r.isolation?.instance || have.has(key)) { firstSeenUnenrolled.delete(key); continue; }
-          if (!firstSeenUnenrolled.has(key)) firstSeenUnenrolled.set(key, now);
-          if (now - firstSeenUnenrolled.get(key) < 600_000) fast = true;
-        }
-        return fast; };
-      const loopEnroll = async () => { try { await tickEnroll(); } finally {
-        setTimeout(loopEnroll, unenrolled() ? 15_000 : enrollWaiting > 0 ? 30_000 : 300_000).unref?.(); } };
+      // every 5 minutes; every 30 s while an app's new version waits for its partition; every 15 s while this box launches
+      // or runs an app the agent's config is behind on (network-enroll.mjs createEnrollPacer has the cases and their
+      // dates). Asked every 5 s, so a claim just after a pass does not wait out a timer that was set for 5 minutes.
+      const enrollLoop = createEnrollLoop({ pass: tickEnroll, pacer: createEnrollPacer({ agentDir: NET.agentDir, records: () => host.records.entries() }) });
+      const loopEnroll = async () => { try { await enrollLoop.check(); } catch (e) { log('[network]', `enrollment loop: ${e.message}`); } finally {
+        setTimeout(loopEnroll, 5_000).unref?.(); } };
       setTimeout(loopEnroll, 60_000).unref?.();
     }
     // resolve(id): the app's loopback port and its certificate, or null. Both come from the host,
