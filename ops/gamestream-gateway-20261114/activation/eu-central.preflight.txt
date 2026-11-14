@@ -2,7 +2,9 @@ host: eu-central
 node: /usr/local/bin/node v22.23.3
 addresses: 127.0.0.1 134.209.248.172 10.19.0.5 10.114.0.2 10.77.0.1 10.78.0.1 
 provider: active MainPID=923084 ActiveEnterTimestamp=Sat 2026-11-14 06:37:27 UTC 
-memavailable_mb: 375
+memavailable_mb: 296
 ufw: Status: active
-gateway: inactive
-listeners: 
+gateway: active
+listeners: LISTEN/134.209.248.172:47984 LISTEN/134.209.248.172:47989 LISTEN/134.209.248.172:48010 UNCONN/134.209.248.172:47998 UNCONN/134.209.248.172:47999 UNCONN/134.209.248.172:48000 
+siblingport: 
+siblings: 0

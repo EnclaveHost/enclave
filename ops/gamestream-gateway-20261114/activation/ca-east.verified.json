@@ -1,8 +1,14 @@
 {
  "edge": "ca-east",
  "address": "146.190.246.39",
- "bundleSha256": "982463a28a9939d71d9e07fe040f019f5ec6f22a71b8014eb6604f867385f5af",
- "verifiedAt": "2026-11-14T06:37:44.903Z",
+ "bundleSha256": "2387eb9d36f4661e2835376d373d3cf2bbc09ca9bf34632736aac3a109f50e98",
+ "siblings": [
+  "165.245.191.129",
+  "134.199.235.187",
+  "134.209.248.172"
+ ],
+ "siblingPort": 47997,
+ "verifiedAt": "2026-11-14T07:46:07.458Z",
  "providerUnchanged": "active MainPID=884045 ActiveEnterTimestamp=Fri 2026-11-13 06:21:46 UTC",
  "namedProbe": "9a28642b.app.enclave.host: not routed here"
 }

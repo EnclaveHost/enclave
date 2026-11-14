@@ -1,0 +1,25 @@
+    146.190.246.39 asks 134.199.235.187: answered
+    146.190.246.39 asks 134.209.248.172: answered
+    146.190.246.39 asks 165.245.191.129: answered
+    165.245.191.129 asks 134.209.248.172: answered
+    165.245.191.129 asks 134.199.235.187: answered
+    165.245.191.129 asks 146.190.246.39: answered
+    134.199.235.187 asks 146.190.246.39: answered
+    134.199.235.187 asks 134.209.248.172: answered
+    134.199.235.187 asks 165.245.191.129: answered
+    134.209.248.172 asks 146.190.246.39: answered
+    134.209.248.172 asks 134.199.235.187: answered
+    134.209.248.172 asks 165.245.191.129: answered
+[07:47:30Z] ca-east: 47989 without a name: closed, nothing sent (as designed)
+[07:47:30Z] ca-east: TCP 47984 and 48010 connect
+[07:47:35Z] ca-east: the sibling port 47997 gives this machine nothing
+[07:47:35Z] ca-east: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
+[07:47:45Z] ap-southeast: 47989 timed out: dropped on the way. Before an install that is ufw; after one, a firewall in front of the box (a cloud firewall is not ufw)
+[07:47:46Z] us-west: 47989 without a name: answered (this machine is bound from an earlier probe)
+[07:47:46Z] us-west: TCP 47984 and 48010 connect
+[07:47:50Z] us-west: the sibling port 47997 gives this machine nothing
+[07:47:51Z] us-west: 9a28642b.app.enclave.host:47989/serverinfo through this edge: 200 SUNSHINE_SERVER_FREE
+[07:47:53Z] eu-central: 47989 without a name: answered (this machine is bound from an earlier probe)
+[07:47:54Z] eu-central: TCP 47984 and 48010 connect
+[07:47:58Z] eu-central: the sibling port 47997 gives this machine nothing
+[07:48:01Z] eu-central: 9a28642b.app.enclave.host:47989/serverinfo through this edge: 200 SUNSHINE_SERVER_FREE

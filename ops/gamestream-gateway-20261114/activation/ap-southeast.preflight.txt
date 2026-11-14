@@ -2,7 +2,9 @@ host: ap-southeast
 node: /usr/local/bin/node v22.23.3
 addresses: 127.0.0.1 165.245.191.129 10.15.0.5 10.104.0.2 10.77.0.1 10.78.0.1 
 provider: active MainPID=926912 ActiveEnterTimestamp=Sat 2026-11-14 06:06:02 UTC 
-memavailable_mb: 371
+memavailable_mb: 317
 ufw: Status: active
-gateway: inactive
-listeners: 
+gateway: active
+listeners: LISTEN/165.245.191.129:47984 LISTEN/165.245.191.129:47989 LISTEN/165.245.191.129:48010 UNCONN/165.245.191.129:47998 UNCONN/165.245.191.129:47999 UNCONN/165.245.191.129:48000 
+siblingport: 
+siblings: 0

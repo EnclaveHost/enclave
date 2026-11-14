@@ -1,0 +1,24 @@
+[07:50:03Z] ca-east: 47989 without a name: closed, nothing sent (as designed)
+[07:50:03Z] ca-east: TCP 47984 and 48010 connect
+[07:50:07Z] ca-east: the sibling port 47997 gives this machine nothing
+[07:50:07Z] ca-east: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
+[07:50:18Z] ap-southeast: 47989 without a name: closed, nothing sent (as designed)
+[07:50:18Z] ap-southeast: TCP 47984 and 48010 connect
+[07:50:22Z] ap-southeast: the sibling port 47997 gives this machine nothing
+[07:50:33Z] ap-southeast: 9a28642b.app.enclave.host is not routed through this edge: the named path is not exercised here
+[07:50:34Z] us-west: 47989 without a name: answered (this machine is bound from an earlier probe)
+[07:50:34Z] us-west: TCP 47984 and 48010 connect
+[07:50:38Z] us-west: the sibling port 47997 gives this machine nothing
+[07:50:39Z] us-west: 9a28642b.app.enclave.host:47989/serverinfo through this edge: 200 SUNSHINE_SERVER_FREE
+[07:50:41Z] eu-central: 47989 without a name: answered (this machine is bound from an earlier probe)
+[07:50:41Z] eu-central: TCP 47984 and 48010 connect
+[07:50:45Z] eu-central: the sibling port 47997 gives this machine nothing
+[07:50:50Z] eu-central: 9a28642b.app.enclave.host:47989/serverinfo through this edge: 200 SUNSHINE_SERVER_FREE
+[07:50:57Z] named at ca-east, no name at us-west: carried (200)
+[07:51:05Z] named at ap-southeast, no name at us-west: carried (200)
+[07:51:14Z] named at eu-central, no name at us-west: carried (200)
+[07:51:23Z] named at ca-east, no name at eu-central: carried (200)
+[07:51:32Z] named at ap-southeast, no name at eu-central: carried (200)
+[07:51:41Z] named at us-west, no name at eu-central: carried (200)
+[07:51:41Z] check passed for: ca-east ap-southeast us-west eu-central
+exit 0

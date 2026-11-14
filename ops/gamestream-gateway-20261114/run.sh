@@ -83,8 +83,10 @@ preflight() {
 external() {
   local edge=$1 addr=$2 code rc routed tmp heard
   # no name, no binding: the connection is accepted and closed with nothing sent (curl 52). 200 means this machine's
-  # address is still bound from a probe in the last ten minutes.
-  set +e; code=$(curl -s -o /dev/null -m 10 -w '%{http_code}' "http://$addr:47989/serverinfo"); rc=$?; set -e
+  # address is still bound from a probe in the last ten minutes, here or at a sibling. An edge that took the name from
+  # a sibling but does not route the app closes too, only after its router gave up on the name (ten seconds on the
+  # 2026-11-14 edges), so this waits longer than that.
+  set +e; code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "http://$addr:47989/serverinfo"); rc=$?; set -e
   case "$rc/$code" in
     52/*) say "$edge: 47989 without a name: closed, nothing sent (as designed)" ;;
     0/200) say "$edge: 47989 without a name: answered (this machine is bound from an earlier probe)" ;;

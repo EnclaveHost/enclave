@@ -1,19 +1,23 @@
 installed
 service: active / enabled
-bundle: 982463a28a9939d71d9e07fe040f019f5ec6f22a71b8014eb6604f867385f5af
-config: {"zones":["app.enclave.host"],"router":"127.0.0.1","host":"134.199.235.187","maxFlows":256,"maxPerClient":32,"maxBindings":4096}
+bundle: 2387eb9d36f4661e2835376d373d3cf2bbc09ca9bf34632736aac3a109f50e98
+config: {"zones":["app.enclave.host"],"router":"127.0.0.1","host":"134.199.235.187","maxFlows":256,"maxPerClient":32,"maxBindings":4096,"siblings":["146.190.246.39","165.245.191.129","134.209.248.172"]}
 listeners:
-  tcp 134.199.235.187:47984 users:(("node",pid=936813,fd=22))
-  tcp 134.199.235.187:47989 users:(("node",pid=936813,fd=21))
-  tcp 134.199.235.187:48010 users:(("node",pid=936813,fd=23))
-  udp 134.199.235.187:47998 users:(("node",pid=936813,fd=24))
-  udp 134.199.235.187:47999 users:(("node",pid=936813,fd=25))
-  udp 134.199.235.187:48000 users:(("node",pid=936813,fd=26))
+  tcp 134.199.235.187:47984 users:(("node",pid=939069,fd=23))
+  tcp 134.199.235.187:47989 users:(("node",pid=939069,fd=22))
+  tcp 134.199.235.187:48010 users:(("node",pid=939069,fd=24))
+  tcp 134.199.235.187:47997 users:(("node",pid=939069,fd=21))
+  udp 134.199.235.187:47998 users:(("node",pid=939069,fd=25))
+  udp 134.199.235.187:47999 users:(("node",pid=939069,fd=26))
+  udp 134.199.235.187:48000 users:(("node",pid=939069,fd=27))
 ufw:
   47984/tcp                  ALLOW       Anywhere                   # enclave gamestream gateway
   47989/tcp                  ALLOW       Anywhere                   # enclave gamestream gateway
   48010/tcp                  ALLOW       Anywhere                   # enclave gamestream gateway
   47998:48000/udp            ALLOW       Anywhere                   # enclave gamestream gateway
+  134.199.235.187 47997/tcp  ALLOW       146.190.246.39             # enclave gamestream gateway
+  134.199.235.187 47997/tcp  ALLOW       165.245.191.129            # enclave gamestream gateway
+  134.199.235.187 47997/tcp  ALLOW       134.209.248.172            # enclave gamestream gateway
   47984/tcp (v6)             ALLOW       Anywhere (v6)              # enclave gamestream gateway
   47989/tcp (v6)             ALLOW       Anywhere (v6)              # enclave gamestream gateway
   48010/tcp (v6)             ALLOW       Anywhere (v6)              # enclave gamestream gateway

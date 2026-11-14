@@ -1,17 +1,17 @@
 # GameStream gateway on the four edges (2026-11-14)
 
-Status at 07:30Z:
+Status at 08:00Z:
 
-- **On the edges now:** the first gateway bundle (sha256 `982463a2…85f5af`), installed and verified on all four
-  edges at 06:37:41-06:38:34Z by the operator's `run.sh activate` (evidence in `activation/`). The run was activate,
-  then a revert, then activate again; the evidence is from the last one.
+- **On the edges now:** the second gateway bundle (sha256 `2387eb9d…f50e98`), in which the edges ask each other for
+  a client's binding. Installed and verified on all four edges at 07:46:07-07:47:26Z by the operator's
+  `run.sh activate` (evidence in `activation/`). The first bundle (`982463a2…85f5af`) ran from 06:38Z until then; its
+  evidence is in this directory's history (commit `aa863409f`).
 - **What that gives:** Moonlight with the PC added as `9a28642b.app.enclave.host` lists and streams the KVM Box
-  desktop with a picture, as long as all of one client's connections reach the same edge.
-- **What it does not give:** the name has two addresses (us-west, eu-central) and each edge keeps its own bindings. A
-  client whose HTTP goes to one edge and whose RTSP or UDP goes to the other gets nothing. This was measured, below.
-- **Prepared here, on no edge:** a second bundle (sha256 `2387eb9d…f50e98`, pinned in `plan.json`) in which the
-  edges ask each other for a client's binding. `run.sh activate` replaces the gateway on each edge with it. That run
-  is the operator's.
+  desktop with a picture. A client that names the app at one edge and comes without a name to another is carried:
+  shown from outside for all six pairs of edges at 07:50-07:51Z (`activation/check-0750Z.txt`).
+- **Not shown:** a Moonlight stream whose own connections were split across two edges. The workstation this was
+  tested from always sorts us-west first, so its streams never split.
+- **Not done:** the KVM Box page still says `127.0.0.2`. That is the page's own release.
 
 ## Why
 
@@ -58,7 +58,7 @@ so the stream fails; nothing is exposed. It cannot make an edge open a flow to a
 
 Order: ca-east, ap-southeast (neither holds the KVM Box route today), then us-west, eu-central (the two addresses the
 app's name resolves to). One edge at a time; the first failure stops the run. An edge is skipped only if its
-`verified.json` names the planned bundle and the same siblings, so today's run replaces all four.
+`verified.json` names the planned bundle and the same siblings.
 
 After the last edge the run does two more things and writes them to `activation/final.txt`:
 
@@ -99,23 +99,43 @@ that edge, including the one that ran before, and the run stops there. Re-runnin
 | 07:22-07:23 | the new `check` against the edges as they are (first bundle) | each edge passes on its own; all six pairs "NOT carried". Expected: it is the fault the second bundle is for, and it shows the check sees it |
 | 07:25 | tests: `test/wg-provider-gamestream*.test.mjs`, `test/service-index.test.mjs` | 36 of 36 pass |
 | 07:29 | `preflight` as it now is, four edges (written outside `activation/`) | ready on all four: gateway active, sibling port free, 282-319 MB available |
+| 07:45-07:47 | `activate` (second bundle), four edges | each replaced, listening on seven ports, sibling rules in ufw for the three other addresses, providers untouched (`activation/*.verified.json`) |
+| 07:47 | `links`, part of that run (`activation/final.txt`) | all twelve edge-to-edge questions answered |
+| 07:47 | `check`, part of that run (`activation/final.txt`) | **stopped at ap-southeast with "47989 timed out"; the pairs were not tried.** A fault of the check, not of the edge: see below |
+| 07:50-07:51 | `check` after its fix (`activation/check-0750Z.txt`) | every edge passes; all six pairs carried (200 from Sunshine at the edge that was given no name) |
+| 07:52 | `links` and `status` again | twelve answered; four edges active with the second bundle, 47997 listening, three sibling rules each |
+| 07:53 | RTSP port: app named at us-west only, then a nameless connection to 48010 at each | us-west and eu-central behave alike (the tunnel opens, Sunshine closes an RTSP request without a session, no gateway error); with a name that has no app eu-central logs the failed tunnel instead |
+| 07:53 | `moonlight list` by name | `KVM Box Desktop` |
+| 07:53-07:54 | one Moonlight stream by name, 1280x720 at 30 fps | RTSP handshake, first video packet after 600 ms, audio; ended by the test after 38 s, session quit, Sunshine free |
 
-## What is not known until the second bundle runs on the edges
+## The check's false stop at 07:47Z
 
-- Whether the edges reach each other on TCP 47997 from their public addresses (a cloud firewall or routing between
-  droplets is not ufw). `links` answers this.
-- Whether real ufw accepts and orders the `from <sibling>` rules as the stand-in did.
-- Whether a client is carried across two real edges. `check` answers this for HTTP; a Moonlight stream forced
-  through two edges has not been run.
+The activation's own final check reported `ap-southeast: 47989 timed out` and stopped before the pairs. What
+happened: the workstation had just named the app at us-west (the activation's named probe). ap-southeast, asked
+without a name, took that name from us-west, as designed, and tried the app through its own router. ap-southeast
+does not route this app, and its provider holds such a connection for ten seconds before closing it (ca-east's
+closes at once). The check waited exactly ten seconds, so it saw a timeout where a second later it would have seen
+the close. `run.sh` now waits twenty. Nothing on the edges was changed for this.
+
+It also shows something about the edges: on a provider release like ap-southeast's, a client that named an app at
+one edge and reaches an edge that does not route it waits ten seconds for the close. DNS only hands out the edges
+that do route an app, so a real client does not get there.
+
+## What is still not known
+
+- A Moonlight stream split across two edges by its own lookups. HTTP and the RTSP connection were shown separately
+  from outside; a whole stream was not. A client on Windows, macOS or Android may order the two addresses
+  differently from this workstation.
 - UDP is not carried across edges by itself: it follows the binding RTSP settled on the same edge. A client whose
   RTSP goes to one address and UDP to the other would still fail. Moonlight takes the UDP address from the RTSP
   session, so this is not expected, and it has not been observed either way.
+- Why two early pairing tries answered "Incorrect PIN".
 
 ## After
 
 - The KVM Box page keeps saying `127.0.0.2` until its own release (enclave-apps branch
   `kvm-box/page-moonlight-public-20261114`, a signed desktop release, owner signatures, a host switch). That release
-  must not go out before `activation/final.txt` shows the pairs carried.
+  was waiting for the pairs to be carried, which `activation/check-0750Z.txt` now shows.
 - Seen while reading the edges' journals, not caused by this work: Ubuntu's unattended upgrades restarted
   `enclave-network-provider` on three edges between 06:06Z and 06:38Z (ap-southeast 06:06:02Z, us-west 06:12:10Z,
   eu-central 06:37:22-27Z).

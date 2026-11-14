@@ -1,15 +1,14 @@
 # Public GameStream ingress on a provider
 
-Status at 2026-11-14 07:30Z. The code is in `network/wg-provider/gamestream.mjs`. It has two forms: a field of a
+Status at 2026-11-14 08:00Z. The code is in `network/wg-provider/gamestream.mjs`. It has two forms: a field of a
 provider that runs this source (`"gameStream": true`), installed on no provider; and a service of its own beside a
 provider that runs another release ("Beside a provider that runs another release" below).
 
-Enclave's four edges run older provider releases, so they got the service form: its first bundle has run on all four
-since 2026-11-14 06:38Z (`ops/gamestream-gateway-20261114/`). Through it a stock Moonlight, with the PC added as
-`9a28642b.app.enclave.host`, lists and streams the KVM Box desktop with a picture, as long as all of the client's
-connections reach one edge. They do not always: the name has two addresses, and a client split across them gets
-nothing (measured, see "By name through the edges"). The answer to that, edges that ask each other ("Siblings"), is
-in source and rehearsed and runs on no edge yet. The KVM Box page still names the local connector's `127.0.0.2`.
+Enclave's four edges run older provider releases, so they got the service form, with each edge asking the others
+for a client's binding ("Siblings"): on all four since 2026-11-14 07:47Z (`ops/gamestream-gateway-20261114/`).
+Through it a stock Moonlight, with the PC added as `9a28642b.app.enclave.host`, lists and streams the KVM Box
+desktop with a picture, and a client that names the app at one edge is served at another ("By name through the
+edges"). The KVM Box page still names the local connector's `127.0.0.2`.
 
 ## What it is for
 
@@ -176,8 +175,19 @@ as `9a28642b.app.enclave.host`:
   passes on its own, and none of the six pairs (named at one edge, nameless at another that routes the app) is
   carried.
 
-Not established: a client carried across two real edges (the second bundle runs on none); a Moonlight stream that was
-forced through two edges; why two early pairing tries answered "Incorrect PIN".
+With the second bundle (siblings) on the four edges, 07:47-07:54Z:
+
+- All twelve edge-to-edge questions on TCP 47997 answered; the port gives a machine that is no sibling nothing.
+- For each of the six pairs: a name without an app given to edge B, the app named at edge A, then a nameless
+  `/serverinfo` at B: 200 from Sunshine. B took the name from A.
+- App named at us-west only, then a nameless connection to the RTSP port at eu-central: the tunnel opened as it does
+  at us-west.
+- `moonlight list` and one stream by name: as before.
+- An edge that takes a name from a sibling but does not route the app closes the flow only when its router gives up:
+  at once on ca-east's provider release, after ten seconds on ap-southeast's.
+
+Not established: a Moonlight stream whose own connections were split across two edges (the test workstation always
+orders the two addresses the same way); why two early pairing tries answered "Incorrect PIN".
 
 ## Tests
 

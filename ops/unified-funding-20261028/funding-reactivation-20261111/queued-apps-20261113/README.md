@@ -708,3 +708,29 @@ Not done, not known:
 - Why two early pairing tries answered "Incorrect PIN" is still not known.
 - Seen in the edges' journals, not caused by this: Ubuntu's unattended upgrades restarted `enclave-network-provider`
   on ap-southeast (06:06:02Z), us-west (06:12:10Z) and eu-central (06:37:22-27Z).
+
+### Follow-up, 08:00Z: the edges run the gateway that asks its siblings; a name given at one edge is honoured at another
+
+The owner ran `run.sh activate` again. All four edges were replaced and verified with the second bundle
+(`2387eb9d…f50e98`) at 07:46:07-07:47:26Z; providers untouched by it.
+
+| When (Z) | Check | Result |
+| --- | --- | --- |
+| 07:47 | edge-to-edge questions on TCP 47997 (`activation/final.txt`) | 12 of 12 answered |
+| 07:47 | the run's own outside check | stopped at ap-southeast with "47989 timed out"; the pairs were not tried |
+| 07:50-07:51 | the outside check after its fix (`activation/check-0750Z.txt`) | all four edges pass; 6 of 6 pairs carried |
+| 07:52 | `links`, `status` | 12 answered; four edges active, second bundle, three sibling rules each |
+| 07:53 | nameless RTSP connection at eu-central after naming the app at us-west only | tunnel opened, as at us-west |
+| 07:53-07:54 | `moonlight list` and one stream by name | `KVM Box Desktop`; RTSP handshake, video after 600 ms, audio |
+
+The stop at 07:47Z was the check's fault. ap-southeast took the name from us-west as designed, does not route the
+app, and its provider holds such a connection ten seconds before closing; the check waited exactly ten. It now waits
+twenty (`run.sh`). No edge was changed for it.
+
+Not done, not known:
+
+- A Moonlight stream split across two edges by its own lookups has not been produced: this workstation always puts
+  us-west first. HTTP and the RTSP connection were shown from outside, each on its own.
+- The page still says 127.0.0.2. Its release (enclave-apps branch `kvm-box/page-moonlight-public-20261114`, a signed
+  desktop release, owner signatures, a host switch) is the next step and has not been started.
+- Why two early pairing tries answered "Incorrect PIN" is still not known.

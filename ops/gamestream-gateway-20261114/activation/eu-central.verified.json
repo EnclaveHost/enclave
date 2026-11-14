@@ -1,8 +1,14 @@
 {
  "edge": "eu-central",
  "address": "134.209.248.172",
- "bundleSha256": "982463a28a9939d71d9e07fe040f019f5ec6f22a71b8014eb6604f867385f5af",
- "verifiedAt": "2026-11-14T06:38:34.772Z",
+ "bundleSha256": "2387eb9d36f4661e2835376d373d3cf2bbc09ca9bf34632736aac3a109f50e98",
+ "siblings": [
+  "146.190.246.39",
+  "165.245.191.129",
+  "134.199.235.187"
+ ],
+ "siblingPort": 47997,
+ "verifiedAt": "2026-11-14T07:47:26.718Z",
  "providerUnchanged": "active MainPID=923084 ActiveEnterTimestamp=Sat 2026-11-14 06:37:27 UTC",
  "namedProbe": "9a28642b.app.enclave.host: 200 SUNSHINE_SERVER_FREE"
 }
