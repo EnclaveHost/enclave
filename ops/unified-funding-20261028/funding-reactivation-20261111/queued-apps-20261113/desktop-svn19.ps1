@@ -23,6 +23,18 @@
 # replica on 127.0.0.1:18191, the four edges on 8189 and the gateway app. The replica and the edges hold a fixed set
 # and answer 404 for an app's component (on 2026-11-13 the edges did so for the SVN18 controller too), so it arrives
 # from the gateway app. The fetch mode runs that same script with that same list and checks what it wrote.
+#
+# The host's own Shield policy (hostpolicy). The node and the network agent admit a desktop guest from
+# C:\Program Files\Enclave\network\admitted-shield-policy.json (ENCLAVE_NETWORK_SHIELD_POLICY in node-config.cmd), which
+# names one desktop release and one controller. The node reads it on every enrollment pass; the agent reads it once,
+# when it starts. The first copy of this procedure changed the relay's policy only, so on 2026-11-14 the NucBox
+# loaded SVN19, launched the 0.9.1 controller at 03:43Z and admitted neither: the node wrote no expectation ('native
+# desktop has no independently approved controller release'), the guest got no startup egress, the manager failed it
+# after 120 s and the node released the lease and blocked the deployment. hostpolicy replaces that file from the
+# release folder's shield-policy.json and ends the agent process; the \Enclave\Network task's loop starts it again
+# after 10 s, which is what the node itself does when the agent's configuration moves. Neither the Node nor the
+# Shield manager is restarted. While the agent is down (about 10 s) and until its first agreeing chain read, the
+# apps on this box have no route.
 $ErrorActionPreference='Stop'
 $old='a2272bcd8f7d5db883ae212ee1cb499a8bf100f9cc6f23073e61b68343f185f9'
 $new='de9e87e32cbacfa0dddb27422a36733dddadb3b87268aa14d7cc109bf9a1802e'
@@ -39,6 +51,13 @@ $fetcher='C:\Program Files\Enclave\control\windows\node\fetch-cid.py'
 $cid='bafybeidkdt5kv3bkyygeyofbkoo3abqd2oi7o5wgcsbrkodmjf5q3zzub4'
 $controller='b3eb82bce8822d26ecbfb654b73a603debf9cde460845ff29a02c69a9f4e4704'
 $private='key|secret|token|password'
+$pol='C:\Program Files\Enclave\network\admitted-shield-policy.json'
+$polKeep="$pol.before-native-svn19-20261113"
+$polOld='e41ac8960c5112e55770c9350d85e135e15184e90d5a22790906791b6a4f911b'
+$polNew='a0e735027bb3d04cfb037574485206673a7cda8f7b81eda73d43eac7d995e3ee'
+$polStaged="$dir\shield-policy.json"
+$netlog="$root\logs\network.log"
+$kvm='9a28642b'
 # name = bytes, sha256. shielded-bridge.exe is the SVN18 release's file, copied on the box.
 $files=[ordered]@{
   'native-igvm.bin'=@(86616932,'de9e87e32cbacfa0dddb27422a36733dddadb3b87268aa14d7cc109bf9a1802e')
@@ -142,6 +161,44 @@ function WaitListed($mark,$seconds) {
   ''
 }
 
+function Sha($p) { (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower() }
+function PolicyName($h) { if ($h -eq $polNew) { 'SVN19' } elseif ($h -eq $polOld) { 'SVN18 (previous)' } else { "another file $(Cut $h 16)" } }
+function Agents { @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -match 'privacy-agent\.mjs' }) }
+# 'after' when the one agent process started after the policy file was last written, else why it has not read it
+function AgentRead {
+  $a=@(Agents)
+  if ($a.Count -ne 1) { return "$($a.Count) agent processes when" }
+  if ((Get-Process -Id $a[0].ProcessId).StartTime -gt (Get-Item -LiteralPath $pol).LastWriteTime) { 'after' } else { 'BEFORE' }
+}
+
+# Replace the policy file in one step from $source. File.Replace keeps the replaced file's access list.
+function PutPolicy($source) {
+  $tmp="$pol.new"
+  [IO.File]::WriteAllBytes($tmp,[IO.File]::ReadAllBytes($source))
+  try { [IO.File]::Replace($tmp,$pol,[NullString]::Value) } finally { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+}
+
+# End the network agent and wait for the one its task starts. $script:agentWhy is '' when a new agent is running and
+# has not exited in its first 40 s, else what happened. $script:circuit says whether its control circuit came up
+# within three minutes; that also needs a provider's chain read and is reported, not required.
+function RestartAgent {
+  $script:agentWhy=''; $script:circuit=$false
+  $mark=(Get-Item -LiteralPath $netlog).Length
+  $was=@(Agents | ForEach-Object { $_.ProcessId })
+  foreach ($p in $was) { "  ending the network agent, pid $p $(Utc)"; Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }
+  $now=$null
+  for ($i=0; $i -lt 90 -and -not $now; $i+=3) { Start-Sleep -Seconds 3; $now=Agents | Where-Object { $was -notcontains $_.ProcessId } | Select-Object -First 1 }
+  if (-not $now) { $script:agentWhy='no new agent process within 90 s'; return }
+  "  network agent started, pid $($now.ProcessId) $(Utc)"
+  Start-Sleep -Seconds 40
+  for ($i=0; $i -lt 140 -and -not $script:circuit; $i+=5) { $script:circuit=[bool]((ReadFrom $netlog $mark) -match 'control circuit up'); if (-not $script:circuit) { Start-Sleep -Seconds 5 } }
+  $text=ReadFrom $netlog $mark
+  '--- network.log since the restart'
+  Show $text $null 16
+  @($text -split "`n" | Where-Object { $_ -match 'chain authorization|lease\(s\)' -and $_ -notmatch $private }) | Select-Object -Last 3 | ForEach-Object { '  ' + (Cut $_.TrimEnd() 200) }
+  if (@(Agents | Where-Object { $_.ProcessId -eq $now.ProcessId }).Count -ne 1) { $script:agentWhy='the new agent did not stay up' }
+}
+
 function Guard {
   $t=Tasks; if ($t) { return $t }
   $s=Staged; if ($s) { return "the release is not staged: $s" }
@@ -176,6 +233,8 @@ function Do-Status {
   "manager: " + (HealthLine (Health))
   "app VMs running (desktop not counted): " + (AppVms)
   if (Test-Path -LiteralPath $dir) { $s=Staged; if ($s) { "staged: NO: $s" } else { 'staged: yes, every file with its size and SHA-256' } } else { 'staged: NO: the release folder does not exist' }
+  "host policy: " + (PolicyName (Sha $pol)) + ", written " + (Get-Item -LiteralPath $pol).LastWriteTimeUtc.ToString('MM-dd HH:mm:ssZ')
+  "network agent started: " + (AgentRead) + " the host policy was written"
   "DONE status"
 }
 
@@ -284,6 +343,65 @@ function Set-Shield($from,$to) {
   "STOP: the manager did not load this release; run-shield.cmd is back as it was and the manager reports " + (HealthLine $h)
 }
 
+function Do-StagedPolicy {
+  if ((Test-Path -LiteralPath $polStaged) -and (Sha $polStaged) -eq $polNew) { "DONE policy staged $(Cut $polNew 16)" } else { 'STOP: the release folder has no shield-policy.json with the prepared SHA-256' }
+}
+
+# Put $to in place of $from as the host's Shield policy, from $source, and restart the network agent on it. $back
+# holds the bytes of $from, for the way back if the agent does not stay up on the new file.
+function Set-HostPolicy($from,$to,$source,$back) {
+  $t=Get-ScheduledTask -TaskPath $tp -TaskName Network -ErrorAction SilentlyContinue
+  if ($null -eq $t -or $t.State -ne 'Running') { 'STOP: the task \Enclave\Network is not running; nothing changed'; return }
+  $n=@(Agents).Count
+  if ($n -ne 1) { "STOP: $n network agent processes found, one expected; nothing changed"; return }
+  if (-not (Test-Path -LiteralPath $source) -or (Sha $source) -ne $to) { "STOP: $source is not the policy to install; nothing changed"; return }
+  $live=Sha $pol
+  "before: the host policy is $(PolicyName $live); the agent started $(AgentRead) it was written"
+  $fresh=$false
+  if ($live -eq $to) {
+    if ((AgentRead) -eq 'after') { "DONE hostpolicy (the file is already $(PolicyName $to) and the agent started after it was written)"; return }
+    'the file is already this policy but the agent is older than the file: restarting the agent only'
+  } elseif ($live -ne $from) { 'STOP: the host policy is neither the previous nor the new file; nothing changed'; return }
+  else {
+    if ($to -eq $polNew -and -not (Test-Path -LiteralPath $polKeep)) { Copy-Item -LiteralPath $pol -Destination $polKeep }
+    if (-not (Test-Path -LiteralPath $back) -or (Sha $back) -ne $from) { "STOP: $back is not the policy in place now, so there would be no way back; nothing changed"; return }
+    try { PutPolicy $source } catch { "STOP: the policy file could not be replaced ($(Cut $_.Exception.Message 160)); the host policy is $(PolicyName (Sha $pol)) and the agent was not restarted"; return }
+    if ((Sha $pol) -ne $to) { "STOP: the policy file reads back as $(PolicyName (Sha $pol)); the agent was not restarted"; return }
+    $fresh=$true
+    "the host policy is now $(PolicyName $to)"
+  }
+  RestartAgent
+  $c=$(if ($script:circuit) { 'its control circuit is up' } else { 'its control circuit was NOT up within three minutes' })
+  if (-not $script:agentWhy) { "DONE hostpolicy $(Cut $to 16): the agent runs on it; $c"; return }
+  if (-not $fresh) { "STOP: $($script:agentWhy); the policy file was not changed by this run"; return }
+  "$($script:agentWhy): putting the previous policy back"
+  $why=$script:agentWhy
+  PutPolicy $back
+  RestartAgent
+  "STOP: $why on the new policy; the host policy is back to $(PolicyName (Sha $pol)) and " + $(if ($script:agentWhy) { "the agent: $($script:agentWhy)" } else { 'the agent runs on it' })
+}
+
+# Read only: the desktop VM the manager lists and what the node and the agent logged for KVM Box since $since
+# (HH:mm:ss, today). Ends DONE launch STATUS, where STATUS is the VM's status, 'gave-up' or 'none'.
+function Do-Launch {
+  $st='none'
+  try {
+    $v=(Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8091/vms' -TimeoutSec 8).Content | ConvertFrom-Json
+    $l=@($v); if ($v.vms) { $l=@($v.vms) }
+    foreach ($d in @($l | Where-Object { $_.image -eq $new -or $_.cid -eq $cid })) {
+      $st=[string]$d.status
+      "desktop VM $(Cut $d.id 14): status=$($d.status) appReady=$($d.appReady) launching=$($d.launching) started=$($d.startedAt) reason=$(Cut $d.reason 140)"
+    }
+  } catch { 'the manager did not answer /vms' }
+  if (-not $since) { $since='00:00:00' }
+  $mine={ param($x) $x -match $kvm -and $x -notmatch $private -and $x.Length -ge 8 -and $x.Substring(0,8) -ge $since }
+  $n=@((ReadFrom $nlog ((Get-Item -LiteralPath $nlog).Length-600000)) -split "`n" | Where-Object { & $mine $_ })
+  $n | Select-Object -Last 12 | ForEach-Object { '  ' + (Cut $_.TrimEnd() 230) }
+  @((ReadFrom $netlog ((Get-Item -LiteralPath $netlog).Length-600000)) -split "`n" | Where-Object { & $mine $_ }) | Select-Object -Last 6 | ForEach-Object { '  ' + (Cut $_.TrimEnd() 230) }
+  if ($st -eq 'none' -and @($n | Where-Object { $_ -match 'giving up on' }).Count) { $st='gave-up' }
+  "DONE launch $st $(Utc)"
+}
+
 switch ($mode) {
   'prepare'       { Do-Prepare }
   'verify'        { Do-Verify }
@@ -295,5 +413,9 @@ switch ($mode) {
   'shield'        { Set-Shield $old $new }
   'revert-node'   { Set-Node $new $old }
   'revert-shield' { Set-Shield $new $old }
+  'staged-policy' { Do-StagedPolicy }
+  'hostpolicy'    { Set-HostPolicy $polOld $polNew $polStaged $polKeep }
+  'hostpolicy-revert' { Set-HostPolicy $polNew $polOld $polKeep $polStaged }
+  'launch'        { Do-Launch }
   default         { "STOP: unknown mode '$mode'; nothing changed" }
 }

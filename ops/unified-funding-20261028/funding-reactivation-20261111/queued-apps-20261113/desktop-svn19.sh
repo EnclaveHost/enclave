@@ -3,17 +3,28 @@
 # page with the terminal, the one Start/Stop button and the corrected Open desktop link. The NucBox side of every
 # step is desktop-svn19.ps1, beside this file.
 #
-#   desktop-svn19.sh status          read only: launchers, manager, staged files, relay policy, marker, signing page
+#   desktop-svn19.sh status          read only: launchers, manager, staged files, both policies, marker, signing page
 #   desktop-svn19.sh stage           copy the release files to the NucBox and check them there; nothing running changes
 #   desktop-svn19.sh fetch           read only: can the NucBox node's own fetcher get the new controller
 #   desktop-svn19.sh policy          control VM: admit SVN19 in the relay's Shield policy; restarts the relay
 #   desktop-svn19.sh switch          NucBox: switch the Shield manager, wait, pin the Node; writes the marker when settled
 #   desktop-svn19.sh settle          NucBox, read only: wait until it is back on SVN19, then write the marker
+#   desktop-svn19.sh hostpolicy      NucBox: admit SVN19 in the host's own Shield policy; restarts its network agent
+#   desktop-svn19.sh retry           ask the NucBox to claim KVM Box again (what Resume on the site sends), watch the launch
+#   desktop-svn19.sh launch          read only: the desktop VM and what the node and the agent last logged for KVM Box
 #   desktop-svn19.sh revert          NucBox: back to SVN18, Shield manager first, then the Node
 #   desktop-svn19.sh policy-revert   control VM: the previous policy file back; restarts the relay
+#   desktop-svn19.sh hostpolicy-revert   NucBox: the previous host policy back; restarts its network agent
 #
-# Order: stage; the owner signs upload, publish and approve on the signing page; policy; switch; the owner signs the
-# promote, which the page offers once the marker exists.
+# Order: stage; the owner signs upload, publish and approve on the signing page; policy; switch; hostpolicy; the owner
+# signs the promote, which the page offers once the marker exists.
+#
+# The first copy had no hostpolicy step: it admitted SVN19 at the relay and left the NucBox's own policy on SVN18.
+# The promote at 03:42Z on 2026-11-14 moved KVM Box to 0.9.1, the NucBox launched it and admitted neither the release
+# nor the controller, the guest never got its startup egress, the manager failed it after 120 s, and the node released
+# the lease and blocked the deployment. A blocked deployment is not claimed again by itself: retry, after hostpolicy.
+# hostpolicy restarts the network agent only (about 10 s, then its first chain read): the apps on the box have no
+# route for that long. Neither the Node nor the Shield manager is restarted.
 #
 # What it costs. policy: the relay restarts, host tunnels drop for some seconds, and SVN18 is no longer admitted, so
 # KVM Box is down from here until the promote. switch: the Shield manager restart gives every app VM on the NucBox a
@@ -39,6 +50,8 @@ CID=bafybeidkdt5kv3bkyygeyofbkoo3abqd2oi7o5wgcsbrkodmjf5q3zzub4
 OLD_POLICY=e41ac8960c5112e55770c9350d85e135e15184e90d5a22790906791b6a4f911b
 NEW_POLICY=a0e735027bb3d04cfb037574485206673a7cda8f7b81eda73d43eac7d995e3ee
 DEST="C:/ProgramData/Enclave/native-desktop/releases/$NEW"
+KVM=0x9a28642bed115105c07bea1131c56c83ae2843ce4daf07958ab36437c0528a6b
+HINT=${HINT:-https://api.enclave.host/v1/claim-hint}
 MARKER=$ACT/switched.json
 LOG=$ACT/host-switch.log
 OUT=$(mktemp)
@@ -73,10 +86,20 @@ for name, want in json.load(open(os.path.join(act, "prepared.json")))["stage"].i
 PY
 }
 
+# the prepared host policy into the release folder, where the SVN18 release keeps its own; nothing reads it there
+stage_policy() {
+  [ "$(sha256sum "$ACT/shield-policy.json" | cut -d' ' -f1)" = "$NEW_POLICY" ] || stop "$ACT/shield-policy.json is not the prepared policy; nothing changed"
+  BOX_TIMEOUT=120 box staged-policy
+  if did 'DONE policy staged'; then return; fi
+  say "copying shield-policy.json to the release folder"
+  scp -q -o BatchMode=yes -o ConnectTimeout=15 "$ACT/shield-policy.json" "minipc:$DEST/shield-policy.json" 2>&1 | quiet | tee -a "$LOG"
+  BOX_TIMEOUT=120 box staged-policy; did 'DONE policy staged' || stop "the staged policy did not verify on the NucBox; nothing running was changed"
+}
+
 stage() {
   local files; files=$(local_files) || stop "the local release files do not match prepared.json; nothing copied"
   box verify
-  if did 'DONE staged'; then say "already staged"; return; fi
+  if did 'DONE staged'; then say "already staged"; stage_policy; return; fi
   box prepare; did 'DONE prepare' || stop "the release folder could not be prepared"
   local f
   for f in $files; do
@@ -84,7 +107,42 @@ stage() {
     scp -q -o BatchMode=yes -o ConnectTimeout=15 "$f" "minipc:$DEST/$(basename "$f")" 2>&1 | quiet | tee -a "$LOG"
   done
   box verify; did 'DONE staged' || stop "the staged files did not verify on the NucBox"
+  stage_policy
   say "staged; nothing running was changed"
+}
+
+answers() {
+  local a
+  for a in ef514ed3 7ae476a3 d9798e4c a77d0c57 a69dcbba 59f1273d c13d4b6a 38f368d6 "${KVM:2:8}"; do
+    say "  $a.app.enclave.host: $(curl -s -m 20 -o /dev/null -w '%{http_code} in %{time_total} s' "https://$a.app.enclave.host/" || true)"
+  done
+}
+
+# The NucBox's own Shield policy (desktop-svn19.ps1 says who reads it). Restarts the network agent, nothing else.
+hostpolicy() {
+  local mode=$1
+  if [ "$mode" = hostpolicy ]; then stage_policy; [ "$(policy_sha)" = "$NEW_POLICY" ] || stop "the relay does not admit SVN19: run '$0 policy' first (nothing changed)"; fi
+  box "$mode"; did 'DONE hostpolicy' || stop "the host policy step did not finish; see the lines above"
+  say "public answers (the apps on the NucBox are slow or absent until the agent has its circuits and a chain read):"
+  answers
+}
+
+host_admits() { BOX_TIMEOUT=120 box status; did 'host policy: SVN19' && did 'network agent started: after'; }
+
+# A deployment the node gave up on stays blocked there until a forced claim hint names it. Each try costs the host a
+# claim, and a release if the launch fails, so this refuses while the host would refuse the release again.
+retry() {
+  host_admits || stop "the NucBox's own policy does not admit SVN19, or its agent has not read it: run '$0 hostpolicy' first (nothing sent)"
+  local since a i; since=$(date -u +%H:%M:%S)
+  a=$(curl -s -m 90 -X POST -H 'content-type: application/json' -d "{\"id\":\"$KVM\",\"force\":true}" "$HINT" | tr -d '\n' | cut -c1-500) || true
+  say "claim hint sent; the relay answered: ${a:-nothing}"
+  for i in $(seq 1 24); do
+    sleep 20
+    BOX_TIMEOUT=100 box launch "\$since='$since'"
+    if did 'DONE launch running'; then say "KVM Box runs on the NucBox"; answers; return; fi
+    if did 'DONE launch gave-up' || grep -q 'giving up on 0x9a28642b' "$OUT"; then stop "the node gave up on the launch again; see its lines above"; fi
+  done
+  stop "no running desktop VM within eight minutes; '$0 launch' reads the state again"
 }
 
 # The relay reads the policy once, at start. The file is replaced only from the exact file expected, the previous one
@@ -223,7 +281,7 @@ revert() {
 }
 
 status() {
-  box status
+  BOX_TIMEOUT=120 box status
   local p; p=$(policy_sha) || true
   if [ "$p" = "$NEW_POLICY" ]; then say "relay policy: SVN19"; elif [ "$p" = "$OLD_POLICY" ]; then say "relay policy: SVN18 (previous)"
   elif [ -z "$p" ]; then say "relay policy: not read"; else say "relay policy: another file ${p:0:16}"; fi
@@ -241,5 +299,8 @@ case ${1:-} in
   switch) switch "${2:-}";;
   settle) settle_only;;
   revert) revert;;
-  *) sed -n 2,28p "$0"; exit 2;;
+  hostpolicy|hostpolicy-revert) hostpolicy "$1";;
+  retry) retry;;
+  launch) BOX_TIMEOUT=100 box launch;;
+  *) sed -n 2,39p "$0"; exit 2;;
 esac

@@ -368,6 +368,50 @@ KVM Box promote.
   is still on version 0 and down, and the promote is still unsigned.
 - Public answers at 03:32Z: 200 for 7ae476a3, 38f368d6, c13d4b6a, 5ff56a4d; none for 9a28642b.
 
+### The promote, signed 03:42:29Z: the first 0.9.1 launch failed and the node gave up (read to 04:20Z)
+
+KVM Box is down at the time of writing. Nothing below was changed on any host by this reading.
+
+- The owner signed the re-offered upload (03:41:56Z and 03:42:07Z). Both gateways served the 0.9.1 component at
+  03:42:24Z, so it was the upload, not the bucket re-hash, that made them serve it. The advice given before it,
+  that signing the upload again would not help, was wrong.
+- Promote: `0x3f6e82aba33ac6dd672de34a748b466aa721b2c73b33937d5ad508bd2961995d`, 03:42:29Z. The deployment is on
+  `catalog://0xcdc1fa94…/1`.
+- NucBox `node.log`: 03:43:00 claimed (`0xcbd0b6ab53938a57d1f71b26032a7aebbbc6a06e62f4d725026285aed7f65c6f`);
+  03:43:33 `isolation held … (timeout: POST /vms: no answer within 30000 ms)`; 03:45:42 `[network] 0x9a28642b:
+  native desktop has no independently approved controller release`; 03:45:59 `isolated domain retired (… not ready
+  within 120000 ms: the domain answered 503: still starting)`, `giving up on 0x9a28642b`; 03:46:04 released
+  (`0xd29e60059b8d6b4f95992d678a30a9b174c96d92596e466817a0381e7dc41c23`). On chain: runner zero, lease 0. A
+  deployment the node gave up on stays blocked there until a forced claim hint, the site's Pause and Resume, or a
+  Node restart; none has been sent. The node logged nothing more for it.
+- Cause: the switch procedure in this directory replaced the relay's admitted Shield policy and not the NucBox's
+  own. `C:\Program Files\Enclave\network\admitted-shield-policy.json` (`ENCLAVE_NETWORK_SHIELD_POLICY`) was
+  written 10-27 07:59:28Z, has SHA-256 `e41ac8960c5112e5…` and names SVN18 and the 0.9.0 controller. The node reads
+  it on every enrollment pass and needs `desktop.controllerCid` to equal the version's CID
+  (`network/shield-expectation.mjs`), hence the 03:45:42 line; it never wrote the deployment's `expected.json` for
+  version 1. The network agent reads the file once, at start (its process is from 11-11 22:09:52Z), and has logged
+  `app policy 0x9a28642b: policy requires the current lease` every 45 s since. The October cutover
+  (`shield-grid-cutover/activate.ps1`) did install this file with the release; the 11-13 script left it out.
+- Prepared, not applied: `hostpolicy` (below). The SVN19 policy (`a0e735027bb3d04c…`, the file the relay already
+  has) is staged in the release folder on the NucBox since 04:15:03Z. Running `hostpolicy` from the agent session
+  was refused by its permission check; it is the owner's to run. After it, `retry`.
+- The site's text for KVM Box, `fleet: claim would revert on-chain: … over rate cap - retrying automatically`, is a
+  host's answer to a claim hint after simulating `claim` for itself (`supervisor.js`, `claimHintAnswer`); the revert
+  is `_requireUnderCap`. For the NucBox the claim is allowed (`rateFor` 18, `claimableBy` true), and it did claim at
+  03:43:00. The text most likely comes from a host the deployment is not pinned to, at its own price; which host
+  was not read. Nothing retries for the NucBox by itself.
+- Separately, the NucBox's network agent is saturated: 103% of one core at 04:08:28Z and at 04:18:24Z (RSS about
+  320 MiB). `chain authorization read failed: no fresh agreeing chain quorum` since 03:32:34Z: 5 lines in 03:3x, 10
+  in 03:4x, 9 in 03:5x, and still at 04:18:04Z, with reads that agree in between. Twice the ten-minute hold ran
+  out and the agent refused every app on the box (`0 running lease(s) held`, 03:51:41Z to 03:54:41Z and at
+  04:15:03Z). Public answers at about 04:12Z were 200 but slow (2.6 to 5.2 s; the gateway app's `/` and `/health`
+  gave none in 12 s). The gateway guest was fetching about 4.2 MB every 3 s from storage on the same box at
+  04:08Z; Ethernet received 3.3 MB/s at 04:18Z.
+- Not established: why the chain reads fail (an agent short of CPU, or the providers' rate limits); what the agent
+  spends the core on; when the gateway's re-hash ends; whether a fresh agent reads the chain within the manager's
+  120 s readiness limit, which the retry needs; whether the other copies of the policy (the capacity audit's, and
+  the installer seed `windows/installer/admitted-shield-policy.json`) should name SVN19.
+
 ### Changes to the script
 
 `switch` now restarts the Shield manager first, waits until the NucBox has settled (manager on the release, no
@@ -375,6 +419,14 @@ recovered VM, RAM known, node quiet for two minutes), then restarts the Node and
 and stops if the wait times out. Calls to the NucBox have a time limit. `settle` is the wait alone. The settled test
 said yes with one app VM running, and it knows nothing about apps another host took meanwhile: it means the host
 loads the release, not that every app is back.
+
+Added 11-14 for the omission above: `stage` also copies the prepared policy into the release folder; `hostpolicy`
+replaces the NucBox's admitted Shield policy with it in one step (the SVN18 file is kept beside it) and ends the
+network agent, which its task starts again within about 10 s; if no agent stays up it puts the previous file back.
+The box's apps have no route while the agent is away and until its first agreeing chain read. `hostpolicy-revert`
+is the way back. `retry` refuses unless the host admits SVN19, sends the forced claim hint for KVM Box and watches
+the launch for eight minutes; each failed try costs the host a claim and a release. `launch` and the two new
+`status` lines read only. `status`, `launch` and the policy staging were run; `hostpolicy` and `retry` were not.
 
 ## Moonlight "Add PC" with a public address: not possible with what is deployed
 
