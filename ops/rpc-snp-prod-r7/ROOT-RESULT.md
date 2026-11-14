@@ -747,6 +747,17 @@ gateway's `.pre-1.4.1`) is not scripted and not exercised. Details and tables: `
 *Also.* `rpc/snp/memtrend.py` no longer measures growth across a restart of the guest (it compared 14.38 GiB
 before with 11.84 after and printed a fall).
 
+*The day-after reading (2026-11-14 16:37-16:39Z, 24 h 8 min up, read-only).* 48 GiB holds on one day's evidence.
+The clients' anonymous memory stopped rising about eight hours in and has stayed between 13.2 and 14.6 GiB since
+(14.55 at the reading), the level the 64 GiB guest had reached. reth, Lighthouse and Base were at head in both
+readings (Ethereum 12 s and 4 s old, Base 0). Base re-reads 8.1% of what is taken from it over the whole boot
+(7.8% at 64 GiB), running on 10.7 GiB held, 3.4 of it page cache. No `oom` or `oom_kill` in any group; reth
+reached its own 20.74 GiB limit 359 times (page cache trimmed, nothing killed). The guest unit is the one started
+at 16:30:13Z; no client restart is visible, though the guest publishes no restart count. Host: 46.99 GiB
+unevictable for the guest unit, MemAvailable 45.8 of 124.8 GiB. The step from 64 to 48 cost nothing these
+readings can see, which supports trying a smaller size as an experiment and does not say where the floor is; that
+would be a new owner-signed version. Table and reasoning: `release-r14-48g/README.md`, "The day-after reading".
+
 ## Enclave RPC 1.4.1: as prepared, before it was published (2026-11-13 06:55Z; live since 16:30Z, section above)
 
 *What exists.* Release `/vm/enclave-volumes/rpc-snp-release-r14-48g` (copies in `release-r14-48g/`): r14's image

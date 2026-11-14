@@ -2,8 +2,9 @@
 
 Status: **in production since 2026-11-13 16:30:13Z** (written 18:30Z). The owner signed publish, stop and start
 between 16:26Z and 16:29Z, before the day-later reading this file asked for. Two hours in, the guest runs with
-49152 MiB, all three clients are at head and nothing was killed. Whether 48 GiB holds over a day is **not yet
-known**: the anonymous memory of a new boot is still rising, and at 64 GiB it was still creeping up after 13 hours.
+49152 MiB, all three clients are at head and nothing was killed. Whether 48 GiB holds over a day was not known
+then: the anonymous memory of a new boot was still rising, and at 64 GiB it was still creeping up after 13 hours.
+**The reading a day later (2026-11-14 16:37Z) says it holds:** "The day-after reading" below.
 The sections from "What it is" down are the preparation as written at 06:50Z, kept as they were; where the run
 showed them wrong it is said here.
 
@@ -83,7 +84,71 @@ than the 64 GiB guest would have reached**. The unit's total charge barely moved
 page cache fills what is free; the figure to read is the host's MemAvailable: 28.3 GiB at 06:40Z, **50.7 GiB at
 18:20Z**, of 124.8.
 
-## Still not known, and the reading that settles it
+## The day-after reading (2026-11-14 16:37Z and 16:38Z, 24 h 8 min after the start)
+
+Read-only, the two commands under "Before signing". `MEMORY-1114-1638Z.json`, `HEALTH-1114-1638Z.json`; the 16:37Z
+pair is in the host's readings directory. Nothing was signed, published, stopped or started.
+
+| GiB | 48 GiB, 18:17Z on 13 Nov (1 h 47 min up) | 48 GiB, 16:38Z on 14 Nov (24 h 8 min up) |
+|---|---|---|
+| MemTotal | 46.09 | 46.09 |
+| clients' slice held / held to / hard limit | 41.48 / 41.49 / 43.33 | 41.48 / 41.49 / 43.33 |
+| anonymous, all clients | 11.97, rising | **14.55** |
+| reth: anonymous / held (its own limit 20.74) | 2.84 / 5.51 | 4.31 / 18.67 |
+| Lighthouse: anonymous / held | 4.87 / 6.64 | 5.34 / 12.12 |
+| Base: anonymous / held | 4.25 / 29.34 | 4.90 / **10.69** |
+| page cache, all clients / Base | 24.45 / 20.84 | 22.93 / 3.36 |
+| kernel memory charged to the slice | | 4.01 |
+| Base: taken back MB/s, read back | 40.5, 3.1 | 40.0, 3.3 (18:17Z to 16:37Z: 8.3%) |
+| Base: read back of taken, whole boot | 6.0% | **8.1%** |
+| stall on memory, slice: last 5 min / whole boot | 0.13% / 0.6% | 0.53% / 0.68% |
+| killed at a limit (`oom`, `oom_kill`), every group | 0 | 0 |
+| times a group reached its own hard limit (`max`) | 0 | reth 359, the others 0 |
+| newest block old, s: Ethereum, Base | 10, 0 | 12, 0 and 4, 0 |
+| guest MemAvailable (its own estimate) | 30.49 | 27.75 |
+
+What it answers:
+
+- *Where the anonymous memory stops.* It has stopped rising. The probe's half-hourly samples of the slice: 13.94 GiB
+  at 00:00Z, then between 13.2 and 14.6 for the sixteen hours since, with the same mean (14.0) in the first and
+  the second eight of them. `memtrend.py` prints +0.11 GiB an hour over the last six hours and +0.27 over the last
+  two; both start in a dip (13.72 at 14:30Z) and are not a trend. Three times it fell by 1 to 2 GiB within half an
+  hour and came back within two (14.44 to 13.50 at 03:00Z, 14.32 to 13.22 at 04:30Z, 14.17 to 12.09 at 08:30Z).
+  The level is the one the 64 GiB guest had reached (14.4 to 14.5): it does not depend on the guest's size.
+- *Whether Base stays at head once reth and Lighthouse have taken their page cache.* It does, in both readings and
+  in the newest log lines. reth and Lighthouse now hold 30.8 GiB between them and Base 10.7, of which 3.4 is page
+  cache. The sizing's "Base needs about 28 GiB" is wrong by a wide margin, as the 16:21Z reading at 64 GiB already
+  suggested.
+- *The read-back share over a day.* Base re-reads 8.1% of what is taken from it over the whole boot (7.8% over the
+  64 GiB guest's 13 hours, 6.0% two hours into this boot). A little above the "about 7%" this file set as the
+  line, level with the larger guest. The stall on memory over the whole boot is the same as it was at 64 GiB
+  (334 s in 13 h 27 min there, 587 s in 24 h 8 min here: 0.69% and 0.68%).
+- *New.* reth reached its own hard limit (20.74 GiB) 359 times. That is the kernel trimming reth's page cache at
+  the limit; nothing was killed and reth's own stall is 0. It did not happen at 64 GiB, where reth peaked at 18.15.
+- *Restarts.* The guest unit on the host is the one started at 16:30:13Z (`NRestarts=0`), the probe has run without
+  a gap (1448 one-minute ticks), no group counts a kill, and the clients' log lines still carry process numbers
+  from the boot (791, 799, 1223). The guest does not publish a restart count for its clients, so "no client
+  restarted" is inferred from these, not read.
+
+**48 GiB holds on this evidence**: one day, all three clients at head whenever read, nothing killed, anonymous
+memory level at about 14.5 GiB, stall and re-read rates no worse than at 64 GiB. It is one day and two moments of
+health, not a week.
+
+**A smaller size.** The step from 64 to 48 took 13 GiB of page cache from the clients (36.3 to 22.9) and cost
+nothing that these readings can see. That supports trying one more step as an experiment; it does not say where
+the floor is. What cannot be taken is about 23 GiB (14.5 anonymous, 4.0 kernel in the slice, 4.6 the guest keeps
+outside the slice), and 13.3 GiB of the page cache is mapped by the clients (11.3 of it reth's database). A 40 GiB
+guest would leave about 16 GiB of page cache, a 36 GiB guest about 12 to 13 (slice at 90% of MemTotal, as now). The probe cannot find the working set while
+Base follows the chain (`rpc/snp/memprobe.py`), so a smaller size can only be tried, with the signs under "If it
+is too small" as the stop. It would be a new owner-signed catalog version and a restart of the guest; the host is
+not short of memory (below), so nothing forces it.
+
+**The host.** The guest unit (`enclave-rpc-snp-guest.service`, user manager, cgroup `memory.stat` at 16:39Z):
+76.45 GiB charged, **46.99 GiB unevictable** (46.37 on 13 Nov: the guest has now touched all of its memory),
+about 25 GiB of host page cache for the disk images. Host MemAvailable **45.8 GiB of 124.8** (50.7 at 18:20Z on
+13 Nov; 0.6 of the difference is this guest, the rest is whatever else the host runs).
+
+## Still not known (as written on 13 Nov; answered above)
 
 - where the anonymous memory stops in this boot (15 to 16 GiB would leave about 26 GiB of page cache in the slice);
 - whether Base stays at head once reth and Lighthouse have taken their page cache inside a 41.5 GiB slice (they
