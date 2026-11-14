@@ -512,6 +512,39 @@ This continues the section above, whose opening and whose "prepared, not applied
   longer exists" as seen from the ssh session, which includes the running circuits' own; 6 other). It grows with
   every circuit whose removal does not clear its entry; at 682 the helper fails as above. Nothing watches it.
 
+### Why the helper's pruning found nothing, and the source fix (05:15Z to 05:19Z; in source only)
+
+- Registry read on the NucBox at 05:15:12Z, read-only, from the administrator's ssh session. SYSTEM's hive
+  (`HKU\S-1-5-18\Software\Classes\Local Settings\…\AppContainer\Mappings`) holds 2,087 AppContainer profiles, 2,085
+  of them named `enclave.circuit.<32 hex>`: 26 of a circuit with a running process, 2,059 of a circuit with none. The
+  ssh user's own hive holds 7. All 30 exemptions in the list belong to a profile in SYSTEM's hive: 24 to a running
+  circuit, 6 to a circuit with no process and no directory. From the ssh session the 24 running ones are the ones
+  listed `AppContainer NOT FOUND`, and the 6 dead ones are listed by name (`enclave.circuit.<32 hex>`).
+- So a circuit that is killed without its `remove` keeps its profile as well as its exemption, and the account
+  that created the profile reads the entry by name. The helper runs as SYSTEM and pruned only `AppContainer NOT
+  FOUND` entries (`6b7b4e476`, 10-14): on the host it had nothing to prune, and the add after it failed with exit
+  87. This was not watched as SYSTEM: it follows from the registry and from how the two accounts' listings differ.
+  The 676 entries removed at 04:50Z can no longer be checked against the registry.
+- The source of the pile: the agent's `remove` runs when a circuit is closed (`wg-circuit-runtime.mjs`). An agent
+  that is ended (an update, `hostpolicy`, a host restart) runs no `remove` for the circuits it had, and nothing
+  sweeps the leftovers when the next agent starts.
+- The fix, `63343e633` on main (`network/windows-firewall`): when the add is refused, an entry named
+  `enclave.circuit.<id>` is removed too, if its SID is the one Windows derives for that circuit's profile, no
+  process runs in that AppContainer (read from every process's token), no process that could not be read has the
+  name of a file in the circuit's directory, and the circuit's `firewall.json` is older than five minutes or gone
+  (a circuit being started has its exemption before its process). A `NOT FOUND` entry is now removed only when no
+  process runs in it, so the helper run from another account cannot repeat the 04:50Z removal.
+- Checked: `go test ./...` (the listing rules), `go vet` and `go build` for windows/amd64. Not checked: the Windows
+  part (reading process tokens, deriving the SID) has not run anywhere. The helper is installed on no host; the
+  NucBox still runs the one from 10-15 and will fail the same way when its list is full again. Installing it means
+  a new network agent build on the host and an agent restart, which is the owner's step.
+- Left as they are: the 2,059 profiles of dead circuits, their firewall sublayers and rules, and the 16,828
+  circuit directories. The exemption list is the only one of these known to have a limit. A sweep of a previous
+  agent's leftovers at agent start would stop all four from growing; it is not written.
+- Of the three "not established" items at the end of the 04:25Z section: the first is answered above; the 6 named
+  entries belong to nothing running; nothing removes a profile and leaves its exemption (the profile only looks
+  absent from another account).
+
 ### Changes to the script
 
 `switch` now restarts the Shield manager first, waits until the NucBox has settled (manager on the release, no
