@@ -11,7 +11,9 @@ Status at 08:00Z:
   shown from outside for all six pairs of edges at 07:50-07:51Z (`activation/check-0750Z.txt`).
 - **Not shown:** a Moonlight stream whose own connections were split across two edges. The workstation this was
   tested from always sorts us-west first, so its streams never split.
-- **Not done:** the KVM Box page still says `127.0.0.2`. That is the page's own release.
+- **The page (added 17:57Z):** at 08:00Z it still said `127.0.0.2`. Its own release (SVN20, KVM Box 0.9.2) runs since
+  17:49Z and names `9a28642b.app.enclave.host` as the PC to add. `check` passed again at 17:55-17:56Z against the
+  new guest; the app is now routed through ap-southeast and us-west.
 
 ## Why
 
@@ -136,7 +138,7 @@ that do route an app, so a real client does not get there.
 - The KVM Box page keeps saying `127.0.0.2` until its own release (enclave-apps branch
   `kvm-box/page-moonlight-public-20261114`, a signed desktop release, owner signatures, a host switch). That release
   was waiting for the pairs to be carried, which `activation/check-0750Z.txt` now shows. It was prepared at 08:25Z
-  as SVN20 / catalog version 2 and is not live: see "A release for the Moonlight paragraph" in
+  as SVN20 / catalog version 2 and went live at 17:49Z: see "A release for the Moonlight paragraph" in
   `ops/unified-funding-20261028/funding-reactivation-20261111/queued-apps-20261113/README.md`.
 - Seen while reading the edges' journals, not caused by this work: Ubuntu's unattended upgrades restarted
   `enclave-network-provider` on three edges between 06:06Z and 06:38Z (ap-southeast 06:06:02Z, us-west 06:12:10Z,

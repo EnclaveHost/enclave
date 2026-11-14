@@ -735,7 +735,15 @@ Not done, not known:
   desktop release, owner signatures, a host switch) is the next step and has not been started.
 - Why two early pairing tries answered "Incorrect PIN" is still not known.
 
-## A release for the Moonlight paragraph: SVN20, catalog version 2 (prepared 08:25Z on 2026-11-14, NOT live)
+## A release for the Moonlight paragraph: SVN20, catalog version 2 (live since 17:49Z on 2026-11-14)
+
+**Status at 17:57Z:** KVM Box 0.9.2 (catalog version 2, SVN20) runs on the NucBox since 17:49:36Z. It was down from
+08:43:50Z until then, about 9 h 6 min, most of it waiting for the promote signature. Read under the public name, the
+page says "In Moonlight, add PC 9a28642b.app.enclave.host, then enter its pairing PIN here. Or, with the KVM Box
+connector running on your computer, add PC 127.0.0.2: that path also checks the desktop's attestation." The image is
+unqualified like SVN19 (isolated KVM run only). Not shown with this guest: a Moonlight pairing and stream (a pairing
+made with the 0.9.1 guest does not carry over), and a stream split across two edges. The text below is the
+preparation as written at 08:25Z; the activation log at the end is what happened.
 
 The page still tells the owner to add PC `127.0.0.2`. The public path works since 07:47Z (section above), so what is
 left is the page's text, and the page is the controller the desktop release pins by hash. Changing one paragraph
@@ -838,3 +846,39 @@ signed, promote version 1 again. Each costs what its forward step cost.
 | 08:47:48-09:00:04 | operator | `desktop-svn20.sh switch` | Shield task started 08:47:48Z, manager on `08f69fa41526` at 08:48:28Z; app VMs 4 at 08:52:29Z, 5 at 08:53:00Z, 7 of 7 and settled at 08:57:02Z. Node task started 08:57:17Z, settled 09:00:04Z, marker written. Manager first, then Node, as intended: 12 min 16 s from the first restart to the marker |
 | 09:02:45 | - | public names | the eight other apps answer 200; KVM Box no answer (waits for the promote) |
 | 09:03 | - | `status`, signing page | both launchers and the manager name SVN20, 7 app VMs, host and relay policy SVN20; the page offers the promote. Loopback list 87 of 682 |
+| 17:32:04 | owner | promote, `0xcf603b7c50bcf774448a7f2a9eadf9bbddbc3307aed1e81cf8ee7329e3c1aba8` | status 1, block 57435750; the deployment names `catalog://0xcdc1…70ce/2` |
+| 17:32:31, 17:34:08 | - | `launch` | none: the node had given the app up during the down stretch and does not claim it by itself |
+| 17:34:12-17:37:35 | - | `retry` (first) | **failed.** Claimed 17:34:27Z, desktop VM starting at 17:35:02Z, then eight times "sealed secrets for 0x9a28642b waiting for its startup egress route"; retired at 17:37:30Z "not ready within 120000 ms", released 17:37:35Z. The claim cost 2.06e-6 ETH, the release 1.18e-6 ETH of the operator's gas |
+| 17:38-17:46 | - | reading node.log, network.log, `expected.json` | cause below: the agent still held version 1's expectation (`expected.json` written 04:31:11Z, app reference …/1), so it refused the new guest's proof ("no matching current app expectation") and never opened the route the secrets wait for. Not a pin mismatch: the manager and the node's release both name `08f69fa41526` |
+| 17:47:14-17:49:37 | - | `retry` (second, timed) | claimed 17:47:31Z; **17:48:47Z `[network] 0x9a28642b: expectation now 2 app 3d98424d`**; 17:49:01Z privacy config reloaded (1 changed); 17:49:23Z "app 0x9a28642b egress back"; VM running and app ready, adopted 17:49:36Z; `DONE launch running` |
+| 17:49:41-17:49:59 | - | public names | the eight other apps answer 200 (1.7-6.2 s) |
+| 17:51:45 | - | `9a28642b.app.enclave.host` | `/` 401, `/.well-known/enclave-ready` 200, public certificate valid to 2027-02-12. Before that, from the start of the guest, the name served the guest's own self-signed certificate |
+| ≈17:53 | - | the page, read in the owner's browser | the Moonlight paragraph names `9a28642b.app.enclave.host` first and keeps `127.0.0.2` as the connector alternative; desktop stopped, Start desktop offered |
+| ≈17:54 | - | Start desktop, from the page | "Desktop running", the button reads Stop desktop, the terminal shows `desktop@kvm-box:~$`. Left running |
+| 17:55:16-17:56:34 | - | `run.sh check` of the GameStream gateway, from outside | passed on all four edges. The app is now routed through ap-southeast and us-west (before the restart: us-west and eu-central); by name through each: 200 `SUNSHINE_SERVER_FREE`; all six pairs carried |
+| 17:57:00 | - | public names | eight other apps 200, KVM Box 401, ready 200 |
+
+### Why the first retry failed (a defect in the node, not fixed)
+
+A version change of a native desktop app that is already enrolled needs the node's network enrollment pass
+(`windows/node/network-enroll.mjs`) to rewrite the app's `expected.json` for the new version. Only then does the
+agent accept the starting guest's proof and open its startup egress route, and the sealed owner secrets wait for that
+route. The pass is scheduled in `windows/node/agent.mjs`: every 15 s while something is unenrolled, every 30 s while
+an enrollment waits, otherwise every 300 s, and it only acts on rows whose lease this runner holds. The readiness
+limit is 120 s (`windows/vbslike/manager/ready.mjs`). So after a version change the launch succeeds only if a
+300-second pass happens to fall between the claim and the limit. In the first lease (17:34:27-17:37:35Z) none did.
+
+The second retry was started so that the claim came shortly before the next pass, inferred from the first lease
+having seen none. That is a workaround by timing. The fix belongs in the node: run an enrollment pass when it
+launches a version of an enrolled app whose expectation names another version. Not written.
+
+Two lines in node.log look like the cause and are not. "unblocking … overrides \"isolation:
+manager.desktop.igvmSha256: the manager's native desktop identity differs from the independently approved release\""
+is the block reason left from the switch window. "version change: …: native desktop igvmSha256 does not match the
+planned identity; replacing the domain" with "NOT retired … instance is still launching" appeared about 28 s after
+the forced relaunch in the failed and in the successful launch alike.
+
+Also seen, not caused by this: the relay answers the forced claim hint with `accepted:false … over rate cap` although
+the node claims about 15 s later. And `checkpoint 0x59f1273d failed: The total cost … exceeds the balance of the
+account` repeats every 5 minutes since at least 14:12Z: the NucBox operator account held 2.519e-7 ETH at 17:43Z.
+Lease renewals of the other apps keep succeeding. Funding that account is the owner's (`rpc/snp/owner-sign/topup-plan.mjs`).
