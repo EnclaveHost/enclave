@@ -629,3 +629,40 @@ Not done:
   `kvm-box/page-moonlight-public-20261114`) shows the app's name; it is bound into the signed desktop release, so it
   needs a new release (SVN20), owner signatures and a host switch, and should not go out before the edges serve the
   ports.
+
+### Follow-up, 06:35Z: the edge activation is prepared as a service beside the provider (run on no edge)
+
+What the edges run (read-only ssh, 06:1xZ): us-west, ap-southeast and eu-central run
+`native-recovery-464cad3/provider.mjs`; ca-east runs `hs-transport-39d1513b/wg-provider.mjs`. Neither is main's
+provider, so the route in the list above (a provider bundle built with the gateway and `"gameStream": true`) would
+mean replacing the provider on every edge. That was not prepared. Instead the gateway got a second form:
+
+- `network/wg-provider/gamestream-gateway.mjs` (+ `-main.mjs`): the same gateway as a process of its own. It reaches
+  apps through the provider's own 443 router on the box (TLS to 127.0.0.1 under the app's name) and holds no key.
+  It binds names that are one label under a configured zone; unlike the provider field it cannot tell whether a peer
+  holds the name (an unheld name binds only the client that sent it, and that client's flows end at the router).
+- `scripts/network/build-gamestream-gateway.mjs`: a reproducible one-file bundle, sha256
+  `982463a28a9939d71d9e07fe040f019f5ec6f22a71b8014eb6604f867385f5af` (9269 bytes).
+- `network/wg-provider/gamestream-gateway-install.sh`: install / status / remove on a box.
+- `ops/gamestream-gateway-20261114/`: `plan.json`, `run.sh` (preflight, activate, check, status, revert), a README.
+
+| Check | Result |
+| --- | --- |
+| Tests (`test/wg-provider-gamestream*.test.mjs`, `test/wg-provider.test.mjs`) | 25 of 25 pass |
+| The built bundle on the workstation (127.0.0.4), us-west as router | named `/serverinfo` 200; bare address after it 200; name outside the zone and no binding closed; unheld zone name closed with one log line; TLS on 47984 with the app's name as SNI reached Sunshine's certificate |
+| Unit file | `systemd-analyze verify` passes |
+| `run.sh preflight`, 06:29Z, all four edges | ready: address on the box, Node 22.23.3, provider active, ufw active, six ports free, 247-359 MB available |
+| `run.sh status`, 06:31Z, all four edges | gateway not installed anywhere |
+| `rehearse.sh` (real bundle, installer and `run.sh`; stand-ins for ssh, systemctl, ufw) | activate, status, check, skipped re-activate, revert, nothing left |
+
+Not done, not known:
+
+- No edge runs the gateway. `bash ops/gamestream-gateway-20261114/run.sh activate` is the owner's run.
+- The service has not started under systemd's sandbox on a real box; a cloud firewall in front of the edges, if any,
+  is unknown; UDP from outside is only shown by a real stream.
+- Moonlight by name against the two-address name, and a picture on screen: to be tried after the activation and
+  before the page release.
+- The page still says 127.0.0.2 (unchanged from above).
+
+The trial bundle process on 127.0.0.4 was stopped at 06:29Z. The earlier trial gateway on 127.0.0.3 still runs on the
+workstation so the workstation's Moonlight entry keeps answering.

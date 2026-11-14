@@ -1,0 +1,8 @@
+host: ap-southeast
+node: /usr/local/bin/node v22.23.3
+addresses: 127.0.0.1 165.245.191.129 10.15.0.5 10.104.0.2 10.77.0.1 10.78.0.1 
+provider: active MainPID=926912 ActiveEnterTimestamp=Sat 2026-11-14 06:06:02 UTC 
+memavailable_mb: 351
+ufw: Status: active
+gateway: inactive
+listeners: 

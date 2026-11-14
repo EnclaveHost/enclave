@@ -1,0 +1,8 @@
+host: us-west
+node: /usr/local/bin/node v22.23.3
+addresses: 127.0.0.1 134.199.235.187 10.48.0.5 10.124.0.2 10.77.0.1 10.78.0.1 
+provider: active MainPID=934493 ActiveEnterTimestamp=Sat 2026-11-14 06:12:11 UTC 
+memavailable_mb: 359
+ufw: Status: active
+gateway: inactive
+listeners: 

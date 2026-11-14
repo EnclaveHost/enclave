@@ -1,0 +1,12 @@
+{
+  "what": "standalone GameStream gateway (network/wg-provider/gamestream-gateway.mjs) beside the provider on each edge",
+  "bundle": {"build": "node scripts/network/build-gamestream-gateway.mjs", "file": "gamestream-gateway.mjs", "sha256": "982463a28a9939d71d9e07fe040f019f5ec6f22a71b8014eb6604f867385f5af"},
+  "config": {"zones": ["app.enclave.host"], "router": "127.0.0.1", "maxFlows": 256, "maxPerClient": 32, "maxBindings": 4096},
+  "probeApp": "9a28642b.app.enclave.host",
+  "edges": [
+    {"alias": "ca-east", "address": "146.190.246.39"},
+    {"alias": "ap-southeast", "address": "165.245.191.129"},
+    {"alias": "us-west", "address": "134.199.235.187"},
+    {"alias": "eu-central", "address": "134.209.248.172"}
+  ]
+}

@@ -1,0 +1,8 @@
+host: ca-east
+node: /usr/local/bin/node v22.23.3
+addresses: 127.0.0.1 146.190.246.39 10.20.0.5 10.118.0.2 10.77.0.1 10.78.0.1 
+provider: active MainPID=884045 ActiveEnterTimestamp=Fri 2026-11-13 06:21:46 UTC 
+memavailable_mb: 329
+ufw: Status: active
+gateway: inactive
+listeners: 
