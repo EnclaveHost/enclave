@@ -833,3 +833,5 @@ signed, promote version 1 again. Each costs what its forward step cost.
 | 08:37-08:38 | operator | `desktop-svn20.sh policy` | relay policy `54fed2c8…e60e`; relay health before 3 of 6, right after the restart 0 of 2, at 08:41:25Z 3 of 6 again |
 | 08:38:25 | - | `fetch` | the node's fetcher on the NucBox gets the controller through its own source list |
 | 08:41 | - | `status` | NucBox unchanged: both launchers and the manager on SVN19, 7 app VMs, host policy SVN19; loopback list 39 of 682; KVM Box answers 401 (up, on 0.9.1), `ef514ed3…/healthz` 200 |
+| 08:43:09-08:43:22 | operator | `desktop-svn20.sh hostpolicy` | host policy `54fed2c8…e60e`; the network agent was down 13 s and has its control circuits. At 08:44Z four of the eight other apps did not answer yet; at 08:45:36Z all eight answered 200 |
+| 08:43:50 on | - | `launch`, public name | **KVM Box is down, as planned for this stretch:** the agent refuses the running SVN19 guest ("image measurement is not pinned"), `9a28642b.app.enclave.host` gives no answer. It stays down until the switch and the promote. Loopback list 65 of 682 |
