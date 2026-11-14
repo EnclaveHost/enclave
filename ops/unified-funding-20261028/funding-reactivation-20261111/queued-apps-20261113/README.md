@@ -577,3 +577,55 @@ is why the page says 127.0.0.2. A public address needs things the platform does 
 
 So it is platform work (a per-app raw port path through the edges or Direct, and a decision about what authenticates
 it), not a page change. Not started.
+
+### Follow-up, 2026-11-14 06:10Z: a public path built in source and tried; installed on no edge
+
+The section above was wrong on one point. The owner sign-in is **not** in front of Sunshine today: the desktop guest's
+front serves Sunshine's six ports to anyone under the app's public name, as port tunnels on 443
+(`/.well-known/enclave-tunnel/{tcp|udp}/{port}`, `isolation/m4/PROTECTED-PORTS.md`). Checked from outside with no
+sign-in: the upgrade answers `101` for the six ports and `404 undeclared destination` for tcp/22. Sunshine's pairing
+PIN (entered on the owner page) and its mandatory encryption are already the only gate. What a stock Moonlight lacks
+is someone to speak that tunnel for it.
+
+Built (platform `f5384aef8`, `network/wg-provider/gamestream.mjs`, `docs/network/gamestream-ingress.md`): an opt-in
+gateway in the edge provider. With `"gameStream": true` it listens on Sunshine's ports on the edge's public address
+and carries each flow through the app's tunnel. The PC added in Moonlight is the app's own name
+(`9a28642b.app.enclave.host`), which resolves to the edges' public addresses. A bare IP cannot select an app (one
+address serves every app), so the name is the public address; the client's Host or SNI names the app and binds the
+client's source address, and RTSP and UDP follow the binding.
+
+Tried from the workstation, 05:45-06:03Z: the gateway code on a loopback address (127.0.0.3), edge 134.199.235.187 as
+the tunnel hop, the KVM Box desktop on the NucBox (0.9.1, SVN19) as the app.
+
+| Step | Result |
+| --- | --- |
+| RTSP before any binding | closed |
+| 47989 `/serverinfo` with the app's name | 200 in 748 ms, binding made |
+| 47984 | TLS 1.3 end to end with Sunshine's certificate |
+| Pairing, moonlight-qt 6.2.0, PIN submitted on the owner page | paired on the third attempt; `moonlight list` shows `KVM Box Desktop` |
+| Stream, three runs, 1280x720 at 30 fps | launch 200, RTSP handshake, video/control/audio over UDP, 1.33-1.41 Mbit/s |
+| Arrival at the gateway's client side (run 3) | about 410 datagrams a second, longest steady gap 28-37 ms, two isolated gaps of 99 and 137 ms |
+
+Not established:
+
+- A picture on screen. Moonlight, started from a shell, logged `Video decode unit queue overflow` about once a second
+  in every run (hardware and software decode) and did not exit on SIGTERM; no stream window was found. Arrival at the
+  gateway was smooth, which points at the client as started here, but that is an inference, not a viewed picture.
+- Why the first two pairing attempts answered "Incorrect PIN". A diagnostic client showed the server's answers
+  consistent with the PIN and its signature valid; the third attempt (PIN submitted five seconds after the client
+  started) paired. Cause unknown.
+- A name with two A records (this app's has two, one per edge; bindings are per edge), and SNI on 47984 when the PC is
+  added by name. The trial added the PC by address.
+
+State left behind: the workstation's Moonlight holds a pairing with the desktop under host address 127.0.0.3. It
+works only while the trial gateway process runs on the workstation, and ends with the next desktop restart (pairing
+keys are not kept). Sunshine was left `SUNSHINE_SERVER_FREE`.
+
+Not done:
+
+- No edge runs the gateway. It needs the edges' current provider release established, a bundle built from it with the
+  gateway, `"gameStream": true` in each edge's `provider.json`, and the install run on each edge (the owner's run).
+- The page still says 127.0.0.2. The changed page (enclave-apps `47a83ff`, branch
+  `kvm-box/page-moonlight-public-20261114`) shows the app's name; it is bound into the signed desktop release, so it
+  needs a new release (SVN20), owner signatures and a host switch, and should not go out before the edges serve the
+  ports.
