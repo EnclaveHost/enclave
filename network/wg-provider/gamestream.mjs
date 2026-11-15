@@ -75,7 +75,7 @@ function deframer(onFrame,onError){
 export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PORTS,connect=tlsConnect,count=()=>{},log=()=>{},now=Date.now,
   bindingMs=10*60000,udpIdleMs=90000,maxFlows=4096,maxPerClient=64,maxBindings=16384,ask=null,askAgainMs=5000,askMissMs=1000,maxAsking=64,
   // connections per UDP port's flow, in the order of ports.udp (video, control, audio); null: plain tunnels only
-  flowLanes=[16,4,4],reorderMs=80,renewMs=250,statsMs=10000,randomId=()=>randomBytes(16).toString('hex')}){
+  flowLanes=[16,4,4],reorderMs=80,renewMs=250,statsMs=10000,silenceMs=120,randomId=()=>randomBytes(16).toString('hex')}){
  // only a peer's tunnel address: a name served on this box is not an app
  const peerOf=name=>{const to=name&&route(name);return typeof to==='string'?to:null;};
  const bindings=new Map(),perClient=new Map(),open=new Set();let flows=0;
@@ -180,7 +180,7 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
     const release=hold(r.address,b),id=want?randomId():null;
     const toClient=payload=>{a.at=now();a.lag?.note(payload);count(to,0,payload.length);sock.send(payload,r.port,r.address,()=>{});};
     // how far behind the video and the audio leave this box (the control port's datagrams are not RTP)
-    a={up:null,flow:null,queue:[],at:now(),since:now(),to,heardAt:0,silence:0,lag:i===0?rtpLag({by:'none',now}):i===2?rtpLag({by:'sequence',now}):null,name:b.name,port,
+    a={up:null,flow:null,queue:[],at:now(),since:now(),to,heardAt:0,silence:0,gaps:[],lag:i===0?rtpLag({by:'none',now}):i===2?rtpLag({by:'sequence',now}):null,name:b.name,port,
      end(){
       if(!a.queue)return;a.say();a.queue=null;if(assoc.get(key)===a)assoc.delete(key);release();a.up?.destroy();
       if(a.flow){const st=a.flow.rx.stats();flowStats.delivered+=st.delivered;flowStats.duplicates+=st.duplicates;flowStats.skipped+=st.skipped;flowStats.late+=st.late;flowStats.rebuilt+=st.rebuilt;flowStats.dropped+=a.flow.dropped;
@@ -203,14 +203,14 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
      say(){
       const g=a.lag?.take(),st=a.flow?a.flow.rx.stats({reset:true}):null;if(!g||!g.packets)return;
       const d=st?{delivered:st.delivered-(a.said?.delivered||0),rebuilt:st.rebuilt-(a.said?.rebuilt||0),over:st.skipped-(a.said?.skipped||0),late:st.late-(a.said?.late||0),copies:st.duplicates-(a.said?.duplicates||0),parity:st.parity-(a.said?.parity||0)}:null;a.said=st;
-      const quiet=Math.round(a.silence);a.silence=0;
+      const quiet=Math.round(a.silence)+' ms'+(a.gaps.length?` (${a.gaps.join(', ')})`:'');a.silence=0;a.gaps=[];
       log(`gamestream ${a.name} udp/${a.port} ${Math.round((now()-a.since)/1000)} s: ${g.packets} packets, ${g.lost} missing; late by ${g.p50??'?'} ms at the median, ${g.p95??'?'} at the 95th, ${g.p99??'?'} at the 99th, ${g.max??'?'} at most`
-       +(d?`; rebuilt ${d.rebuilt}, passed over ${d.over}, late copies ${d.late}, second copies ${d.copies}, parity frames ${d.parity}, longest wait for a missing one ${Math.round(st.longestWaitMs)} ms of ${st.reorderMs}, longest silence of all lanes ${quiet} ms, lanes open ${a.flow.lanes.filter(l=>!l.up.destroyed).length} of ${a.flow.opened} (frames per lane ${a.flow.lanes.map(l=>{const n=l.received-(l.saidReceived||0);l.saidReceived=l.received;return n;}).join(' ')})`:'; plain tunnel'));
+       +(d?`; rebuilt ${d.rebuilt}, passed over ${d.over}, late copies ${d.late}, second copies ${d.copies}, parity frames ${d.parity}, longest wait for a missing one ${Math.round(st.longestWaitMs)} ms of ${st.reorderMs}, longest silence of all lanes ${quiet}, lanes open ${a.flow.lanes.filter(l=>!l.up.destroyed).length} of ${a.flow.opened} (frames per lane ${a.flow.lanes.map(l=>{const n=l.received-(l.saidReceived||0);l.saidReceived=l.received;return n;}).join(' ')})`:'; plain tunnel'));
      },
     };
     assoc.set(key,a);
     // the longest time no lane brought anything (while the stream ran): a hold of the whole path, not of one connection
-    const heard=()=>{const t=now();if(a.heardAt&&t-a.heardAt>a.silence)a.silence=t-a.heardAt;a.heardAt=t;};
+    const heard=()=>{const t=now();if(a.heardAt){const g=t-a.heardAt;if(g>a.silence)a.silence=g;if(g>=silenceMs&&a.gaps.length<6)a.gaps.push(`${Math.round(g)} ms to ${new Date(t).toISOString().slice(11,23)}`);}a.heardAt=t;};
     const lane=t=>{
      const up=t.socket,l={up,received:0,reported:0,due:false,n:a.flow.pick.add()};a.flow.lanes[l.n]=l;a.flow.opened++;   // (a closed lane's place is used again)
      open.add(up);up.on('error',()=>up.destroy());
