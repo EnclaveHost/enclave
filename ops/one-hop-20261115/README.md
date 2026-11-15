@@ -1,4 +1,4 @@
-# One hop: the release (prepared 2026-11-15; steps 1 to 3 of 6 done: the four edges, the control VM, the frontend; step 4, the NucBox, done but for near routes)
+# One hop: the release (prepared 2026-11-15; steps 1 to 3 of 6 done: the four edges, the control VM, the frontend; step 4, the NucBox; the owner's signature is next)
 
 One hop (main `f814b020a`, design in `docs/design/enclave-network.md` "One hop") lets an app's circuit be one
 provider with no guard: host → provider ← visitor. It takes two choices, neither enough alone: the app's owner signs
@@ -300,3 +300,19 @@ guard. It ends "not one hop yet" for two reasons where it had three, as it must 
 This is the first run of this release's agent bundle on Windows and the first execution of the script's `agent` mode.
 No one-hop circuit has been built anywhere, and no provider has been asked for one. `nearRoutes` is absent, so a
 one-hop circuit built now would go through the cheapest, longest-qualified provider and not the nearest.
+
+**4c. NucBox, near routes on, 2026-11-15 11:19–11:21Z, run by the operator** (`one-hop-nucbox.sh near-on`).
+`nearRoutes` set true, the network agent ended 11:19:32Z and started 11:19:45Z, control circuits up by 11:19:53Z. The
+agent measured the four providers at 11:20:19Z: sfo3 24.8 ms, tor1 85.8 ms, fra1 160.9 ms, sgp1 186.1 ms. Every app
+then got guard sfo3 to exit tor1, listed in its name, and guard fra1 to exit sgp1 standing by. For two apps, the KVM
+Box and `0x59f1273d`, the near circuit failed at first ("Client network socket disconnected before secure TLS
+connection was established", 11:20:38Z); the KVM Box's egress was off from 11:20:39Z to 11:20:58Z and its name listed
+only ap-southeast until the agent built the near circuit again, seen at 11:22:09Z. One request to `0x59f1273d`'s name
+failed at 11:20:54Z; the rest answered. Loopback exemptions: 252 of 682.
+
+A second `near-on` was started from the assistant's session at 11:20:39Z while the operator's was running. It found
+the field already true and changed nothing ("DONE near-on: nothing changed"); it restarted nothing.
+
+Read afterwards, 11:21–11:22Z: `one-hop-nucbox.sh check` passed, nine names answer, the storage app's health check
+200. `one-hop-check.sh`: host reports to the relay, allows one hop for the app, both circuits have a guard, no policy
+of the owner anywhere; two reasons left, both the owner's signature. First run of near routes on a real host.
