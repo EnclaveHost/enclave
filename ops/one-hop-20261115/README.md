@@ -1,4 +1,4 @@
-# One hop: the release (prepared 2026-11-15; step 1 of 6 done, the four edges)
+# One hop: the release (prepared 2026-11-15; steps 1 and 2 of 6 done, the four edges and the control VM)
 
 One hop (main `f814b020a`, design in `docs/design/enclave-network.md` "One hop") lets an app's circuit be one
 provider with no guard: host → provider ← visitor. It takes two choices, neither enough alone: the app's owner signs
@@ -209,3 +209,22 @@ passed again at 07:50Z with four of four edges verified. This is the first time 
 systemd, on the kernel's WireGuard and with nftables; no host has asked an exit directly, so the grant of a one-hop
 request by a live provider is still unseen. ap-southeast's provider came back with 3 guard peers where it had 4; which
 peer did not return was not read.
+
+**2. Control VM, 2026-11-15 08:24–08:52Z, run by the operator** (`one-hop-control.sh activate`). The bridge, the route
+pull and then the relay were restarted on this release's files; no step was taken back. Evidence:
+`activation/control-<service>.result.txt`, `control.verified.json`.
+
+| service | file | restarted | after |
+|---|---|---|---|
+| bridge | `3c778817` | 08:24:05Z, done 08:24:34Z | copied 5 of 5 stored policies, 0 error lines |
+| route pull | `69b16600` | 08:24:39Z, done 08:25:03Z | last round handed on 36, dropped 4 (37 and 3 before), 0 error lines |
+| relay | `3bbc6bf0` | 08:26:41Z, done 08:27:04Z | `/v1/network/status` answers 200 |
+
+The relay step waited for the RPC app's renewal (08:26:37Z, lease until 08:56:36Z) and restarted the relay four seconds
+after it; the API answered from the workstation at 08:27:06Z. The run then watched metal0's journal: the app renewed at
+08:52:37Z, until 09:22:36Z, and the run wrote `control.verified.json` at 08:52:40Z. Read afterwards, 08:53–08:54Z:
+`one-hop-control.sh check` passed, `one-hop-edges.sh check` passed for the four edges with the ten app names answering,
+and the KVM Box's host reported to the new relay 18 s before the read (two circuits, both with a guard, both healthy;
+no owner policy). This is the first time the three control VM files have run there, and the first real use of the
+installer's root path. The relay has not been handed a `guard:false` policy; the stored-policy count and the units'
+start condition are readable only as root and were read by the installer, not by the checks.

@@ -1,0 +1,2 @@
+[08:24:39Z] route-pull: restarting process 154731 (last round handed on 37, dropped 3; 0 error lines) on 69b16600340a
+[08:25:03Z] DONE route-pull: process 231568 runs /opt/enclave-directory-bridge/one-hop-69b16600/mirror-public-providers.mjs (69b16600340a); before: last round handed on 37, dropped 3; 0 error lines; now: last round handed on 36, dropped 4; 0 error lines

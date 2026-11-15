@@ -1,0 +1,2 @@
+[08:26:41Z] relay: restarting process 208843 on 3bbc6bf0d5a8; the API is away for the seconds the restart takes
+[08:27:04Z] DONE relay: process 232506 runs /opt/nan-relay/network-runtime.bundle.mjs (3bbc6bf0d5a8); the previous bundle is kept as /opt/nan-relay/network-runtime.bundle.mjs.before-one-hop-20261115; /v1/network/status answers 200

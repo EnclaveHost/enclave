@@ -1,0 +1,2 @@
+[08:24:05Z] bridge: restarting process 154730 (copied 5 of 5 stored policies since it started, 0 error lines) on 3c778817cb30
+[08:24:34Z] DONE bridge: process 230511 runs /opt/enclave-directory-bridge/one-hop-3c778817/mirror.mjs (3c778817cb30); before: copied 5 of 5 stored policies since it started, 0 error lines; now: copied 5 of 5 stored policies since it started, 0 error lines
