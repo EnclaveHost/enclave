@@ -27,7 +27,7 @@ import net from 'node:net';
 import tls from 'node:tls';
 import dgram from 'node:dgram';
 import {randomBytes} from 'node:crypto';
-import {FLOW_HEADER,flowReport,flowReceiver,lanePicker,flowDeframer} from './port-flow.mjs';
+import {FLOW_HEADER,flowReport,flowReceiver,lanePicker,flowDeframer,rtpLag} from './port-flow.mjs';
 import {clientHelloName} from '../client-hello.mjs';
 import {hostHeader} from './router.mjs';
 
@@ -75,7 +75,7 @@ function deframer(onFrame,onError){
 export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PORTS,connect=tlsConnect,count=()=>{},log=()=>{},now=Date.now,
   bindingMs=10*60000,udpIdleMs=90000,maxFlows=4096,maxPerClient=64,maxBindings=16384,ask=null,askAgainMs=5000,askMissMs=1000,maxAsking=64,
   // connections per UDP port's flow, in the order of ports.udp (video, control, audio); null: plain tunnels only
-  flowLanes=[16,4,4],reorderMs=80,renewMs=250,randomId=()=>randomBytes(16).toString('hex')}){
+  flowLanes=[16,4,4],reorderMs=80,renewMs=250,statsMs=10000,randomId=()=>randomBytes(16).toString('hex')}){
  // only a peer's tunnel address: a name served on this box is not an app
  const peerOf=name=>{const to=name&&route(name);return typeof to==='string'?to:null;};
  const bindings=new Map(),perClient=new Map(),open=new Set();let flows=0;
@@ -178,10 +178,11 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
    if(!a){
     const b=bound(r.address),to=b&&peerOf(b.name);if(!to||!admit(r.address))return;
     const release=hold(r.address,b),id=want?randomId():null;
-    const toClient=payload=>{a.at=now();count(to,0,payload.length);sock.send(payload,r.port,r.address,()=>{});};
-    a={up:null,flow:null,queue:[],at:now(),since:now(),to,
+    const toClient=payload=>{a.at=now();a.lag?.note(payload);count(to,0,payload.length);sock.send(payload,r.port,r.address,()=>{});};
+    // how far behind the video and the audio leave this box (the control port's datagrams are not RTP)
+    a={up:null,flow:null,queue:[],at:now(),since:now(),to,lag:i===0?rtpLag({by:'timestamp',now}):i===2?rtpLag({by:'sequence',now}):null,name:b.name,port,
      end(){
-      if(!a.queue)return;a.queue=null;if(assoc.get(key)===a)assoc.delete(key);release();a.up?.destroy();
+      if(!a.queue)return;a.say();a.queue=null;if(assoc.get(key)===a)assoc.delete(key);release();a.up?.destroy();
       if(a.flow){const st=a.flow.rx.stats();flowStats.delivered+=st.delivered;flowStats.duplicates+=st.duplicates;flowStats.skipped+=st.skipped;flowStats.late+=st.late;flowStats.rebuilt+=st.rebuilt;flowStats.dropped+=a.flow.dropped;
        // one line per association that carried something: what a stream's video, control and audio each met on the path
        if(st.delivered)log(`gamestream ${b.name} udp/${port} flow ended after ${Math.round((now()-a.since)/1000)} s: delivered ${st.delivered}, of them rebuilt from parity ${st.rebuilt}, late ${st.late}; passed over ${st.skipped}, second copies ${st.duplicates}, lanes opened ${a.flow.opened}, to the app dropped ${a.flow.dropped}`);
@@ -190,12 +191,21 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
      // client -> app: behind a stalled tunnel a datagram is lost, not queued without bound
      send(m){
       if(!a.flow){if(a.up.writableLength<1<<20)a.up.write(frame(m));return;}
-      const n=a.flow.pick.pick(),l=n<0?null:a.flow.lanes[n];
+      // the client's datagrams are few and each matters (input): the least late lane, however late
+      const n=a.flow.pick.pick({any:true}),l=n<0?null:a.flow.lanes[n];
       if(!l||l.up.destroyed||l.up.writableLength>=1<<20){a.flow.dropped++;return;}
       l.up.write(frame(m));a.flow.pick.sent(n);
      },
      // each lane tells the front what it has received (also what keeps a quiet lane open)
      tell(){if(a.flow)for(const l of a.flow.lanes)if(!l.up.destroyed){l.reported=l.received;l.up.write(flowReport(l.received));}},
+     // one line every `statsMs` while datagrams flow: how late they left, and what the flow met since the last line
+     said:null,
+     say(){
+      const g=a.lag?.take(),st=a.flow?a.flow.rx.stats():null;if(!g||!g.packets)return;
+      const d=st?{delivered:st.delivered-(a.said?.delivered||0),rebuilt:st.rebuilt-(a.said?.rebuilt||0),over:st.skipped-(a.said?.skipped||0),late:st.late-(a.said?.late||0),copies:st.duplicates-(a.said?.duplicates||0)}:null;a.said=st;
+      log(`gamestream ${a.name} udp/${a.port} ${Math.round((now()-a.since)/1000)} s: ${g.packets} packets, ${g.lost} missing; late by ${g.p50??'?'} ms at the median, ${g.p95??'?'} at the 95th, ${g.p99??'?'} at the 99th, ${g.max??'?'} at most`
+       +(d?`; rebuilt ${d.rebuilt}, passed over ${d.over}, late copies ${d.late}, second copies ${d.copies}, lanes open ${a.flow.lanes.filter(l=>!l.up.destroyed).length} of ${a.flow.opened}, wait ${st.reorderMs} ms`:'; plain tunnel'));
+     },
     };
     assoc.set(key,a);
     const lane=t=>{
@@ -255,9 +265,10 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
  const http=named(false),https=named(true),udps=ports.udp.map(udp);
  const bound_={http:await listenTcp(http,ports.http),https:await listenTcp(https,ports.https),rtsp:await listenTcp(rtsp,ports.rtsp),udp:[]};
  for(let i=0;i<udps.length;i++)bound_.udp.push(await new Promise((resolve,reject)=>{udps[i].sock.once('error',reject);udps[i].sock.bind(ports.udp[i],host,()=>resolve(udps[i].sock.address().port));}));
+ const stats=statsMs>0?setInterval(()=>{for(const u of udps)for(const a of u.assoc.values())a.say();},statsMs):null;stats?.unref?.();
  const timer=setInterval(()=>{sweep();for(const [addr,until] of quiet)if(until<=now())quiet.delete(addr);for(const u of udps)for(const a of [...u.assoc.values()]){if(now()-a.at>udpIdleMs)a.end();else a.tell();}},15000);timer.unref?.();
  return {ports:bound_,bindings,stats:()=>({flows,bindings:bindings.size,learned,udp:{...flowStats}}),
   // what this box tells another that asks: the live binding of a client and how long ago a name set it
   bindingOf(addr){const b=bound(addr);return b?{name:b.name,age:Math.max(0,now()-b.named)}:null;},
-  close(){clearInterval(timer);for(const s of [http,https,rtsp])s.close();for(const u of udps){for(const a of [...u.assoc.values()])a.end();u.sock.close();}for(const s of [...sockets,...open])s.destroy();}};
+  close(){clearInterval(timer);if(stats)clearInterval(stats);for(const s of [http,https,rtsp])s.close();for(const u of udps){for(const a of [...u.assoc.values()])a.end();u.sock.close();}for(const s of [...sockets,...open])s.destroy();}};
 }

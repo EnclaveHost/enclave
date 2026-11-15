@@ -96,7 +96,11 @@ export function lanePicker({now=Date.now,spillMs=10,lateMs=100,startupMs=2000,ri
   add(){const l={sent:0,acked:0,times:new Array(ring).fill(0),base:null,closed:false};const i=lanes.findIndex(x=>x.closed);if(i<0){lanes.push(l);return lanes.length-1;}lanes[i]=l;return i;},
   remove(i){if(lanes[i])lanes[i].closed=true;},
   // the least behind, and of equals (within spillMs all are) the one carrying least
-  pick(){let best=-1,least=0,load=0;for(let i=0;i<lanes.length;i++){let q=behind(lanes[i]);if(q===null||q>lateMs)continue;if(q<spillMs)q=0;const un=lanes[i].sent-lanes[i].acked;if(best<0||q<least||(q===least&&un<load)){best=i;least=q;load=un;}}return best;},
+  // `any`: when every open lane is late, the least late one all the same (-1 only when none is open)
+  pick({any=false}={}){let best=-1,least=0,load=0;
+   for(let i=0;i<lanes.length;i++){let q=behind(lanes[i]);if(q===null||q>lateMs)continue;if(q<spillMs)q=0;const un=lanes[i].sent-lanes[i].acked;if(best<0||q<least||(q===least&&un<load)){best=i;least=q;load=un;}}
+   if(best<0&&any)for(let i=0;i<lanes.length;i++){if(lanes[i].closed)continue;const un=lanes[i].sent-lanes[i].acked;if(best<0||un<load){best=i;load=un;}}
+   return best;},
   sent(i){const l=lanes[i];l.times[l.sent%ring]=now();l.sent++;},
   report(i,count){
    const l=lanes[i];if(!l||!Number.isSafeInteger(count)||count<l.acked||count>l.sent)return false;if(count===l.acked)return true;
@@ -127,5 +131,46 @@ export function flowDeframer({onData,onReport,onRepair=()=>{},onParity=()=>{},on
    if(buf.length<2+n)break;
    onData(buf.readUInt32BE(2),buf.subarray(2+FLOW_SEQ_BYTES,2+n));buf=buf.subarray(2+n);
   }
+ };
+}
+
+// How far behind a stream of RTP datagrams is when it leaves this box, read from the datagrams' own headers and nothing
+// of their payload. Each has a place in time: its RTP timestamp at 90 kHz (`by:'timestamp'`, video: every packet of a
+// frame carries the frame's) or its sequence number for a steady stream (`by:'sequence'`, GameStream audio: one packet
+// every 5 ms; the spacing is taken from the stream's first packets and set to the nearest usual one). A packet's
+// lateness is its arrival minus its due time, counted from the least late packet the stream has had: so it is what
+// the path added beyond its best, and a picture that falls steadily behind shows as lateness that grows. The two
+// clocks' drift (some milliseconds in ten minutes) is in it. note(payload) for each datagram handed on; take() -> what
+// was seen since the last take ({packets, lost, p50, p95, p99, max}: lateness in ms; lost = sequence numbers that
+// never came), or null when nothing that looks like RTP came.
+export function rtpLag({by='sequence',now=Date.now,learn=300,spacings=[2.5,5,10,20]}={}){
+ let first=null,lastSeq=0,lastX=0,slope=by==='timestamp'?1/90:null,base=Infinity,seen=0,lost=0,lags=[],early=[];
+ return {
+  note(p){
+   if(p.length<12||(p[0]&0xc0)!==0x80)return;
+   const s16=p.readUInt16BE(2),t32=p.readUInt32BE(4),at=now();
+   if(first===null){first={seq:s16,ts:t32};early=[[0,at]];seen=1;if(slope!==null)base=at;return;}
+   // the 16-bit sequence number and the 32-bit timestamp, each unwrapped around the last one seen
+   const seq=lastSeq+(((s16-((first.seq+lastSeq)&0xffff))<<16)>>16);
+   if(seq>lastSeq){lost+=seq-lastSeq-1;lastSeq=seq;}else if(lost>0)lost--;
+   let x=seq;
+   if(by==='timestamp'){x=lastX+((t32-((first.ts+lastX)>>>0))|0);if(x>lastX)lastX=x;}
+   seen++;
+   if(slope===null){
+    // the spacing: from the first and the last of the first packets, set to a usual one when it is within a tenth
+    early.push([x,at]);if(early.length<learn)return;
+    const a=early[0],b=early[early.length-1];if(b[0]<=a[0]){early=[b];return;}
+    const raw=(b[1]-a[1])/(b[0]-a[0]);slope=spacings.find(v=>Math.abs(raw-v)<=v/10)??raw;
+    for(const [q,t] of early)base=Math.min(base,t-q*slope);early=null;return;
+   }
+   const due=at-x*slope;if(due<base)base=due;
+   lags.push(due-base);
+  },
+  take(){
+   if(first===null)return null;
+   const r={packets:seen,lost,p50:null,p95:null,p99:null,max:null};
+   if(lags.length){lags.sort((x,y)=>x-y);const q=f=>Math.round(lags[Math.min(lags.length-1,Math.floor(lags.length*f))]);Object.assign(r,{p50:q(0.5),p95:q(0.95),p99:q(0.99),max:Math.round(lags[lags.length-1])});}
+   seen=0;lost=0;lags=[];return r;
+  },
  };
 }

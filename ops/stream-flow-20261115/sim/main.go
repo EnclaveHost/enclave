@@ -228,12 +228,17 @@ func video(u *net.UDPConn, fps, kbps int, packets, frames *atomic.Uint64) {
 		data := n - n/6
 		now := time.Now().UnixNano()
 		for i := 0; i < n; i++ {
+			// an RTP header first (version 2, a running sequence number, the frame's time at 90 kHz), as Sunshine's
+			// video has, so that the gateway's own lag meter can be held against what the receiver measures
 			pk := make([]byte, size)
-			binary.BigEndian.PutUint32(pk, f)
-			binary.BigEndian.PutUint16(pk[4:], uint16(i))
-			binary.BigEndian.PutUint16(pk[6:], uint16(n))
-			binary.BigEndian.PutUint16(pk[8:], uint16(data))
-			binary.BigEndian.PutUint64(pk[10:], uint64(now))
+			pk[0] = 0x80
+			binary.BigEndian.PutUint16(pk[2:], uint16(packets.Load()))
+			binary.BigEndian.PutUint32(pk[4:], f*uint32(90000/fps))
+			binary.BigEndian.PutUint32(pk[12:], f)
+			binary.BigEndian.PutUint16(pk[16:], uint16(i))
+			binary.BigEndian.PutUint16(pk[18:], uint16(n))
+			binary.BigEndian.PutUint16(pk[20:], uint16(data))
+			binary.BigEndian.PutUint64(pk[22:], uint64(now))
 			u.WriteToUDP(pk, peer)
 			packets.Add(1)
 		}

@@ -5,15 +5,15 @@ const [repo,lanesArg,secondsArg,relay='18443',reorder='80']=process.argv.slice(2
 const {createGameStream}=await import(repo+'/network/wg-provider/gamestream.mjs');
 const lanes=Number(lanesArg),seconds=Number(secondsArg);
 const connect=(to,name)=>new Promise((resolve,reject)=>{const s=tls.connect({host:'127.0.0.1',port:Number(relay),servername:name,rejectUnauthorized:false,ALPNProtocols:['http/1.1']},()=>{s.setNoDelay(true);resolve(s);});s.once('error',reject);});
-const g=await createGameStream({route:n=>n==='desk.app.test'?'10.9.0.2':null,host:'127.0.0.1',ports:{http:0,https:0,rtsp:0,udp:[0,0,0]},connect,flowLanes:lanes?[lanes,1,1]:null,reorderMs:Number(reorder),log:m=>console.error(m)});
+const g=await createGameStream({route:n=>n==='desk.app.test'?'10.9.0.2':null,host:'127.0.0.1',ports:{http:0,https:0,rtsp:0,udp:[0,0,0]},connect,flowLanes:lanes?[lanes,1,1]:null,reorderMs:Number(reorder),statsMs:Number(process.env.STATS_MS||10000),log:m=>console.error(m)});
 // name the app, as Moonlight's first request does
 {const s=net.connect({port:g.ports.http,host:'127.0.0.1'});await once(s,'connect');s.end('GET /serverinfo HTTP/1.1\r\nHost: desk.app.test\r\nConnection: close\r\n\r\n');s.resume();await once(s,'close');}
 const sock=dgram.createSocket('udp4');sock.bind(0,'127.0.0.1');await once(sock,'listening');
 const wall=()=>performance.timeOrigin+performance.now();
 const frames=new Map();let newest=-1,packets=0,stale=0;const delays=[];
 sock.on('message',m=>{
- if(m.length<18)return;
- const f=m.readUInt32BE(0),n=m.readUInt16BE(6),data=m.readUInt16BE(8),made=Number(m.readBigUInt64BE(10))/1e6,at=wall();
+ if(m.length<30)return;
+ const f=m.readUInt32BE(12),n=m.readUInt16BE(18),data=m.readUInt16BE(20),made=Number(m.readBigUInt64BE(22))/1e6,at=wall();
  packets++;delays.push(at-made);
  // Moonlight's rule: once a packet of a later frame is here, an earlier frame that is not whole yet is given up
  if(f<newest){stale++;return;}

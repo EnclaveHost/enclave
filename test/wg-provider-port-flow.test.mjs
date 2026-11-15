@@ -3,7 +3,7 @@
 // longer than the reorder time, and a front that knows no flows gets the plain tunnel.
 import test from 'node:test';import assert from 'node:assert/strict';
 import net from 'node:net';import dgram from 'node:dgram';import {once} from 'node:events';
-import {flowReceiver,lanePicker,flowDeframer,flowReport,FLOW_REPORT} from '../network/wg-provider/port-flow.mjs';
+import {flowReceiver,lanePicker,flowDeframer,flowReport,FLOW_REPORT,rtpLag} from '../network/wg-provider/port-flow.mjs';
 import {createGameStream} from '../network/wg-provider/gamestream.mjs';
 
 // a clock and timers a test moves by hand
@@ -92,7 +92,9 @@ test('lane picker: the least behind lane, none when all are late, and a count th
  t+=60;assert.equal(p.pick(),-1);
  assert.equal(p.report(a,2),true);assert.equal(p.pick(),a);
  assert.equal(p.report(a,1),false);assert.equal(p.report(a,3),false);assert.equal(p.report(a,2.5),false);
- p.remove(a);p.remove(b);assert.equal(p.pick(),-1);
+ // for the client's own datagrams: late lanes are still lanes
+ p.sent(a);t+=500;assert.equal(p.pick(),-1);assert.equal(p.pick({any:true}),a);
+ p.remove(a);p.remove(b);assert.equal(p.pick(),-1);assert.equal(p.pick({any:true}),-1);
  // before a lane's first report its usual delay is unknown: it is used for the startup time, then not
  const q=lanePicker({now:()=>t,startupMs:2000});const x=q.add();q.sent(x);t+=1999;assert.equal(q.pick(),x);t+=2;assert.equal(q.pick(),-1);
 });
@@ -181,4 +183,30 @@ test('gateway: a flow of several lanes; datagrams from the lanes reach the clien
   stop();
   assert.equal(logged.filter(m=>/^gamestream desk\.app\.test udp\/47998 flow ended after \d+ s: delivered 5, of them rebuilt from parity 0, late 0; passed over 1, second copies 1, lanes opened 4, to the app dropped \d+$/.test(m)).length,1,logged.join(' | '));
  }finally{sock.close();stop();f.close();}
+});
+
+// an RTP datagram: version 2, a sequence number, a timestamp
+const rtp=(seq,ts=0)=>{const b=Buffer.alloc(40);b[0]=0x80;b.writeUInt16BE(seq&0xffff,2);b.writeUInt32BE(ts>>>0,4);return b;};
+test('lag meter, by sequence: a steady stream is on time whatever its clock, a stretch that arrives late is late by that much, and what never comes is counted',()=>{
+ let t=1e6;const m=rtpLag({by:'sequence',now:()=>t});
+ // one packet every 5 ms, starting near the top of the 16-bit range so that it wraps
+ let seq=65400;const send=(late=0)=>{t+=5;const at=t;t+=late;m.note(rtp(seq));t=at;seq++;};
+ for(let i=0;i<400;i++)send();
+ let r=m.take();assert.equal(r.packets,400);assert.equal(r.lost,0);assert.ok(r.p99<=1,`on time: ${JSON.stringify(r)}`);
+ // 100 packets 120 ms late, then on time again
+ for(let i=0;i<100;i++)send(120);for(let i=0;i<300;i++)send();
+ r=m.take();assert.ok(r.max>=118&&r.max<=122,`late stretch: ${JSON.stringify(r)}`);assert.ok(r.p50<=1);assert.ok(r.p95>=118);
+ // 10 numbers skipped
+ seq+=10;for(let i=0;i<100;i++)send();
+ r=m.take();assert.equal(r.lost,10);assert.equal(r.packets,100);
+ assert.equal(rtpLag().take(),null);const junk=rtpLag();junk.note(Buffer.from('not rtp at all'));assert.equal(junk.take(),null);
+});
+test('lag meter, by timestamp: bursts of packets that share a frame\'s time are measured against the frames\' times',()=>{
+ let t=5e6;const m=rtpLag({by:'timestamp',now:()=>t});let seq=0,frame=0;
+ // 60 frames a second at 90 kHz, eight packets a frame within 2 ms; the timestamp starts near the top of 32 bits
+ const sendFrame=(late=0)=>{const ts=(0xfffffff0+frame*1500)>>>0,at=t;for(let i=0;i<8;i++){t=at+late+i*0.25;m.note(rtp(seq++,ts));}t=at+1000/60;frame++;};
+ for(let i=0;i<120;i++)sendFrame();
+ let r=m.take();assert.equal(r.packets,960);assert.ok(r.p99<=3,`on time: ${JSON.stringify(r)}`);
+ for(let i=0;i<30;i++)sendFrame(250);for(let i=0;i<120;i++)sendFrame();
+ r=m.take();assert.ok(r.max>=248&&r.max<=254,`late frames: ${JSON.stringify(r)}`);assert.ok(r.p50<=3);
 });
