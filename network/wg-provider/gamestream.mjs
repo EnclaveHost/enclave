@@ -17,9 +17,17 @@
 // box learn the binding from the others of its operator (-> {name, age in ms since a name last set it} | null): a
 // nameless TCP flow asks first, and the most recently NAMED binding wins, here or there. UDP never asks (a stream's
 // RTSP comes first and has asked). Without `ask` nothing changes.
+//
+// The UDP ports carry live video, audio and input, and a tunnel is TCP: on a path that loses packets a plain tunnel
+// queues them and the picture falls behind without bound. So a UDP association asks the app's front for a FLOW
+// (port-flow.mjs; isolation/m2/front/tunnel_flow.go): `flowLanes` connections per port instead of one, each end
+// reporting what it received, the front dropping what would be late and sending again what a stalled connection
+// holds, this end delivering in order. A front that does not answer the flow header gets the plain tunnel.
 import net from 'node:net';
 import tls from 'node:tls';
 import dgram from 'node:dgram';
+import {randomBytes} from 'node:crypto';
+import {FLOW_HEADER,flowReport,flowReceiver,lanePicker,flowDeframer} from './port-flow.mjs';
 import {clientHelloName} from '../client-hello.mjs';
 import {hostHeader} from './router.mjs';
 
@@ -27,13 +35,15 @@ export const GAMESTREAM_PORTS={http:47989,https:47984,rtsp:48010,udp:[47998,4799
 const MAX_FRAME=65507,PROTOCOL='enclave-port/1';
 
 const tlsConnect=(to,name)=>new Promise((resolve,reject)=>{
- const s=tls.connect({host:to,port:443,servername:name,ALPNProtocols:['http/1.1']},()=>{s.removeListener('error',reject);s.setTimeout(0);resolve(s);});
+ // no Nagle: an input event or a report is a small write that must not wait for the previous one's acknowledgment
+ const s=tls.connect({host:to,port:443,servername:name,ALPNProtocols:['http/1.1']},()=>{s.removeListener('error',reject);s.setTimeout(0);s.setNoDelay(true);resolve(s);});
  s.once('error',reject);s.setTimeout(10000,()=>s.destroy(Error('tunnel connect timeout')));
 });
 
 // One port tunnel to the app: TLS to the peer's tunnel address under the app's name (its public certificate must verify),
-// then the upgrade. -> {socket, rest}: the upgraded connection and any frame bytes that arrived with the answer.
-export async function openTunnel({to,name,proto,port,connect=tlsConnect,timeout=10000}){
+// then the upgrade. -> {socket, rest, flow}: the upgraded connection, any frame bytes that arrived with the answer, and
+// whether the front took the flow asked for with `flow` (32 hex digits; UDP only).
+export async function openTunnel({to,name,proto,port,connect=tlsConnect,timeout=10000,flow=null}){
  const s=await connect(to,name);
  return new Promise((resolve,reject)=>{
   let head=Buffer.alloc(0);
@@ -45,10 +55,10 @@ export async function openTunnel({to,name,proto,port,connect=tlsConnect,timeout=
    const text=head.subarray(0,end+2).toString('latin1');
    if(!/^HTTP\/1\.1 101 /.test(text)||!/\r\nupgrade:[ \t]*enclave-port\/1[ \t]*\r\n/i.test(text))return fail(Error('tunnel refused: '+text.split('\r\n')[0].slice(0,60)));
    s.removeListener('data',read);s.removeListener('error',fail);s.removeListener('close',closed);s.setTimeout(0);s.pause();
-   resolve({socket:s,rest:head.subarray(end+4)});
+   resolve({socket:s,rest:head.subarray(end+4),flow:!!flow&&/\r\nenclave-port-flow:[ \t]*1[ \t]*\r\n/i.test(text)});
   };
   s.on('data',read);
-  s.write(`GET /.well-known/enclave-tunnel/${proto}/${port} HTTP/1.1\r\nHost: ${name}\r\nConnection: Upgrade\r\nUpgrade: ${PROTOCOL}\r\n\r\n`);
+  s.write(`GET /.well-known/enclave-tunnel/${proto}/${port} HTTP/1.1\r\nHost: ${name}\r\nConnection: Upgrade\r\nUpgrade: ${PROTOCOL}\r\n${flow?`${FLOW_HEADER}: ${flow}\r\n`:''}\r\n`);
  });
 }
 
@@ -63,7 +73,9 @@ function deframer(onFrame,onError){
 }
 
 export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PORTS,connect=tlsConnect,count=()=>{},log=()=>{},now=Date.now,
-  bindingMs=10*60000,udpIdleMs=90000,maxFlows=4096,maxPerClient=64,maxBindings=16384,ask=null,askAgainMs=5000,askMissMs=1000,maxAsking=64}){
+  bindingMs=10*60000,udpIdleMs=90000,maxFlows=4096,maxPerClient=64,maxBindings=16384,ask=null,askAgainMs=5000,askMissMs=1000,maxAsking=64,
+  // connections per UDP port's flow, in the order of ports.udp (video, control, audio); null: plain tunnels only
+  flowLanes=[16,4,4],reorderMs=80,renewMs=250,randomId=()=>randomBytes(16).toString('hex')}){
  // only a peer's tunnel address: a name served on this box is not an app
  const peerOf=name=>{const to=name&&route(name);return typeof to==='string'?to:null;};
  const bindings=new Map(),perClient=new Map(),open=new Set();let flows=0;
@@ -153,29 +165,86 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
   void settle(socket.remoteAddress).then(b=>{if(!b||socket.destroyed)return socket.destroy();void tcpFlow(socket,b,GAMESTREAM_PORTS.rtsp,Buffer.alloc(0));});
  });
 
- // UDP: one tunnel per client address and port (an association), each datagram one frame, boundaries kept
+ // UDP: one association per client address and port, each datagram one frame, boundaries kept. With a front that
+ // takes a flow the association is `flowLanes` connections; otherwise one plain tunnel.
+ const flowStats={flows:0,plain:0,delivered:0,duplicates:0,skipped:0,late:0,rebuilt:0,dropped:0,renewed:0};
  const udp=(_,i)=>{
   const port=GAMESTREAM_PORTS.udp[i];   // the app's port, whatever this side listens on
+  const want=Array.isArray(flowLanes)?Math.max(0,Math.min(16,flowLanes[i]|0)):0;
   const sock=dgram.createSocket('udp4'),assoc=new Map();
   sock.on('error',e=>log(`gamestream udp/${port}: ${e.message}`));
   sock.on('message',(msg,r)=>{
    const key=r.address+':'+r.port;let a=assoc.get(key);
    if(!a){
     const b=bound(r.address),to=b&&peerOf(b.name);if(!to||!admit(r.address))return;
-    const release=hold(r.address,b);
-    a={up:null,queue:[],at:now(),end(){if(assoc.get(key)===a)assoc.delete(key);release();a.up?.destroy();a.queue=null;}};assoc.set(key,a);
-    openTunnel({to,name:b.name,proto:'udp',port,connect}).then(t=>{
+    const release=hold(r.address,b),id=want?randomId():null;
+    const toClient=payload=>{a.at=now();count(to,0,payload.length);sock.send(payload,r.port,r.address,()=>{});};
+    a={up:null,flow:null,queue:[],at:now(),to,
+     end(){
+      if(!a.queue)return;a.queue=null;if(assoc.get(key)===a)assoc.delete(key);release();a.up?.destroy();
+      if(a.flow){const st=a.flow.rx.stats();flowStats.delivered+=st.delivered;flowStats.duplicates+=st.duplicates;flowStats.skipped+=st.skipped;flowStats.late+=st.late;flowStats.rebuilt+=st.rebuilt;flowStats.dropped+=a.flow.dropped;
+       a.flow.rx.close();for(const l of a.flow.lanes)l.up.destroy();}
+     },
+     // client -> app: behind a stalled tunnel a datagram is lost, not queued without bound
+     send(m){
+      if(!a.flow){if(a.up.writableLength<1<<20)a.up.write(frame(m));return;}
+      const n=a.flow.pick.pick(),l=n<0?null:a.flow.lanes[n];
+      if(!l||l.up.destroyed||l.up.writableLength>=1<<20){a.flow.dropped++;return;}
+      l.up.write(frame(m));a.flow.pick.sent(n);
+     },
+     // each lane tells the front what it has received (also what keeps a quiet lane open)
+     tell(){if(a.flow)for(const l of a.flow.lanes)if(!l.up.destroyed){l.reported=l.received;l.up.write(flowReport(l.received));}},
+    };
+    assoc.set(key,a);
+    const lane=t=>{
+     const up=t.socket,l={up,received:0,reported:0,due:false,n:a.flow.pick.add()};a.flow.lanes[l.n]=l;   // (a closed lane's place is used again)
+     open.add(up);up.on('error',()=>up.destroy());
+     // a lane that ends (the front closes one that stalls) is replaced while the association lives: at most one
+     // replacement on its way at a time, and not more often than every `renewMs`
+     up.once('close',()=>{
+      open.delete(up);if(a.flow?.lanes[l.n]===l)a.flow.pick.remove(l.n);if(!a.queue)return;
+      if(a.flow.lanes.every(x=>x.up.destroyed)&&!a.flow.opening)return a.end();
+      renew();
+     });
+     const tell=()=>{l.due=false;if(!up.destroyed&&l.reported!==l.received){l.reported=l.received;up.write(flowReport(l.received));}};
+     const receive=flowDeframer({
+      onData(seq,payload){l.received++;if(!l.due){l.due=true;setImmediate(tell);}a.flow.rx.push(seq,payload);},
+      onReport(n){if(!a.flow.pick.report(l.n,n))up.destroy();},
+      onRepair(ms){a.flow.rx.repair(ms);},
+      onParity(first,count,xor){a.flow.rx.parity(first,count,xor);},
+      onError(){up.destroy();}});
+     up.on('data',receive);if(t.rest.length)receive(t.rest);up.resume();
+    };
+    const openOne=()=>openTunnel({to,name:b.name,proto:'udp',port,connect,flow:id});
+    const renew=()=>{
+     const f=a.flow;if(!a.queue||!f||f.opening||f.lanes.filter(x=>!x.up.destroyed).length>=want)return;
+     const wait=Math.max(0,f.renewedAt+renewMs-now());f.opening=true;
+     const t=setTimeout(()=>{
+      if(!a.queue){f.opening=false;return;}
+      f.renewedAt=now();flowStats.renewed++;
+      openOne().then(x=>{f.opening=false;if(!a.queue||!x.flow)return x.socket.destroy();lane(x);renew();},
+       ()=>{f.opening=false;if(a.queue&&f.lanes.every(x=>x.up.destroyed))a.end();else renew();});
+     },wait);t.unref?.();
+    };
+    // a front that refuses the request with the flow header is asked again without it
+    (id?openOne().catch(e=>{if(!/^tunnel refused/.test(e.message))throw e;return openTunnel({to,name:b.name,proto:'udp',port,connect});}):openOne()).then(t=>{
      if(!a.queue)return t.socket.destroy();
-     const up=a.up=t.socket;open.add(up);up.once('close',()=>{open.delete(up);a.end();});up.on('error',()=>up.destroy());
-     const receive=deframer(payload=>{a.at=now();count(to,0,payload.length);sock.send(payload,r.port,r.address,()=>{});},()=>up.destroy());
-     up.on('data',receive);if(t.rest.length)receive(t.rest);
-     for(const m of a.queue)up.write(frame(m));a.queue=[];up.resume();
+     if(t.flow){
+      flowStats.flows++;
+      a.flow={rx:flowReceiver({deliver:toClient,reorderMs,now}),pick:lanePicker({now}),lanes:[],dropped:0,opening:false,renewedAt:0};lane(t);
+      for(let k=1;k<want;k++)openOne().then(x=>{if(!a.queue||!x.flow)return x.socket.destroy();lane(x);},e=>log(`gamestream ${b.name} udp/${port} lane: ${e.message}`));
+     }else{
+      flowStats.plain++;
+      const up=a.up=t.socket;open.add(up);up.once('close',()=>{open.delete(up);a.end();});up.on('error',()=>up.destroy());
+      const receive=deframer(toClient,()=>up.destroy());
+      up.on('data',receive);if(t.rest.length)receive(t.rest);up.resume();
+     }
+     const waiting=a.queue;a.queue=[];for(const m of waiting)a.send(m);
     },e=>{log(`gamestream ${b.name} udp/${port}: ${e.message}`);a.end();});
-    a.to=to;
    }
    a.at=now();count(a.to,msg.length,0);
-   if(!a.up){if(a.queue.length<64)a.queue.push(msg);}
-   else if(a.up.writableLength<1<<20)a.up.write(frame(msg));   // behind a stalled tunnel a datagram is lost, not queued without bound
+   if(!a.up&&!a.flow){if(a.queue.length<64)a.queue.push(msg);}
+   else a.send(msg);
   });
   return {sock,assoc};
  };
@@ -184,8 +253,8 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
  const http=named(false),https=named(true),udps=ports.udp.map(udp);
  const bound_={http:await listenTcp(http,ports.http),https:await listenTcp(https,ports.https),rtsp:await listenTcp(rtsp,ports.rtsp),udp:[]};
  for(let i=0;i<udps.length;i++)bound_.udp.push(await new Promise((resolve,reject)=>{udps[i].sock.once('error',reject);udps[i].sock.bind(ports.udp[i],host,()=>resolve(udps[i].sock.address().port));}));
- const timer=setInterval(()=>{sweep();for(const [addr,until] of quiet)if(until<=now())quiet.delete(addr);for(const u of udps)for(const a of [...u.assoc.values()])if(now()-a.at>udpIdleMs)a.end();},15000);timer.unref?.();
- return {ports:bound_,bindings,stats:()=>({flows,bindings:bindings.size,learned}),
+ const timer=setInterval(()=>{sweep();for(const [addr,until] of quiet)if(until<=now())quiet.delete(addr);for(const u of udps)for(const a of [...u.assoc.values()]){if(now()-a.at>udpIdleMs)a.end();else a.tell();}},15000);timer.unref?.();
+ return {ports:bound_,bindings,stats:()=>({flows,bindings:bindings.size,learned,udp:{...flowStats}}),
   // what this box tells another that asks: the live binding of a client and how long ago a name set it
   bindingOf(addr){const b=bound(addr);return b?{name:b.name,age:Math.max(0,now()-b.named)}:null;},
   close(){clearInterval(timer);for(const s of [http,https,rtsp])s.close();for(const u of udps){for(const a of [...u.assoc.values()])a.end();u.sock.close();}for(const s of [...sockets,...open])s.destroy();}};

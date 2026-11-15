@@ -21,6 +21,27 @@ TCP uses zero-length frames as half-close signals *inside TLS*, because
 opaque transport hops can tear down on an outer TCP EOF. There are 128
 tunnels per guest, 32 per destination, and a 180-second idle limit.
 
+A UDP tunnel is TCP underneath, and TCP never drops: on a path that loses
+packets, live datagrams queue and arrive later and later. A client can ask
+for a *flow* instead, with the request header `Enclave-Port-Flow: <32 hex>`;
+a front that knows flows answers `Enclave-Port-Flow: 1` in the 101, and one
+that does not serves the plain tunnel. In a flow, connections that name the
+same id, protocol and port are lanes of one association (up to 16, each
+counted as a tunnel). Frames to the client carry a four-byte sequence number
+before the datagram. A frame of size 0xFFFF is a report (eight bytes: data
+frames received on that connection so far), sent by both ends as they
+receive; size 0xFFFE, to the client, is the repair time in milliseconds;
+size 0xFFFD, to the client, is a parity frame (a two-byte length, the first
+sequence number, a count, and the XOR of that many data frames, each as its
+two-byte length and bytes). With the reports the front sends each datagram
+on the lane that is least behind, covers every four with a parity frame on
+another lane, sends again on another lane what a stalled lane holds, drops
+what would arrive too late to matter, and closes a lane that stays stalled;
+the client delivers in sequence, once, makes a missing datagram from its
+parity group when the rest is there, and otherwise waits for it about the
+repair time. `front/tunnel_flow.go` has the rules and the reasons;
+`network/wg-provider/port-flow.mjs` is the client's side.
+
 The local connector adapts ordinary SSH and GameStream clients, binding
 only loopback. Start the existing attestation client with its normal trusted
 measurement, app ID, runtime, TCB, AMD chain and deployment ID pins, plus:

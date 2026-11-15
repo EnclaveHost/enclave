@@ -1,0 +1,36 @@
+== lanes 0 
+  packet delay p50/p95/p99/max 6751.5 13720.3 14399.8 14513.9 | frames shown 861 missing 452 longest gap 452 | frame delay p99 14399.8 | front sent None dropped None hedged None | per5s [1444, 7177, 12669, 7627] | rto 0
+== lanes 1 
+  packet delay p50/p95/p99/max 119.5 318.3 380 470 | frames shown 790 missing 986 longest gap 29 | frame delay p99 391.3 | front sent 6110 dropped 7483 hedged 0 | per5s [96, 170, 135, 138, 130, 133] | rto 0
+== lanes 4 
+  packet delay p50/p95/p99/max 22.2 81.8 160.7 540.7 | frames shown 1753 missing 39 longest gap 4 | frame delay p99 99.6 | front sent 13593 dropped 0 hedged 3132 | per5s [23, 15, 32, 26, 46, 14] | rto 0
+== lanes 8 
+  packet delay p50/p95/p99/max 13.2 20.8 45.8 100.9 | frames shown 1793 missing 0 longest gap 0 | frame delay p99 45.8 | front sent 13593 dropped 0 hedged 857 | per5s [13, 13, 13, 13, 13, 13] | rto 3
+== lanes 16 
+  packet delay p50/p95/p99/max 13.3 14 39.6 95.6 | frames shown 1793 missing 0 longest gap 0 | frame delay p99 39.6 | front sent 13593 dropped 0 hedged 459 | per5s [13, 13, 13, 13, 13, 13] | rto 3
+== lanes 16 -parity 0
+  packet delay p50/p95/p99/max 13.4 46.4 56.3 272.7 | frames shown 1793 missing 0 longest gap 0 | frame delay p99 56.1 | front sent 13593 dropped 0 hedged 390 | per5s [13, 13, 13, 13, 13, 13] | rto 1
+== lanes 16 -loss 0 -back 0
+  packet delay p50/p95/p99/max 13.2 13.6 14.6 87.8 | frames shown 1793 missing 0 longest gap 0 | frame delay p99 14.1 | front sent 13593 dropped 0 hedged 62 | per5s [13, 13, 13, 13, 13, 13] | rto 0
+== lanes 16 -loss 0.02
+  packet delay p50/p95/p99/max 13.3 30.1 46.7 106.1 | frames shown 1793 missing 0 longest gap 0 | frame delay p99 46.7 | front sent 13593 dropped 0 hedged 917 | per5s [14, 13, 13, 13, 13, 13] | rto 18
+== lanes 16 -loss 0.03 -back 0.01
+  packet delay p50/p95/p99/max 13.5 40.5 53 1046.1 | frames shown 1787 missing 4 longest gap 4 | frame delay p99 52.1 | front sent 13593 dropped 0 hedged 1726 | per5s [14, 14, 13, 14, 14, 14] | rto 32
+== lanes 16 -loss 0.05 -back 0.02
+  packet delay p50/p95/p99/max 39.6 562.2 878.6 1473.6 | frames shown 1234 missing 537 longest gap 37 | frame delay p99 355.9 | front sent 11738 dropped 1743 hedged 2920 | per5s [23, 30, 30, 50, 120, 238] | rto 54
+== lanes 16 -burst 3
+  packet delay p50/p95/p99/max 13.3 29.9 52.4 95.2 | frames shown 1793 missing 0 longest gap 0 | frame delay p99 52.8 | front sent 13593 dropped 0 hedged 393 | per5s [13, 13, 13, 13, 13, 13] | rto 40
+== lanes 16 -stall 400ms
+  packet delay p50/p95/p99/max 13.4 23.5 86.3 9919.1 | frames shown 1739 missing 54 longest gap 28 | frame delay p99 48.1 | front sent 13259 dropped 334 hedged 749 | per5s [14, 13, 13, 13, 13, 13] | rto 150
+== lanes 16 -kbps 12000
+  packet delay p50/p95/p99/max 13.5 30.4 47.4 180.9 | frames shown 1790 missing 3 longest gap 3 | frame delay p99 47.1 | front sent 32624 dropped 0 hedged 2525 | per5s [14, 14, 14, 13, 14, 13] | rto 8
+== lanes 16 -kbps 20000
+  packet delay p50/p95/p99/max 28.6 57.3 91.4 384.2 | frames shown 1779 missing 14 longest gap 4 | frame delay p99 81.4 | front sent 54311 dropped 0 hedged 12993 | per5s [30, 32, 39, 30, 40, 31] | rto 7
+== lanes 16 -kbps 30000
+  packet delay p50/p95/p99/max 460.7 1711.1 2143.4 2620.7 | frames shown 211 missing 1572 longest gap 49 | frame delay p99 334.2 | front sent 70892 dropped 10480 hedged 16400 | per5s [47, 187, 227, 195, 196, 196] | rto 4
+== lanes 16 -delay 40ms
+  packet delay p50/p95/p99/max 41.1 101.6 136.1 782.5 | frames shown 1774 missing 5 longest gap 5 | frame delay p99 134 | front sent 13511 dropped 0 hedged 1252 | per5s [41, 41, 41, 41, 41, 41] | rto 3
+== lanes 16 -delay 80ms
+  packet delay p50/p95/p99/max 548 5354.8 8204.4 9543.2 | frames shown 494 missing 1254 longest gap 96 | frame delay p99 1176.2 | front sent 10008 dropped 3375 hedged 2202 | per5s [109, 269, 368, 370, 387, 404] | rto 166
+== lanes 0 -delay 80ms
+  packet delay p50/p95/p99/max 12678.8 23780 25636.5 26591.7 | frames shown 165 missing 0 longest gap 0 | frame delay p99 25960.4 | front sent None dropped None hedged None | per5s [12920] | rto 11

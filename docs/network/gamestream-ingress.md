@@ -64,8 +64,30 @@ public address a user adds.
   does not ask anybody yet, and nothing covers a name served by providers of different operators.
 - UDP follows the binding that the same client's RTSP settled on the same box. A client that sent RTSP to one
   address and UDP to another would not be carried. Moonlight takes both from one resolution; not observed either way.
-- Video and audio ride TCP inside TLS between the provider and the app's front: loss causes head-of-line delay.
+- Video and audio ride TCP inside TLS between the provider and the app's front. With a front that serves flows (below)
+  loss on that path costs tens of milliseconds; with one that does not, a plain tunnel queues and the picture falls
+  behind without bound.
 - A host on Enclave Direct has no provider in front of it and would need the same listener itself. Not built.
+
+## Flows: live datagrams over a path that loses packets
+
+Measured on the KVM Box (2026-11-15, one hop through us-west, 25 ms round trip): the video's one TCP connection
+retransmitted 1% of its segments, carried less than the encoder sent, and the picture fell seconds behind until it
+froze (`ops/gamestream-gateway-20261114/stream-20261115.md`, `ops/stream-flow-20261115/`).
+
+So each UDP association asks the app's front for a flow (`isolation/m4/PROTECTED-PORTS.md`, "flow"): several TLS
+connections ("lanes") in place of one — `flowLanes`, by default 16 for video and 4 each for control and audio — over
+which the front spreads the datagrams by which lane is least behind, covers every four with a parity frame on another
+lane, sends again what a stalled lane holds, and drops what would be late. The gateway hands the datagrams to the
+client in sequence and once, makes a missing one from its parity group when the rest is there and otherwise waits for
+it about as long as the front says a second copy takes, tells the front what each lane has received, keeps the
+client's own datagrams (input) off a lane that is behind, and opens a new lane for one that ends. The parity frames
+add a quarter to a third to the bytes on the path. A front from before flows
+ignores the request header, or refuses the request and is asked again without it: the plain tunnel, as before.
+
+What it does not do: it does not know GameStream (no frame is dropped as a whole, no key frame is asked for; the
+client's own error correction and requests do that), and it cannot carry more than the lanes' TCP can: at 5% loss
+sixteen lanes fall behind too (the simulation in `ops/stream-flow-20261115/`).
 
 ## Turning it on
 
