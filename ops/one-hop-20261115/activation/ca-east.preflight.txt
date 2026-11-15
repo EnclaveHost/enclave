@@ -8,8 +8,8 @@ provider: unit active, process 884045, since Fri 2026-11-13 06:21:46 UTC, automa
 provider: bundle old 39d1513b8a88 /opt/enclave-network/hs-transport-39d1513b/wg-provider.mjs
 provider: process runs the unit's command: yes
 provider: one-hop drop-in: absent; drop-ins: directories.conf zz-authority-pins.conf zzz-native-ingress.conf zzzz-host-services.conf 
-provider: answers: yes (accepting, guard peers 10, exit peers 3, direct peers -)
+provider: answers: yes (accepting, guard peers 9, exit peers 3, direct peers -)
 provider: refused as a host's own since this process started: 0
-box: node v22.23.3; free under /opt: 4676 MB
+box: node v22.23.3; free under /opt: 4687 MB
 box: listed in its own directory under the address the provider reports: yes
 box: source address toward the other listed providers is that address: 3 of 3

@@ -1,0 +1,27 @@
+{
+  "edge": "ap-southeast",
+  "verifiedAt": "2026-11-15T07:44:27Z",
+  "directoryBundle": "a49ba43898d5",
+  "providerBundle": "03cb11f68021",
+  "provider": "accepting, guard peers 3, exit peers 8, direct peers 0",
+  "answeredThroughThisEdgeBefore": [
+    "59f1273d=200",
+    "7ae476a3=200",
+    "9a28642b=401",
+    "a69dcbba=200",
+    "a77d0c57=200",
+    "d9798e4c=200",
+    "ef514ed3=200",
+    "5ff56a4d=200"
+  ],
+  "answeredThroughThisEdgeAfter": [
+    "59f1273d=200",
+    "7ae476a3=200",
+    "9a28642b=401",
+    "a69dcbba=200",
+    "a77d0c57=200",
+    "d9798e4c=200",
+    "ef514ed3=200",
+    "5ff56a4d=200"
+  ]
+}

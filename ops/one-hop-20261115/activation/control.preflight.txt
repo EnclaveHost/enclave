@@ -7,7 +7,7 @@ route-pull: unit active, process 154731, since Sat 2026-11-14 06:55:40 UTC, auto
 route-pull: file old 934b511e173a /opt/enclave-directory-bridge/route-pull-4e309fe3/mirror-public-providers.mjs
 route-pull: process runs the unit's command: yes
 route-pull: one-hop drop-in: absent; drop-ins: 50-route-pull.conf 99-control-migration.conf 
-route-pull: at work: yes (last round handed on 30, dropped 10; 0 error lines)
+route-pull: at work: yes (last round handed on 34, dropped 6; 0 error lines)
 relay: unit active, process 208843, since Sun 2026-11-15 00:39:08 UTC, automatic restarts 0
 relay: file old 55544ec1c9fd /opt/nan-relay/network-runtime.bundle.mjs
 relay: process started after that file was last written: yes

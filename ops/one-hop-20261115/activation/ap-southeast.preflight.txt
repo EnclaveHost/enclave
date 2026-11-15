@@ -8,8 +8,8 @@ provider: unit active, process 926912, since Sat 2026-11-14 06:06:02 UTC, automa
 provider: bundle old 464cad341e4a /opt/enclave-network/native-recovery-464cad3/provider.mjs
 provider: process runs the unit's command: yes
 provider: one-hop drop-in: absent; drop-ins: directories.conf zz-authority-pins.conf zzz-native-ingress.conf 
-provider: answers: yes (accepting, guard peers 3, exit peers 8, direct peers -)
+provider: answers: yes (accepting, guard peers 4, exit peers 8, direct peers -)
 provider: refused as a host's own since this process started: 0
-box: node v22.23.3; free under /opt: 4651 MB
+box: node v22.23.3; free under /opt: 4662 MB
 box: listed in its own directory under the address the provider reports: yes
 box: source address toward the other listed providers is that address: 3 of 3

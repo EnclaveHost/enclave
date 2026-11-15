@@ -1,0 +1,10 @@
+[07:24:52Z] directory: restarting process 884111 (routes 200, health 200) on a49ba43898d5
+[07:25:19Z] DONE directory: process 946081 runs /opt/enclave-directory/one-hop-a49ba438/enclave-directory.mjs (a49ba43898d5); before: routes 200, health 200; now: routes 200, health 200
+[07:25:21Z] provider: restarting process 884045 (accepting, guard peers 9, exit peers 3, direct peers -) on 0c201bd79619
+[07:25:45Z] provider: process 946253 is up (accepting, guard peers 9, exit peers 3, direct peers 0); watching 300 s for refused requests
+[07:26:46Z] provider: accepting, guard peers 9, exit peers 3, direct peers 0; 239 s of the watch left
+[07:27:46Z] provider: accepting, guard peers 9, exit peers 3, direct peers 0; 179 s of the watch left
+[07:28:47Z] provider: accepting, guard peers 9, exit peers 3, direct peers 0; 118 s of the watch left
+[07:29:47Z] provider: accepting, guard peers 9, exit peers 3, direct peers 0; 58 s of the watch left
+[07:30:48Z] provider: accepting, guard peers 9, exit peers 3, direct peers 0; -3 s of the watch left
+[07:30:48Z] DONE provider: process 946253 runs /opt/enclave-network/one-hop-0c201bd7/wg-provider.mjs (0c201bd79619); before: accepting, guard peers 9, exit peers 3, direct peers -; now: accepting, guard peers 9, exit peers 3, direct peers 0

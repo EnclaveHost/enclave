@@ -73,7 +73,8 @@ import sys, json, time
 try:
     d = json.loads(sys.argv[1]); h = d.get("host")
     if not h: print("none - - - 0 0 -"); raise SystemExit
-    cs = [c for c in h.get("circuits") or [] if c.get("kind", "network") != "direct"]
+    # only the circuits the network builds: a host-service entry (kind "host") has neither guard nor exit and is no one-hop circuit
+    cs = [c for c in h.get("circuits") or [] if c.get("kind", "network") == "network"]
     one = [c for c in cs if not c.get("guard") and c.get("exit")]
     at = d.get("hostReportedAt"); age = int(time.time() - at / 1000) if isinstance(at, (int, float)) else "-"
     print(age, str(bool(h.get("ready"))).lower(), h.get("policyNonce", "-"), {True: "yes", False: "no"}.get(h.get("oneHop"), "unreported"), len(cs), len(one), ",".join(sorted({c["exit"].get("region") or "?" for c in one})) or "-")
@@ -86,7 +87,7 @@ else
   while IFS= read -r line; do say "$line"; done < <(python3 -I -c '
 import sys, json
 for c in (json.loads(sys.argv[1]).get("host") or {}).get("circuits") or []:
-    if c.get("kind", "network") != "direct": print("  circuit: guard %s, exit %s, %s" % ((c.get("guard") or {}).get("region") or "none", (c.get("exit") or {}).get("region") or "none", "healthy" if c.get("healthy") else "NOT healthy"))' "$status" 2>/dev/null || true)
+    if c.get("kind", "network") == "network": print("  circuit: guard %s, exit %s, %s" % ((c.get("guard") or {}).get("region") or "none", (c.get("exit") or {}).get("region") or "none", "healthy" if c.get("healthy") else "NOT healthy"))' "$status" 2>/dev/null || true)
   [ "$H_ONE" = yes ] || miss "the host does not report that its operator allows one hop for this app (the NucBox agent step, or an agent that is not on this release)"
   [ "$R_SET" != true ] || [ "$H_NONCE" = "$R_NONCE" ] || miss "the host runs policy nonce $H_NONCE, not the relay's $R_NONCE (it reads the directories about once a minute)"
   [ "$H_N" -gt 0 ] && [ "$H_DIRECT" = "$H_N" ] || miss "$((H_N - H_DIRECT)) of the app's $H_N circuits have a guard"

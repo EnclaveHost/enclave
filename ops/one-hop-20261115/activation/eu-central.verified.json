@@ -1,0 +1,17 @@
+{
+  "edge": "eu-central",
+  "verifiedAt": "2026-11-15T07:24:32Z",
+  "directoryBundle": "a49ba43898d5",
+  "providerBundle": "03cb11f68021",
+  "provider": "accepting, guard peers 10, exit peers 3, direct peers 0",
+  "answeredThroughThisEdgeBefore": [
+    "38f368d6=200",
+    "a69dcbba=200",
+    "c13d4b6a=200"
+  ],
+  "answeredThroughThisEdgeAfter": [
+    "38f368d6=200",
+    "a69dcbba=200",
+    "c13d4b6a=200"
+  ]
+}

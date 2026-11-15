@@ -1,4 +1,4 @@
-# One hop: the release (prepared 2026-11-15, not installed)
+# One hop: the release (prepared 2026-11-15; step 1 of 6 done, the four edges)
 
 One hop (main `f814b020a`, design in `docs/design/enclave-network.md` "One hop") lets an app's circuit be one
 provider with no guard: host → provider ← visitor. It takes two choices, neither enough alone: the app's owner signs
@@ -6,9 +6,10 @@ provider with no guard: host → provider ← visitor. It takes two choices, nei
 up: that one provider sees the host's address together with the app's names and visitors.
 
 This folder is the release that carries the change onto what runs today: the four edges, the control VM, the
-frontend and the NucBox. **The operator runs every step that changes something; nothing here has been installed.**
+frontend and the NucBox. **The operator runs every step that changes something.** What has been run is under
+"Activation" at the end; the rest of this file is as it was written before anything was installed.
 
-State at 06:40Z on 2026-11-15:
+State at 06:40Z on 2026-11-15, before anything was installed:
 
 - Four edges: provider and directory on the previous builds; `one-hop-edges.sh preflight` passed on all four at
   05:43Z (`activation/<edge>.preflight.txt`).
@@ -187,3 +188,24 @@ installers refuse `remove` while such a policy is stored unless `FORCE=1`.
   at 00:39:08Z today and the NucBox's apps kept their leases; the RPC app's lease is the one the runner times.
 - How many policies the relay holds (its state file is root's). The running bridge has copied five apps' policies.
 - Why the route pull drops between 3 and 10 publications in each round today, on the previous file.
+
+## Activation
+
+**1. Edges, 2026-11-15 07:18–07:44Z, run by the operator** (`one-hop-edges.sh activate`). On each edge the directory
+and then the provider were restarted on this release's builds, each provider watched 300 s; no step was taken back.
+Evidence: `activation/<edge>.result.txt`, `<edge>.verified.json` (the `preflight.txt` files are those of this run).
+
+| edge | directory | provider | provider after (guard / exit / direct peers) | verified |
+|---|---|---|---|---|
+| eu-central | `a49ba438` 07:18:49Z | `03cb11f6` 07:24:18Z | 10 / 3 / 0 | 07:24:32Z |
+| ca-east | `a49ba438` 07:25:19Z | `0c201bd7` 07:30:48Z | 9 / 3 / 0 | 07:31:00Z |
+| us-west | `a49ba438` 07:31:42Z | `03cb11f6` 07:37:09Z | 6 / 6 / 0 | 07:37:17Z |
+| ap-southeast | `a49ba438` 07:38:35Z | `03cb11f6` 07:44:05Z | 3 / 8 / 0 | 07:44:27Z |
+
+Read afterwards, 07:49–07:50Z: `one-hop-edges.sh check` passed for the four (both services on this release, no
+request refused as a host's own, every app name that answered through an edge before answers through it now; the ten
+probed names answer). The RPC app's lease was renewed at 07:34:39Z, during the run. `one-hop-control.sh preflight`
+passed again at 07:50Z with four of four edges verified. This is the first time the patched builds have started under
+systemd, on the kernel's WireGuard and with nftables; no host has asked an exit directly, so the grant of a one-hop
+request by a live provider is still unseen. ap-southeast's provider came back with 3 guard peers where it had 4; which
+peer did not return was not read.

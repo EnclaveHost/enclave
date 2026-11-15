@@ -1,0 +1,17 @@
+{
+  "edge": "ca-east",
+  "verifiedAt": "2026-11-15T07:31:00Z",
+  "directoryBundle": "a49ba43898d5",
+  "providerBundle": "0c201bd79619",
+  "provider": "accepting, guard peers 9, exit peers 3, direct peers 0",
+  "answeredThroughThisEdgeBefore": [
+    "38f368d6=200",
+    "a77d0c57=200",
+    "c13d4b6a=200"
+  ],
+  "answeredThroughThisEdgeAfter": [
+    "38f368d6=200",
+    "a77d0c57=200",
+    "c13d4b6a=200"
+  ]
+}
