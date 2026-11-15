@@ -151,3 +151,7 @@ that do route an app, so a real client does not get there.
 - Seen while reading the edges' journals, not caused by this work: Ubuntu's unattended upgrades restarted
   `enclave-network-provider` on three edges between 06:06Z and 06:38Z (ap-southeast 06:06:02Z, us-west 06:12:10Z,
   eu-central 06:37:22-27Z).
+- A whole stream was recorded on 2026-11-15 00:45-00:48Z, after the owner reported lag that grows until the
+  picture freezes: `stream-20261115.md`. The encoder held 60 frames a second; the circuit's one TCP connection
+  delivered 0.4-0.7 Mbit/s for 45 s and the video queued. The stream went through the Frankfurt exit and the
+  Toronto guard to a host on the client's own LAN. No fix is built.

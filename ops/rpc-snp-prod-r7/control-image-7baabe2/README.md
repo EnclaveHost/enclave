@@ -1,7 +1,7 @@
 # metal0 control image 7baabe2: read the lease from the chain before a cached expiry stops a guest
 
-Status: **built and measured, NOT active.** metal0 runs 66335ab. Activation is the operator's
-`control-image.sh apply` (it restarts `enclave-metal.service`); see "Activating it".
+Status: **active on metal0 since 2026-11-15 00:39:18Z** (the operator ran `control-image.sh apply`); see "The run".
+The new code path has not been exercised by a renewal that landed behind a relay error.
 
 ## Why: Enclave RPC was stopped on 2026-11-14 with a live lease
 
@@ -110,6 +110,31 @@ The new code path runs only when a cached expiry passes; the restart itself does
 show is that the supervisor starts with the new file, is accepted on the new measurement, and holds and renews the
 lease as before.
 
+## The run (2026-11-15, UTC)
+
+The operator ran `apply`. From metal0's journal:
+
+- 00:39:02 the lease of `0x5ff56a4d…` was renewed until 01:09:02 (the renewal the script waits for).
+- 00:39:16-00:39:18 `enclave-metal.service` stopped and started with `dist-snpvm-7baabe2`.
+- 00:39:33 "this host is ADMITTED: serving and taking work"; `attest ACCEPTED meas=6fac97810228e0df…`.
+- 00:40:42-00:40:48 cron, depot and Enclave RPC adopted; the RPC guest "already running on this host" (not
+  restarted). 00:45:30 the free-lease line for all three.
+- 00:46:39 cron renewed through the relay.
+- 00:59:32-01:03:31 renewals of Enclave RPC and depot were not sent: "lease-gas RPC quorum did not agree on account
+  code" (three endpoints, quorum 2). After a failed renewal the supervisor asks the new reader before it tries
+  again, and the reader answered "expiry reconciliation unavailable; no lease extension inferred" on the passes of
+  01:01:33, 01:02:31, 01:03:31 and 01:04:30; such a pass sends no renewal. Two of the public endpoints in the
+  supervisor's default pool (drpc, 1rpc) answered rate-limit errors to this host's address at 01:03.
+  01:04:39 depot and 01:04:47 Enclave RPC renewed, until 01:34:38 and 01:34:46.
+  Enclave RPC had 4 minutes 15 seconds of lease left. Asked from the host at 01:07, the three endpoints answered
+  the same account code three times out of three; why they did not agree for five minutes is not established.
+  The same refusal occurred under 66335ab on 11-13 and 11-14, one or two passes at a time.
+- The app answered 200 at 01:02. The operator key held 9.34e-4 ETH at 01:06.
+
+A cached expiry did not pass during the run, so the reader's "live" answer has not been seen in production. Its
+"unavailable" answer has, before expiry: it extends nothing and stops nothing, and it holds back the retry of a
+failed renewal for that pass.
+
 ## Not covered
 
 - The relaunch after a teardown collided with the stopping guest (409, the bound disks open in another process),
@@ -118,3 +143,5 @@ lease as before.
 - Why the relay answered 502 for a renewal that landed (and again at 22:24:19) is not established.
 - Other fleet hosts' control images are older generations and are not rebuilt here. The Windows node is a different
   supervisor.
+- Renewals depend on two of three public endpoints agreeing in the same pass. Five minutes without agreement left
+  4 minutes of lease on 2026-11-15; thirty would end the lease, and then the guest is stopped correctly.
