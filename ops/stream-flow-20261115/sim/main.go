@@ -35,7 +35,7 @@ import (
 	"golang.zx2c4.com/wireguard/tun/netstack"
 )
 
-func link(from, to tun.Device, delay time.Duration, loss float64, seed int64, burst int) {
+func link(from, to tun.Device, delay time.Duration, loss float64, seed int64, burst int, jitter time.Duration) {
 	type pkt struct {
 		at time.Time
 		b  []byte
@@ -45,6 +45,7 @@ func link(from, to tun.Device, delay time.Duration, loss float64, seed int64, bu
 		bufs, sizes := [][]byte{make([]byte, 2048)}, []int{0}
 		r := mrand.New(mrand.NewSource(seed))
 		left := 0
+		var holdUntil, nextHold time.Time
 		for {
 			n, err := from.Read(bufs, sizes, 0)
 			if err != nil {
@@ -60,7 +61,20 @@ func link(from, to tun.Device, delay time.Duration, loss float64, seed int64, bu
 					left = burst - 1
 					continue
 				}
-				q <- pkt{time.Now().Add(delay), append([]byte(nil), bufs[i][:sizes[i]]...)}
+				// jitter: about three times a second the path holds everything for a random time up to `jitter`; what
+				// comes during a hold leaves together when it ends (packets keep their order)
+				now := time.Now()
+				at := now.Add(delay)
+				if jitter > 0 {
+					if now.After(nextHold) {
+						holdUntil = now.Add(time.Duration(r.Float64() * float64(jitter)))
+						nextHold = now.Add(time.Duration(r.ExpFloat64() * float64(time.Second) / 3))
+					}
+					if h := holdUntil.Add(delay); at.Before(h) {
+						at = h
+					}
+				}
+				q <- pkt{at, append([]byte(nil), bufs[i][:sizes[i]]...)}
 			}
 		}
 	}()
@@ -91,6 +105,7 @@ func main() {
 	fps := flag.Int("fps", 60, "frames per second")
 	kbps := flag.Int("kbps", 5000, "video bitrate including parity")
 	stall := flag.Duration("stall", 0, "every 10 s the path carries nothing for this long")
+	jitter := flag.Duration("jitter", 0, "about three times a second the path holds its packets for up to this long")
 	spill := flag.Duration("spill", flowDefaults.spill, "flow tuning")
 	hedge := flag.Duration("hedge", flowDefaults.hedge, "flow tuning")
 	late := flag.Duration("late", flowDefaults.late, "flow tuning")
@@ -115,8 +130,8 @@ func main() {
 			}
 		}()
 	}
-	link(gate{da, &blocked}, db, *delay, *loss, 1, *burst)
-	link(gate{db, &blocked}, da, *delay, *back, 2, *burst)
+	link(gate{da, &blocked}, db, *delay, *loss, 1, *burst, *jitter)
+	link(gate{db, &blocked}, da, *delay, *back, 2, *burst, *jitter)
 
 	// the app: HTTP on 47989 (what names the app at the gateway) and the video source on 47998
 	hl, err := net.Listen("tcp", "127.0.0.1:47989")

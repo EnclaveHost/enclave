@@ -17,7 +17,7 @@ export const flowReport=count=>{const b=Buffer.allocUnsafe(10);b.writeUInt16BE(F
 // own arrival, however many are missing. -> {push(seq,payload), parity(first,count,xor), repair(ms), stats(), close()}
 export function flowReceiver({deliver,reorderMs=80,reorderMinMs=40,reorderMaxMs=500,repairMarginMs=20,maxHeld=2048,maxSkipped=4096,maxRecent=256,maxParity=64,
   now=Date.now,setTimer=setTimeout,clearTimer=clearTimeout}){
- let next=0,timer=null,closed=false;const held=new Map(),skipped=new Set(),st={delivered:0,duplicates:0,skipped:0,late:0,waited:0,rebuilt:0};
+ let next=0,timer=null,closed=false;const held=new Map(),skipped=new Set(),st={delivered:0,duplicates:0,skipped:0,late:0,waited:0,rebuilt:0,parity:0,longestWaitMs:0};
  const out=p=>{st.delivered++;deliver(p);};
  // the last datagrams that arrived, by sequence number, and the parity frames that could not be used yet
  const recent=new Map(),waiting=[];
@@ -32,7 +32,7 @@ export function flowReceiver({deliver,reorderMs=80,reorderMinMs=40,reorderMaxMs=
   const n=x.readUInt16BE(0);if(n+2>x.length)return true;
   st.rebuilt++;accept(miss,x.subarray(2,2+n));return true;
  }
- const flush=()=>{for(let h;(h=held.get(next))!==undefined;){held.delete(next);out(h.p);next=(next+1)>>>0;}};
+ const flush=()=>{for(let h;(h=held.get(next))!==undefined;){held.delete(next);const w=now()-h.at;if(w>st.longestWaitMs)st.longestWaitMs=w;out(h.p);next=(next+1)>>>0;}};
  // the one that has waited longest decides when to stop waiting (Map order is arrival order)
  const arm=()=>{
   if(timer){clearTimer(timer);timer=null;}
@@ -70,13 +70,15 @@ export function flowReceiver({deliver,reorderMs=80,reorderMinMs=40,reorderMaxMs=
   // a parity frame: the XOR of data frames first..first+count-1
   parity(first,count,xor){
    if(closed||!Number.isInteger(count)||count<1||count>32||xor.length<2)return;
+   st.parity++;
    const g={first:first>>>0,count,xor:Buffer.from(xor)};
    if(solve(g))return;
    waiting.push(g);if(waiting.length>maxParity)waiting.shift();
   },
   // the app's end says how long a second copy takes on this path
   repair(ms){if(!Number.isFinite(ms)||ms<0)return;reorderMs=Math.min(reorderMaxMs,Math.max(reorderMinMs,ms+repairMarginMs));if(timer)arm();},
-  stats:()=>({...st,held:held.size,next,reorderMs}),
+  // (longestWaitMs: the longest a datagram waited here for the ones before it, since the last call with `reset`)
+  stats:({reset=false}={})=>{const r={...st,held:held.size,next,reorderMs};if(reset)st.longestWaitMs=0;return r;},
   close(){closed=true;if(timer)clearTimer(timer);timer=null;held.clear();},
  };
 }
@@ -142,7 +144,8 @@ export function flowDeframer({onData,onReport,onRepair=()=>{},onParity=()=>{},on
 // the path added beyond its best, and a picture that falls steadily behind shows as lateness that grows. The two
 // clocks' drift (some milliseconds in ten minutes) is in it. note(payload) for each datagram handed on; take() -> what
 // was seen since the last take ({packets, lost, p50, p95, p99, max}: lateness in ms; lost = sequence numbers that
-// never came), or null when nothing that looks like RTP came.
+// never came), or null when nothing that looks like RTP came. `by:'none'` counts packets and losses only (Sunshine's
+// video timestamps did not advance at 90 kHz in the first stream measured).
 export function rtpLag({by='sequence',now=Date.now,learn=300,spacings=[2.5,5,10,20]}={}){
  let first=null,lastSeq=0,lastX=0,slope=by==='timestamp'?1/90:null,base=Infinity,seen=0,lost=0,lags=[],early=[];
  return {
@@ -156,6 +159,7 @@ export function rtpLag({by='sequence',now=Date.now,learn=300,spacings=[2.5,5,10,
    let x=seq;
    if(by==='timestamp'){x=lastX+((t32-((first.ts+lastX)>>>0))|0);if(x>lastX)lastX=x;}
    seen++;
+   if(by==='none')return;   // counted only
    if(slope===null){
     // the spacing: from the first and the last of the first packets, set to a usual one when it is within a tenth
     early.push([x,at]);if(early.length<learn)return;

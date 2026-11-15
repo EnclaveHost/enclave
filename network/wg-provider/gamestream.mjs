@@ -180,7 +180,7 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
     const release=hold(r.address,b),id=want?randomId():null;
     const toClient=payload=>{a.at=now();a.lag?.note(payload);count(to,0,payload.length);sock.send(payload,r.port,r.address,()=>{});};
     // how far behind the video and the audio leave this box (the control port's datagrams are not RTP)
-    a={up:null,flow:null,queue:[],at:now(),since:now(),to,lag:i===0?rtpLag({by:'timestamp',now}):i===2?rtpLag({by:'sequence',now}):null,name:b.name,port,
+    a={up:null,flow:null,queue:[],at:now(),since:now(),to,heardAt:0,silence:0,lag:i===0?rtpLag({by:'none',now}):i===2?rtpLag({by:'sequence',now}):null,name:b.name,port,
      end(){
       if(!a.queue)return;a.say();a.queue=null;if(assoc.get(key)===a)assoc.delete(key);release();a.up?.destroy();
       if(a.flow){const st=a.flow.rx.stats();flowStats.delivered+=st.delivered;flowStats.duplicates+=st.duplicates;flowStats.skipped+=st.skipped;flowStats.late+=st.late;flowStats.rebuilt+=st.rebuilt;flowStats.dropped+=a.flow.dropped;
@@ -201,13 +201,16 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
      // one line every `statsMs` while datagrams flow: how late they left, and what the flow met since the last line
      said:null,
      say(){
-      const g=a.lag?.take(),st=a.flow?a.flow.rx.stats():null;if(!g||!g.packets)return;
-      const d=st?{delivered:st.delivered-(a.said?.delivered||0),rebuilt:st.rebuilt-(a.said?.rebuilt||0),over:st.skipped-(a.said?.skipped||0),late:st.late-(a.said?.late||0),copies:st.duplicates-(a.said?.duplicates||0)}:null;a.said=st;
+      const g=a.lag?.take(),st=a.flow?a.flow.rx.stats({reset:true}):null;if(!g||!g.packets)return;
+      const d=st?{delivered:st.delivered-(a.said?.delivered||0),rebuilt:st.rebuilt-(a.said?.rebuilt||0),over:st.skipped-(a.said?.skipped||0),late:st.late-(a.said?.late||0),copies:st.duplicates-(a.said?.duplicates||0),parity:st.parity-(a.said?.parity||0)}:null;a.said=st;
+      const quiet=Math.round(a.silence);a.silence=0;
       log(`gamestream ${a.name} udp/${a.port} ${Math.round((now()-a.since)/1000)} s: ${g.packets} packets, ${g.lost} missing; late by ${g.p50??'?'} ms at the median, ${g.p95??'?'} at the 95th, ${g.p99??'?'} at the 99th, ${g.max??'?'} at most`
-       +(d?`; rebuilt ${d.rebuilt}, passed over ${d.over}, late copies ${d.late}, second copies ${d.copies}, lanes open ${a.flow.lanes.filter(l=>!l.up.destroyed).length} of ${a.flow.opened}, wait ${st.reorderMs} ms`:'; plain tunnel'));
+       +(d?`; rebuilt ${d.rebuilt}, passed over ${d.over}, late copies ${d.late}, second copies ${d.copies}, parity frames ${d.parity}, longest wait for a missing one ${Math.round(st.longestWaitMs)} ms of ${st.reorderMs}, longest silence of all lanes ${quiet} ms, lanes open ${a.flow.lanes.filter(l=>!l.up.destroyed).length} of ${a.flow.opened} (frames per lane ${a.flow.lanes.map(l=>{const n=l.received-(l.saidReceived||0);l.saidReceived=l.received;return n;}).join(' ')})`:'; plain tunnel'));
      },
     };
     assoc.set(key,a);
+    // the longest time no lane brought anything (while the stream ran): a hold of the whole path, not of one connection
+    const heard=()=>{const t=now();if(a.heardAt&&t-a.heardAt>a.silence)a.silence=t-a.heardAt;a.heardAt=t;};
     const lane=t=>{
      const up=t.socket,l={up,received:0,reported:0,due:false,n:a.flow.pick.add()};a.flow.lanes[l.n]=l;a.flow.opened++;   // (a closed lane's place is used again)
      open.add(up);up.on('error',()=>up.destroy());
@@ -220,10 +223,10 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
      });
      const tell=()=>{l.due=false;if(!up.destroyed&&l.reported!==l.received){l.reported=l.received;up.write(flowReport(l.received));}};
      const receive=flowDeframer({
-      onData(seq,payload){l.received++;if(!l.due){l.due=true;setImmediate(tell);}a.flow.rx.push(seq,payload);},
+      onData(seq,payload){l.received++;heard();if(!l.due){l.due=true;setImmediate(tell);}a.flow.rx.push(seq,payload);},
       onReport(n){if(!a.flow.pick.report(l.n,n))up.destroy();},
       onRepair(ms){a.flow.rx.repair(ms);},
-      onParity(first,count,xor){a.flow.rx.parity(first,count,xor);},
+      onParity(first,count,xor){heard();a.flow.rx.parity(first,count,xor);},
       onError(){up.destroy();}});
      up.on('data',receive);if(t.rest.length)receive(t.rest);up.resume();
     };

@@ -19,7 +19,7 @@ test('receiver: in order, once each; a second copy and a late copy are dropped',
  assert.deepEqual(got,['a','b']);
  rx.push(2,'c');assert.deepEqual(got,['a','b','c','d']);
  rx.push(0,'a late');assert.deepEqual(got,['a','b','c','d']);
- assert.deepEqual(rx.stats(),{delivered:4,duplicates:3,skipped:0,late:0,waited:1,rebuilt:0,held:0,next:4,reorderMs:80});
+ assert.deepEqual(rx.stats(),{delivered:4,duplicates:3,skipped:0,late:0,waited:1,rebuilt:0,parity:0,longestWaitMs:0,held:0,next:4,reorderMs:80});
  assert.equal(c.pending(),0);
 });
 
