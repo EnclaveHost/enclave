@@ -28,6 +28,9 @@ type portTunnels struct {
 	mu      sync.Mutex
 	active  map[string]int
 	total   int
+	// UDP tunnels whose client reports what it received (tunnel_flow.go), by destination and flow id
+	flows    map[string]*udpFlow
+	flowTune flowTuning
 }
 
 func loadPortTunnels(path string, httpPort int) (*portTunnels, error) {
@@ -98,11 +101,20 @@ func (t *portTunnels) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "HTTP/1.1 required", http.StatusBadRequest)
 		return
 	}
+	flow := r.Header.Values(flowHeader)
+	if len(flow) != 0 && (proto != "udp" || len(flow) != 1 || !validFlowID(flow[0])) {
+		http.Error(w, "invalid flow", http.StatusBadRequest)
+		return
+	}
 	if !t.acquire(key) {
 		http.Error(w, "tunnel limit", http.StatusServiceUnavailable)
 		return
 	}
 	defer t.release(key)
+	if len(flow) == 1 {
+		t.serveFlow(w, h, key, raw, flow[0])
+		return
+	}
 	upstream, err := net.DialTimeout(proto, net.JoinHostPort("127.0.0.1", raw), 5*time.Second)
 	if err != nil {
 		http.Error(w, "app port unavailable", http.StatusBadGateway)
@@ -182,6 +194,35 @@ func (t *portTunnels) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	<-done
+}
+
+// serveFlow joins this connection to its flow as a lane (tunnel_flow.go), opening the association for the first.
+func (t *portTunnels) serveFlow(w http.ResponseWriter, h http.Hijacker, key, port, id string) {
+	f, err := t.flowFor(key, port, id)
+	if err == errFlowFull {
+		http.Error(w, "flow limit", http.StatusServiceUnavailable)
+		return
+	}
+	if err != nil {
+		http.Error(w, "app port unavailable", http.StatusBadGateway)
+		return
+	}
+	c, rw, err := h.Hijack()
+	if err != nil {
+		f.abandon()
+		return
+	}
+	c.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	if _, err := rw.WriteString("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: " + tunnelProtocol + "\r\n" + flowHeader + ": 1\r\n\r\n"); err == nil {
+		err = rw.Flush()
+	}
+	if err != nil {
+		c.Close()
+		f.abandon()
+		return
+	}
+	c.SetDeadline(time.Time{})
+	f.serveLane(c, rw.Reader)
 }
 func headerToken(value, want string) bool {
 	for _, t := range strings.Split(value, ",") {
