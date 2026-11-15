@@ -202,6 +202,67 @@ with public ingress (its policy's ingress is not `none`) and a current lease and
 end to end into the target enclave. Why: sia-s3 and the apps storing on it share the NucBox, and their traffic crossed two
 providers each way: ~0.9 MiB/s (2026-10-15). `enclaveNetwork.localRoutes: false` turns it off on a host.
 
+## Near routes
+
+Which provider is an app's guard and which its exit is decided by the host (`selectNetworkCircuits` in
+`network/wg-manager.mjs`): cheapest first, then the one qualified longest, then id, the exit before the guard. Distance is not
+in it. On the NucBox (west US) that made every app's circuits Toronto -> Frankfurt and San Francisco -> Singapore, and an app's
+name lists both exits to every visitor. A viewer in the same building reached the KVM Box desktop over
+viewer -> Frankfurt -> Toronto -> host: 0.36-0.41 s round trip measured (2026-11-15,
+`ops/gamestream-gateway-20261114/stream-20261115.md`).
+
+`enclaveNetwork.nearRoutes: true` in a host's configuration (off unless set; the Windows node keeps the operator's `true`
+across its passes) changes two things on that host:
+
+- **Which providers.** The host measures how far each ingress provider is (`network/provider-distance.mjs`: the shortest of
+  three TCP handshakes with the provider's port 443). Among equally priced providers the nearest becomes the guard and the next
+  nearest the exit; a second circuit takes the nearest two of what is left. Circuits stay provider-disjoint, a guard is never
+  its own exit, and price still comes first. A provider with no measurement comes after every measured one.
+- **Which exits the name lists.** Only the circuits whose two distances add up to within 40 ms or 25% of the nearest one's
+  (nearest first). The others stay built and verified as standbys (`standby` in the agent's status, with `rttMs` per circuit)
+  and are listed with the withdrawal when no near circuit is healthy.
+
+Why the guard first: every visitor's path is visitor -> exit -> guard -> host, so a far guard is paid by all of them, and the
+stretch host -> guard -> exit is the one the host's netstack sends over (Circuit TCP, below). Round trips between the four
+providers and from the NucBox's line, measured 2026-11-15 (ms): sfo-tor 75, sfo-fra 157, sfo-sgp 175, tor-fra 100,
+tor-sgp 249, fra-sgp 154; host-sfo 25, host-tor 85, host-fra 160, host-sgp 186. From those, the sum of the three legs:
+
+| visitor | guard tor, exit fra (built today) | guard sfo, exit sgp (built today) | guard sfo, exit tor (near routes) |
+|---|---|---|---|
+| beside the host | 345 | 386 | 185 |
+| at Frankfurt | 185 | 354 | 200 |
+| at Singapore | 339 | 200 | 349 |
+
+Today a visitor gets either of the first two columns, whichever address their resolver hands them first. Near routes halves
+the path for a visitor near the host (and in the Americas generally), leaves a visitor in Europe about where today's better
+circuit is, and is worse for a visitor in Asia than today's better circuit (349 against 200): the one listed exit is on the
+host's side of the world. The standby (guard fra, exit sgp) is 500 / 468 / 314 for the three rows. These are sums of measured
+legs, not measurements of a circuit built this way; none has been built yet.
+
+What a measured provider sees: up to three bare TCP handshakes on its public web port from the host's own address. No TLS,
+no name, no request: what a visitor's or a scanner's connection begins with. It is nevertheless a contact from the host's
+address to providers that are not its guard, which the agent otherwise never makes (route publications leave through circuits),
+and a provider that compared such handshakes with the grant requests reaching it as an exit over several agent starts could
+guess whose they are. That is why the option is the operator's and off by default, why a provider is measured once per agent
+run (again only if its address changes or it did not answer, then after 10 minutes), and why no name is ever resolved for it.
+
+Not covered:
+- **No rebalancing.** The arrangement applies to circuits built after the option is on (agent start, or after a failure);
+  a healthy circuit is not torn down because a nearer pair exists.
+- **One listed exit fails over later.** With two exits in the name a browser tries the other address at once. With the standby
+  unlisted, a dead near circuit costs the host's detection (a closed tunnel at once; else three failed probes, about a minute),
+  the directories' poll and the 15 s record lifetime before the standby's address is served.
+- **With four providers the second circuit is the two far ones**, so it is only a standby. The floor for a visitor beside the
+  host is two providers away and back (185 ms above); it falls only with a second provider near the host, or with direct
+  hosting, which Windows hosts do not have.
+- **The exit is not chosen per visitor.** Every visitor is given the same exits. Sending a visitor in Asia through an exit in
+  Asia needs an app to hold exits in several regions behind its near guard (the owner-signed policy allows `routes` 1 or 2,
+  `network/route-record.mjs` refuses more, the route DNS keeps two addresses per name) and the route DNS
+  (`relay/dns-relay.js`) to answer by where the asker is, for which the replicas have no location data. From the table: Asia
+  349 -> 200 with guard sfo and exit sgp; Europe 200 -> 182 with exit fra; the Americas nothing.
+- **It does not remove queueing under loss.** A shorter path lowers delay and the loss a long path collects; late video still
+  queues in one TCP connection.
+
 ## Circuit TCP
 
 Every circuit's TCP runs in enclave-wg's gVisor netstack. With its defaults (reno, 1 MiB buffers capped at 4 MiB) uploads over a

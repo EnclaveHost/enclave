@@ -24,6 +24,7 @@ import {createProviderCanary,canaryHostname} from './provider-canary.mjs';
 import {ownerNameSource,leaseNameScope} from './owner-names.mjs';
 import {verifyQualification} from './provider-qualification.mjs';
 import {HostEgress} from './host-egress.mjs';
+import {createProviderDistance} from './provider-distance.mjs';
 import fs from 'node:fs/promises';
 import {DirectoryClient} from './directory-client.mjs';
 import {validateNetworkAuthorities} from './network-authorities.mjs';
@@ -74,6 +75,7 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
  if(c.byoConfigDirectory!==undefined&&!path.isAbsolute(c.byoConfigDirectory))throw new Error('Enclave network: absolute BYO config directory required');
  if(!Array.isArray(c.checkers)||!c.checkers.length)throw new Error('Enclave network: trusted checker addresses required');
  if(c.apps!=='all'&&!Array.isArray(c.apps))throw new Error('Enclave network: apps must be "all" or a list');
+ if(c.nearRoutes!==undefined&&typeof c.nearRoutes!=='boolean')throw new Error('Enclave network: nearRoutes must be true or false');
  const pins=authorityPins===undefined?null:validateNetworkAuthorities(authorityPins);
  if(pins&&c.registry&&c.registry.toLowerCase()!==pins.registry)throw Error('Enclave network: registry conflicts with authority pin');
  if(pins&&typeof leaseReader?.agreed!=='function')throw Error('Enclave network: pinned authority requires a quorum reader');
@@ -223,6 +225,9 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
  const challenge=challengeCfg?superviseChallengeReplica(challengeCfg,{log,...challengeOptions}):null;
  // localRoutes: apps on this host reach each other's websites here (local-app-router.mjs); false turns it off
  return {onNetwork,policyFor,providers,byoConfig,runtime,probeEgress,grants,direct,hostEgress,localRoutes:c.localRoutes!==false,
+  // nearRoutes (optional, off unless true): this host measures how far each ingress provider is and builds its circuits
+  // through the nearest (provider-distance.mjs; docs/design/enclave-network.md, "Near routes")
+  distance:c.nearRoutes===true?createProviderDistance({log}):null,
   // releases what this host bound itself: the direct runtime's listeners, its canary and the challenge service (the circuit runtime and host
   // egress keep their own lifecycles)
   // (idempotent: the agent's shutdown and a failed start may both ask)

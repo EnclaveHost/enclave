@@ -7,7 +7,7 @@ import {defaultNetworkPolicy} from '../network/network-policy-core.mjs';
 const id='0x'+'ab'.repeat(32);
 const prov=(n,over={})=>({providerId:String(n).repeat(32).slice(0,32),address:`44.0.0.${n}`,wgExitKey:'x'+n,wgGuardKey:'g'+n,ports:{exit:51820,guard:51821,control:51822},
  region:'r'+n,kind:'enclave',pricePerGiB6:0,eligibleRoles:['guard','ingress','egress'],qualifiedUntil:Date.now()+600000,...over});
-function rig({providers=[1,2,3,4].map(n=>prov(n)),byoFails=false}={}){
+function rig({providers=[1,2,3,4].map(n=>prov(n)),byoFails=false,distance=null,now=Date.now}={}){
  let list=providers;const started=[],published=[];
  const admission={allows:()=>true,leases:new Map([[id,{validUntil:Date.now()+600000}]]),proofs:new Map([[id,{validUntil:Date.now()+600000}]])};
  const runtime={start:async a=>{
@@ -15,7 +15,7 @@ function rig({providers=[1,2,3,4].map(n=>prov(n)),byoFails=false}={}){
   const c=new EventEmitter();Object.assign(c,{...a,id:String(started.length).padStart(32,'0'),closed:false,providers:a.kind==='byo'?{byo:{address:a.byo.endpoint.address}}:{guard:a.guard,exit:a.exit},
    address:a.kind==='byo'?null:a.exit.address,egressReady:!!a.egress,egress:a.egress?'127.0.0.1:9':null,admit(){},async close(r){this.closed=true;this.emit('down',r);}});started.push(c);return c;}};
  const m=new EnclaveNetworkManager({runtime,admission,providers:async()=>list,byoConfig:async()=>({endpoint:{address:'1.2.3.4',port:51820}}),probe:async()=>{},probeEgress:async()=>{},
-  publish:async(app,routes)=>{published.push(routes);}});
+  publish:async(app,routes)=>{published.push(routes);},distance,now});
  return {m,started,published,setProviders:p=>{list=p;},setByoFails:v=>{byoFails=v;}};
 }
 const app=(policy,names=['abababab.app.enclave.host'])=>({deploymentId:id,names,policy,isPublic:true});
@@ -114,3 +114,67 @@ test('BYO egress fails over to the authorized fallback and back without touching
  cs=r.m.apps.get(id).circuits;assert.ok(fb.closed&&!cs.includes(fb),'fallback withdrawn once BYO is back');
  assert.ok(!web.closed&&cs.includes(web)&&cs.some(c=>c.kind==='byo'));st=r.m.status()[0];assert.equal(st.fallbackActive,false);assert.equal(st.ready,true);
 });
+
+// Near routes (enclaveNetwork.nearRoutes on the host; network/provider-distance.mjs measures, here a fixed table):
+// provider 3 is nearest to the host, then 4, then 1, then 2.
+const far=new Map([[prov(1).providerId,160],[prov(2).providerId,186],[prov(3).providerId,25],[prov(4).providerId,85]]);
+const pair=c=>[c.guard.address,c.exit.address],Q=Date.now()+86400000,four=()=>[1,2,3,4].map(n=>prov(n,{qualifiedUntil:Q}));
+test('near routes: the nearest provider is the guard, the next nearest the exit; the second circuit takes what is left',()=>{
+ const o={routes:2,ingress:true,egress:true,maxPricePerGiB6:0};
+ assert.deepEqual(selectNetworkCircuits(four(),{...o,distance:far}).map(pair),[['44.0.0.3','44.0.0.4'],['44.0.0.1','44.0.0.2']]);
+ // without a table the choice is what it was: price, qualification age, id; the exit first
+ assert.deepEqual(selectNetworkCircuits(four(),o).map(pair),[['44.0.0.2','44.0.0.1'],['44.0.0.4','44.0.0.3']]);
+ // price still comes first: the nearest provider, when it charges more than another, is not preferred
+ const paid=four().map(p=>p.address==='44.0.0.3'?{...p,pricePerGiB6:5}:p);
+ assert.deepEqual(selectNetworkCircuits(paid,{...o,maxPricePerGiB6:5,distance:far}).map(pair),[['44.0.0.4','44.0.0.1'],['44.0.0.2','44.0.0.3']]);
+ // a provider nobody measured comes after every measured one
+ const five=[...four(),prov(5,{qualifiedUntil:Q})];
+ assert.deepEqual(selectNetworkCircuits(five,{...o,routes:1,distance:far}).map(pair),[['44.0.0.3','44.0.0.4']]);
+ assert.equal(selectNetworkCircuits(five,{...o,routes:3,distance:far}).length,2,'five providers are two circuits');
+ // the nearest provider is taken as the guard only if an exit is left for it; one that cannot be an exit is never one
+ const guardOnly=[prov(3,{eligibleRoles:['guard']}),prov(4,{eligibleRoles:['guard']}),prov(1)].map(p=>({...p,qualifiedUntil:Q}));
+ assert.deepEqual(selectNetworkCircuits(guardOnly,{...o,routes:1,distance:far}).map(pair),[['44.0.0.3','44.0.0.1']]);
+ // a circuit that exists stays; a provider cooling down is passed over
+ const kept=selectNetworkCircuits(four(),{...o,distance:far,keep:[{guard:prov(1),exit:prov(2)}]}).map(pair);
+ assert.deepEqual(kept,[['44.0.0.1','44.0.0.2'],['44.0.0.3','44.0.0.4']]);
+ const now=Date.now(),cool=new Map([[prov(3).providerId,now+60000]]);
+ assert.deepEqual(selectNetworkCircuits(four(),{...o,routes:1,distance:far,cooldown:cool,now}).map(pair),[['44.0.0.4','44.0.0.1']]);
+});
+test('near routes: the name lists the near circuit only; the far one stands by and is listed when the near one fails',async()=>{
+ let t=Date.now();const r=rig({providers:four(),distance:async()=>far,now:()=>t});
+ await r.m.configure([app(defaultNetworkPolicy(id))]);await r.m.reconcile();
+ const a=r.m.apps.get(id);assert.deepEqual(a.circuits.map(c=>[c.providers.guard.address,c.providers.exit.address]),[['44.0.0.3','44.0.0.4'],['44.0.0.1','44.0.0.2']]);
+ assert.ok(a.circuits.every(c=>c.healthy),'both built and verified');
+ assert.deepEqual(r.published.at(-1).map(x=>x.address),['44.0.0.4'],'only the near circuit\'s exit is in the name');
+ const st=r.m.status()[0].circuits;
+ assert.deepEqual(st.map(c=>[c.rttMs,c.standby]),[[{guard:25,exit:85},false],[{guard:160,exit:186},true]]);
+ assert.equal(r.m.status()[0].ready,true);
+ // the near circuit goes down: the standby is listed with the withdrawal, not a pass later
+ const near=a.circuits[0];await near.close('exit unreachable');await new Promise(setImmediate);
+ assert.deepEqual(r.published.at(-1).map(x=>x.address),['44.0.0.2']);assert.equal(r.m.status()[0].circuits[0].standby,false);
+ // its provider's cooldown over, the near circuit is built again and the name goes back to it alone
+ t+=2*60000;
+ await r.m.reconcile();
+ const again=r.m.apps.get(id).circuits;assert.equal(again.length,2);
+ assert.deepEqual(r.published.at(-1).map(x=>x.address),['44.0.0.4']);
+ assert.deepEqual(r.m.status()[0].circuits.filter(c=>c.standby).map(c=>c.address),['44.0.0.2']);
+});
+test('near routes: circuits about as near as each other are both listed, nearest first; nothing measured is as without',async()=>{
+ const close=new Map([[prov(1).providerId,30],[prov(2).providerId,45],[prov(3).providerId,35],[prov(4).providerId,40]]);
+ const r=rig({providers:four(),distance:async()=>close});await r.m.configure([app(defaultNetworkPolicy(id))]);await r.m.reconcile();
+ // 30+35 and 40+45: the second is within 40 ms of the first
+ assert.deepEqual(r.published.at(-1).map(x=>x.address),['44.0.0.3','44.0.0.2']);
+ assert.ok(r.m.status()[0].circuits.every(c=>!c.standby));
+ for(const distance of [async()=>new Map(),async()=>{throw new Error('no route to any provider');}]){
+  const n=rig({providers:four(),distance});await n.m.configure([app(defaultNetworkPolicy(id))]);await n.m.reconcile();
+  const cs=n.m.apps.get(id).circuits;
+  assert.deepEqual(cs.map(c=>[c.providers.guard.address,c.providers.exit.address]),[['44.0.0.2','44.0.0.1'],['44.0.0.4','44.0.0.3']]);
+  assert.equal(n.published.at(-1).length,2);assert.ok(n.m.status()[0].circuits.every(c=>c.rttMs===null&&!c.standby));
+ }
+ // a circuit with a provider nobody measured counts as far: it stands by behind a measured one
+ const part=new Map([...far].filter(([k])=>k!==prov(2).providerId));
+ const p=rig({providers:four(),distance:async()=>part});await p.m.configure([app(defaultNetworkPolicy(id))]);await p.m.reconcile();
+ assert.deepEqual(p.m.status()[0].circuits.map(c=>c.rttMs),[{guard:25,exit:85},{guard:160,exit:null}]);
+ assert.deepEqual(p.published.at(-1).map(x=>x.address),['44.0.0.4']);
+});
+

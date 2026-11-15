@@ -179,6 +179,21 @@ test("an operator's paceMbps is kept across passes (no restart); a bad value is 
   }
 });
 
+test("an operator's nearRoutes is kept across passes (no restart); anything but true is dropped", async () => {
+  const w = world();
+  await w.enroll.pass();
+  const cfg = w.read();
+  fs.writeFileSync(path.join(w.agentDir, "privacy-config.json"), JSON.stringify({ ...cfg, enclaveNetwork: { ...cfg.enclaveNetwork, nearRoutes: true } }));
+  assert.equal((await w.enroll.pass()).changed, false, "nothing to change");
+  assert.equal(w.read().enclaveNetwork.nearRoutes, true);
+  assert.equal(w.restarts(), 0);
+  for (const bad of [false, 1, "true", null]) {
+    fs.writeFileSync(path.join(w.agentDir, "privacy-config.json"), JSON.stringify({ ...cfg, enclaveNetwork: { ...cfg.enclaveNetwork, nearRoutes: bad } }));
+    await w.enroll.pass();
+    assert.equal(w.read().enclaveNetwork.nearRoutes, undefined, `${JSON.stringify(bad)} is not carried`);
+  }
+});
+
 test("the agent's chain RPCs follow the node's list: a changed list is written once and restarts the agent once", async () => {
   const w = world();
   await w.enroll.pass();
