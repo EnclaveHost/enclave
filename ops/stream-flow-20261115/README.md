@@ -102,4 +102,25 @@ in ms.
 
 ## Activation
 
-(Nothing installed yet.)
+**1. The four edges, 2026-11-15 13:38-13:40Z** (`edges.sh activate`, run from the assistant's session on the owner's
+instruction to run the installs). It is the 2026-11-14 gateway activation with this checkout's bundle
+(`bundle.sha256`, 85675750…3738, built from main `3c4de3758`): on each edge the gateway's service was replaced and
+restarted, the provider was not touched (same process and start time before and after on all four).
+
+| edge | verified | named probe |
+|---|---|---|
+| ca-east | 13:38:45Z | KVM Box server info 200 |
+| ap-southeast | 13:39:07Z | not routed there |
+| us-west | 13:39:20Z | KVM Box server info 200 |
+| eu-central | 13:39:43Z | not routed there |
+
+Afterwards, together: twelve of twelve edge-to-edge questions answered, and a client that names the app at one edge
+is carried at another for the six pairs that can be tried. Sunshine answered "busy" at 13:39:52Z: a stream was open
+when the gateways restarted, and it will have dropped. The evidence files name the edges' addresses and stay outside
+the repository.
+
+What this changes today: nothing a viewer can see. The desktop that runs (SVN21) has a front from before flows, so
+the new gateways get plain tunnels from it. That a plain tunnel still carries UDP through the new gateway was not
+exercised (it needs a Moonlight stream); the TCP ports were.
+
+**2. The desktop image with the new front:** not built yet.
