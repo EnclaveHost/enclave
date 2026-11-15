@@ -194,6 +194,23 @@ test("an operator's nearRoutes is kept across passes (no restart); anything but 
   }
 });
 
+test("an operator's oneHop is kept across passes (no restart); a malformed value is dropped", async () => {
+  const w = world();
+  await w.enroll.pass();
+  const cfg = w.read(), app = "0x" + "ab".repeat(32);
+  for (const good of ["all", [app], [app, "0x" + "cd".repeat(32)]]) {
+    fs.writeFileSync(path.join(w.agentDir, "privacy-config.json"), JSON.stringify({ ...cfg, enclaveNetwork: { ...cfg.enclaveNetwork, oneHop: good } }));
+    assert.equal((await w.enroll.pass()).changed, false, "nothing to change");
+    assert.deepEqual(w.read().enclaveNetwork.oneHop, good);
+  }
+  assert.equal(w.restarts(), 0);
+  for (const bad of [true, "ALL", [], [app.toUpperCase()], [app, 7], { apps: "all" }, null]) {
+    fs.writeFileSync(path.join(w.agentDir, "privacy-config.json"), JSON.stringify({ ...cfg, enclaveNetwork: { ...cfg.enclaveNetwork, oneHop: bad } }));
+    await w.enroll.pass();
+    assert.equal(w.read().enclaveNetwork.oneHop, undefined, `${JSON.stringify(bad)} is not carried`);
+  }
+});
+
 test("the agent's chain RPCs follow the node's list: a changed list is written once and restarts the agent once", async () => {
   const w = world();
   await w.enroll.pass();

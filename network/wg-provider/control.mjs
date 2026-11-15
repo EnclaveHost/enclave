@@ -20,7 +20,7 @@ export async function createControl({provider,info,receipt=null,port,host='0.0.0
   req.on('end',async()=>{
    if(res.headersSent)return;
    let body;try{body=JSON.parse(Buffer.concat(parts).toString('utf8'));}catch{return send(res,400,{error:'JSON required'});}
-   try{send(res,200,route==='peer'?await provider.handle(body):route==='revoke'?await provider.revoke(body):await receipt(body));}
+   try{send(res,200,route==='peer'?await provider.handle(body,{from:req.socket.remoteAddress||null}):route==='revoke'?await provider.revoke(body):await receipt(body));}
    catch(e){log(`${route} refused: ${e.message}`);send(res,403,{error:e.message.slice(0,300)});}
   });
  });

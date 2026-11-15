@@ -7,7 +7,7 @@ import {defaultNetworkPolicy} from '../network/network-policy-core.mjs';
 const id='0x'+'ab'.repeat(32);
 const prov=(n,over={})=>({providerId:String(n).repeat(32).slice(0,32),address:`44.0.0.${n}`,wgExitKey:'x'+n,wgGuardKey:'g'+n,ports:{exit:51820,guard:51821,control:51822},
  region:'r'+n,kind:'enclave',pricePerGiB6:0,eligibleRoles:['guard','ingress','egress'],qualifiedUntil:Date.now()+600000,...over});
-function rig({providers=[1,2,3,4].map(n=>prov(n)),byoFails=false,distance=null,now=Date.now}={}){
+function rig({providers=[1,2,3,4].map(n=>prov(n)),byoFails=false,distance=null,oneHop=null,now=Date.now}={}){
  let list=providers;const started=[],published=[];
  const admission={allows:()=>true,leases:new Map([[id,{validUntil:Date.now()+600000}]]),proofs:new Map([[id,{validUntil:Date.now()+600000}]])};
  const runtime={start:async a=>{
@@ -15,7 +15,7 @@ function rig({providers=[1,2,3,4].map(n=>prov(n)),byoFails=false,distance=null,n
   const c=new EventEmitter();Object.assign(c,{...a,id:String(started.length).padStart(32,'0'),closed:false,providers:a.kind==='byo'?{byo:{address:a.byo.endpoint.address}}:{guard:a.guard,exit:a.exit},
    address:a.kind==='byo'?null:a.exit.address,egressReady:!!a.egress,egress:a.egress?'127.0.0.1:9':null,admit(){},async close(r){this.closed=true;this.emit('down',r);}});started.push(c);return c;}};
  const m=new EnclaveNetworkManager({runtime,admission,providers:async()=>list,byoConfig:async()=>({endpoint:{address:'1.2.3.4',port:51820}}),probe:async()=>{},probeEgress:async()=>{},
-  publish:async(app,routes)=>{published.push(routes);},distance,now});
+  publish:async(app,routes)=>{published.push(routes);},distance,oneHop,now});
  return {m,started,published,setProviders:p=>{list=p;},setByoFails:v=>{byoFails=v;}};
 }
 const app=(policy,names=['abababab.app.enclave.host'])=>({deploymentId:id,names,policy,isPublic:true});
@@ -178,3 +178,72 @@ test('near routes: circuits about as near as each other are both listed, nearest
  assert.deepEqual(p.published.at(-1).map(x=>x.address),['44.0.0.4']);
 });
 
+
+// One hop (docs/design/enclave-network.md): the owner's guard:false and the operator's opt-in, both or nothing.
+const oneHopPolicy=(over={})=>({...defaultNetworkPolicy(id),nonce:1,issuedAt:1,enclaveNetwork:{routes:2,guard:false,maxPricePerGiB6:0,budget6:0,...over}});
+test('one hop: each circuit is one provider, never shared; the order is the usual one, nearest first with distances',()=>{
+ const plain=selectNetworkCircuits(four(),{routes:2,ingress:true,egress:true,maxPricePerGiB6:0,oneHop:true});
+ assert.deepEqual(plain.map(c=>[c.guard,c.exit.address]),[[null,'44.0.0.1'],[null,'44.0.0.2']]);assert.equal(plain.short,null);
+ const near=selectNetworkCircuits(four(),{routes:2,ingress:true,egress:true,maxPricePerGiB6:0,oneHop:true,distance:far});
+ assert.deepEqual(near.map(c=>[c.guard,c.exit.address]),[[null,'44.0.0.3'],[null,'44.0.0.4']]);
+ // a kept circuit's provider is not used again; a guard-only provider is no exit; price and cooldown hold as always
+ const kept=selectNetworkCircuits(four(),{routes:2,ingress:true,egress:true,maxPricePerGiB6:0,oneHop:true,distance:far,keep:[{guard:null,exit:prov(3)}]});
+ assert.deepEqual(kept.map(c=>c.exit.address),['44.0.0.3','44.0.0.4']);
+ const few=[prov(1,{qualifiedUntil:Q,eligibleRoles:['guard']}),prov(2,{qualifiedUntil:Q,pricePerGiB6:5}),prov(3,{qualifiedUntil:Q})];
+ const one=selectNetworkCircuits(few,{routes:2,ingress:true,egress:true,maxPricePerGiB6:0,oneHop:true,cooldown:new Map()});
+ assert.deepEqual(one.map(c=>c.exit.address),['44.0.0.3']);assert.match(one.short,/^1 of 2 route\(s\)/);
+ assert.throws(()=>selectNetworkCircuits(few,{routes:1,ingress:true,egress:true,maxPricePerGiB6:0,oneHop:true,cooldown:new Map([[prov(3).providerId,Date.now()+60000]])}),/one-hop circuit needs 1/);
+});
+test('one hop needs both choices: the owner\'s guard:false alone, or the operator\'s opt-in alone, builds guarded circuits',async()=>{
+ const guarded=a=>a.circuits.length===2&&a.circuits.every(c=>c.providers.guard&&c.providers.guard.address!==c.providers.exit.address);
+ const ownerOnly=rig();await ownerOnly.m.configure([app(oneHopPolicy())]);await ownerOnly.m.reconcile();
+ assert.ok(guarded(ownerOnly.m.apps.get(id)));assert.equal(ownerOnly.m.status()[0].oneHop,false);assert.equal(ownerOnly.m.status()[0].ready,true);
+ const operatorOnly=rig({oneHop:{allows:()=>true}});await operatorOnly.m.configure([app(defaultNetworkPolicy(id))]);await operatorOnly.m.reconcile();
+ assert.ok(guarded(operatorOnly.m.apps.get(id)));assert.equal(operatorOnly.m.status()[0].oneHop,true,'the status says what the host allows, not what was built');
+ const otherApp=rig({oneHop:{allows:x=>x==='0x'+'cd'.repeat(32)}});await otherApp.m.configure([app(oneHopPolicy())]);await otherApp.m.reconcile();
+ assert.ok(guarded(otherApp.m.apps.get(id)));
+ // both: no guard asked of the runtime, one provider per circuit, the exits published as always
+ const r=rig({oneHop:{allows:x=>x===id}});await r.m.configure([app(oneHopPolicy())]);await r.m.reconcile();
+ const a=r.m.apps.get(id);assert.deepEqual(a.circuits.map(c=>[c.providers.guard,c.providers.exit.address]),[[null,'44.0.0.1'],[null,'44.0.0.2']]);
+ assert.ok(r.started.every(c=>c.guard===null&&c.kind==='network'&&c.ingress&&c.egress));
+ assert.deepEqual(r.published.at(-1).map(x=>x.address).sort(),['44.0.0.1','44.0.0.2']);
+ const st=r.m.status()[0];assert.equal(st.oneHop,true);assert.equal(st.ready,true);
+ assert.deepEqual(st.circuits.map(c=>[c.guard,c.exit.address]),[[null,'44.0.0.1'],[null,'44.0.0.2']]);
+ assert.deepEqual(st.modes,['enclave-network','byo-wireguard'],'one hop is not a mode');
+ // the owner signing a guard again rebuilds the app's circuits with guards
+ await r.m.configure([app({...oneHopPolicy({guard:true}),nonce:2})]);assert.ok(a.circuits.length===0);await r.m.reconcile();
+ assert.ok(guarded(r.m.apps.get(id)));
+});
+test('one hop with near routes: the name lists the nearest provider alone, the next stands by; a dead exit is struck, not a guard',async()=>{
+ let t=Date.now();const r=rig({providers:four(),distance:async()=>far,oneHop:{allows:()=>true},now:()=>t});
+ await r.m.configure([app(oneHopPolicy())]);await r.m.reconcile();
+ const a=r.m.apps.get(id);assert.deepEqual(a.circuits.map(c=>c.providers.exit.address),['44.0.0.3','44.0.0.4']);
+ assert.deepEqual(r.published.at(-1).map(x=>x.address),['44.0.0.3']);
+ assert.deepEqual(r.m.status()[0].circuits.map(c=>[c.rttMs,c.standby]),[[{guard:null,exit:25},false],[{guard:null,exit:85},true]]);
+ // the tunnel program reports a failure the runtime files under 'guard' for a guarded circuit: here there is only the exit
+ a.circuits[0].failureRole='guard';await a.circuits[0].close('exit: handshake timeout');await new Promise(setImmediate);
+ assert.deepEqual(r.published.at(-1).map(x=>x.address),['44.0.0.4']);
+ assert.ok(r.m.cooldown.get(prov(3).providerId)>t);
+ t+=2*60000;await r.m.reconcile();
+ assert.deepEqual(r.published.at(-1).map(x=>x.address),['44.0.0.3']);
+});
+test('one hop: an operator who withdraws the opt-in gets guarded circuits back, and no provider is blamed',async()=>{
+ let allowed=true;const r=rig({oneHop:{allows:()=>allowed}});
+ await r.m.configure([app(oneHopPolicy({routes:1}))]);await r.m.reconcile();
+ const first=r.m.apps.get(id).circuits[0];assert.equal(first.providers.guard,null);
+ allowed=false;await r.m.reconcile();
+ assert.ok(first.closed);assert.equal(r.m.cooldown.size,0);
+ const now=r.m.apps.get(id).circuits;assert.equal(now.length,1);assert.ok(now[0].providers.guard);
+ assert.match(r.m.apps.get(id).lastFailure.reason,/one hop is no longer permitted/);
+ // and the other way: a guarded circuit does not outlive the choice for one hop either
+ allowed=true;await r.m.reconcile();
+ assert.ok(now[0].closed);assert.equal(r.m.apps.get(id).circuits[0].providers.guard,null);assert.equal(r.m.cooldown.size,0);
+});
+test('one hop covers a BYO policy\'s network ingress and its fallback egress; the BYO tunnel is untouched',async()=>{
+ const byo={version:5,deploymentId:id,nonce:1,issuedAt:1,mode:'byo-wireguard',fallback:'enclave-network',byo:{configDigest:'cd'.repeat(32),ingress:'enclave-network'},enclaveNetwork:{routes:2,guard:false,maxPricePerGiB6:0,budget6:0}};
+ const r=rig({oneHop:{allows:()=>true},byoFails:true});await r.m.configure([app(byo)]);await r.m.reconcile();
+ const a=r.m.apps.get(id),net=a.circuits.filter(c=>c.kind==='network');
+ assert.equal(net.length,3);assert.ok(net.every(c=>c.providers.guard===null));
+ assert.deepEqual(net.map(c=>[!!c.ingress,!!c.egressReady,!!c.fallback]),[[true,false,false],[true,false,false],[false,true,true]]);
+ assert.equal(new Set(net.map(c=>c.providers.exit.address)).size,3,'the fallback circuit takes a provider the website circuits do not use');
+});

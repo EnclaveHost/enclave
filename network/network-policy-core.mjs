@@ -26,7 +26,9 @@ export function validateNetworkPolicy(p){
  const usesNetwork=p.mode==='enclave-network'||p.fallback==='enclave-network'||(p.mode==='byo-wireguard'&&p.byo?.ingress==='enclave-network')||(p.mode==='host'&&p.host?.ingress==='enclave-network');
  if(usesNetwork!==('enclaveNetwork' in p))throw new Error(usesNetwork?'Enclave network settings required':'unused Enclave network settings');
  if(usesNetwork){const n=p.enclaveNetwork;
-  if(!keys(n,['routes','guard','maxPricePerGiB6','budget6'])||![1,2].includes(n.routes)||n.guard!==true||!amount(n.maxPricePerGiB6)||!amount(n.budget6)||
+  // guard:false is the owner's permission for one hop: one provider may be a whole circuit, where the host's operator
+  // allows it too (docs/design/enclave-network.md, One hop). A validator from before it refuses the policy.
+  if(!keys(n,['routes','guard','maxPricePerGiB6','budget6'])||![1,2].includes(n.routes)||typeof n.guard!=='boolean'||!amount(n.maxPricePerGiB6)||!amount(n.budget6)||
      (n.maxPricePerGiB6>0)!==(n.budget6>0))throw new Error('invalid Enclave network settings');}
  if((p.mode==='byo-wireguard')!==('byo' in p))throw new Error('BYO settings belong to byo-wireguard only');
  if(p.mode==='byo-wireguard'&&(!keys(p.byo,['configDigest','ingress'])||!hex64.test(p.byo.configDigest)||!['none','enclave-network'].includes(p.byo.ingress)))throw new Error('invalid BYO settings');

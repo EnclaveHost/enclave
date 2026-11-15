@@ -5,7 +5,7 @@ import test from 'node:test';import assert from 'node:assert/strict';import net 
 import {validateNetworkPolicy,networkUse,defaultNetworkPolicy} from '../network/network-policy-core.mjs';
 import {HostEgress,judgeHostDestination} from '../network/host-egress.mjs';
 import {EnclaveNetworkManager} from '../network/wg-manager.mjs';
-import {createNetworkHost,hostEgressOffer} from '../network/enclave-network-host.mjs';
+import {createNetworkHost,hostEgressOffer,oneHopOffer} from '../network/enclave-network-host.mjs';
 import fs from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
 
 const id='0x'+'cd'.repeat(32);
@@ -143,4 +143,17 @@ test('network host: hostEgress changes apply in place; a malformed block is refu
  assert.equal(host.hostEgress.update(undefined),true);assert.equal(host.hostEgress.allows(id),false,'removed: nothing offered');
  await c.close('test');await host.hostEgress.close();
  assert.equal(hostEgressOffer(null),null);assert.throws(()=>hostEgressOffer({apps:'all',own:['nope']}),/hostEgress.own/);
+});
+
+// The operator's side of one hop (docs/design/enclave-network.md): which apps may reach a provider from this host's address.
+test('network host: oneHop is absent unless the operator names apps or "all"; a malformed value stops the start, it is never read as "all"',async t=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'one-hop-offer-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));
+ const other='0x'+'ab'.repeat(32);
+ const start=oneHop=>createNetworkHost({config:{relay:'http://127.0.0.1:9',checkers:['0x'+'22'.repeat(20)],apps:'all',wgBinary:'/bin/true',nodeBinary:process.execPath,workerModule:'/bin/true',...(oneHop===undefined?{}:{oneHop})},
+  directory:dir,authorize:()=>true,fetch:async()=>new Response('{}',{status:404})});
+ const off=await start(undefined);assert.equal(off.oneHop,null);await off.hostEgress.close();
+ const some=await start([id]);assert.equal(some.oneHop.allows(id),true);assert.equal(some.oneHop.allows(other),false);assert.deepEqual(some.oneHop.apps,[id]);await some.hostEgress.close();
+ const all=await start('all');assert.equal(all.oneHop.allows(other),true);assert.equal(all.oneHop.apps,'all');await all.hostEgress.close();
+ for(const bad of [true,false,'ALL','',[],[id.toUpperCase()],[id,1],{apps:'all'}])await assert.rejects(start(bad),/oneHop must be "all" or a list of deployment ids/,JSON.stringify(bad));
+ assert.equal(oneHopOffer(null),null);assert.equal(oneHopOffer(undefined),null);
 });

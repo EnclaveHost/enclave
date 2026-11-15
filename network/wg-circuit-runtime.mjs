@@ -81,6 +81,9 @@ export class WgCircuitRuntime {
  // ordered after it (a provider cannot be un-asked); a host-service circuit that does not come up after asking its exit
  // withdraws that grant (signed revoke through its still-running guard tunnel) before its processes end; if that fails,
  // the grant lapses at its expiry (10 min) and its names lead to a key nobody holds.
+ // guard null (one hop, docs/design/enclave-network.md): the app's tunnel goes from this host's own address straight to the
+ // exit - no guard grant, no outer tunnel. Only for an app's circuit, where the manager found the owner's guard:false and the
+ // operator's opt-in; the exit refuses it otherwise. The control circuit and host services always have a guard.
  async start({deploymentId,names,kind='network',guard,exit,byo,ingress=false,egress=false,fallback=false,exitRole='exit',gate,service=null,signal=null}){
   const authorize=gate||this.authorize;
   if(this.closed)throw new Error('runtime stopped');
@@ -88,12 +91,14 @@ export class WgCircuitRuntime {
   if(service&&(kind!=='network'||!ingress||egress||exitRole!=='service'||!this.serviceWorkerModule))throw new Error('a host-service circuit is a network circuit with ingress only, exit role service and the host-service worker');
   if(exitRole==='service'&&!service)throw new Error('exit role service needs the host-service routing');
   if(service)serviceSpec(service);
-  if(kind==='network'&&(!guard||!exit||guard.address===exit.address))throw new Error('a guard and a different exit are required');
+  const oneHop=kind==='network'&&!guard;
+  if(oneHop&&(service||exitRole!=='exit'))throw new Error('only an app\'s circuit may be one hop');
+  if(kind==='network'&&(!exit||(!oneHop&&guard.address===exit.address)))throw new Error('a guard and a different exit are required');
   if(kind==='byo'&&(!byo||ingress))throw new Error('a BYO tunnel carries egress only');
   const id=randomBytes(16).toString('hex'),tag=digest(deploymentId+id).slice(0,32);
   const dir=path.join(this.directory,'enclave-circuit-'+tag),wgDir=path.join(this.directory,'enclave-circuit-'+digest('wg'+tag).slice(0,32));
-  const circuit=new EventEmitter();Object.assign(circuit,{id,deploymentId,kind,closed:false,transport:kind==='byo'?'byo-wireguard':'enclave-network',fallback,
-   providers:kind==='network'?{guard,exit,public:{address:exit.address,fallback}}:{byo:{address:byo.endpoint.address}}});
+  const circuit=new EventEmitter();Object.assign(circuit,{id,deploymentId,kind,oneHop,closed:false,transport:kind==='byo'?'byo-wireguard':'enclave-network',fallback,
+   providers:kind==='network'?{guard:guard||null,exit,public:{address:exit.address,fallback}}:{byo:{address:byo.endpoint.address}}});
   this.active.add(circuit);
   const children=[],exits=[],sockets=new Set(),installed=[];let broker,worker,wg,wgLines,egressServer,renewal,closing,pending,outer,keys,exitAsked=false,exitRefused=false;
   // a stop wakes whatever step is waiting (the tunnel's or the worker's readiness); `live()` after every other await
@@ -129,11 +134,12 @@ export class WgCircuitRuntime {
    const workerModule=this.platform==='windows'?path.join(dir,'worker.mjs'):sourceWorker;
    // the control plane: who the tunnels are with
    let guardGrant,exitGrant;keys={guard:wireGuardKeypair(),exit:wireGuardKeypair()};
-   if(kind==='network'){
+   if(kind==='network'&&!oneHop){
     live();guardGrant=await this.grants.request({provider:guard,url:`http://${guard.address}:${guard.ports.control}`,role:'guard',deploymentId,wgPublicKey:keys.guard.publicKey});
    }
    live();
-   const udpPeer=kind==='network'?`${guard.address}:${guard.ports.guard}`:`${byo.endpoint.address}:${byo.endpoint.port}`;
+   // the one UDP peer the tunnel program may reach: the guard; with one hop the exit's listed WireGuard port
+   const udpPeer=oneHop?`${exit.address}:${exit.ports.exit}`:kind==='network'?`${guard.address}:${guard.ports.guard}`:`${byo.endpoint.address}:${byo.endpoint.port}`;
    // a host-service circuit: the worker gets its name table and two listen ports; it reaches only the role ports
    const rolePorts=service?[...new Set(Object.values(service.names).flatMap(t=>[t.http,t.tls]).filter(Boolean))].map(p=>'127.0.0.1:'+p):[];
    if(service){await json(path.join(dir,'worker.json'),{names:service.names,tlsPort:ports.ingress,httpPort:ports.redirect});live();}
@@ -162,7 +168,7 @@ export class WgCircuitRuntime {
    // a wait that a close or a stop rejects also clears its timeout (no timer outlives the startup)
    const next=(type,ms=45000)=>new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error(type+' timeout')),ms);pending={reject:e=>{clearTimeout(t);reject(e);}};events.once(type,v=>{clearTimeout(t);pending=null;resolve(v);});});
    const send=v=>wg.stdin.write(JSON.stringify(v)+'\n');
-   if(kind==='network'){
+   if(kind==='network'&&!oneHop){
     send({type:'outer',...(this.paceMbps?{paceMbps:this.paceMbps}:{}),peer:{privateKey:keys.guard.privateKey,publicKey:guardGrant.providerPublicKey,endpoint:guardGrant.endpoint,addresses:[guardGrant.clientAddress],mtu:1420,keepalive:25},
      control:`${exit.address}:${exit.ports.control}`,controlListen:`127.0.0.1:${ports.control}`,
      guardSocks:{listen:`127.0.0.1:${ports.guardSocks}`,only:[`${exit.address}:443`,`${exit.address}:80`]}});
@@ -171,6 +177,14 @@ export class WgCircuitRuntime {
     exitGrant=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress,rpc:wantsRpc(service)})
      .catch(e=>{exitRefused=e.refused===true;throw e;});   // an explicit refusal (403) leaves no peer at the exit
     if(service&&!sameNames(exitGrant.names,service.granted))throw Object.assign(new Error('the exit granted other names than this host\'s service names'),{providerRole:'public'});
+    live();
+   }
+   if(oneHop){
+    exitAsked=true;
+    exitGrant=await this.grants.request({provider:exit,url:`http://${exit.address}:${exit.ports.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress})
+     .catch(e=>{exitRefused=e.refused===true;throw e;});
+    // this host's address goes only where the directory's record says the exit is, not where a grant points
+    if(exitGrant.endpoint!==udpPeer)throw Object.assign(new Error('the exit granted another endpoint than its listed one'),{providerRole:'public'});
     live();
    }
    if(ingress){
@@ -183,7 +197,8 @@ export class WgCircuitRuntime {
    const inner=kind==='network'
     ?{privateKey:keys.exit.privateKey,publicKey:exitGrant.providerPublicKey,endpoint:exitGrant.endpoint,addresses:[exitGrant.clientAddress],dns:this.resolvers,mtu:1340,keepalive:25}
     :{privateKey:byo.privateKey,publicKey:byo.publicKey,...(byo.presharedKey?{presharedKey:byo.presharedKey}:{}),endpoint:udpPeer,addresses:byo.addresses,dns:byo.dns,mtu:byo.mtu,keepalive:byo.keepalive||25};
-   send({type:'inner',...(kind!=='network'&&this.paceMbps?{paceMbps:this.paceMbps}:{}),peer:inner,...(egress?{egress:{user:'',pass:'',listen:`127.0.0.1:${ports.socks}`}}:{}),
+   // pacing belongs to the tunnel that sends from this host: the outer one, or the only one
+   send({type:'inner',...((kind!=='network'||oneHop)&&this.paceMbps?{paceMbps:this.paceMbps}:{}),peer:inner,...(egress?{egress:{user:'',pass:'',listen:`127.0.0.1:${ports.socks}`}}:{}),
     ...(ingress?{ingress:{'443':`127.0.0.1:${ports.ingress}`,'80':`127.0.0.1:${ports.redirect}`,...(service?.dns?.tcp?{'53':`127.0.0.1:${service.dns.tcp}`}:{})}}:{}),
     // DNS datagrams the exit forwards (kernel dns_dnat) to this host's tunnel address: relayed to route-dns over its TCP port
     ...(service?.dns?.tcp?{udpIngress:{'53':`127.0.0.1:${service.dns.tcp}`}}:{})});
@@ -197,8 +212,13 @@ export class WgCircuitRuntime {
     });await new Promise((r,j)=>{egressServer.once('error',j);egressServer.listen(0,'127.0.0.1',r);});
    }
    // grants expire in 10 minutes: renew both well before; a refusal (lease ended, policy changed, provider unqualified) closes
-   if(kind==='network')renewal=renewGrants({every:this.renewMs,until:Math.min(guardGrant.expiresAt,exitGrant.expiresAt),closed:()=>circuit.closed,
+   if(kind==='network')renewal=renewGrants({every:this.renewMs,until:oneHop?exitGrant.expiresAt:Math.min(guardGrant.expiresAt,exitGrant.expiresAt),closed:()=>circuit.closed,
     renew:async()=>{
+     if(oneHop){
+      const x=await this.grants.request({provider:exit,url:`http://${exit.address}:${exit.ports.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress});
+      if(x.clientAddress!==exitGrant.clientAddress||x.endpoint!==udpPeer)throw Object.assign(new Error('the exit changed this circuit\'s address'),{providerRole:'public'});
+      return x.expiresAt;
+     }
      const g2=await this.grants.request({provider:guard,url:`http://${guard.address}:${guard.ports.control}`,role:'guard',deploymentId,wgPublicKey:keys.guard.publicKey});
      const x2=await this.grants.request({provider:exit,url:`http://${outer.control}`,role:exitRole,deploymentId,wgPublicKey:keys.exit.publicKey,ingress,egress,rpc:wantsRpc(service)});
      // a provider that lost this peer (restarted without its table) hands out a new address: the tunnel cannot use it,
@@ -214,8 +234,8 @@ export class WgCircuitRuntime {
    live();
    Object.assign(circuit,{address:kind==='network'?exit.address:null,port:443,ingress,egressReady:!!egress,
     egress:egress?'127.0.0.1:'+egressServer.address().port:null,
-    isolation:{platform:this.platform,directory:dir,wgDirectory:wgDir,guardAddress:kind==='network'?outer.guardSocks:null},
-    tunnel:kind==='network'?{guard:guardGrant.clientAddress,exit:exitGrant.clientAddress}:{byo:byo.addresses[0]},
+    isolation:{platform:this.platform,directory:dir,wgDirectory:wgDir,guardAddress:kind==='network'&&!oneHop?outer.guardSocks:null},
+    tunnel:kind==='network'?{guard:oneHop?null:guardGrant.clientAddress,exit:exitGrant.clientAddress}:{byo:byo.addresses[0]},
     // a host-service circuit is withdrawn at the exit (a signed revoke through the guard) before it closes
     ...(service?{service:{names:exitGrant.names,exitKey:keys.exit.publicKey,control:outer.control}}:{})});
    signal?.removeEventListener('abort',onAbort);

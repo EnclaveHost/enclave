@@ -21,15 +21,23 @@ export function transientRouteError(e){
 // distance (near routes, a Map providerId -> ms from this host): among equally priced providers the nearest is taken
 // first, and the guard is chosen before the exit, so the first circuit is the host's nearest provider in front of it and
 // the next nearest behind that. A provider with no measurement comes after every measured one. Without it nothing changes.
-export function selectNetworkCircuits(providers,{routes,ingress,egress,maxPricePerGiB6,keep=[],cooldown=new Map(),now=Date.now(),distance=null}){
+// oneHop (the owner's guard:false on a host whose operator allows it): each circuit is one provider, {guard:null, exit};
+// the same order, so with distance the nearest exit comes first. Circuits still never share a provider.
+export function selectNetworkCircuits(providers,{routes,ingress,egress,maxPricePerGiB6,keep=[],cooldown=new Map(),now=Date.now(),distance=null,oneHop=false}){
  const cool=p=>(cooldown.get(p.providerId)||0)>now;
  const fits=p=>p.pricePerGiB6<=maxPricePerGiB6&&p.qualifiedUntil>now&&!cool(p);
  const guards=providers.filter(p=>fits(p)&&p.eligibleRoles.includes('guard'));
  const exits=providers.filter(p=>fits(p)&&(!ingress||p.eligibleRoles.includes('ingress'))&&(!egress||p.eligibleRoles.includes('egress')));
- const used=new Set(keep.flatMap(c=>[c.guard.address,c.exit.address])),out=[...keep];
+ const used=new Set(keep.flatMap(c=>[c.guard?.address,c.exit.address]).filter(Boolean)),out=[...keep];
  // cheapest first, then the one qualified longest (stable), then id for determinism
  const far=p=>distance?.get(p.providerId)??Infinity,nearer=(a,b)=>far(a)===far(b)?0:far(a)-far(b);
  const order=(a,b)=>a.pricePerGiB6-b.pricePerGiB6||nearer(a,b)||b.qualifiedUntil-a.qualifiedUntil||a.providerId.localeCompare(b.providerId);
+ if(oneHop){
+  for(const exit of exits.filter(p=>!used.has(p.address)).sort(order)){if(out.length>=routes)break;used.add(exit.address);out.push({guard:null,exit});}
+  if(!out.length)throw new Error(`not enough qualified providers: a one-hop circuit needs 1 (${exits.length} exit candidates)`);
+  out.short=out.length<routes?`${out.length} of ${routes} route(s): not enough qualified providers (${routes} distinct needed; ${exits.length} exit candidates)`:null;
+  return out;
+ }
  while(out.length<routes){
   if(distance){
    const free=p=>!used.has(p.address);
@@ -53,8 +61,10 @@ export class EnclaveNetworkManager extends EventEmitter {
  // paid: {eligible(app, provider), meter(apps) -> [{app, circuit, reason}]} (paid-network.mjs) when priced providers may be used
  // hostEgress: {allows(id), start({deploymentId})} (host-egress.mjs) on a host whose operator lets apps use its own connection
  // distance: async providers -> Map(providerId -> ms) (provider-distance.mjs) on a host whose operator turned near routes on
- constructor({runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct=null,paid=null,hostEgress=null,distance=null,now=Date.now,log=()=>{}}){
-  super();Object.assign(this,{runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct,paid,hostEgress,distance,now,log});
+ // oneHop: {allows(id)} (enclave-network-host.mjs) on a host whose operator lets these apps have circuits without a guard;
+ //   used only for an app whose owner signed guard:false (plan)
+ constructor({runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct=null,paid=null,hostEgress=null,distance=null,oneHop=null,now=Date.now,log=()=>{}}){
+  super();Object.assign(this,{runtime,admission,providers,byoConfig,probe,probeEgress,publish,direct,paid,hostEgress,distance,oneHop,now,log});
   this.apps=new Map();this.cooldown=new Map();this.drops=new Map();this.closed=false;this.busy=false;this.publications=new Map();this.reconciling=new Map();this.retiring=new Map();
  }
  handles(policy){return policy?.version===5;}
@@ -112,7 +122,7 @@ export class EnclaveNetworkManager extends EventEmitter {
   circuit.healthy=false;app.circuits=app.circuits.filter(c=>c!==circuit);circuit.admit(0);
   // a provider whose circuits keep dying soon after coming up waits longer each time (60 s doubling to 30 min)
   const early=circuit.upAt!==undefined&&this.now()-circuit.upAt<STABLE_MS;
-  for(const p of circuit.kind==='network'&&strike?[circuit.failureRole==='guard'?circuit.providers.guard:circuit.providers.exit]:[]){
+  for(const p of circuit.kind==='network'&&strike?[circuit.failureRole==='guard'&&circuit.providers.guard?circuit.providers.guard:circuit.providers.exit]:[]){
    if(early)this.strike(p);else{this.drops.delete(p.providerId);this.strike(p);}
   }
   app.error=reason;app.lastFailure={at:this.now(),circuit:circuit.id,reason};this.log(`app ${app.id.slice(0,10)} circuit ${circuit.id}: ${reason}`);
@@ -132,14 +142,16 @@ export class EnclaveNetworkManager extends EventEmitter {
  // near as the nearest (nearest first): a name that also listed a circuit through the far providers would send every
  // second visitor that way. The others stay built and verified, and are listed the moment no near one is healthy.
  // A circuit with a provider nobody measured counts as far; when no circuit has measurements, all are listed as before.
+ // A one-hop circuit is as far as its one provider.
  listed(app){
   const up=app.circuits.filter(c=>c.healthy&&!c.closed&&c.ingress&&c.address);
-  const far=c=>Number.isFinite(c.near?.guard)&&Number.isFinite(c.near?.exit)?c.near.guard+c.near.exit:Infinity,best=Math.min(...up.map(far));
+  const far=c=>c.kind==='network'&&!c.providers.guard?(Number.isFinite(c.near?.exit)?c.near.exit:Infinity):Number.isFinite(c.near?.guard)&&Number.isFinite(c.near?.exit)?c.near.guard+c.near.exit:Infinity,best=Math.min(...up.map(far));
   if(!Number.isFinite(best)||up.some(c=>c.kind!=='network'))return up;
   return up.filter(c=>far(c)<=best+Math.max(NEAR_MARGIN_MS,best*NEAR_MARGIN)).sort((a,b)=>far(a)-far(b));
  }
  // What this app needs right now: network circuits (count, ingress, egress) and/or its own egress tunnel: the owner's BYO
  // WireGuard ('byo') or this host's own connection ('host'). Either may fall back to an Enclave-network egress circuit.
+ // oneHop: its network circuits have no guard - the owner signed guard:false AND this host's operator allows it for the app.
  plan(app){
   const use=networkUse(app.policy),pub=app.isPublic!==false;
   const own=use.egress==='byo-wireguard'?'byo':use.egress==='host'?'host':null;
@@ -147,7 +159,8 @@ export class EnclaveNetworkManager extends EventEmitter {
   const fallback=!!own&&use.fallback==='enclave-network'&&!ownUp&&app.ownFailedAt!==undefined;
   const ingress=pub&&use.ingress==='enclave-network';
   const egress=use.egress==='enclave-network';
-  return {own,byo:own==='byo',host:own==='host',ingress,egress,fallback,routes:(ingress||egress)?(use.enclaveNetwork?.routes||2):0,maxPricePerGiB6:use.enclaveNetwork?.maxPricePerGiB6??0,direct:use.egress==='direct'};
+  return {own,byo:own==='byo',host:own==='host',ingress,egress,fallback,routes:(ingress||egress)?(use.enclaveNetwork?.routes||2):0,maxPricePerGiB6:use.enclaveNetwork?.maxPricePerGiB6??0,direct:use.egress==='direct',
+   oneHop:use.enclaveNetwork?.guard===false&&!!this.oneHop?.allows(app.id)};
  }
  async reconcile(){
   if(this.busy||this.closed)return;this.busy=true;const pending=[];
@@ -194,11 +207,14 @@ export class EnclaveNetworkManager extends EventEmitter {
   // revocation: a provider that is no longer eligible (qualification lapsed, record changed, role or price) loses its circuits now
   const byId=new Map(providers.map(p=>[p.providerId,p]));
   for(const c of [...app.circuits])if(c.kind==='network'){
-   const g=byId.get(c.providers.guard.providerId),x=byId.get(c.providers.exit.providerId);
+   const one=!c.providers.guard,g=one?null:byId.get(c.providers.guard.providerId),x=byId.get(c.providers.exit.providerId);
    const same=(a,b)=>a&&a.address===b.address&&a.wgGuardKey===b.wgGuardKey&&a.wgExitKey===b.wgExitKey&&a.qualifiedUntil>this.now();
-   const fits=x&&x.pricePerGiB6<=plan.maxPricePerGiB6&&this.paidOK(app,x)&&this.paidOK(app,g)&&(!c.ingress||x.eligibleRoles.includes('ingress'))&&(!c.egressReady||x.eligibleRoles.includes('egress'))&&g?.eligibleRoles.includes('guard');
+   const fits=x&&x.pricePerGiB6<=plan.maxPricePerGiB6&&this.paidOK(app,x)&&(!c.ingress||x.eligibleRoles.includes('ingress'))&&(!c.egressReady||x.eligibleRoles.includes('egress'))
+    &&(one||(this.paidOK(app,g)&&g?.eligibleRoles.includes('guard')));
    const shape=c.fallback?plan.fallback&&!c.ingress:c.ingress===plan.ingress&&(c.egressReady===plan.egress);
-   if(!same(g,c.providers.guard)||!same(x,c.providers.exit)||!fits)await this.fail(app,c,'provider no longer qualified for this circuit');
+   if((!one&&!same(g,c.providers.guard))||!same(x,c.providers.exit)||!fits)await this.fail(app,c,'provider no longer qualified for this circuit');
+   // a circuit without a guard exists only while the owner's guard:false and the operator's opt-in both stand (not the provider's fault)
+   else if(one!==plan.oneHop)await this.fail(app,c,one?'one hop is no longer permitted for this app':'circuit no longer matches the policy',{strike:false});
    else if(!shape)await this.fail(app,c,'circuit no longer matches the policy');
   }
   // the operator withdrew this host's own connection from the app (hostEgress changed on a config reload): its host circuit goes
@@ -232,10 +248,10 @@ export class EnclaveNetworkManager extends EventEmitter {
   for(const g of groups){
    const have=()=>app.circuits.filter(c=>c.kind==='network'&&!!c.fallback===g.fallback);
    if(have().length>=g.routes)continue;
-   const keep=have().map(c=>({guard:c.providers.guard,exit:c.providers.exit}));
+   const keep=have().map(c=>({guard:c.providers.guard||null,exit:c.providers.exit}));
    // prefer providers the app's other circuits do not use; share them only when there are not enough
-   const others=new Set(app.circuits.filter(c=>c.kind==='network'&&!!c.fallback!==g.fallback).flatMap(c=>[c.providers.guard.address,c.providers.exit.address]));
-   const pick=list=>selectNetworkCircuits(list.filter(p=>this.paidOK(app,p)),{routes:g.routes,ingress:g.ingress,egress:g.egress,maxPricePerGiB6:want.maxPricePerGiB6,keep,cooldown:this.cooldown,now:this.now(),distance:near});
+   const others=new Set(app.circuits.filter(c=>c.kind==='network'&&!!c.fallback!==g.fallback).flatMap(c=>[c.providers.guard?.address,c.providers.exit.address]).filter(Boolean));
+   const pick=list=>selectNetworkCircuits(list.filter(p=>this.paidOK(app,p)),{routes:g.routes,ingress:g.ingress,egress:g.egress,maxPricePerGiB6:want.maxPricePerGiB6,keep,cooldown:this.cooldown,now:this.now(),distance:near,oneHop:want.oneHop});
    let choice;
    try{try{choice=pick(providers.filter(p=>!others.has(p.address)));if(choice.short&&others.size)throw new Error(choice.short);}catch{choice=pick(providers);}}
    catch(e){const n=keep.length;if(n)degraded=`${n} of ${g.routes} route(s): ${e.message}`;else error=(g.fallback?'fallback: ':'')+e.message;continue;}
@@ -246,12 +262,12 @@ export class EnclaveNetworkManager extends EventEmitter {
     try{
      c=await this.runtime.start({deploymentId:app.id,names:app.names,kind:'network',guard,exit,ingress:g.ingress,egress:g.egress,fallback:g.fallback});
      this.adopt(app,c);
-     if(near)c.near={guard:near.get(guard.providerId)??null,exit:near.get(exit.providerId)??null};
+     if(near)c.near={guard:guard?near.get(guard.providerId)??null:null,exit:near.get(exit.providerId)??null};
      if(c.ingress)await this.probe(app,c);else await this.probeEgress?.(app,c);
      if(c.closed)throw new Error('circuit failed during verification');
      c.healthy=true;c.checkedAt=this.now();c.upAt=this.now();await this.publishApp(app);
     }catch(e){
-     const role=e.providerRole||c?.failureRole||'public',p=role==='guard'?guard:exit;
+     const role=e.providerRole||c?.failureRole||'public',p=role==='guard'&&guard?guard:exit;
      if(!e.detached)this.strike(p);
      if(c&&app.circuits.includes(c))await this.fail(app,c,e.message);else if(c)await this.retireCircuit(c,e.message,app.id);
      this.log(`app ${app.id.slice(0,10)}: ${e.message}`);
@@ -292,6 +308,8 @@ export class EnclaveNetworkManager extends EventEmitter {
  // host only where the operator offers its own connection to this app
  hostModes(id){return ['enclave-network','byo-wireguard',...(this.direct?['direct']:[]),...(this.hostEgress?.allows(id)?['host']:[])];}
  status(){return [...this.apps.values()].map(app=>{const plan=this.plan(app),modes=this.hostModes(app.id),listed=new Set(this.listed(app));return {deploymentId:app.id,transport:app.policy.mode,policyNonce:app.policy.nonce,policyHash:networkPolicyHash(app.policy),modes,
+  // this host's operator allows circuits without a guard for this app (they are built only under the owner's guard:false)
+  oneHop:!!this.oneHop?.allows(app.id),
   ready:!app.error&&app.circuits.length>0&&app.circuits.every(c=>c.healthy)&&!!this.authorizationUntil(app.id),error:app.error||null,degraded:app.degraded||null,fallbackActive:!!app.fallbackActive,
   ingress:plan.ingress,egress:plan.byo?'byo-wireguard':plan.host?'host':plan.egress?'enclave-network':'none',
   circuits:app.circuits.map(c=>({id:c.id,kind:c.kind,healthy:!!c.healthy,address:c.address||null,ingress:!!c.ingress,egress:!!c.egressReady,fallback:!!c.fallback,

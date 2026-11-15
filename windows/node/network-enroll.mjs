@@ -155,6 +155,13 @@ export async function appLessRefusal(cfg) {
   return policy.on ? null : `the platform host policy is off for this config (${policy.reason})`;
 }
 
+/** An operator's enclaveNetwork.oneHop as the privacy agent accepts it (network/enclave-network-host.mjs oneHopOffer): "all"
+ *  or a non-empty list of deployment ids; anything else is not carried. */
+export function validOneHop(v) {
+  if (v === "all") return "all";
+  return Array.isArray(v) && v.length && v.every((id) => typeof id === "string" && /^0x[0-9a-f]{64}$/.test(id)) ? [...v] : null;
+}
+
 /** An operator's enclaveNetwork.paceMbps (this host's uplink in Mbps; circuits pace their UDP to it) kept when it is a number
  *  in (0, 100000]; else none (unpaced). */
 export function validPaceMbps(v) {
@@ -195,6 +202,9 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
     // NEAR ROUTES (network/provider-distance.mjs): the operator's opt-in to building circuits through the nearest providers,
     // set by hand like paceMbps and kept the same way; only a literal true is carried
     const nearRoutes = cfg?.enclaveNetwork?.nearRoutes === true;
+    // ONE HOP (docs/design/enclave-network.md): the operator's opt-in to letting named apps (or "all") reach a provider from
+    // this box's own address when their owner signed guard:false; set by hand and kept the same way, a malformed value dropped
+    const oneHop = validOneHop(cfg?.enclaveNetwork?.oneHop);
     // HOST SERVICES: the operator's opt-in, kept byte-for-byte (valid or not: never deleted); only then is the service
     // worker named (no other box's section changes, so nothing restarts for this release alone)
     const { block: hostServices, error: hostServicesError } = hostServicesBlock(optIn.hostServices !== undefined ? optIn.hostServices : cfg?.enclaveNetwork?.hostServices);
@@ -214,7 +224,7 @@ export function createNetworkEnroll({ agentDir, binDir, runner, relayBase, confi
     // restore the default relay each time a new app appears.
     const directories = cfg?.enclaveNetwork?.directories || config.enclaveNetwork.directories;
     const walletAdmission = config.walletAdmission?.file && path.isAbsolute(config.walletAdmission.file) ? { file: config.walletAdmission.file } : null;
-    const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork, directories }), ...(hostEgress ? { hostEgress } : {}), ...(paceMbps ? { paceMbps } : {}), ...(nearRoutes ? { nearRoutes } : {}),
+    const want = { ...networkConfig({ binDir, nodeBinary: config.nodeBinary, relayBase, ...config.enclaveNetwork, directories }), ...(hostEgress ? { hostEgress } : {}), ...(paceMbps ? { paceMbps } : {}), ...(nearRoutes ? { nearRoutes } : {}), ...(oneHop ? { oneHop } : {}),
       ...(hostServices ? { hostServices, serviceWorkerModule: path.join(binDir, "host-service-ingress.mjs") } : {}),
       ...(keepPolicy ? { hostServicesPolicy } : {}),
       ...(keepChallenge ? { challengeReplica } : {}),

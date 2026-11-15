@@ -10,14 +10,14 @@ const id='0x'+'ab'.repeat(32),other='0x'+'cd'.repeat(32),runner='0x'+'11'.repeat
 const operator=privateKeyToAccount(generatePrivateKey()),stranger=privateKeyToAccount(generatePrivateKey()),owner=privateKeyToAccount(generatePrivateKey());
 const providerKey=privateKeyToAccount(generatePrivateKey()),checker=privateKeyToAccount(generatePrivateKey());
 const wgKey=()=>randomBytes(32).toString('base64');
-function rig({roles=['guard','ingress','egress'],price=0,lease={},published=null,host={active:true,operator:null}}={}){
+function rig({roles=['guard','ingress','egress'],price=0,lease={},published=null,host={active:true,operator:null},providerAddresses=null}={}){
  let now=1_000_000_000;const kernel={peers:new Map(),synced:null,setPeer:async p=>kernel.peers.set(p.key,{...p}),removePeer:async p=>kernel.peers.delete(p.key),sync:async s=>{kernel.synced=s;},
   listPeers:async iface=>[...kernel.peers.values()].filter(p=>(p.role==='guard'?'wg-guard':'wg-exit')===iface).map(p=>p.key)};
  const leases=new Map([[id,{active:true,runner,runnerOperator:operator.address,owner:owner.address,isPublic:true,validUntil:now+60000,leaseUntil:now+3600000,...lease}]]);
  const seen=new Map();
  const p=new WgProvider({config:{providerId:'aa'.repeat(16),roles,pricePerGiB6:price,publicAddress:'134.199.235.187',exitKey:wgKey(),guardKey:wgKey(),ports:{exit:51820,guard:51821,control:51822},checkers:[checker.address]},
   signer:providerKey,kernel,leases:async x=>leases.get(x)||null,hosts:async x=>x===runner?{...host,operator:(host.operator||operator.address).toLowerCase()}:null,policyMemory:{get:async k=>seen.get(k),set:async(k,v)=>seen.set(k,v)},
-  currentPolicy:async()=>published,domains:async x=>x===id?['www.example.org']:[],now:()=>now});
+  currentPolicy:async()=>published,domains:async x=>x===id?['www.example.org']:[],providerAddresses,now:()=>now});
  return {p,kernel,leases,advance:ms=>{now+=ms;},now:()=>now};
 }
 async function request(r,over={},signer=operator){
@@ -65,6 +65,57 @@ test('the owner\'s policy decides: BYO without network ingress gets no exit; pri
  const forged=await signNetworkPolicy(stranger,{...byoIngress.policy,nonce:9});
  await assert.rejects(rig().p.handle(await request(rig(),{policy:forged})),/owner signature/);
 });
+test('one hop: a host asking for an exit peer itself is refused unless the owner signed guard:false',async()=>{
+ const guards=new Set(['203.0.113.7','203.0.113.8']),list=async()=>guards,host='198.51.100.20';
+ const oneHop=await signNetworkPolicy(owner,{version:5,deploymentId:id,nonce:4,issuedAt:1,mode:'enclave-network',fallback:'none',enclaveNetwork:{routes:1,guard:false,maxPricePerGiB6:0,budget6:0}});
+ const guarded=await signNetworkPolicy(owner,{version:5,deploymentId:id,nonce:4,issuedAt:1,mode:'enclave-network',fallback:'none',enclaveNetwork:{routes:1,guard:true,maxPricePerGiB6:0,budget6:0}});
+ // no policy on record (the default has a guard), and a signed guard:true: a request from an address that is no provider's is refused
+ const r=rig({providerAddresses:list});
+ await assert.rejects(r.p.handle(await request(r),{from:host}),/requires a guard/);
+ await assert.rejects(r.p.handle(await request(r),{from:'::ffff:'+host}),/requires a guard/);
+ assert.equal(r.p.peers.size,0);assert.equal(r.kernel.peers.size,0);
+ const g=rig({providerAddresses:list,published:guarded});
+ await assert.rejects(g.p.handle(await request(g),{from:host}),/requires a guard/);
+ // the same request through a guard arrives from the guard's listed address and is granted as always
+ const through=await r.p.handle(await request(r),{from:'203.0.113.7'});
+ assert.equal(r.p.peers.get(through.grant.clientPublicKey).direct,false);assert.equal(r.p.status().peers.direct,0);
+ // the host's own guard request is what a guard is for
+ await r.p.handle(await request(r,{role:'guard',ingress:false,egress:false}),{from:host});
+ assert.equal(r.p.status().peers.guard,1);
+ // with the owner's guard:false the direct request is granted, and the peer is counted as direct
+ const o=rig({providerAddresses:list,published:oneHop});
+ const direct=await o.p.handle(await request(o),{from:host});
+ assert.equal(direct.grant.endpoint,'134.199.235.187:51820');
+ assert.equal(o.p.peers.get(direct.grant.clientPublicKey).direct,true);
+ assert.deepEqual(o.p.status().peers,{guard:0,exit:1,direct:1});
+ // guard:false permits, it does not require: a host that did not opt in still comes through a guard
+ const viaGuard=await o.p.handle(await request(o),{from:'203.0.113.8'});
+ assert.equal(o.p.peers.get(viaGuard.grant.clientPublicKey).direct,false);
+ // the policy the runner carries counts like the published one (owner-signed either way); a forged one does not
+ const c=rig({providerAddresses:list});await c.p.handle(await request(c,{policy:oneHop}),{from:host});
+ const forged=await signNetworkPolicy(stranger,oneHop.policy);
+ const f=rig({providerAddresses:list});await assert.rejects(f.p.handle(await request(f,{policy:forged}),{from:host}),/owner signature/);
+ // the owner going back to a guard ends the direct peer at its next renewal
+ const back=rig({providerAddresses:list});const key=wgKey();
+ await back.p.handle(await request(back,{policy:oneHop,wgPublicKey:key}),{from:host});
+ const again=await signNetworkPolicy(owner,{...guarded.policy,nonce:5});
+ back.advance(1000);await assert.rejects(back.p.handle(await request(back,{policy:again,wgPublicKey:key}),{from:host}),/requires a guard/);
+});
+
+test('one hop: a provider that cannot tell where a request came from admits as before; probes and control peers are not judged',async()=>{
+ const host='198.51.100.20',zero='0x'+'0'.repeat(64);
+ // no list of providers (not given, not loaded yet, empty, or the directory failing), no address, a local caller, its own address
+ for(const providerAddresses of [null,async()=>null,async()=>new Set(),async()=>{throw new Error('directory down');}]){
+  const r=rig({providerAddresses});const {grant}=await r.p.handle(await request(r),{from:host});
+  assert.equal(r.p.peers.get(grant.clientPublicKey).direct,false);}
+ const list=async()=>new Set(['203.0.113.7']);
+ for(const from of [null,undefined,'','not-an-address','127.0.0.1','::1','134.199.235.187']){const r=rig({providerAddresses:list});await r.p.handle(await request(r),{from});}
+ const r=rig({providerAddresses:list});await r.p.handle(await request(r));                // in-process callers pass nothing
+ // a checker's probe and a host's control peer come from their own addresses by design
+ await r.p.handle(await request(r,{role:'probe',deploymentId:zero,runner:zero,ingress:false,egress:true},checker),{from:host});
+ await r.p.handle(await request(r,{role:'control',deploymentId:zero,ingress:false,egress:true}),{from:host});
+});
+
 test('roles: a guard carries nothing itself; a provider only grants roles it offers',async()=>{
  const r=rig({roles:['guard']});
  const g=await r.p.handle(await request(r,{role:'guard',ingress:false,egress:false}));assert.match(g.grant.clientAddress,/^10\.78\./);assert.equal(g.grant.endpoint,'134.199.235.187:51821');

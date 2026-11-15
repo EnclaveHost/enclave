@@ -2,6 +2,7 @@
 // the kernel (wg + nftables) and the SNI table matching that decision (docs/design/enclave-network.md).
 // Everything outside this file is injected: the kernel, the chain, the owner-signature check, the domain map.
 import {randomBytes,createHash} from 'node:crypto';
+import {isIP} from 'node:net';
 import {recoverMessageAddress} from 'viem';
 import {canonical} from '../route-record.mjs';
 import {defaultNetworkPolicy,admitNetworkPolicy,networkUse} from '../network-policy.mjs';
@@ -65,8 +66,10 @@ export class WgProvider {
  // admissions); null only when the operator wrote platformHostPolicy "off"
  // dnsProbe(address) -> true|false: the pinned host's DNS role answers through its tunnel (dns-probe.mjs); without it no
  // host ever receives DNS 53 (a handshake alone is not DNS)
- constructor({config,signer,kernel,leases,hosts=async()=>null,hostAdmission=null,dnsProbe=null,verifyOwner,policyMemory,currentPolicy=async()=>null,domains,targets=async()=>[],store=null,now=Date.now,log=()=>{}}){
-  Object.assign(this,{config,signer,kernel,leases,hosts,hostAdmission,dnsProbe,verifyOwner,policyMemory,currentPolicy,domains,targets,store,now,log});
+ // providerAddresses() -> Set of the other providers' listed addresses (any role), or null while unknown: how a request
+ // that came through a guard is told from one a host sent itself (handle, one hop)
+ constructor({config,signer,kernel,leases,hosts=async()=>null,hostAdmission=null,dnsProbe=null,verifyOwner,policyMemory,currentPolicy=async()=>null,domains,targets=async()=>[],providerAddresses=null,store=null,now=Date.now,log=()=>{}}){
+  Object.assign(this,{config,signer,kernel,leases,hosts,hostAdmission,dnsProbe,verifyOwner,policyMemory,currentPolicy,domains,targets,providerAddresses,store,now,log});
   this.peers=new Map();          // wg public key -> peer
   this.nonces=new Map();         // request nonce -> expiry (replay)
   this.used=new Set();this.next={exit:2,guard:2};
@@ -115,7 +118,16 @@ export class WgProvider {
    const a=`${base[0]}.${base[1]}.${n>>8}.${n&255}`;if(!this.used.has(a)&&(n&255)!==0&&(n&255)!==255){this.used.add(a);return a;}}
   throw new Error('no tunnel addresses left');
  }
- async handle(envelope){
+ // An app's exit request that a host sent from its own address, where a guard would have sent it from its listed one.
+ // null when this provider cannot tell: no source address, or no list of the other providers yet.
+ async direct(from){
+  const a=typeof from==='string'?from.replace(/^::ffff:/i,''):'';
+  if(!isIP(a)||/^127\.|^::1$/.test(a)||a===this.config.publicAddress||!this.providerAddresses)return null;
+  let all=null;try{all=await this.providerAddresses();}catch(e){this.log('provider addresses: '+e.message);}
+  return all?.size?!all.has(a):null;
+ }
+ // from: the address the request reached the control port from (control.mjs); absent in tests and for callers in process
+ async handle(envelope,{from=null}={}){
   const now=this.now();
   if(!this.accepting)throw new Error('provider is not accepting peers');
   const r=validatePeerRequest(envelope?.request,now);
@@ -143,6 +155,11 @@ export class WgProvider {
   if(r.egress&&use.egress!=='enclave-network'&&use.fallback!=='enclave-network')throw new Error('the policy does not authorize Enclave-network egress');
   if(r.ingress&&use.ingress!=='enclave-network')throw new Error('the policy does not authorize Enclave-network ingress');
   if(this.config.pricePerGiB6>(use.enclaveNetwork?.maxPricePerGiB6??0))throw new Error('provider price is above the policy\'s limit');
+  // One hop (docs/design/enclave-network.md): a host may be this provider's peer without a guard in front only where the
+  // owner signed guard:false. A guard request is always the host's own and is what a guard is for; probes, host services
+  // and control peers returned above.
+  const direct=r.role==='exit'?await this.direct(from):null;
+  if(direct&&use.enclaveNetwork?.guard!==false)throw new Error('the owner\'s policy requires a guard: this request came from the host directly');
   // a paid provider carries an app only under the owner's current on-chain authorization of it (and meters it)
   const paidNonce=this.config.pricePerGiB6>0?paidGate({lease,hostId:this.config.hostId,pricePerGiB6:this.config.pricePerGiB6,now}):null;
   this.nonces.set(r.nonce,now+2*REQUEST_MAX_AGE_MS);
@@ -157,7 +174,7 @@ export class WgProvider {
    peer={key:r.wgPublicKey,role:r.role,deploymentId:r.deploymentId,runner:r.runner,address:this.allocate(r.role),createdAt:now};
   }
   if(peer.paidNonce&&paidNonce!==peer.paidNonce){await this.meterSample?.();}   // a new on-chain policy: new meter
-  Object.assign(peer,{egress:r.egress,ingress:r.ingress,names,expiresAt:Math.min(r.expiresAt,now+PEER_TTL_MS),policyNonce:policy.nonce,paidNonce});
+  Object.assign(peer,{egress:r.egress,ingress:r.ingress,names,expiresAt:Math.min(r.expiresAt,now+PEER_TTL_MS),policyNonce:policy.nonce,paidNonce,...(r.role==='exit'?{direct:direct===true}:{})});
   this.peers.set(peer.key,peer);
   await this.kernel.setPeer(peer);
   await this.sync();await this.persist();
@@ -389,7 +406,7 @@ export class WgProvider {
   for(const p of this.peers.values())if(p.role!=='guard'&&p.ingress&&p.expiresAt>this.now()&&(p.role==='service')===service&&p.names.includes(name)&&(!best||p.createdAt>best.createdAt))best=p;
   return best?.address||null;
  }
- status(){return {providerId:this.config.providerId,accepting:this.accepting,peers:{guard:[...this.peers.values()].filter(p=>p.role==='guard').length,exit:[...this.peers.values()].filter(p=>p.role==='exit').length,
+ status(){return {providerId:this.config.providerId,accepting:this.accepting,peers:{guard:[...this.peers.values()].filter(p=>p.role==='guard').length,exit:[...this.peers.values()].filter(p=>p.role==='exit').length,direct:[...this.peers.values()].filter(p=>p.direct===true).length,
   ...(this.config.hostServices?{service:[...this.peers.values()].filter(p=>p.role==='service').length}:{})},...(this.config.hostServices?.dns?.hosts?.length?{dnsTarget:this.dnsTarget()}:{})};}
 }
 

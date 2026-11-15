@@ -46,6 +46,34 @@ const PRIVACY={
   "host":"Every destination the app connects to sees the host's IP address, and the host's network operator sees where it connects (its traffic stays as encrypted as the app makes it). Visitors still reach a website through the Enclave network if you keep it on. The host never needs a public address, but its operator must offer its connection to this app; private networks, SMTP and the host's own addresses stay unreachable.",
 };
 
+// One hop (docs/design/enclave-network.md, "One hop"): the owner's enclaveNetwork.guard:false. It permits a host whose
+// operator allows it to build this app's routes through one provider with no guard; nothing else changes in what is signed.
+// hostAllows: true/false as the app's current host reports it (status.host.oneHop); null when the host has not said
+// (no report, or a host from before this setting, which refuses a policy that carries it: the app would have no network
+// there), so the box cannot then be newly ticked; left out where there is no host report to go by (independent mode).
+export const ONE_HOP_PRIVACY="With one hop, a single provider carries the whole route: it sees the host's IP address together with this app's visitors and destinations. Your TLS key still stays inside the enclave.";
+export function oneHopControl({checked=false,hostAllows}={}){
+  const unknown=hostAllows===null,note=hostAllows===true?"This app's host allows it."
+    :hostAllows===false?"This app's host does not allow it: routes keep their guard there until its operator opts in for this app."
+    :unknown?"This app's host has not reported that it knows this setting. A host that does not know it refuses the whole network setting, and the app is unreachable there."
+    :"A host or directory that does not know this setting refuses the whole network setting, and the app is unreachable on such a host.";
+  return `<label class="en-opt"><input type="checkbox" name="oneHop"${checked?" checked":""}${unknown&&!checked?" disabled":""}> <b>One hop, no guard</b>`
+    +`<span class="en-sub warn">Shorter path, less private. ${esc(ONE_HOP_PRIVACY)}</span>`
+    +`<span class="en-sub">Used only on a host whose operator allows it for this app; anywhere else routes keep their guard. ${esc(note)}</span></label>`;
+}
+// the owner's enclaveNetwork block from the form's values
+export function enclaveNetworkChoice({routes,oneHop,price,budget}){
+  const p=toU6(price),b=toU6(budget);if((p>0)!==(b>0))throw new Error("A price limit needs a budget, and a budget needs a price limit.");
+  return {routes:Number(routes),guard:!oneHop,maxPricePerGiB6:p,budget6:b};
+}
+// one circuit of the host's report, as a line of the status list (escaped)
+export function circuitLine(c){
+  const where=c.kind==="byo"?"Your WireGuard peer":c.kind==="host"?"The host's own connection"
+    :c.kind==="network"&&!c.guard&&c.exit?`Route: one hop through ${esc(c.exit.region||"")} ${esc(c.exit.address||"")} (no guard: this provider sees the host)`
+    :`Route: guard ${esc(c.guard?.region||"")} → exit ${esc(c.exit?.region||"")} ${esc(c.exit?.address||"")}`;
+  return `${where}${c.standby?" · standing by":""} — ${c.healthy?"healthy":'<span class="warn">checking</span>'}${c.ingress?" · website":""}${c.egress?" · outbound":""}`;
+}
+
 /* ---- independent mode: the owner's setting goes straight to the profile's public directories ----
    No relay: the current setting is read from the directories (shown as they report it; directories and hosts check
    the owner signature themselves), and a new one is signed by the owner's wallet and posted to every directory. A
@@ -90,7 +118,7 @@ async function renderIndependentNetwork(box,id,{owner}){
   const modes=["enclave-network","direct","host"];
   wrap.innerHTML=`<div class="en-list"><div><b>${esc(MODE_TEXT[policy.mode]?.title||policy.mode)}</b> <span class="en-sub">${best?`owner setting #${best.nonce}, as ${read.answers.filter(a=>a.policy&&a.policy.nonce===best.nonce).length} of ${dirs.length} directories report it`:"default (no owner setting found)"}</span></div>`
     +(read.failed.length?`<div class="en-sub warn">${read.failed.length} director${read.failed.length===1?"y":"ies"} did not answer</div>`:"")
-    +`<div class="en-sub dim">Live route health is reported by the host through the hosted service and is not shown here.</div></div><p class="en-intro">${esc(PRIVACY[policy.mode]||"")}</p>`;
+    +`<div class="en-sub dim">Live route health is reported by the host through the hosted service and is not shown here.</div></div><p class="en-intro">${esc(PRIVACY[policy.mode]||"")}${policy.enclaveNetwork?.guard===false?` <b>${esc(ONE_HOP_PRIVACY)}</b>`:""}</p>`;
   const form=document.createElement("form");form.className="enc-network-controls";
   form.innerHTML=`<fieldset><legend>How this app reaches the internet</legend><div class="en-list">${modes.map(k=>`<label class="en-opt"><input type="radio" name="mode" value="${k}"${k===policy.mode?" checked":""}><b>${esc(MODE_TEXT[k].title)}</b><span class="en-sub">${esc(MODE_TEXT[k].sub)}</span></label>`).join("")}
      <span class="en-sub">Bring-your-own WireGuard needs a private config delivered to the host; it is not offered from a public directory.</span></div></fieldset>
@@ -98,7 +126,8 @@ async function renderIndependentNetwork(box,id,{owner}){
    <div data-fallback hidden><label>If it fails <select name="fallback"><option value="none">Stay offline (nothing else is used)</option><option value="enclave-network">Use the Enclave network instead</option></select></label></div>
    <div data-network><label>Routes <select name="routes"><option value="2">2 (recommended)</option><option value="1">1</option></select></label>
      <label>Max price, USDC per GiB <input name="price" inputmode="decimal" size="8" value="${usdc(policy.enclaveNetwork?.maxPricePerGiB6??0)}"></label>
-     <label>Budget, USDC <input name="budget" inputmode="decimal" size="8" value="${usdc(policy.enclaveNetwork?.budget6??0)}"></label></div>
+     <label>Budget, USDC <input name="budget" inputmode="decimal" size="8" value="${usdc(policy.enclaveNetwork?.budget6??0)}"></label>
+     ${oneHopControl({checked:policy.enclaveNetwork?.guard===false})}</div>
    <button type="submit">Sign and publish</button> <span class="en-sub" role="status" data-save></span>`;
   box.append(form);
   const f=form.elements;
@@ -117,8 +146,7 @@ async function renderIndependentNetwork(box,id,{owner}){
       const mode=f.mode.value,issuedAt=Math.floor(Date.now()/1000);
       const fresh=await directoryPolicies(id,[...dirs]);
       const next={version:5,deploymentId:id,nonce:nextPolicyNonce(fresh.answers,issuedAt),issuedAt,mode,fallback:mode==="enclave-network"?"none":f.fallback.value};
-      if(needsNet(mode)){const p=toU6(f.price.value),b=toU6(f.budget.value);if((p>0)!==(b>0))throw new Error("A price limit needs a budget, and a budget needs a price limit.");
-        next.enclaveNetwork={routes:Number(f.routes.value),guard:true,maxPricePerGiB6:p,budget6:b};}
+      if(needsNet(mode))next.enclaveNetwork=enclaveNetworkChoice({routes:f.routes.value,oneHop:f.oneHop.checked,price:f.price.value,budget:f.budget.value});
       if(mode==="direct")next.direct={maxPricePerGiB6:0};
       if(mode==="host")next.host={ingress:f.hostIngress.value};
       validateNetworkPolicy(next);
@@ -153,13 +181,13 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
   lines.push(`<span class="en-sub">Website (public HTTPS): ${website}</span>`);
   if(host){
     lines.push(`<span class="en-sub">Outbound: ${host.egress==="none"?"off":esc(host.egress)}${host.fallbackActive?` <span class="warn">— your ${policy.mode==="host"?"host connection":"BYO tunnel"} is down; the fallback you authorized (Enclave network) is carrying it</span>`:""}</span>`);
-    for(const c of host.circuits||[])lines.push(`<span class="en-sub">${c.kind==="byo"?"Your WireGuard peer":c.kind==="host"?"The host's own connection":`Route: guard ${esc(c.guard?.region||"")} → exit ${esc(c.exit?.region||"")} ${esc(c.exit?.address||"")}`} — ${c.healthy?"healthy":'<span class="warn">checking</span>'}${c.ingress?" · website":""}${c.egress?" · outbound":""}</span>`);
+    for(const c of host.circuits||[])lines.push(`<span class="en-sub">${circuitLine(c)}</span>`);
     if(host.error)lines.push(`<span class="en-sub warn">${esc(host.error)}</span>`);
     lines.push(`<span class="en-sub dim">Host report ${Math.max(0,Math.round((Date.now()-status.hostReportedAt)/1000))} s ago</span>`);
   }else lines.push(`<span class="en-sub dim">The host has not reported this app's network yet.</span>`);
   const providers=status.providers||[];
   lines.push(`<span class="en-sub">${providers.length} qualified provider${providers.length===1?"":"s"}: ${esc(providers.map(p=>p.region).join(", ")||"none")}${providers.every(p=>p.kind==="enclave")&&providers.length?" — all operated by Enclave":""}; rechecked every few minutes, removed the moment a check fails.</span>`);
-  wrap.innerHTML=`<div class="en-list">${lines.map(l=>`<div>${l}</div>`).join("")}</div><p class="en-intro">${esc(PRIVACY[policy.mode])}</p>`;
+  wrap.innerHTML=`<div class="en-list">${lines.map(l=>`<div>${l}</div>`).join("")}</div><p class="en-intro">${esc(PRIVACY[policy.mode])}${policy.enclaveNetwork?.guard===false?` <b>${esc(ONE_HOP_PRIVACY)}</b>`:""}</p>`;
 
   // ---- the owner's setting ----
   const form=document.createElement("form");form.className="enc-network-controls";
@@ -185,7 +213,8 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
    <div data-network><label>Routes <select name="routes"><option value="2">2 (recommended)</option><option value="1">1</option></select></label>
      <label>Max price, USDC per GiB <input name="price" inputmode="decimal" size="8" value="${usdc(policy.enclaveNetwork?.maxPricePerGiB6??0)}"></label>
      <label>Budget, USDC <input name="budget" inputmode="decimal" size="8" value="${usdc(policy.enclaveNetwork?.budget6??0)}"></label>
-     <span class="en-sub">0 uses only free providers (all current providers are free). A paid provider needs a price limit and a budget, settled from the app's USDC balance; your VPN provider (BYO) is paid by you directly.</span></div>
+     <span class="en-sub">0 uses only free providers (all current providers are free). A paid provider needs a price limit and a budget, settled from the app's USDC balance; your VPN provider (BYO) is paid by you directly.</span>
+     ${oneHopControl({checked:policy.enclaveNetwork?.guard===false,hostAllows:typeof host?.oneHop==="boolean"?host.oneHop:null})}</div>
    <button type="submit">Sign and save</button> <span class="en-sub" role="status" data-save></span>`;
   box.append(form);
   const f=form.elements,show=()=>{
@@ -213,8 +242,7 @@ export async function renderEnclaveNetwork(box,id,{viaVault=false,owner=null}={}
     try{
       const mode=f.mode.value,next={version:5,deploymentId:id,nonce:policy.nonce+1,issuedAt:Math.floor(Date.now()/1000),mode,fallback:mode==="enclave-network"?"none":f.fallback.value};
       const needsNetwork=mode==="enclave-network"||next.fallback==="enclave-network"||(mode==="byo-wireguard"&&f.ingress.value==="enclave-network")||(mode==="host"&&f.hostIngress.value==="enclave-network");
-      if(needsNetwork){const p=toU6(f.price.value),b=toU6(f.budget.value);if((p>0)!==(b>0))throw new Error("A price limit needs a budget, and a budget needs a price limit.");
-        next.enclaveNetwork={routes:Number(f.routes.value),guard:true,maxPricePerGiB6:p,budget6:b};}
+      if(needsNetwork)next.enclaveNetwork=enclaveNetworkChoice({routes:f.routes.value,oneHop:f.oneHop.checked,price:f.price.value,budget:f.budget.value});
       if(mode==="direct")next.direct={maxPricePerGiB6:0};
       if(mode==="host")next.host={ingress:f.hostIngress.value};
       if(mode==="byo-wireguard"){

@@ -96,14 +96,16 @@ let domainMap={at:0,map:{}};
 // Custom-domain names come only from a relay the configuration names; without one only app-zone names are served.
 const domains=async id=>{if(!boot.relay)return [];if(Date.now()-domainMap.at>60000){try{const m=await relayJSON('/v1/domains/map');domainMap={at:Date.now(),map:m||{}};}catch(e){log(e.message);}}
  return Object.entries(domainMap.map?.domains||domainMap.map||{}).filter(([,v])=>(v?.deploymentId||v)===id).map(([k])=>k.toLowerCase());};
-let targetCache={at:0,list:[]};
+let targetCache={at:0,list:[],all:null};
 const targets=async()=>{
  if(Date.now()-targetCache.at<60000)return targetCache.list;
  try{const d=await directories.providers({hostOperator:async id=>{const h=await hosts(id);return h?.active?h.operator:null;}});
   // A guard may forward to any provider with a current, operator-signed record that offers an exit role - qualified
   // or not, so qualification itself can test guard paths. Which exits a host USES is decided by qualification, on the host.
   const ok=[];for(const e of d?.providers||[]){try{ok.push(await verifyProviderRecord(e.record,{hostOperator:async id=>{const h=await hosts(id);return h?.active?h.operator:null;}}));}catch{}}
-  targetCache={at:Date.now(),list:ok.filter(p=>p.providerId!==providerId&&p.roles.some(r=>r!=='guard')).map(p=>({address:p.address,ports:p.ports}))};
+  // all: every other provider's address, guard-only ones too - what an app request through a guard arrives from (provider.mjs direct)
+  targetCache={at:Date.now(),list:ok.filter(p=>p.providerId!==providerId&&p.roles.some(r=>r!=='guard')).map(p=>({address:p.address,ports:p.ports})),
+   all:new Set(ok.filter(p=>p.providerId!==providerId).map(p=>p.address))};
  }catch(e){log('provider directory: '+e.message);}
  return targetCache.list;
 };
@@ -137,7 +139,7 @@ const store={load:async()=>{try{return JSON.parse(await fs.readFile(peerFile,'ut
 const lastLease=new Map();
 // a pinned DNS host receives 53 only while its route-dns answers an SOA question for the zone through its tunnel
 const dnsProbe=dnsOn?address=>probeDns({address,zone:hostServices.zone}):null;
-const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,verifyOwner,domains,targets,hosts,hostAdmission,dnsProbe,store,
+const provider=new WgProvider({config,signer:account,kernel,log,policyMemory,verifyOwner,domains,targets,providerAddresses:async()=>{await targets();return targetCache.all;},hosts,hostAdmission,dnsProbe,store,
  leases:async(id,{renewal=false}={})=>{
   try{const l=(await leases.readSnapshot([id]))[0]||null;if(l)lastLease.set(id,{l,at:Date.now()});return l;}
   catch(e){

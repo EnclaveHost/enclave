@@ -17,7 +17,7 @@
     "network/lease-relay-discovery.mjs": "c54749b70ca746bfc33922c1ca59b5860783d3a102443c17a0bfec6470cfbb42",
     "network/lease-release-journal.mjs": "6411481a118b341e3efcd99bbaad6da644d490fd2815abd40033014f7edf2ff6",
     "network/network-authorities.mjs": "fbe3141976ef22a87173fb56def5d5545520c13667f61355d5a889b82f497448",
-    "network/network-policy-core.mjs": "6e5049d1476d4f362570c48d61f0abc8ad483ed54ba4b2c22fa07f363d4e3064",
+    "network/network-policy-core.mjs": "27983befffb6c78b5433678dce55c771fb4c32b7efe8bbd32bea60c2add6ce14",
     "network/network-policy.mjs": "b4f5050e2d3841b56facf4050f85c3aba5a6e03649ed80d6833c0675adbbfa2f",
     "network/provider-directory.mjs": "88d3bbf0bcc5ffb922f8a97c858238ef589bb5cff7d3c0c27cbc45e051e6f6db",
     "network/provider-qualification.mjs": "a64f838366a83203e4954d0614c92038b835e5e04f019b5bbbec61c67e9eebf9",

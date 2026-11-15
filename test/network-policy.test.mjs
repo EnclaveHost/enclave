@@ -1,7 +1,7 @@
 // Network policy v5 (network/network-policy.mjs) and BYO WireGuard config parsing (network/wg-config.mjs).
 import test from 'node:test';import assert from 'node:assert/strict';
 import {privateKeyToAccount,generatePrivateKey} from 'viem/accounts';
-import {defaultNetworkPolicy,validateNetworkPolicy,signNetworkPolicy,verifyNetworkPolicy,admitNetworkPolicy,networkUse} from '../network/network-policy.mjs';
+import {defaultNetworkPolicy,validateNetworkPolicy,signNetworkPolicy,verifyNetworkPolicy,admitNetworkPolicy,networkUse,networkPolicyMessage} from '../network/network-policy.mjs';
 import {parseWireGuardConfig,redactWireGuardConfig,wireGuardConfigDigest,privateAddress} from '../network/wg-config.mjs';
 
 const id='0x'+'ab'.repeat(32),owner=privateKeyToAccount(generatePrivateKey()),other=privateKeyToAccount(generatePrivateKey());
@@ -23,11 +23,25 @@ test('every mode validates strictly',()=>{
   {...byo,byo:{configDigest:'xyz',ingress:'none'}},
   {...byo,byo:{...byo.byo,ingress:'none'}},                                                   // unused network settings
   {...defaultNetworkPolicy(id),enclaveNetwork:{routes:3,guard:true,maxPricePerGiB6:0,budget6:0}},
-  {...defaultNetworkPolicy(id),enclaveNetwork:{routes:2,guard:false,maxPricePerGiB6:0,budget6:0}},
+  {...defaultNetworkPolicy(id),enclaveNetwork:{routes:2,guard:'false',maxPricePerGiB6:0,budget6:0}},   // true or false, nothing else
+  {...defaultNetworkPolicy(id),enclaveNetwork:{routes:2,guard:0,maxPricePerGiB6:0,budget6:0}},
+  {...defaultNetworkPolicy(id),enclaveNetwork:{routes:2,maxPricePerGiB6:0,budget6:0}},                 // and never left out
   {...defaultNetworkPolicy(id),enclaveNetwork:{routes:2,guard:true,maxPricePerGiB6:5,budget6:0}}, // a price needs a budget
   {...defaultNetworkPolicy(id),direct:{maxPricePerGiB6:0}},
  ].map(p=>JSON.parse(JSON.stringify(p)));
  for(const p of bad)assert.throws(()=>validateNetworkPolicy(p),undefined,JSON.stringify(p));
+});
+test('guard:false is the owner\'s one-hop permission: the same v5 policy, and the default keeps its guard',()=>{
+ const one={...defaultNetworkPolicy(id),nonce:4,issuedAt:1,enclaveNetwork:{routes:1,guard:false,maxPricePerGiB6:0,budget6:0}};
+ assert.deepEqual(validateNetworkPolicy(JSON.parse(JSON.stringify(one))),one);
+ assert.equal(networkUse(one).enclaveNetwork.guard,false);
+ assert.equal(defaultNetworkPolicy(id).enclaveNetwork.guard,true);
+ assert.equal(networkUse(defaultNetworkPolicy(id)).enclaveNetwork.guard,true);
+ // one message format for both: what an owner signed before still verifies, and the choice is inside what is signed
+ assert.match(networkPolicyMessage(one),/^enclave-network:policy:v5\n/);
+ assert.notEqual(networkPolicyMessage(one),networkPolicyMessage({...one,enclaveNetwork:{...one.enclaveNetwork,guard:true}}));
+ // a BYO or host policy that takes the network's ingress carries the same choice
+ validateNetworkPolicy({...byo,enclaveNetwork:{...byo.enclaveNetwork,guard:false}});
 });
 test('only the owner can sign a policy; stale and replayed nonces are refused',async()=>{
  const env=await signNetworkPolicy(owner,byo);

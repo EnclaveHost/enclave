@@ -15,7 +15,7 @@ settlement through the existing connectivity contract instead of NKN.
 
 | Mode | Website ingress | Outbound egress | Who sees what |
 |---|---|---|---|
-| `enclave-network` (default) | public 443/80 on an Enclave-network ingress provider, SNI passthrough to the enclave over WireGuard | through an Enclave-network egress provider | the guard sees the host's IP but only ciphertext; the ingress/egress provider sees visitors' and destinations' IPs, never the host's |
+| `enclave-network` (default) | public 443/80 on an Enclave-network ingress provider, SNI passthrough to the enclave over WireGuard | through an Enclave-network egress provider | the guard sees the host's IP but only ciphertext; the ingress/egress provider sees visitors' and destinations' IPs, never the host's (unless the owner and the host's operator both chose one hop, below: then one provider sees both) |
 | `byo-wireguard` | none, or the Enclave network's ingress (separately authorized) | through the owner's own WireGuard peer | the owner's VPN vendor sees the host's IP and destination metadata; no multi-hop privacy claim |
 | `direct` | the host's own public IP | the host's own connection | everyone sees the host's public IP |
 | `host` | none, or the Enclave network's ingress (separately authorized) | the host's own connection (an operator opt-in; no public address needed) | destinations see the host's IP; visitors of the website still see only Enclave-network providers |
@@ -38,7 +38,7 @@ Rules that hold in every mode:
 { version:5, deploymentId, nonce, issuedAt,
   mode: 'enclave-network' | 'byo-wireguard' | 'direct' | 'host',
   fallback: 'none' | 'enclave-network',          // byo/direct/host only; enclave-network has no fallback
-  enclaveNetwork: { routes:1|2, guard:true, maxPricePerGiB6, budget6 },      // when mode or fallback uses it
+  enclaveNetwork: { routes:1|2, guard:true|false, maxPricePerGiB6, budget6 }, // when mode or fallback uses it
   byo: { configDigest, ingress: 'none' | 'enclave-network' },                 // byo-wireguard only
   direct: { maxPricePerGiB6 },                                                // direct only
   host: { ingress: 'none' | 'enclave-network' } }                             // host only
@@ -46,7 +46,8 @@ Rules that hold in every mode:
 
 Signed message: `enclave-network:policy:v5\n` + canonical JSON (sorted keys, safe integers only).
 No policy on record = `enclave-network`, 2 routes, guard, `maxPricePerGiB6 0`, `budget6 0` (free providers only),
-which is what every public app gets today with TUNA.
+which is what every public app gets today with TUNA. `guard:false` is the owner's permission for one-hop circuits
+(One hop, below); alone it changes nothing.
 
 ## Enclave network
 
@@ -60,7 +61,8 @@ which is what every public app gets today with TUNA.
 
 A circuit is host → guard → exit (ingress + egress on one provider). The inner tunnel to the exit runs *inside* the
 outer tunnel to the guard (WireGuard in WireGuard): the exit sees the guard's address, never the host's; the guard
-sees only ciphertext. An app keeps two circuits through distinct providers; DNS publishes both exits.
+sees only ciphertext. An app keeps two circuits through distinct providers; DNS publishes both exits. The one exception is a one-hop circuit
+(One hop, below), which has no guard and no outer tunnel.
 
 ### Host side (`network/wg/`, Go: wireguard-go + its userspace netstack)
 
@@ -97,7 +99,8 @@ signature = runner operator, EIP-191 over 'enclave-network:peer-request:v1\n' + 
 The provider accepts only if: the signer is the registry operator of `runner`; the deployment is active and leased
 to `runner` (two-RPC quorum, as the privacy agent reads it); for `exit`, the policy (or the default) authorizes the
 Enclave network and this provider's price fits it; for `ingress`, the app is public; the request is fresh (≤ 60 s)
-and its nonce unseen. The grant is signed by the provider operator:
+and its nonce unseen; and an `exit` request for an app that reaches the control port from an address that is no listed
+provider's (a host asking directly, One hop below) is admitted only under a policy with `guard:false`. The grant is signed by the provider operator:
 
 ```
 grant = { version:1, providerId, role, deploymentId, clientPublicKey, providerPublicKey, endpoint,
@@ -253,8 +256,8 @@ Not covered:
   unlisted, a dead near circuit costs the host's detection (a closed tunnel at once; else three failed probes, about a minute),
   the directories' poll and the 15 s record lifetime before the standby's address is served.
 - **With four providers the second circuit is the two far ones**, so it is only a standby. The floor for a visitor beside the
-  host is two providers away and back (185 ms above); it falls only with a second provider near the host, or with direct
-  hosting, which Windows hosts do not have.
+  host is two providers away and back (185 ms above); it falls only with a second provider near the host, with one hop (below), or
+  with direct hosting, which Windows hosts do not have.
 - **The exit is not chosen per visitor.** Every visitor is given the same exits. Sending a visitor in Asia through an exit in
   Asia needs an app to hold exits in several regions behind its near guard (the owner-signed policy allows `routes` 1 or 2,
   `network/route-record.mjs` refuses more, the route DNS keeps two addresses per name) and the route DNS
@@ -262,6 +265,75 @@ Not covered:
   349 -> 200 with guard sfo and exit sgp; Europe 200 -> 182 with exit fra; the Americas nothing.
 - **It does not remove queueing under loss.** A shorter path lowers delay and the loss a long path collects; late video still
   queues in one TCP connection.
+
+## One hop
+
+Two providers cannot be nearer than two providers away and back. For an app whose visitors are near its host that is most of
+the delay: from the NucBox 185 ms with near routes, against about 55 ms (host-sfo 25, a visitor beside the host to sfo about
+the same) if the San Francisco provider were the whole circuit. One hop is that circuit: host -> exit. The app's tunnel goes
+from the host's own address straight to the provider that holds its name. There is no guard and no tunnel in a tunnel.
+
+It takes two choices, and neither does anything alone:
+
+- **The owner** signs `enclaveNetwork.guard: false` (Network tab: "One hop, no guard"). It is the same v5 policy and message;
+  `guard` was always in what is signed and is `true` unless the owner writes otherwise. It permits, it does not require: on a
+  host that has not opted in the app runs with guards exactly as before.
+- **The host's operator** writes `enclaveNetwork.oneHop: "all"` or a list of deployment ids into the host's configuration
+  (absent = off; read when the agent starts; the Windows node keeps a valid value across its passes). It is the operator's
+  because it is the operator's address that the provider then sees beside the app's names.
+
+With both, every Enclave-network circuit of that app (ingress, egress, the network ingress of a BYO or host policy, a
+fallback) is one hop: `routes` circuits, each through a different provider, cheapest first as always. With near routes on, a
+one-hop circuit is ranked by the host's distance to that one provider, so the name lists the nearest and the other stands by;
+without near routes the order is price, then longest qualified, and the nearest provider is not preferred. The host's own
+control circuit and its host services keep their guards.
+
+**What it gives up.** The table at the top says the guard sees the host's address and only ciphertext, and the exit sees
+visitors and destinations and never the host. In a one-hop circuit one provider is both:
+
+- it sees the host's public address together with the app's names, every visitor's address, and (when egress uses the
+  network) every destination. Today no single provider can tie a host to an app or to its visitors;
+- the host contacts it from its own address: the grant request to its control port, the WireGuard tunnel, and the route
+  check to its port 443 with the app's name in the TLS hello (through a guard that check leaves from the guard's address);
+- what goes in and what comes out can be matched at one place, by that provider or by whoever watches its line.
+
+TLS still ends in the enclave: the provider forwards ciphertext and holds no key, as before. One hop sits between the
+guarded network and `direct`: with a guard no provider can tie the host's address to the app, in `direct` mode everyone can
+(the name resolves to the host), and on one hop one provider can. The four providers today are the project's own, but the
+policy permits any qualified provider under the owner's price cap, so the owner is trusting whichever provider the host
+picks.
+
+The host sends only to the exit's listed address: it asks for the grant at the provider's listed control port, and refuses a
+grant that names any other tunnel endpoint than the listed address and exit port, at the start and at every renewal.
+
+**What a provider enforces.** A provider cannot be told by the host which kind of circuit it is in, so it looks at where the
+request comes from. An app's `exit` request through a guard arrives from that guard's listed address (the guard masquerades);
+one that arrives from an address that is no current provider's is a host asking directly. The provider refuses it unless the
+app's current owner-signed policy says `guard:false`, marks the peer `direct`, and counts such peers in its status. This keeps
+an agent from building one hop for an app whose owner did not sign it, and makes one-hop peers visible to the provider's
+operator. It is not a boundary against the host itself: a host that wants a provider to know its address can always tell it.
+Limits: the list is the directory's verified records and can be a minute behind a new provider (a request through a guard
+that new is refused until then, and the circuit is rebuilt); a provider that cannot tell (no list yet) admits as before; a
+host that is itself a listed provider is not seen as direct; a guard whose forwarded traffic leaves from another address
+than its listed one would have its hosts' exit requests refused as direct (qualification does not test for this). The check
+is made on every request, renewals too: when an owner signs a guard again, the direct peer is not renewed and lapses with its
+grant, while the host rebuilds the circuit with a guard.
+
+**Order of installation.** A validator from before this change refuses a policy with `guard:false`: the relay will not store
+it, a provider will not grant under it, a directory replica or policy mirror will not carry it, and an old host withdraws the
+app's network routes. That is fail closed, and it means the order is providers, relay and directories first, the host next,
+and the owner's signature last. Until a host and the providers run this code, nobody should sign `guard:false`. The Network
+tab of the hosted site offers the box only when the app's host reports that it knows the setting (`oneHop` in its status
+for the app, true or false); a box already ticked can always be unticked. That report is of the app's host at that moment:
+an app with `guard:false` that moves to a host on older code is unreachable there until that host is updated or the owner
+signs a guard again. The independent form has no host report and offers the box with that warning.
+
+Not covered:
+- **Failover is no faster.** With near routes one exit is listed, as there (one to two minutes).
+- **It does not remove queueing under loss** (Circuit TCP, below). A shorter path loses less; late video still queues.
+- **Not run against a kernel provider or on a Windows host.** The host side is tested against a stand-in tunnel program and
+  the provider against its stand-in kernel. The route check of an app that starts through its own egress (the native desktop
+  apps) goes by the app's name on one hop, where through a guard it does not; that has not been run against a live provider.
 
 ## Circuit TCP
 

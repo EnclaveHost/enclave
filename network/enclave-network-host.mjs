@@ -56,6 +56,16 @@ export function hostEgressOffer(h){
  return {apps:h.apps==='all'?'all':[...h.apps],own:[...(h.own||[])]};
 }
 
+// cfg.enclaveNetwork.oneHop -> {allows(id)} or null (absent): the apps this host's operator lets reach a provider from the
+// host's own address, with no guard (docs/design/enclave-network.md, "One hop"). The app's owner must have signed
+// guard:false as well; either alone builds guarded circuits. A malformed value throws: it is never read as "all".
+export function oneHopOffer(v){
+ if(v==null)return null;
+ if(v!=='all'&&!(Array.isArray(v)&&v.length&&v.every(id=>typeof id==='string'&&/^0x[0-9a-f]{64}$/.test(id))))throw new Error('Enclave network: oneHop must be "all" or a list of deployment ids');
+ const ids=v==='all'?null:new Set(v);
+ return {apps:v==='all'?'all':[...ids],allows:id=>ids===null||ids.has(id)};
+}
+
 // attestedKey(id) -> sha256 hex of the TLS key the host's CURRENT attested guest proof bound (or null): required for
 // owner-committed custom names on direct hosting (c.direct.ownerNames), never consulted otherwise. ownerNameRoots is a
 // code-level override of the public root store for embedders and tests; no configuration file can set it.
@@ -76,6 +86,7 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
  if(!Array.isArray(c.checkers)||!c.checkers.length)throw new Error('Enclave network: trusted checker addresses required');
  if(c.apps!=='all'&&!Array.isArray(c.apps))throw new Error('Enclave network: apps must be "all" or a list');
  if(c.nearRoutes!==undefined&&typeof c.nearRoutes!=='boolean')throw new Error('Enclave network: nearRoutes must be true or false');
+ const oneHop=oneHopOffer(c.oneHop);
  const pins=authorityPins===undefined?null:validateNetworkAuthorities(authorityPins);
  if(pins&&c.registry&&c.registry.toLowerCase()!==pins.registry)throw Error('Enclave network: registry conflicts with authority pin');
  if(pins&&typeof leaseReader?.agreed!=='function')throw Error('Enclave network: pinned authority requires a quorum reader');
@@ -228,6 +239,8 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
   // nearRoutes (optional, off unless true): this host measures how far each ingress provider is and builds its circuits
   // through the nearest (provider-distance.mjs; docs/design/enclave-network.md, "Near routes")
   distance:c.nearRoutes===true?createProviderDistance({log}):null,
+  // oneHop (optional, absent = no app): see oneHopOffer above. Read once, here; a change needs an agent restart
+  oneHop,
   // releases what this host bound itself: the direct runtime's listeners, its canary and the challenge service (the circuit runtime and host
   // egress keep their own lifecycles)
   // (idempotent: the agent's shutdown and a failed start may both ask)

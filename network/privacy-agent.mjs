@@ -63,6 +63,14 @@ export const NETWORK_REQUIRED='enclaveNetwork configuration required: TUNA is re
 
 // Timely admission is independent of slow allocation and publication work. Even
 // a hung RPC, allocator or distributor cannot extend an old authorization.
+// How a circuit's route is probed. A guarded circuit: through its guard's SOCKS, which reaches only the exit's 80 and 443.
+// A direct route, or a one-hop circuit (there is no guard to go through): from this host's own address to the route's
+// address, with the app's name in the TLS hello and its attested key pinned (probeGuest refuses a direct probe without).
+export function routeProbeTransport(circuit,startupEgress=false){
+  const own=circuit.transport==='direct'||(circuit.kind==='network'&&!circuit.providers?.guard);
+  return {address:circuit.address,direct:own,proxy:own?undefined:circuit.isolation.guardAddress,domainIndependent:!own&&startupEgress===true};
+}
+
 export class PrivacyAgent {
   // wallet (wallet-admission.mjs WalletAllowFile, enclaveNetwork.walletAdmission): the node's host-wallet allows, a third
   // admission factor; null admits on the lease and guest proof alone, as before
@@ -70,7 +78,7 @@ export class PrivacyAgent {
     if(!network)throw new Error(NETWORK_REQUIRED);
     Object.assign(this,{apps,leaseReader,probe,distribute,directory,now,log,network,chainDeadlineMs});this.refreshing=false;this.closed=false;this.publishing=false;this.configured=[];this.proving=new Map();this.proofFailures=new Map();this.chainRead=null;
     this.admission=withWalletAdmission(new AdmissionGate({runner,expected:id=>this.apps.find(a=>a.deploymentId===id)?.expected,now}),wallet);
-    this.manager=new EnclaveNetworkManager({runtime:network.runtime,admission:this.admission,providers:network.providers,byoConfig:network.byoConfig,probeEgress:network.probeEgress,direct:network.direct,hostEgress:network.hostEgress||null,distance:network.distance||null,paid,now,log,
+    this.manager=new EnclaveNetworkManager({runtime:network.runtime,admission:this.admission,providers:network.providers,byoConfig:network.byoConfig,probeEgress:network.probeEgress,direct:network.direct,hostEgress:network.hostEgress||null,distance:network.distance||null,oneHop:network.oneHop||null,paid,now,log,
       probe:(app,circuit)=>probe(app.deploymentId,app.expected,circuit),publish:(id,routes)=>this.publisher.publish(id,routes)});
     this.publisher=new RoutePublisher({directory:path.join(directory,'routes'),account,lease:id=>leaseReader.get(id),
       policy:id=>this.manager.apps.get(id)?.policy,qualification,now,distribute:async(id,value)=>{
@@ -436,7 +444,7 @@ export async function runPrivacy(configFile){
       return probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
       ...(circuit&&agent?.admission.allows(id)?{pinnedSpkiSha256:agent.admission.proofs.get(id).spkiSha256}:{}),
       ...(!circuit&&pvm?{pvm}:!circuit&&windows?{shield,hostSession:await hostProof.get()}:!circuit&&snpVm?.handles(id)?{snpVm:{minTcb:linux.minTcb,vcek:linux.vcek}}:!circuit?{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}:{}),
-      ...(circuit?{address:circuit.address,direct:circuit.transport==='direct',proxy:circuit.transport==='direct'?undefined:circuit.isolation.guardAddress,domainIndependent:circuit.transport!=='direct'&&apps.find(a=>a.deploymentId===id)?.startupEgress===true}:apps.find(a=>a.deploymentId===id)?.startupEgress===true?{openApp:starting,startupEgress:true}:snpVm?.handles(id)?{openApp:id=>snpVm.open(id)}:guestd?{openApp:id=>guestd.open(id)}:pvm?{openApp:()=>openPvmApp(pvm.appPort)}:{localUpstream:cfg.upstream})});
+      ...(circuit?routeProbeTransport(circuit,apps.find(a=>a.deploymentId===id)?.startupEgress===true):apps.find(a=>a.deploymentId===id)?.startupEgress===true?{openApp:starting,startupEgress:true}:snpVm?.handles(id)?{openApp:id=>snpVm.open(id)}:guestd?{openApp:id=>guestd.open(id)}:pvm?{openApp:()=>openPvmApp(pvm.appPort)}:{localUpstream:cfg.upstream})});
     })});
   await agent.start();
   }catch(e){await unwind(e);}
