@@ -33,9 +33,11 @@ import (
 
 	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/tun/netstack"
+	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 )
 
-func link(from, to tun.Device, delay time.Duration, loss float64, seed int64, burst int, jitter time.Duration) {
+func link(from, to tun.Device, delay time.Duration, loss float64, seed int64, burst int, jitter time.Duration, longHold, hiccup *atomic.Int64) {
 	type pkt struct {
 		at time.Time
 		b  []byte
@@ -45,7 +47,7 @@ func link(from, to tun.Device, delay time.Duration, loss float64, seed int64, bu
 		bufs, sizes := [][]byte{make([]byte, 2048)}, []int{0}
 		r := mrand.New(mrand.NewSource(seed))
 		left := 0
-		var holdUntil, nextHold time.Time
+		var holdUntil, nextHold, hicHold, hicNext time.Time
 		for {
 			n, err := from.Read(bufs, sizes, 0)
 			if err != nil {
@@ -61,6 +63,14 @@ func link(from, to tun.Device, delay time.Duration, loss float64, seed int64, bu
 					left = burst - 1
 					continue
 				}
+				// a hiccup of the home line, as measured (2026-11-15): while it lasts, runs of one to six packets are lost
+				// (about 7%) and what passes is held for up to 100 ms at a time
+				now0 := time.Now()
+				inHiccup := now0.UnixNano() < hiccup.Load()
+				if inHiccup && r.Float64() < 0.02 {
+					left = r.Intn(6)
+					continue
+				}
 				// jitter: about three times a second the path holds everything for a random time up to `jitter`; what
 				// comes during a hold leaves together when it ends (packets keep their order)
 				now := time.Now()
@@ -73,6 +83,19 @@ func link(from, to tun.Device, delay time.Duration, loss float64, seed int64, bu
 					if h := holdUntil.Add(delay); at.Before(h) {
 						at = h
 					}
+				}
+				if inHiccup {
+					if now.After(hicNext) {
+						hicHold = now.Add(time.Duration(r.Float64() * float64(100*time.Millisecond)))
+						hicNext = now.Add(time.Duration((0.5 + r.Float64()) * float64(120*time.Millisecond)))
+					}
+					if h := hicHold.Add(delay); at.Before(h) {
+						at = h
+					}
+				}
+				// a long hold of the whole path, both directions at once
+				if h := time.Unix(0, longHold.Load()).Add(delay); at.Before(h) {
+					at = h
 				}
 				q <- pkt{at, append([]byte(nil), bufs[i][:sizes[i]]...)}
 			}
@@ -105,7 +128,10 @@ func main() {
 	fps := flag.Int("fps", 60, "frames per second")
 	kbps := flag.Int("kbps", 5000, "video bitrate including parity")
 	stall := flag.Duration("stall", 0, "every 10 s the path carries nothing for this long")
+	hold := flag.Duration("hold", 0, "about every 15 s the path holds everything (nothing is lost) for 120 ms up to this long, as measured on the KVM Box's path")
 	jitter := flag.Duration("jitter", 0, "about three times a second the path holds its packets for up to this long")
+	hiccup := flag.Duration("hiccup", 0, "every so often (11.6 s as measured) the path loses about 7% in runs and holds packets up to 100 ms, for 0.3-0.8 s, both ways (the home line of the NucBox as measured)")
+	minRTO := flag.Duration("minrto", 0, "the host stack's least retransmission timeout (0: gVisor's 200 ms)")
 	spill := flag.Duration("spill", flowDefaults.spill, "flow tuning")
 	hedge := flag.Duration("hedge", flowDefaults.hedge, "flow tuning")
 	late := flag.Duration("late", flowDefaults.late, "flow tuning")
@@ -130,8 +156,36 @@ func main() {
 			}
 		}()
 	}
-	link(gate{da, &blocked}, db, *delay, *loss, 1, *burst, *jitter)
-	link(gate{db, &blocked}, da, *delay, *back, 2, *burst, *jitter)
+	var longHold atomic.Int64
+	if *hold > 0 {
+		go func() {
+			r := mrand.New(mrand.NewSource(7))
+			for {
+				time.Sleep(time.Duration((0.5 + r.Float64()) * 15 * float64(time.Second)))
+				longHold.Store(time.Now().Add(120*time.Millisecond + time.Duration(r.Float64()*float64(*hold-120*time.Millisecond))).UnixNano())
+			}
+		}()
+	}
+	var hic atomic.Int64
+	if *hiccup > 0 {
+		go func() {
+			r := mrand.New(mrand.NewSource(11))
+			for {
+				time.Sleep(*hiccup)
+				hic.Store(time.Now().Add(300*time.Millisecond + time.Duration(r.Float64()*float64(500*time.Millisecond))).UnixNano())
+			}
+		}()
+	}
+	if *minRTO > 0 {
+		s, err := netstackStack(na)
+		must(err)
+		o := tcpip.TCPMinRTOOption(*minRTO)
+		if e := s.SetTransportProtocolOption(tcp.ProtocolNumber, &o); e != nil {
+			must(fmt.Errorf("min rto: %v", e))
+		}
+	}
+	link(gate{da, &blocked}, db, *delay, *loss, 1, *burst, *jitter, &longHold, &hic)
+	link(gate{db, &blocked}, da, *delay, *back, 2, *burst, *jitter, &longHold, &hic)
 
 	// the app: HTTP on 47989 (what names the app at the gateway) and the video source on 47998
 	hl, err := net.Listen("tcp", "127.0.0.1:47989")

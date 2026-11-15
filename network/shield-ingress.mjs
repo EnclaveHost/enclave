@@ -18,7 +18,9 @@ export class ShieldIngress {
       return {status:response.status,body:JSON.parse(text)};
     }};
   }
-  async open(id) {
+  // plan: the verified route to this deployment's partition, as plain data. open() connects to it; the ingress thread
+  // (ingress-thread-host.mjs) asks for the plan here and connects on its own thread.
+  async plan(id) {
     const expected=this.expected(id);
     if(!expected||!/^0x[0-9a-f]{64}$/.test(id))throw new Error('unknown deployment');
     const response=await this.transport.request('GET','/vms');
@@ -27,12 +29,13 @@ export class ShieldIngress {
     const route=await routeFor(this.transport,matches[0].id,expected.appSha256);
     if(!route.image||route.runtimeId!==expected.runtimeId)throw new Error('partition manager identity changed');
     const key=this.key?.(id);if(key&&route.key!==key)throw new Error('partition transport key changed');
-    return this.openSplice(this.dataAddr,route);
+    return {dataAddr:this.dataAddr,route};
   }
-  forward=async(socket,id)=>{
+  async open(id) {const {dataAddr,route}=await this.plan(id);return this.openSplice(dataAddr,route);}
+  forward=Object.assign(async(socket,id)=>{
     const guest=await this.open(id);if(socket.destroyed){guest.destroy();return;}
     const close=()=>{socket.destroy();guest.destroy();};
     socket.on('error',close);guest.on('error',close);socket.once('close',close);guest.once('close',close);
     socket.pipe(guest).pipe(socket);socket.resume();
-  };
+  },{plan:id=>this.plan(id)});
 }

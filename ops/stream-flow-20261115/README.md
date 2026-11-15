@@ -180,3 +180,32 @@ Toronto (one one-hop circuit; us-west refuses its request at the moment, see the
 have an 85 ms leg where 25 ms is intended. To measure a stream: the owner starts the desktop on the app's page, pairs
 Moonlight again (a new desktop VM has no paired clients), streams; then the edge's journal has one "flow ended" line
 per UDP port, and the NucBox's `status.json` the circuit's TCP counters.
+
+## What the test client found (2026-11-15, 21:30–23:40Z)
+
+A no-display Moonlight client (Moonlight Embedded, `-platform fake`, its own pairing) streams from the KVM Box for 60–80 s
+at a time; the edge's gateway lines, packet captures on the edge and probes on the NucBox are held against what the
+client reports. Three separate causes were found for the moments when every lane of a stream stood still:
+
+1. **The home line.** The NucBox and the test client's machine are behind the same two home routers. Sequenced probe
+   datagrams (500 a second) from both machines to an edge are lost at the same instants: for 0.3–0.8 s every 10–25 s
+   the line drops runs of 1–19 packets (0.1–0.4% overall, about 7% while it lasts) and delays the rest by up to 100 ms.
+   Pings at 200 a second place it: the first router answers every one within 16 ms; the second loses answers and takes
+   up to 115 ms at exactly those instants, and its round trip is 2–6.5 ms at the best of times (0.2–0.7 ms to the
+   first), which is what a radio link between the two looks like. The stream's WireGuard packets never arriving at the
+   edge (0.16–0.76% in runs) are these moments and no others. With the stream's bytes on TCP lanes a run of lost packets
+   hits every lane at once, and each waits for TCP's repair (median 94–103 ms, up to 723 ms). The same line carries the
+   edge's datagrams back to a client at home with no repair at all.
+   Not fixed here: it is the link between the two routers.
+2. **The NucBox's network agent.** All ingress passed through the agent's one thread; fixed by
+   `ops/ingress-thread-20261115` (the table there).
+3. **The edge's processor.** The gateway waited for the one processor 24% of the time behind the directory's bursts,
+   80–180 ms at a stretch seventeen times a minute. Its service now goes first within its bound (Nice −5, CPUWeight 400,
+   the 60% quota kept): 8%, twice a minute. On the four edges since 23:26Z.
+
+Tried in the simulation against the line's hiccup (`-hiccup 3s`, 90 s, 30 hiccups) and of no use: a shorter
+retransmission timeout on the host stack (`-minrto 40ms`: more spurious timeouts), more lanes (32, 64: more timeouts on
+sparse lanes), earlier second copies, a parity frame per two, a longer wait at the gateway. 40–70 frames are missing
+however the flow is tuned: lanes on TCP cannot ride through a run of lost packets, and the line also holds what it does
+not lose. Datagrams end to end would lose less but not nothing, and would not help a client behind the same line.
+

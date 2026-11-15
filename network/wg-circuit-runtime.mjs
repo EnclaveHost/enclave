@@ -7,7 +7,7 @@
 import fs from 'node:fs/promises';import path from 'node:path';import net from 'node:net';
 import {EventEmitter} from 'node:events';import {randomBytes,createHash} from 'node:crypto';
 import {spawn,execFile} from 'node:child_process';import {promisify} from 'node:util';import {createInterface} from 'node:readline';
-import {createAppBroker} from './app-broker.mjs';
+import {createIngressBroker} from './ingress-thread-host.mjs';
 import {wireGuardKeypair} from './wg-grants.mjs';
 import {HOST_RPC_LABEL} from './host-service-names.mjs';
 // a host-service circuit asks the exit for its public RPC name exactly when the host's granted set carries one (public-rpc)
@@ -145,7 +145,7 @@ export class WgCircuitRuntime {
    if(service){await json(path.join(dir,'worker.json'),{names:service.names,tlsPort:ports.ingress,httpPort:ports.redirect});live();}
    else if(ingress){
     const token=randomBytes(32).toString('hex');
-    broker=await createAppBroker({tcpPort:0,token,deploymentId,authorize,forward:this.forward,log:this.log});
+    broker=await createIngressBroker({tcpPort:0,token,deploymentId,authorize,forward:this.forward,log:this.log,onLost:why=>void circuit.close('ingress thread ended: '+why)});
     await json(path.join(dir,'worker.json'),{deploymentId,names,ingressPort:ports.ingress,redirectPort:ports.redirect,broker:{port:broker.port,token}});
    }
    if(this.platform==='windows'){

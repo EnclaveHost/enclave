@@ -405,16 +405,47 @@ func TestFlowClosesADeadLane(t *testing.T) {
 	app.u.WriteToUDP([]byte("0"), from)
 	a.must() // never reported
 	f := theFlow(t, p)
+	// while no lane reports, nothing is closed: a hold of the whole path is not one connection's fault
+	time.Sleep(400 * time.Millisecond)
+	f.mu.Lock()
+	n0 := len(f.lanes)
+	f.mu.Unlock()
+	if n0 != 2 {
+		t.Fatal("a lane was closed while every lane was silent")
+	}
+	// the other lane carries datagrams and reports them: now the silent one is the odd one out, and what it held
+	// comes on the other lane when it is closed
+	go func() {
+		for i := 0; i < 60; i++ {
+			app.u.WriteToUDP([]byte("x"), from)
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	copied := make(chan bool, 1)
+	go func() {
+		for {
+			b.c.SetReadDeadline(time.Now().Add(2 * time.Second))
+			seq, got, e := b.recv()
+			if e != nil {
+				return
+			}
+			if seq == 0 && got == "0" {
+				copied <- true
+			}
+			b.report()
+		}
+	}()
 	flowWait(t, "dead lane closed", func() bool { f.mu.Lock(); defer f.mu.Unlock(); return len(f.lanes) == 1 })
+	select {
+	case <-copied:
+	case <-time.After(2 * time.Second):
+		t.Fatal("what the closed lane held did not come on the other")
+	}
 	a.c.SetReadDeadline(time.Now().Add(2 * time.Second))
 	if _, _, e := a.recv(); e == nil {
 		t.Fatal("dead lane still open")
 	}
-	// what it carried went to the other lane, and an idle lane is never closed for silence
-	if seq, got := b.must(); seq != 0 || got != "0" {
-		t.Fatal(seq, got)
-	}
-	b.report()
+	// an idle lane is never closed for silence
 	time.Sleep(400 * time.Millisecond)
 	if st := f.snapshot(); st.Renewed != 1 || st.Hedged != 1 {
 		t.Fatalf("%+v", st)

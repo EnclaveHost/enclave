@@ -5,7 +5,7 @@ const [repo,lanesArg,secondsArg,relay='18443',reorder='80']=process.argv.slice(2
 const {createGameStream}=await import(repo+'/network/wg-provider/gamestream.mjs');
 const lanes=Number(lanesArg),seconds=Number(secondsArg);
 const connect=(to,name)=>new Promise((resolve,reject)=>{const s=tls.connect({host:'127.0.0.1',port:Number(relay),servername:name,rejectUnauthorized:false,ALPNProtocols:['http/1.1']},()=>{s.setNoDelay(true);resolve(s);});s.once('error',reject);});
-const g=await createGameStream({route:n=>n==='desk.app.test'?'10.9.0.2':null,host:'127.0.0.1',ports:{http:0,https:0,rtsp:0,udp:[0,0,0]},connect,flowLanes:lanes?[lanes,1,1]:null,reorderMs:Number(reorder),statsMs:Number(process.env.STATS_MS||10000),log:m=>console.error(m)});
+const g=await createGameStream({route:n=>n==='desk.app.test'?'10.9.0.2':null,host:'127.0.0.1',ports:{http:0,https:0,rtsp:0,udp:[0,0,0]},connect,flowLanes:lanes?[lanes,1,1]:null,reorderMs:Number(reorder),reorderMinMs:Number(process.env.REORDER_MIN||250),statsMs:Number(process.env.STATS_MS||10000),log:m=>console.error(m)});
 // name the app, as Moonlight's first request does
 {const s=net.connect({port:g.ports.http,host:'127.0.0.1'});await once(s,'connect');s.end('GET /serverinfo HTTP/1.1\r\nHost: desk.app.test\r\nConnection: close\r\n\r\n');s.resume();await once(s,'close');}
 const sock=dgram.createSocket('udp4');sock.bind(0,'127.0.0.1');await once(sock,'listening');

@@ -20,7 +20,7 @@ const canonical = value => JSON.stringify(value, function(key, item) {
     ? Object.fromEntries(Object.keys(item).sort().map(k=>[k,item[k]])) : item;
 });
 export function nativeStartupForwarder({expected,proof,authorize,open,normal,now=Date.now}) {
-  return async (socket,id)=>{
+  const forward=async (socket,id)=>{
     let guest,timer,expiry,closed=false;
     const close=()=>{closed=true;clearInterval(timer);clearTimeout(expiry);socket.destroy();guest?.destroy();};
     try {
@@ -48,4 +48,17 @@ export function nativeStartupForwarder({expected,proof,authorize,open,normal,now
       socket.pipe(guest).pipe(socket);socket.resume();
     } catch(error) {close();throw error;}
   };
+  // plan (ingress-thread-host.mjs): the same decision for a connection whose bytes the ingress thread will carry. What
+  // `normal` plans where this forwarder would hand the connection to it after the same checks; null (the connection
+  // stays with this forwarder, on the main thread) while the desktop is starting or when `normal` cannot plan.
+  forward.plan=async id=>{
+    const want=expected(id);
+    if(want?.requiresDesktop!==true)return typeof normal.plan==='function'?normal.plan(id):null;
+    const p=proof(id);
+    if(!(authorize(id)&&p?.verified===true&&p.deploymentId===id&&p.appSha256===want.appSha256&&p.runtimeId===want.runtimeId&&
+      /^[0-9a-f]{64}$/.test(p.spkiSha256||'')&&Number.isFinite(p.validUntil)&&p.validUntil>now()&&
+      want.requiresConfigSocketServer===true&&want.requiresSecretsV1===true))throw new Error('native ingress needs a current admitted proof');
+    return p.ready===false||typeof normal.plan!=='function'?null:normal.plan(id);
+  };
+  return forward;
 }

@@ -113,6 +113,7 @@ type udpFlow struct {
 	pending int
 	seq     uint32
 	repair  uint32 // the repair time last told to the client, in ms
+	heard   int64  // when a report last moved on any lane
 	credit  int    // second copies that may be sent now, in 1/flowHedgeShare of a frame
 	group   struct {
 		first uint32
@@ -347,7 +348,9 @@ func (f *udpFlow) hedge(now int64, l *flowLane, leaving bool) {
 	}
 	for ; l.hedgeNext < l.sent; l.hedgeNext++ {
 		s := &l.ring[l.hedgeNext%flowRing]
-		if s.hedged || time.Duration(now-s.born) > f.tune.late {
+		// (what a lane that is going away still holds is sent again whatever its age: the client delivers in sequence
+		// and waits for it)
+		if s.hedged || (!leaving && time.Duration(now-s.born) > f.tune.late) {
 			continue
 		}
 		// second copies are a share of what is sent, not more: when every lane is slow because the path is full,
@@ -429,7 +432,9 @@ func (f *udpFlow) tick() {
 				if l.dying {
 					continue
 				}
-				if f.tune.dead > 0 && l.sent != l.acked && time.Duration(now-l.progress) > f.tune.dead {
+				// silent with frames on it while another lane reports: that connection is the trouble. When no lane
+				// reports, the path is (a hold of everything, which passes), and closing lanes would end the flow.
+				if f.tune.dead > 0 && l.sent != l.acked && time.Duration(now-l.progress) > f.tune.dead && time.Duration(now-f.heard) < f.tune.dead/4 {
 					l.dying = true
 					l.c.Close() // its reader ends the lane
 					f.stats.Renewed++
@@ -488,7 +493,7 @@ func (f *udpFlow) delivered(l *flowLane, count uint64) bool {
 		l.held -= len(l.ring[l.acked%flowRing].frame)
 		l.ring[l.acked%flowRing] = flowSlot{}
 	}
-	l.progress = now
+	l.progress, f.heard = now, now
 	return true
 }
 

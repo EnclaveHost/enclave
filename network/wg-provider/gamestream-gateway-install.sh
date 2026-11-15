@@ -87,6 +87,8 @@ install -m 0644 "$BUNDLE" $OPT/gamestream-gateway.mjs.new && mv $OPT/gamestream-
 install -m 0644 "$CFG" $ETC/config.json.new && mv $ETC/config.json.new $ETC/config.json
 if [ -n "$WANTED" ]; then printf '%s\n' "$WANTED" > $SIBS.new && chmod 0644 $SIBS.new && mv $SIBS.new $SIBS; else rm -f $SIBS; fi
 # no key and no state: a dynamic user on a read-only system; bounded so it cannot starve the provider beside it
+# (CPUQuota). Within that bound it goes first: on a one-processor edge it waited for the processor a quarter of the
+# time behind the directory's bursts, 80-180 ms at a stretch, and every datagram of a stream waited with it (2026-11-15)
 cat > $UNIT <<UNITEOF
 [Unit]
 Description=Enclave GameStream gateway (Moonlight ingress to desktop apps)
@@ -97,7 +99,8 @@ DynamicUser=yes
 ExecStart=$NODE --max-old-space-size=128 $OPT/gamestream-gateway.mjs $ETC/config.json
 Restart=always
 RestartSec=5
-Nice=5
+Nice=-5
+CPUWeight=400
 CPUQuota=60%
 MemoryMax=192M
 TasksMax=64
