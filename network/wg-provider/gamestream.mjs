@@ -75,7 +75,13 @@ function deframer(onFrame,onError){
 export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PORTS,connect=tlsConnect,count=()=>{},log=()=>{},now=Date.now,
   bindingMs=10*60000,udpIdleMs=90000,maxFlows=4096,maxPerClient=64,maxBindings=16384,ask=null,askAgainMs=5000,askMissMs=1000,maxAsking=64,
   // connections per UDP port's flow, in the order of ports.udp (video, control, audio); null: plain tunnels only
-  flowLanes=[16,4,4],reorderMs=80,renewMs=250,statsMs=10000,silenceMs=120,randomId=()=>randomBytes(16).toString('hex')}){
+  flowLanes=[16,4,4],
+  // how long a datagram waits here for the ones before it: what the front says a second copy takes plus a margin, and
+  // never less than reorderMinMs. Measured on the KVM Box's path (2026-11-15): the whole path is silent for 120-470 ms
+  // a few times a minute, and with 70 ms the datagrams of the lanes that came back first were handed on ahead of the
+  // rest, which Moonlight takes for loss (frames dropped, a key frame asked for). Waiting out such a hold costs a
+  // short freeze and no loss.
+  reorderMs=250,reorderMinMs=250,renewMs=250,statsMs=10000,silenceMs=120,randomId=()=>randomBytes(16).toString('hex')}){
  // only a peer's tunnel address: a name served on this box is not an app
  const peerOf=name=>{const to=name&&route(name);return typeof to==='string'?to:null;};
  const bindings=new Map(),perClient=new Map(),open=new Set();let flows=0;
@@ -246,7 +252,7 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
      if(!a.queue)return t.socket.destroy();
      if(t.flow){
       flowStats.flows++;
-      a.flow={rx:flowReceiver({deliver:toClient,reorderMs,now}),pick:lanePicker({now}),lanes:[],dropped:0,opened:0,opening:false,renewedAt:0};lane(t);
+      a.flow={rx:flowReceiver({deliver:toClient,reorderMs,reorderMinMs,now}),pick:lanePicker({now}),lanes:[],dropped:0,opened:0,opening:false,renewedAt:0};lane(t);
       for(let k=1;k<want;k++)openOne().then(x=>{if(!a.queue||!x.flow)return x.socket.destroy();lane(x);},e=>log(`gamestream ${b.name} udp/${port} lane: ${e.message}`));
      }else{
       flowStats.plain++;
