@@ -17,7 +17,7 @@ A lease counts as current for 90 s after the chain snapshot it was read in (`net
 that runs long delays the next snapshot. So with rounds near a minute every app on the box was close to the edge, and
 past it the agent withdrew every app's network at once ("authorization lapsed (lease or guest proof)") and built every
 circuit again, which made the next round long too. After the desktop image switch of 14:00Z
-(`ops/stream-flow-20261115/`) that went round seven times between 14:21:58Z and 14:37:29Z, each about a minute
+(`ops/stream-flow-20261115/`) that went round six times between 14:21:58Z and 14:37:29Z, each about a minute
 without routes for the seven apps, and again at 19:24Z and 19:30Z; the loopback exemption list went from 252 to 433 of
 682 entries on the way. The KVM Box's own circuits came back through Toronto and Frankfurt, not us-west.
 
@@ -35,4 +35,18 @@ read can start, so anything else that makes a round long has the same effect.
 
 ## Activation
 
-(Staged on the NucBox 2026-11-15 20:02Z; not swapped at the time of this commit.)
+**2026-11-15 20:02-20:04Z, `agent-policy-check.sh swap`, from the assistant's session** (the owner's instruction is to
+run the installs). The bundle was replaced at 20:02:45Z (the one-hop release's file is kept beside it), the agent
+restarted (13 s without one), the control circuit was up at 20:03:03Z and all eight apps the box runs had a healthy
+circuit again by 20:04:23Z, with no withdrawal on the way. The seven names answered at 20:04:25-30Z.
+
+Read afterwards: the thirteen gaps between rounds from 20:04:30Z to 20:08Z are 11 to 34 s, 18 s at the median (they
+were 48 s over the hours before), and the agent withdrew no app's network after 20:03Z in that time. Loopback
+exemptions: 462 of 682.
+
+Still open after it: the KVM Box has one one-hop circuit, through Toronto, where it should have two with us-west in
+its name. us-west refused the request at 20:04:03Z ("network policy requires the deployment owner signature") and
+us-west, eu-central and ap-southeast then gave no answer to seven more requests; ca-east alone grants it. us-west's
+own journal has "no fresh agreeing chain quorum" lines in those minutes. The providers check the same session-vault
+signature on chain, and a read that fails there counts as a refusal. us-west did grant the same request at 11:36Z and
+14:22Z. Not fixed here.

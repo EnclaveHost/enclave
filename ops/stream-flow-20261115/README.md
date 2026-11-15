@@ -166,5 +166,17 @@ all day for two other apps (`0xd9798e4c`, `0x7ae476a3`, every few minutes since 
 whose only lapse between 10:00Z and 13:54Z was at 13:52:05Z for 30 s.
 
 **3. The gateway again, with one log line per ended flow** (what a stream's video, control and audio each met:
-delivered, rebuilt from parity, late, passed over, second copies, lanes opened): bundle 2abac82b…fc72. Not installed
-yet at the time of this commit.
+delivered, rebuilt from parity, late, passed over, second copies, lanes opened): bundle 2abac82b…fc72, on the four
+edges 2026-11-15 14:32-14:34Z, each verified. The run's last check stopped ("serverinfo on 47989 gave HTTP 000"): the
+new desktop VM's desktop had not been started from the app's page, so Sunshine was not there to answer. Starting it
+needs the owner's sign-in, which the assistant does not enter.
+
+**What the withdrawals of 14:21Z-14:37Z were** is in `ops/policy-check-20261115/`: the agent's refresh rounds had
+been slow since the owner's signature of 11:35Z (a signature check that reads the chain, five times a round), and the
+switch pushed them past the leases' freshness. Fixed in main and on the NucBox at 20:02Z.
+
+**Where it stands, 20:10Z.** Edges and desktop carry flows; no stream has been through one. The KVM Box's name lists
+Toronto (one one-hop circuit; us-west refuses its request at the moment, see the same folder), so a stream now would
+have an 85 ms leg where 25 ms is intended. To measure a stream: the owner starts the desktop on the app's page, pairs
+Moonlight again (a new desktop VM has no paired clients), streams; then the edge's journal has one "flow ended" line
+per UDP port, and the NucBox's `status.json` the circuit's TCP counters.
