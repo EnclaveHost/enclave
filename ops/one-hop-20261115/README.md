@@ -316,3 +316,13 @@ the field already true and changed nothing ("DONE near-on: nothing changed"); it
 Read afterwards, 11:21–11:22Z: `one-hop-nucbox.sh check` passed, nine names answer, the storage app's health check
 200. `one-hop-check.sh`: host reports to the relay, allows one hop for the app, both circuits have a guard, no policy
 of the owner anywhere; two reasons left, both the owner's signature. First run of near routes on a real host.
+
+**5, prepared: a local page for the owner's signature** (`sign/server.mjs`, `sign/index.html`; asked for by the
+operator 2026-11-15 instead of the hosted Network tab). `node ops/one-hop-20261115/sign/server.mjs <deployment id>
+[port]` serves it on 127.0.0.1. It offers one change, the relay's current policy with `enclaveNetwork.guard` false and
+the next nonce, as the message the Network tab would sign, and posts the signed envelope to the relay. The KVM Box is
+held by a session vault, so the wallet that signs is the vault's owner, read from Base. It offers nothing while the
+host does not report that it allows one hop. Checked on a spare port with a throwaway key: the message passes the
+policy verifier for its signer; a signature that is not the owner's wallet is refused (403), as are any other change
+to the policy, another nonce, and a non-JSON post (409, 409, 400), none of them reaching the relay. The path with the
+owner's real signature has not run.

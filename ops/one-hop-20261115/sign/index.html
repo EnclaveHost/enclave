@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One hop, no guard</title>
+<style>
+  :root { --bg:#f7f7f5; --fg:#1c1c1a; --muted:#6b6b66; --line:#dcdcd6; --ok:#1f7a3f; --act:#1d4ed8; --warn:#9a3412; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141413; --fg:#ecece8; --muted:#a3a39c; --line:#33332f; --ok:#4ade80; --act:#93b4ff; --warn:#fdba74; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width:820px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; } p.lead { color:var(--muted); margin:0 0 20px; }
+  .bar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px 0; border-bottom:1px solid var(--line); margin-bottom:16px; }
+  button { font:inherit; padding:8px 14px; border-radius:6px; border:1px solid var(--act); background:var(--act); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .step { border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin:12px 0; }
+  .step h2 { font-size:16px; margin:0 0 6px; }
+  .why { color:var(--muted); margin:0 0 10px; }
+  table { border-collapse:collapse; width:100%; font-size:13px; margin:0 0 10px; }
+  td { border-top:1px solid var(--line); padding:4px 6px; vertical-align:top; word-break:break-all; }
+  td:first-child { color:var(--muted); width:30%; word-break:normal; }
+  code, pre { font-family:ui-monospace, monospace; font-size:12px; } pre { white-space:pre-wrap; word-break:break-all; margin:0; }
+  .msg { font-size:13px; margin-top:8px; } .msg.err { color:var(--warn); } .msg.ok { color:var(--ok); }
+</style>
+</head>
+<body>
+<main>
+  <h1>One hop, no guard</h1>
+  <p class="lead">One signed message from the app owner's wallet. It is not a transaction and costs nothing. This page never signs or sends anything by itself.</p>
+  <div class="bar"><button id="connect">Connect wallet</button><span id="who">Not connected</span></div>
+  <div id="body"></div>
+</main>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const provider = window.ethereum;
+let plan = null, account = null;
+const getJson = async (url, init) => (await fetch(url, init)).json();
+const routes = (cs) => cs.length ? cs.map((c) => c.guard ? `guard ${c.guard} → exit ${c.exit}` : `one hop through ${c.exit}`).join('; ') : 'none reported';
+
+function render(note, cls = '') {
+  const p = plan;
+  if (!p || p.error) { $('body').innerHTML = `<p class="msg err">${esc(p?.error || 'Could not read the app’s setting.')}</p>`; return; }
+  const state = p.done ? 'The owner’s setting already says one hop, no guard.' : p.blocked ? 'Cannot be signed now: ' + p.blocked + '.' : '';
+  $('body').innerHTML = `<section class="step"><h2>What this changes</h2>
+    <p class="why">It permits the host to build this app’s routes through one provider with no guard in front of it. That one provider then sees the host’s address together with the app’s names, visitors and destinations. Nothing else in the setting changes. The host applies it within about a minute and builds the app’s routes again, so a running stream drops.</p>
+    <table><tr><td>App</td><td><code>${esc(p.id)}</code></td></tr>
+    <tr><td>Signs</td><td><code>${esc(p.wallet)}</code>${p.vault ? ` (the owner of the vault <code>${esc(p.owner)}</code> that holds the app)` : ''}</td></tr>
+    <tr><td>Setting now</td><td>${p.set ? `owner setting #${esc(p.current.nonce)}` : 'the default, never signed'}; guard ${p.current.enclaveNetwork?.guard === false ? 'off' : 'on'}</td></tr>
+    <tr><td>Host allows one hop</td><td>${p.hostAllows === true ? 'yes' : p.hostAllows === false ? 'no' : 'not reported'}</td></tr>
+    <tr><td>Routes now</td><td>${esc(routes(p.circuits))}</td></tr>
+    ${p.message ? `<tr><td>Message to sign</td><td><pre>${esc(p.message)}</pre></td></tr>` : ''}</table>
+    ${state ? `<p class="why">${esc(state)}</p>` : ''}
+    <button id="sign" ${!account || !p.message ? 'disabled' : ''}>Sign “One hop, no guard”</button>
+    <div class="msg ${cls}" id="msg">${esc(note || '')}</div></section>`;
+  $('sign').onclick = sign;
+}
+async function load(note, cls) { try { plan = await getJson('/proposal'); } catch { plan = null; } render(note, cls); }
+
+async function connect() {
+  if (!provider) { $('who').textContent = 'No browser wallet found'; return; }
+  const [a] = await provider.request({ method: 'eth_requestAccounts' });
+  if (!plan?.wallet || a.toLowerCase() !== plan.wallet.toLowerCase()) { $('who').textContent = `Connected ${a}, but the owner’s wallet is ${plan?.wallet || 'unknown'}. Switch accounts.`; account = null; return render(); }
+  account = a; $('who').textContent = `Owner connected: ${a}`; render();
+}
+
+async function sign() {
+  const msg = $('msg'), policy = plan.next, message = plan.message;
+  $('sign').disabled = true; msg.className = 'msg'; msg.textContent = 'Confirm on the Trezor…';
+  try {
+    const hex = '0x' + [...new TextEncoder().encode(message)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    const signature = await provider.request({ method: 'personal_sign', params: [hex, account] });
+    msg.textContent = 'Signed. Publishing…';
+    const r = await getJson('/submit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ policy, signature }) });
+    if (!r.ok) throw new Error(r.error || 'the relay refused it');
+    await load(`Saved as owner setting #${r.policy.nonce}. The host applies it within about a minute.`, 'ok');
+  } catch (e) { msg.className = 'msg err'; msg.textContent = (e && e.code === 4001) ? 'Rejected in the wallet. Nothing was sent.' : 'Not saved: ' + (e.message || e); $('sign').disabled = false; }
+}
+
+$('connect').onclick = () => connect().catch((e) => { $('who').textContent = 'Wallet error: ' + e.message; });
+load();
+</script>
+</body>
+</html>
