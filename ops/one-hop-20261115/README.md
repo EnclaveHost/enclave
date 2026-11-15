@@ -1,4 +1,4 @@
-# One hop: the release (prepared 2026-11-15; steps 1 to 3 of 6 done: the four edges, the control VM, the frontend; of step 4, the NucBox, the Node half)
+# One hop: the release (prepared 2026-11-15; steps 1 to 3 of 6 done: the four edges, the control VM, the frontend; step 4, the NucBox, done but for near routes)
 
 One hop (main `f814b020a`, design in `docs/design/enclave-network.md` "One hop") lets an app's circuit be one
 provider with no guard: host → provider ← visitor. It takes two choices, neither enough alone: the app's owner signs
@@ -274,3 +274,29 @@ network circuits healthy, the storage app's health check 200.
 This is the first run of this release's `network-enroll.mjs` on Windows and the first execution of the script's `node`
 mode. The agent half has not been run: the agent bundle is still the October one, `oneHop` and `nearRoutes` are absent
 from the box's configuration, and no circuit is one hop.
+
+**4b. NucBox, the agent half, 2026-11-15 11:02–11:04Z, run by the operator** (`one-hop-nucbox.sh agent`).
+
+| what | when | read |
+|---|---|---|
+| `privacy-agent.mjs` replaced | 11:02:43Z | this release's bundle; the October bundle kept beside it |
+| `oneHop` set | 11:02:43Z | names the KVM Box app only |
+| network agent ended, started | 11:02:43Z, 11:02:56Z | one agent; 13 s without one |
+| control circuits up | 11:02:58Z, 11:03:04Z | guard tor1 to exit sfo3, guard fra1 to exit sgp1 |
+| apps' egress | by 11:04:10Z | 7 "egress back", no "egress OFF", no helper refusal, no tunnel exit |
+| app names answered | 11:04:15–11:04:28Z | eight 200, the KVM Box 401 (its sign-in) |
+
+Nothing was taken back. The apps' circuits were built again with guard tor1 to exit sfo3 and guard fra1 to exit sgp1
+(the arrangement of before the Node step); one app had one of its two at 11:04:10Z and both at 11:05:27Z. The KVM Box's
+name listed us-west alone at 11:04:14Z and us-west and ap-southeast at 11:05:29Z. The loopback exemption list went
+from 193 to 222 entries of 682. How long each app was without a route was not measured.
+
+Read afterwards, 11:05–11:06Z: `one-hop-nucbox.sh check` passed (this release's bundle and enroll file, `oneHop` on
+the one app, one Node, one agent, 8 VMs none recovered, seven apps healthy, nine names answer). The seven leases the
+box holds run to 11:23–11:37Z. `one-hop-check.sh`: the relay shows the host's report 18 s old with "its operator allows
+one hop for this app: yes"; the relay and the four directories hold no policy of the owner; both circuits have a
+guard. It ends "not one hop yet" for two reasons where it had three, as it must until the owner signs.
+
+This is the first run of this release's agent bundle on Windows and the first execution of the script's `agent` mode.
+No one-hop circuit has been built anywhere, and no provider has been asked for one. `nearRoutes` is absent, so a
+one-hop circuit built now would go through the cheapest, longest-qualified provider and not the nearest.
