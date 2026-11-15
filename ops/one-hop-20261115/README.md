@@ -1,0 +1,189 @@
+# One hop: the release (prepared 2026-11-15, not installed)
+
+One hop (main `f814b020a`, design in `docs/design/enclave-network.md` "One hop") lets an app's circuit be one
+provider with no guard: host → provider ← visitor. It takes two choices, neither enough alone: the app's owner signs
+`enclaveNetwork.guard: false`, and the operator of the host sets `enclaveNetwork.oneHop` for that app. What it gives
+up: that one provider sees the host's address together with the app's names and visitors.
+
+This folder is the release that carries the change onto what runs today: the four edges, the control VM, the
+frontend and the NucBox. **The operator runs every step that changes something; nothing here has been installed.**
+
+State at 06:40Z on 2026-11-15:
+
+- Four edges: provider and directory on the previous builds; `one-hop-edges.sh preflight` passed on all four at
+  05:43Z (`activation/<edge>.preflight.txt`).
+- Control VM: policy bridge, route pull and relay on the previous files and at work; `one-hop-control.sh preflight`
+  passed at 06:33Z (`activation/control.preflight.txt`).
+- Frontend r7: built, not activated on any edge.
+- NucBox: the release's three files staged in `C:\ProgramData\Enclave\one-hop-20261115\` at 05:14:39Z and verified
+  there; nothing running changed. The box has run `near-routes.sh node` (02:27–02:29Z); it has not run
+  `near-routes.sh agent`, so `nearRoutes` is not set and the agent is the October one.
+- The KVM Box app (`0x9a28642b…`) has no owner policy stored, at the relay or in any of the four directories. Its
+  circuits are guard Toronto → exit San Francisco and guard Frankfurt → exit Singapore.
+
+## What has to carry it, and why the order is fixed
+
+A validator that knows only `guard: true` refuses a policy with `guard: false` whole. So every program that checks
+an owner's policy must run the new rule before any owner signs one, and the program that takes the signature in goes
+last. Reading what runs found more of them than the four components the change was planned for:
+
+| where | program | on the previous file, with one stored `guard: false` policy |
+|---|---|---|
+| each edge | provider (two different builds: one on three edges, another on ca-east) | refuses a host's direct exit request for that app |
+| each edge | public directory | refuses to store the policy; the host never reads it |
+| control VM | policy bridge (relay → directories, every 5 s) | stops its whole round: no owner's policy is copied any more |
+| control VM | route pull (directories → relay, every 10 s) | drops that app's route publication, with no error |
+| control VM | relay | refuses the owner's signature. This is the gate |
+| frontend | hosted Network tab | cannot offer the setting, and its validator refuses a policy that has it |
+| host | network agent, node enrollment | withdraws the app's network; the node removes the operator's field |
+
+Route DNS on the edges does not check policies and is not touched. The relay's manifest is left as it is (nothing
+reads its digest of the bundle at start). The pinned host-service packages (`network/host-services/packages`,
+directory replica and policy mirror) still carry the previous validator and cannot be rebuilt from this worktree;
+where they run was not established.
+
+The path of a policy: Network tab → relay → policy bridge → the four directories → the host (read about once a
+minute). The path of a route publication: host → directories → route pull → relay.
+
+## Files
+
+| file | what |
+|---|---|
+| `one-hop-edges.sh` | the edges' command: `status`, `preflight`, `activate`, `check`, `revert` |
+| `one-hop-edge-install.sh` | runs as root on an edge: a drop-in names the new bundle beside the old one; a step that does not come up is taken back |
+| `rehearse-edge-install.sh` | the installer and the runner against stand-in services in a private namespace (23 cases) |
+| `one-hop-control.sh` | the control VM's command: `status`, `preflight`, `activate`, `check`, `revert` |
+| `one-hop-control-install.sh` | runs as root on the control VM: bridge, route pull, relay |
+| `rehearse-control-install.sh` | the same rehearsal for the control VM (32 cases) |
+| `one-hop-bundles.py` | how the six edge and control-VM files were made: the installed file by SHA-256, a fixed list of replacements, every anchor found exactly once |
+| `site-r7/` | the frontend release: build, backport, `release.json`, capture, preflight, per-edge apply and verify, `run-activate.py` |
+| `one-hop-nucbox.sh`, `one-hop-nucbox.ps1` | the NucBox's command and its NucBox side: `status`, `stage`, `node`, `agent`, `check`, `near-on`, `near-off`, `revert-agent`, `revert-node` |
+| `set-one-hop.cjs` | sets or removes `enclaveNetwork.oneHop` where the node's own pass writes it |
+| `one-hop-agent-bundle.py`, `one-hop-enroll.py` | how the NucBox's agent bundle and `network-enroll.mjs` were made |
+| `qualify/` | one hop over a real tunnel with the patched provider bundles (`one-hop-e2e.sh`), and the control VM's three patched files run offline (`control-vm-check.mjs`) |
+| `one-hop-check.sh` | read only, at the end: do the relay, the four directories, the host and the exits agree that an app is on one hop |
+| `activation/` | what the read-only preflights found; each run of `activate` writes its result here |
+
+The replaced files are not in the repository: they are copies of installed files with the change carried onto them,
+not maintained source. They are in `…/2026-10-23/it/work/one-hop-20261115/payload/<first 8 of the SHA-256>/`, the
+installed originals in `installed/` beside them. The frontend's working copy is
+`…/rpc-production-final-20261025/unified-funding-20261028/one-hop-site-r7/`.
+
+| installed | bytes, SHA-256 | this release | bytes, SHA-256 |
+|---|---|---|---|
+| edge provider (three edges) `provider.mjs` | 377,787 `464cad34…b3bc6d24` | `03cb11f6/provider.mjs` | 378,619 `03cb11f6…95640d26` |
+| edge provider (ca-east) `wg-provider.mjs` | 877,413 `39d1513b…3a1b6563` | `0c201bd7/wg-provider.mjs` | 878,501 `0c201bd7…7ee130e8` |
+| edge directory `enclave-directory.mjs` | 348,090 `37366abb…88fc6e46` | `a49ba438/enclave-directory.mjs` | 348,103 `a49ba438…7bd52308` |
+| control VM bridge `mirror.mjs` | 127,415 `a219f492…f232576a` | `3c778817/mirror.mjs` | 127,427 `3c778817…61b58f51` |
+| control VM route pull `mirror-public-providers.mjs` | 136,718 `934b511e…04fd7609` | `69b16600/mirror-public-providers.mjs` | 136,730 `69b16600…11e1a7bd` |
+| control VM relay `network-runtime.bundle.mjs` | 792,069 `55544ec1…3132215b` | `3bbc6bf0/network-runtime.bundle.mjs` | 792,081 `3bbc6bf0…04a5e749` |
+| NucBox `network\privacy-agent.mjs` | October 2,951,587 `5f463944…12ed6366`, or near routes 2,956,624 `576d69da…2fe06ee8` | `9b9c0288/privacy-agent.mjs` | 2,960,676 `9b9c0288…32709c` |
+| NucBox `control\windows\node\network-enroll.mjs` | near routes 21,210 `3ba1282c…25b86a09` | `nucbox/network-enroll.mjs` | 21,956 `42bc9b4a…63b43bf` |
+
+The full digests are in the installers and in `one-hop-nucbox.ps1`. Each replaces or supersedes a file only when it
+is the installed one by SHA-256.
+
+Frontend r7: CID `bafybeieafatljeedsrts2u4npvk4mfo7z76fopvy6fqkv3gliedzo7wobi`, base the live r6
+`bafybeihcq2ckylienfbs3tg6smcucmagz3hcavl4sda44ogjmfz5dze5ia`. 1,730 files: 1,649 of the base kept byte for byte, 81
+in the delta, of which one replaces an existing file (`js/boot.js`, which now names the entry
+`js/boot-one-hop-r7.js`). CAR 66,203,329
+bytes, SHA-256 `f4487b0c…a5421902`. Three source files differ from r4: r6's whole-VM row address, the policy
+validator, and the hosted Network tab (the "One hop, no guard" box, offered only when the app's host reports the
+setting). Method and scripts are those of `ops/rpc-snp-prod-r7/site-whole-vm-address-r6/`.
+
+## Why backports and not main's files
+
+None of these targets runs a build of main. The edges' and the control VM's bundles are builds from October and
+early November with their own histories; the NucBox's tree is from 2026-10-26 with the near-routes release on top.
+Installing main's builds would be a full release of each, with everything since in it. `one-hop-bundles.py` makes
+each file from the installed one with a short, fixed list of replacements and leaves every other byte as it is; the
+NucBox's agent bundle is made section by section from two builds of main (`f814b020a^` and `f814b020a`) onto the
+near-routes bundle. Main stays the maintained source of the change; these files are its carriers.
+
+## What was checked
+
+- **The source.** The repository's tests of `f814b020a` (recorded with that commit).
+- **The patched provider bundles over a real tunnel.** `qualify/one-hop-e2e.sh` runs a host, a guard, an exit and a
+  visitor in unprivileged network namespaces with userspace WireGuard, the provider bundles themselves as the
+  guard's and the exit's provider: a guarded app and a one-hop app side by side, a direct request refused with no
+  policy, with `guard: true` and with a `guard: false` not signed by the owner, granted with the owner's
+  `guard: false`, a visitor's bytes through both, and the one-hop circuit closed when the owner signs `guard: true`
+  again. 17 of 17 lines pass with either patched build as the exit and either build, patched or installed, as the
+  guard (seven arrangements), and once more with the host's side run by the code of the NucBox's patched agent bundle.
+  With an installed build as the exit the run shows what is true today: it grants a host's direct exit request
+  whatever the policy says, and refuses a `guard: false` policy whole.
+- **The control VM's three patched files, run offline** (`qualify/control-vm-check.mjs`): the relay's validator, the
+  bridge's round and the route pull's round, each on the installed and the patched file, with a `guard: false`
+  policy and without. 22 lines, all as expected, including that the installed bridge stops its round and the
+  installed route pull drops the publication.
+- **The installers and runners, rehearsed.** `rehearse-edge-install.sh`: 23 of 23 as expected.
+  `rehearse-control-install.sh`: 32 of 32. The scripts run unchanged except the digests, one path and shorter
+  waits, against stand-in services and a stand-in `systemctl` in a private namespace: install, repeat, remove, every way a new
+  service can fail to come up (cannot start, does not answer, dies after two seconds, does less than the old one),
+  the refusals (a file that is not the release's, another drop-in sorting later, the relay before the bridge, three
+  of four edges verified, a lease running down with no renewal), and the ways back.
+- **The real boxes, read only.** `one-hop-edges.sh preflight` on the four edges and `one-hop-control.sh preflight`
+  on the control VM: every guard that can be read without changing anything holds.
+- **The frontend.** `site-r7/backport-check.mjs` and the build's own file accounting against the live r6.
+- **The NucBox's files.** Main's manager, one-hop runtime, provider-distance and host-egress tests run against the
+  code of the patched agent bundle, and main's enrollment test against the patched `network-enroll.mjs`. The staged
+  copies verify on the box by SHA-256.
+- **`one-hop-check.sh`** against today's state: it reads all four directories, the relay and the host's report, and
+  says "not one hop yet" with seven reasons, which is correct.
+
+**Not checked:** a provider on the kernel's WireGuard (this workstation has no module for its running kernel);
+nftables `reject` as the edges use it; the patched bundles starting under systemd on an edge or on the control VM;
+systemd itself in either rehearsal (drop-in order, `Restart=`, sandboxing); the ssh and sudo paths of the control
+runner; any `activate`, `install`, `remove` or `revert` on a real box; the NucBox's `node`, `agent`, `near-on`,
+`near-off` and revert modes, which have only been parsed; anything on Windows, including the installed
+`enclave-wg.exe` on a circuit with no guard; a grant from a live provider (it takes a leased host that asks);
+the Network tab rendered in a browser; the success path of `one-hop-check.sh`. The first one-hop circuit that exists
+anywhere will be the one this release makes.
+
+## Order
+
+Each step is one command. A later step refuses when the one before it is not in place.
+
+1. **Edges.** `one-hop-edges.sh activate` — eu-central, ca-east, us-west, ap-southeast, one at a time; on each the
+   directory, then the provider. Each provider restart ends the connections through that edge, as a guard or as an
+   exit (a stream through it stops and has to be started again; an app's name keeps answering through its other
+   circuit where that one is healthy) and the new provider is watched for five minutes, so the four take about 26 minutes. A service that does not come up, or a provider
+   that refuses a host's request as "requires a guard" while no owner has signed, is taken back by the installer and
+   the run stops there. `one-hop-edges.sh check` reads the result.
+2. **Control VM.** `one-hop-control.sh activate` — bridge, route pull, then the relay. The relay is refused unless
+   the four edges are verified and the other two run this release's files. Its restart takes `api.enclave.host`
+   away for a few seconds; the run waits until the RPC app's lease has at least 15 minutes left, restarts, and then
+   watches metal0's journal for the app's next renewal (up to about 26 minutes; `WAIT_RENEWAL=0` skips the watch).
+   If the lease gets to 90 seconds with no renewal the previous relay bundle is put back. All three units need the
+   start-condition file under `/etc/enclave-control`, which only root can see: the installer checks it before it
+   restarts anything.
+3. **Frontend.** `python3 …/unified-funding-20261028/one-hop-site-r7/run-activate.py` — capture, apply, verify per
+   edge (us-west, ca-east, ap-southeast, eu-central); a verified edge is skipped on a second run. Journal on each
+   edge: `/var/lib/enclave-one-hop-site-r7`.
+4. **NucBox.** `one-hop-nucbox.sh node` (the Node task alone: two to three minutes with no claims or renewals from
+   the box; the apps' VMs keep running), at least two minutes later `one-hop-nucbox.sh agent` (the bundle,
+   `oneHop` naming the KVM Box app, the agent restarted: every circuit of every app on the box is built again),
+   then `one-hop-nucbox.sh check`. Each step puts the previous file back itself when what it started does not come
+   up. One hop takes the nearest provider only with near routes on: either `near-routes.sh agent` before this
+   release's `agent` step, or `one-hop-nucbox.sh near-on` after it. Without it the one provider is chosen as
+   providers are chosen today, by price and qualification, not distance.
+5. **The owner's signature, last.** In the app's Network tab: "One hop, no guard". Nothing before this step changes
+   any circuit's shape.
+6. `one-hop-check.sh` — read only; ends with `ONE HOP: …` or with the list of what does not agree yet.
+
+Ways back, before the owner signs: `one-hop-nucbox.sh revert-agent` then `revert-node`; `one-hop-control.sh revert`
+(relay, route pull, bridge); `one-hop-edges.sh revert`; a frontend edge from the `before.json` and
+`before.Caddyfile` in its journal directory. **After the owner signs, the way back starts with the owner signing
+`guard: true` again.** The previous files refuse a `guard: false` policy whole: a reverted bridge stops copying
+every owner's policy (the rehearsal shows it), a reverted provider or directory takes that app's network away. The
+installers refuse `remove` while such a policy is stored unless `FORCE=1`.
+
+## Not established
+
+- Whether anything deployed to the control VM later (a relay release, a new image of that VM) replaces the three
+  patched files with files that carry the previous validator. If it does, the bridge stops at the first stored
+  `guard: false`. `one-hop-control.sh check` reads which files run.
+- What a host's node does with a renewal whose relay answer is lost during the relay's restart. The relay restarted
+  at 00:39:08Z today and the NucBox's apps kept their leases; the RPC app's lease is the one the runner times.
+- How many policies the relay holds (its state file is root's). The running bridge has copied five apps' policies.
+- Why the route pull drops between 3 and 10 publications in each round today, on the previous file.

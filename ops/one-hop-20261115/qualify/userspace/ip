@@ -1,0 +1,7 @@
+#!/bin/bash
+# userspace WireGuard device in place of the kernel module (this host cannot load it): "ip link add X type wireguard"
+if [ "$1" = link ] && [ "$2" = add ] && [ "$4" = type ] && [ "$5" = wireguard ]; then
+  ns=$(readlink /proc/self/ns/net | tr -dc 0-9); d="$OH_WG_DIR/$ns"; mkdir -p "$d"
+  exec unshare -m -- bash -c 'mount --bind "$1" /run/wireguard && WG_I_PREFER_BUGGY_USERSPACE_TO_POLISHED_KMOD=1 LOG_LEVEL=error exec "$2" "$3" </dev/null >>"$1/wireguard-go.log" 2>&1' _ "$d" "$OH_WGO" "$3"
+fi
+exec /usr/sbin/ip "$@"

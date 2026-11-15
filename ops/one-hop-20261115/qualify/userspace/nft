@@ -1,0 +1,8 @@
+#!/bin/bash
+# This host has nft_reject_ipv4 but not nft_reject_inet, and modules cannot be loaded: in the stand-in's rules a
+# refusal ("reject with ...") becomes a silent drop. Nothing else is changed.
+if [ "$1" = -f ] && [ -f "$2" ]; then
+  t=$(mktemp); sed -E 's/reject with (tcp reset|icmpx admin-prohibited)/drop/g' "$2" > "$t"
+  /usr/sbin/nft -f "$t"; rc=$?; rm -f "${t:?}"; exit $rc
+fi
+exec /usr/sbin/nft "$@"

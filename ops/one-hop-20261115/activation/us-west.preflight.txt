@@ -1,0 +1,15 @@
+directory: unit active, process 934505, since Sat 2026-11-14 06:12:11 UTC, automatic restarts 0
+directory: bundle old 37366abb5a33 /opt/enclave-directory/runtime-37366ab/enclave-directory.mjs
+directory: process runs the unit's command: yes
+directory: one-hop drop-in: absent; drop-ins: 30-authority-pins.conf diagnostics.conf rollback-before-f6959cb.txt rollback-before-reads-4620bef.txt rollback-before-reads-897b170.txt rollback-before-runtime-2467cea.txt rollback-before-runtime-30cee0a.txt rollback-before-runtime-37366ab.txt rollback-before-runtime-cb9ff18.txt zz-authority-pins.conf 
+directory: answers: yes (routes 200, health 200)
+directory: refused as a host's own since this process started: 0
+provider: unit active, process 934493, since Sat 2026-11-14 06:12:11 UTC, automatic restarts 0
+provider: bundle old 464cad341e4a /opt/enclave-network/native-recovery-464cad3/provider.mjs
+provider: process runs the unit's command: yes
+provider: one-hop drop-in: absent; drop-ins: directories.conf zz-authority-pins.conf zzz-native-ingress.conf 
+provider: answers: yes (accepting, guard peers 6, exit peers 6, direct peers -)
+provider: refused as a host's own since this process started: 0
+box: node v22.23.3; free under /opt: 4655 MB
+box: listed in its own directory under the address the provider reports: yes
+box: source address toward the other listed providers is that address: 3 of 3
