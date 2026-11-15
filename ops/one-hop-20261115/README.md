@@ -1,4 +1,4 @@
-# One hop: the release (prepared 2026-11-15; steps 1 and 2 of 6 done, the four edges and the control VM)
+# One hop: the release (prepared 2026-11-15; steps 1 to 3 of 6 done: the four edges, the control VM, the frontend)
 
 One hop (main `f814b020a`, design in `docs/design/enclave-network.md` "One hop") lets an app's circuit be one
 provider with no guard: host → provider ← visitor. It takes two choices, neither enough alone: the app's owner signs
@@ -228,3 +228,19 @@ and the KVM Box's host reported to the new relay 18 s before the read (two circu
 no owner policy). This is the first time the three control VM files have run there, and the first real use of the
 installer's root path. The relay has not been handed a `guard:false` policy; the stored-policy count and the units'
 start condition are readable only as root and were read by the installer, not by the checks.
+
+**3. Frontend r7, 2026-11-15 08:57–08:59Z, run by the operator** (`run-activate.py`). Each edge was captured, given the
+81 added files beside the r6 tree, switched to the new root and verified over HTTPS; none failed. Evidence:
+`site-r7/activation/<edge>.intent.json`, `.result.txt`, `.verified.json`.
+
+| edge | verified | result |
+|---|---|---|
+| us-west | 08:57:14Z | `apex-switched`, 1,730 files verified on the edge, 2 roots changed, old tree preserved |
+| ca-east | 08:57:41Z | the same |
+| ap-southeast | 08:58:26Z | the same |
+| eu-central | 08:59:23Z | the same |
+
+Read afterwards, 09:00–09:01Z, from the workstation by the site's name: `js/boot.js` names `js/boot-one-hop-r7.js`, and
+the 87 files each edge's verification lists were fetched and match the release's SHA-256, 87 of 87; the Network tab's
+chunk among them carries the "One hop, no guard" box. That read went to whichever edge the name resolved to, once. The
+Network tab has not been opened in a browser, and no host reports `oneHop` yet, so the box is offered to nobody.
