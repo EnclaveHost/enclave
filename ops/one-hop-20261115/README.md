@@ -1,4 +1,4 @@
-# One hop: the release (prepared 2026-11-15; steps 1 to 3 of 6 done: the four edges, the control VM, the frontend; step 4, the NucBox; the owner's signature is next)
+# One hop: the release (prepared 2026-11-15; steps 1 to 3 of 6 done: the four edges, the control VM, the frontend; all six steps; the KVM Box's circuits are one hop since 2026-11-15 11:35Z)
 
 One hop (main `f814b020a`, design in `docs/design/enclave-network.md` "One hop") lets an app's circuit be one
 provider with no guard: host → provider ← visitor. It takes two choices, neither enough alone: the app's owner signs
@@ -326,3 +326,22 @@ host does not report that it allows one hop. Checked on a spare port with a thro
 policy verifier for its signer; a signature that is not the owner's wallet is refused (403), as are any other change
 to the policy, another nonce, and a non-JSON post (409, 409, 400), none of them reaching the relay. The path with the
 owner's real signature has not run.
+
+**5 and 6. The owner's signature and the check, 2026-11-15 11:35–11:38Z.** The owner signed on the local page with the
+vault's owner wallet; the page's server published the envelope to the relay at 11:35:03Z (nonce 1, `guard` false).
+`one-hop-check.sh`, 11:37:57–11:38:14Z, exit 0: the relay holds the owner's policy, nonce 1, guard false; each of the
+four directories holds the same; the host reported 23 s before, runs policy nonce 1, allows one hop, and both of the
+app's circuits have no guard (exit sfo3, exit tor1, both healthy); the providers at us-west and ca-east each count
+one host without a guard, the other two none. It ends "ONE HOP: the app's circuits have no guard, and the relay, the
+four directories, the host and the exits agree".
+
+`one-hop-nucbox.sh check`, 11:38Z, exit 0: the KVM Box's circuit through sfo3 is in its name (host to exit 24.8 ms as
+the agent measured), the one through tor1 stands by; the name lists us-west alone; the agent was not restarted
+(started 11:19:42Z); the other six apps keep guard and exit; nine names answer. From the workstation, beside the
+NucBox, five requests to the app's name: the first 0.69 s, then 0.16 to 0.18 s each with the TCP connect at 25 to 27
+ms (before one hop the same request took 0.6 to 2.0 s).
+
+This is the first one-hop circuit on real providers, the first grant by a live provider of a host's direct request,
+and the first use of the signing page with the owner's signature. Not done: a Moonlight stream over it (the stream's
+lag was the reason for the release, and whether it is gone is not measured); how long the app was without a route
+when the host applied the policy; the hosted Network tab in a browser.
