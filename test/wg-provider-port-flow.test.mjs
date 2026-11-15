@@ -140,9 +140,10 @@ async function flowFront(){
 const until=async(ok,what)=>{for(let i=0;i<300;i++){if(ok())return;await new Promise(r=>setTimeout(r,10));}assert.fail('never: '+what);};
 
 test('gateway: a flow of several lanes; datagrams from the lanes reach the client in order and once; each lane reports',async()=>{
- const f=await flowFront();
- const g=await createGameStream({route:n=>n==='desk.app.test'?'10.9.0.2':null,host:'127.0.0.1',ports:{http:0,https:0,rtsp:0,udp:[0,0,0]},flowLanes:[3,1,1],reorderMs:60,
+ const f=await flowFront();const logged=[];
+ const g=await createGameStream({route:n=>n==='desk.app.test'?'10.9.0.2':null,host:'127.0.0.1',ports:{http:0,https:0,rtsp:0,udp:[0,0,0]},flowLanes:[3,1,1],reorderMs:60,log:m=>logged.push(m),
   connect:async()=>{const s=net.connect(f.port,'127.0.0.1');await once(s,'connect');return s;},randomId:()=>'0123456789abcdef0123456789abcdef'});
+ let stopped=false;const stop=()=>{if(!stopped){stopped=true;g.close();}};
  const sock=dgram.createSocket('udp4');
  try{
   // the name comes with an HTTP request; the stand-in refuses the TCP tunnel, which is all the binding needs
@@ -176,5 +177,8 @@ test('gateway: a flow of several lanes; datagrams from the lanes reach the clien
   await until(()=>flow().lanes.length===4,'a fourth connection');
   assert.equal(flow().lanes.filter(l=>!l.s.destroyed).length,3);
   assert.equal(g.stats().udp.flows,1);assert.equal(g.stats().udp.plain,0);assert.equal(g.stats().udp.renewed,1);
- }finally{sock.close();g.close();f.close();}
+  // when the association ends, one line says what it met
+  stop();
+  assert.equal(logged.filter(m=>/^gamestream desk\.app\.test udp\/47998 flow ended after \d+ s: delivered 5, of them rebuilt from parity 0, late 0; passed over 1, second copies 1, lanes opened 4, to the app dropped \d+$/.test(m)).length,1,logged.join(' | '));
+ }finally{sock.close();stop();f.close();}
 });

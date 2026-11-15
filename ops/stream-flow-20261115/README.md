@@ -123,4 +123,48 @@ What this changes today: nothing a viewer can see. The desktop that runs (SVN21)
 the new gateways get plain tunnels from it. That a plain tunnel still carries UDP through the new gateway was not
 exercised (it needs a Moonlight stream); the TCP ports were.
 
-**2. The desktop image with the new front:** not built yet.
+**2. The desktop image with the new front, SVN22, on the NucBox since 2026-11-15 14:20Z.**
+
+Built in `…/2026-10-23/it/work/native-flow-image-v18/`, exported to
+`…/2026-10-23/it/outputs/kvm-box/native-platform-v18-stream-flow/`:
+
+| | |
+|---|---|
+| platform source | the SVN21 tree with `m2/front/tunnel.go`, `tunnel_flow.go` and its test as in main `3c4de3758` (local commit `3b0679ad8`; three sources differ from SVN21's inventory, `source-diff.json`) |
+| platform archive | one entry differs from SVN21: `plat/front`, 9,478,268 → 9,506,940 bytes; rebuilt from a fresh compiler cache to the same archive (7667d9db…a496) |
+| root image, profile, controller, models | SVN21's bytes |
+| signed image | `native-igvm.bin`, 86,637,572 bytes, 5022c649a295aa10ac4708eea601a771ce81d8f4eb399955335314eed56b6d4b, guest SVN 22, launch measurement a367f079…2613 (computed, not read from hardware); signature verified by the independent implementation |
+| desktop app identity | unchanged, a6072ed0…e1b5: it comes from the profile and the controller |
+| Shield policy | d202746f943486a7239f5180a0811dd35fbaab35fa11c1fbdf56f8e756349e62 (SVN21's: 2d245e65…0540) |
+
+No owner signature: the controller and the catalog version are SVN21's. The front's change was not exercised in a
+booted guest before this (the isolated KVM run is of the root image and does not start the front).
+
+Activation, from the assistant's session on the owner's instruction (`desktop-svn22.sh` beside the earlier releases'
+scripts in `ops/unified-funding-20261028/funding-reactivation-20261111/queued-apps-20261113/`):
+
+| when (Z) | step | result |
+|---|---|---|
+| 13:46 | `stage` | files on the NucBox, verified there; nothing running changed |
+| 13:54:29 | `policy` | relay admits SVN22, restarted (the previous file is kept beside it) |
+| 13:54:44 | `hostpolicy` | host policy SVN22, network agent restarted. **KVM Box down from here.** The other apps' names did not answer for about two minutes |
+| 13:58:23-14:09:11 | `switch` | Shield manager on SVN22, seven app VMs back and settled by 14:05:39; Node restarted 14:06:24, listed, settled |
+| 14:11:39 | `retry` (timed) | claimed; the launch failed as SVN20's first did ("not ready within 120000 ms", the same 463-byte console), released 14:14:40 |
+| 14:18:28 | `retry` (at once) | claimed; desktop VM running 14:20:03; the public name answered 401 from 14:21:57 |
+
+KVM Box was down 27 minutes. The one-hop check passes again (both circuits without a guard, exit sfo3 and tor1).
+
+Read on the running desktop, 14:27:58Z, through its public name (`flowprobe.mjs` here,
+which opens tunnels to UDP 47999 as the gateway does): a plain tunnel is answered without the flow header; sixteen
+lanes of one flow are each answered 101 with `Enclave-Port-Flow: 1`; a seventeenth is refused (503); a flow on a TCP
+port is refused (400); a report is taken and the lanes stay open. **So the front with flows runs in production. No
+datagram has been through a flow there yet: that needs a Moonlight stream.**
+
+Seen during and after the switch and not explained: the agent withdrew every app's network for about a minute at
+14:21:58Z, 14:23:13Z and 14:30:58Z ("authorization lapsed (lease or guest proof)"). The same line has been written
+all day for two other apps (`0xd9798e4c`, `0x7ae476a3`, every few minutes since before 05:00Z), not for the KVM Box,
+whose only lapse between 10:00Z and 13:54Z was at 13:52:05Z for 30 s.
+
+**3. The gateway again, with one log line per ended flow** (what a stream's video, control and audio each met:
+delivered, rebuilt from parity, late, passed over, second copies, lanes opened): bundle 2abac82b…fc72. Not installed
+yet at the time of this commit.

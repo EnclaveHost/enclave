@@ -179,10 +179,12 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
     const b=bound(r.address),to=b&&peerOf(b.name);if(!to||!admit(r.address))return;
     const release=hold(r.address,b),id=want?randomId():null;
     const toClient=payload=>{a.at=now();count(to,0,payload.length);sock.send(payload,r.port,r.address,()=>{});};
-    a={up:null,flow:null,queue:[],at:now(),to,
+    a={up:null,flow:null,queue:[],at:now(),since:now(),to,
      end(){
       if(!a.queue)return;a.queue=null;if(assoc.get(key)===a)assoc.delete(key);release();a.up?.destroy();
       if(a.flow){const st=a.flow.rx.stats();flowStats.delivered+=st.delivered;flowStats.duplicates+=st.duplicates;flowStats.skipped+=st.skipped;flowStats.late+=st.late;flowStats.rebuilt+=st.rebuilt;flowStats.dropped+=a.flow.dropped;
+       // one line per association that carried something: what a stream's video, control and audio each met on the path
+       if(st.delivered)log(`gamestream ${b.name} udp/${port} flow ended after ${Math.round((now()-a.since)/1000)} s: delivered ${st.delivered}, of them rebuilt from parity ${st.rebuilt}, late ${st.late}; passed over ${st.skipped}, second copies ${st.duplicates}, lanes opened ${a.flow.opened}, to the app dropped ${a.flow.dropped}`);
        a.flow.rx.close();for(const l of a.flow.lanes)l.up.destroy();}
      },
      // client -> app: behind a stalled tunnel a datagram is lost, not queued without bound
@@ -197,7 +199,7 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
     };
     assoc.set(key,a);
     const lane=t=>{
-     const up=t.socket,l={up,received:0,reported:0,due:false,n:a.flow.pick.add()};a.flow.lanes[l.n]=l;   // (a closed lane's place is used again)
+     const up=t.socket,l={up,received:0,reported:0,due:false,n:a.flow.pick.add()};a.flow.lanes[l.n]=l;a.flow.opened++;   // (a closed lane's place is used again)
      open.add(up);up.on('error',()=>up.destroy());
      // a lane that ends (the front closes one that stalls) is replaced while the association lives: at most one
      // replacement on its way at a time, and not more often than every `renewMs`
@@ -231,7 +233,7 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
      if(!a.queue)return t.socket.destroy();
      if(t.flow){
       flowStats.flows++;
-      a.flow={rx:flowReceiver({deliver:toClient,reorderMs,now}),pick:lanePicker({now}),lanes:[],dropped:0,opening:false,renewedAt:0};lane(t);
+      a.flow={rx:flowReceiver({deliver:toClient,reorderMs,now}),pick:lanePicker({now}),lanes:[],dropped:0,opened:0,opening:false,renewedAt:0};lane(t);
       for(let k=1;k<want;k++)openOne().then(x=>{if(!a.queue||!x.flow)return x.socket.destroy();lane(x);},e=>log(`gamestream ${b.name} udp/${port} lane: ${e.message}`));
      }else{
       flowStats.plain++;
