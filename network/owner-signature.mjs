@@ -35,3 +35,23 @@ export async function verifyOwnerSignature({clients,reader,owner,message,signatu
  const r=await Promise.all(clients.map(c=>oneClient(c,{owner,message,signature,addressBook,eoa,sessionVaultFactory}).catch(()=>false)));
  return r.every(Boolean);
 }
+
+// A verification that succeeded is not asked again for `ttlMs`: verify(owner,message,signature) for a contract-wallet
+// owner reads the chain at an agreed block, which through a host's own circuits takes seconds, and an agent asks for
+// every answer of every directory in every refresh round. Measured on a host whose one such app got its first signed
+// policy (2026-11-15): rounds went from 15 s to 46 s, past the leases' freshness at times, and every app on the host
+// lost its network for a minute. Only a yes is kept, and no longer than `ttlMs`: an owner that changes on chain is
+// believed for at most that long, and a signature that fails is checked again each time.
+export function rememberVerified(verify,{now=Date.now,ttlMs=10*60_000,max=256}={}){
+ const seen=new Map(),pending=new Map();
+ return async(owner,message,signature)=>{
+  const key=String(owner).toLowerCase()+'|'+signature+'|'+message,at=seen.get(key);
+  if(at!==undefined&&now()-at<ttlMs)return true;
+  // the same question asked while it is being answered shares the answer
+  let p=pending.get(key);
+  if(!p){p=Promise.resolve().then(()=>verify(owner,message,signature)).finally(()=>pending.delete(key));pending.set(key,p);}
+  const ok=await p===true;
+  if(ok){seen.delete(key);seen.set(key,now());if(seen.size>max)seen.delete(seen.keys().next().value);}else seen.delete(key);
+  return ok;
+ };
+}

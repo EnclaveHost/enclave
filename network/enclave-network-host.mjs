@@ -16,7 +16,7 @@ import {eligibleProviders} from './provider-directory.mjs';
 import {admitNetworkPolicy,defaultNetworkPolicy,validateNetworkPolicy,byoReleaseMessage} from './network-policy.mjs';
 import {parseWireGuardConfig,wireGuardConfigDigest,privateAddress,ipKind} from './wg-config.mjs';
 import {DurableState} from './durable-state.mjs';
-import {verifyOwnerSignature} from './owner-signature.mjs';
+import {verifyOwnerSignature,rememberVerified} from './owner-signature.mjs';
 import {canonical} from './route-record.mjs';
 import {guardedFetch} from './guarded-fetch.mjs';
 import {DirectRuntime} from './direct-runtime.mjs';
@@ -102,7 +102,8 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
  // Pinned mode verifies contract owners at the same fresh agreeing chain block.
  // Contract-wallet owners (ERC-1271 passkey vaults, SessionVaults) are verified at ONE agreed block: the pinned quorum reader,
  // or - when the agent's chain is the node's explicit local verifier (no rpc, so no clients) - that same verifier reader.
- const verify=async(owner,message,signature)=>verifyOwnerSignature({clients,reader:ownerSignatureReader({pins,leaseReader}),owner,message,signature,addressBook,sessionVaultFactory:pins?.sessionVaultFactory});
+ // (a yes is kept for ten minutes, rememberVerified: without that every round verified each directory's copy again)
+ const verify=rememberVerified(async(owner,message,signature)=>verifyOwnerSignature({clients,reader:ownerSignatureReader({pins,leaseReader}),owner,message,signature,addressBook,sessionVaultFactory:pins?.sessionVaultFactory}),{now});
  const state=new DurableState(path.join(directory,'enclave-network'));
  const memory={get:async id=>(await state.get('policy-nonces'))?.[id],set:async(id,n)=>state.update('policy-nonces',async old=>({...(old||{}),[id]:n}))};
  const policyCache=new Map();
