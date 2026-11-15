@@ -1,4 +1,4 @@
-# One hop: the release (prepared 2026-11-15; steps 1 to 3 of 6 done: the four edges, the control VM, the frontend)
+# One hop: the release (prepared 2026-11-15; steps 1 to 3 of 6 done: the four edges, the control VM, the frontend; of step 4, the NucBox, the Node half)
 
 One hop (main `f814b020a`, design in `docs/design/enclave-network.md` "One hop") lets an app's circuit be one
 provider with no guard: host → provider ← visitor. It takes two choices, neither enough alone: the app's owner signs
@@ -244,3 +244,33 @@ Read afterwards, 09:00–09:01Z, from the workstation by the site's name: `js/bo
 the 87 files each edge's verification lists were fetched and match the release's SHA-256, 87 of 87; the Network tab's
 chunk among them carries the "One hop, no guard" box. That read went to whichever edge the name resolved to, once. The
 Network tab has not been opened in a browser, and no host reports `oneHop` yet, so the box is offered to nobody.
+
+**4a. NucBox, the Node half, 2026-11-15 09:03–09:05Z, run by the operator** (`one-hop-nucbox.sh node`). The script's
+log stays outside the repository; what it and the reads afterwards show:
+
+| what | when | read |
+|---|---|---|
+| operator gas on Base | 09:03:28Z | 2.519e-07 ETH (low before this step, unchanged by it) |
+| `network-enroll.mjs` replaced | 09:03:31Z | this release's file; the near-routes release's file kept beside it |
+| Node task started | 09:03:45Z | one node process |
+| Node listed in the registry | 09:04:04Z | `setPrices` failed at 09:04:34Z for lack of gas, as it did before |
+| app VMs adopted | 09:04:38–09:04:54Z | seven, each `running`; manager: 8 VMs, none recovered or unattributed |
+| app names answered | 09:05:25–09:05:48Z | eight 200, the KVM Box 401 (its sign-in) |
+
+The network agent was not restarted (the process is the one started 11-14 20:18:23Z), but the step was not free for
+the apps' routes. The agent's log: at 09:03:59Z it turned egress off for all seven apps ("authorization lapsed (lease
+or guest proof)"), and turned it back on between 09:04:16Z and 09:05:00Z, the last app 61 s later. The circuits it
+reports afterwards have other roles than before: every app now has guard sfo3 to exit fra1 and guard sgp1 to exit tor1,
+where the KVM Box had guard tor1 to exit sfo3 and guard fra1 to exit sgp1; the loopback exemption list went from 180 to
+193 entries of 682. The log has no line that names a rebuild, so that the lapse caused it is a reading of the two
+together. Whether a visitor was refused in that minute was not measured.
+
+Leases, read from the chain: the four that ran out first were renewed by the restarted Node, each four to five minutes
+before its end (`0xd9798e4c` 09:16:17Z to 09:41:41Z, `0xa77d0c57` 09:16:22Z to 09:41:50Z, `0x7ae476a3` 09:17:17Z to
+09:42:40Z, `0xa69dcbba` 09:18:16Z to 09:43:40Z; seen between 09:12:15Z and 09:14:18Z). The other three, the KVM Box's
+among them, were not yet due. At 09:14Z: no enrollment error since the restart, each of the box's seven apps with its two
+network circuits healthy, the storage app's health check 200.
+
+This is the first run of this release's `network-enroll.mjs` on Windows and the first execution of the script's `node`
+mode. The agent half has not been run: the agent bundle is still the October one, `oneHop` and `nearRoutes` are absent
+from the box's configuration, and no circuit is one hop.
