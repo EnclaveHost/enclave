@@ -12,6 +12,22 @@ const ipv4=/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/,wgKey=/^[A-Za-z0-9+/]{
 const exact=(o,k)=>o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).sort().join(',')===[...k].sort().join(',');
 const port=p=>Number.isSafeInteger(p)&&p>0&&p<65536;
 
+// The signer of a signed text. Recovery is pure-JS big-number work (10-20 ms on a small edge) and the same records and
+// qualifications come back at every poll: a signer already recovered for the same text and signature is remembered,
+// and after each new recovery the caller yields to the event loop, so a batch never holds it (2026-11-16: an edge's
+// provider held its loop 300-450 ms about once a minute verifying the provider list, and every stream through it
+// stood still). Only the recovery is remembered: validity, expiry and who may sign are checked by the caller each time.
+const signers=new Map(),SIGNERS_MAX=4096;
+export async function recoverSigner(message,signature){
+ if(typeof message!=='string'||typeof signature!=='string')return (await recoverMessageAddress({message,signature})).toLowerCase();
+ const key=signature+'\n'+message,hit=signers.get(key);
+ if(hit){signers.delete(key);signers.set(key,hit);return hit;}
+ const signer=(await recoverMessageAddress({message,signature})).toLowerCase();
+ signers.set(key,signer);if(signers.size>SIGNERS_MAX)signers.delete(signers.keys().next().value);
+ await new Promise(r=>setImmediate(r));
+ return signer;
+}
+
 export function providerIdFor(operator,address){return createHash('sha256').update(`${String(operator).toLowerCase()}|${address}`).digest('hex').slice(0,32);}
 export function publicIPv4(a){const m=ipv4.exec(a||'');if(!m)return false;const [x,y]=m.slice(1).map(Number);if(m.slice(1).some(v=>+v>255))return false;
  return !(x===0||x===10||x===127||x>=224||(x===100&&y>=64&&y<=127)||(x===169&&y===254)||(x===172&&y>=16&&y<=31)||(x===192&&y===168)||(x===192&&y===0)||(x===198&&(y===18||y===19)));}
@@ -33,7 +49,7 @@ export async function signProviderRecord(account,r){validateProviderRecord(r);re
 export async function verifyProviderRecord(env,{now=Date.now(),hostOperator}={}){
  const r=validateProviderRecord(env?.record,now);
  if(r.expiresAt<=now)throw new Error('provider record expired');
- const signer=(await recoverMessageAddress({message:providerRecordMessage(r),signature:env.signature})).toLowerCase();
+ const signer=await recoverSigner(providerRecordMessage(r),env.signature);
  if(signer!==r.operator)throw new Error('provider record is not signed by its operator');
  if(r.hostId){if(!hostOperator)throw new Error('community provider needs a registry check');const op=await hostOperator(r.hostId);if(!op||op.toLowerCase()!==r.operator)throw new Error('community provider is not its registry host\'s operator');}
  return r;
@@ -55,7 +71,7 @@ export async function signQualification(account,q){
 // address and keys in its current record, until the qualification expires. Anything missing or different: not eligible.
 export async function verifyQualification(env,record,{checkers,now=Date.now()}){
  const q=validateQualification(env?.qualification);
- const signer=(await recoverMessageAddress({message:qualificationMessage(q),signature:env.signature})).toLowerCase();
+ const signer=await recoverSigner(qualificationMessage(q),env.signature);
  if(!checkers.map(c=>c.toLowerCase()).includes(signer))throw new Error('qualification is not from a trusted checker');
  if(signer===q.operator)throw new Error('a provider cannot qualify itself');
  if(q.providerId!==record.providerId||q.operator!==record.operator||q.address!==record.address||q.wgExitKey!==record.wgExitKey||q.wgGuardKey!==record.wgGuardKey)throw new Error('qualification does not match the provider record');
@@ -76,7 +92,7 @@ const SECURITY=SECURITY_CHECKS;
 export async function verifyQualifications(envs,record,{checkers,now=Date.now()}){
  const seen=new Map();
  for(const env of envs||[]){
-  let q,signer;try{q=validateQualification(env?.qualification);signer=(await recoverMessageAddress({message:qualificationMessage(q),signature:env.signature})).toLowerCase();}catch{continue;}
+  let q,signer;try{q=validateQualification(env?.qualification);signer=await recoverSigner(qualificationMessage(q),env.signature);}catch{continue;}
   if(!checkers.map(c=>c.toLowerCase()).includes(signer)||signer===q.operator)continue;
   if(q.providerId!==record.providerId||q.operator!==record.operator||q.address!==record.address||q.wgExitKey!==record.wgExitKey||q.wgGuardKey!==record.wgGuardKey)continue;
   if(q.expiresAt<=now||q.issuedAt>now+60000)continue;

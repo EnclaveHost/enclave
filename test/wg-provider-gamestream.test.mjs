@@ -108,6 +108,22 @@ test('UDP follows the binding with datagram boundaries kept, and is dropped with
  }finally{sock.close();r.close();}
 });
 
+test('a client that starts again ends its quiet association for that app; one it still writes to stays',async()=>{
+ const r=await rig({supersedeMs:5000}),socks=[1,2,3].map(()=>dgram.createSocket('udp4'));
+ try{
+  for(const s of socks){s.bind(0,'127.0.0.6');await once(s,'listening');s.on('message',()=>{});}
+  const settle=()=>new Promise(resolve=>setTimeout(resolve,150));
+  const send=async(i,m)=>{socks[i].send(Buffer.from(m),r.g.ports.udp[0],'127.0.0.1');await settle();};
+  const open=()=>r.g.stats().flows;
+  await tcp(r.g.ports.http,'127.0.0.6',get('desk.app.test'));
+  await send(0,'first');assert.equal(open(),1);
+  // the client still writes on its first port: a second port is a second association
+  r.advance(2000);await send(0,'again');await send(1,'second');assert.equal(open(),2);
+  // both quiet for longer than supersedeMs: the third start ends them
+  r.advance(6000);await send(2,'third');assert.equal(open(),1);
+  assert.equal(r.f.seen.filter(t=>t.includes('udp/47998')).length,3);
+ }finally{for(const s of socks)s.close();r.close();}
+});
 test('a binding ends ten minutes after the client\'s last flow, and the caps close what exceeds them',async()=>{
  const r=await rig({maxPerClient:1});
  try{

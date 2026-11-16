@@ -209,3 +209,12 @@ sparse lanes), earlier second copies, a parity frame per two, a longer wait at t
 however the flow is tuned: lanes on TCP cannot ride through a run of lost packets, and the line also holds what it does
 not lose. Datagrams end to end would lose less but not nothing, and would not help a client behind the same line.
 
+
+## 2026-11-16: the last unexplained pause, and a third start with one lane
+
+The pause of 200–450 ms once a run with nothing lost (above, "still open") was the edge's provider holding its event
+loop while it recovered the provider list's signatures; and three starts within about 100 s left the third with one
+lane of sixteen. Both are found, changed and installed on the four edges: `ops/provider-signers-20261116/README.md`.
+`bundle.sha256` here is the gateway with the second change (`4ca5fffb…3ef0224b`, four edges 03:14Z). What a test
+stream still loses coincides with the home line's losses between the two routers (a powerline link, by its owner's
+account).

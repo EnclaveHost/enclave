@@ -1,0 +1,4 @@
+[03:02:04Z] provider: restarting process 973438 (accepting, guard peers 11, exit peers 1, direct peers 1) on 2f18d8003767
+[03:02:28Z] provider: process 1003524 is up (accepting, guard peers 11, exit peers 1, direct peers 1); watching 60 s for refused requests
+[03:03:28Z] provider: accepting, guard peers 11, exit peers 1, direct peers 1; 0 s of the watch left
+[03:03:28Z] DONE provider: process 1003524 runs /opt/enclave-network/signers-2f18d800/provider.mjs (2f18d8003767); before: accepting, guard peers 11, exit peers 1, direct peers 1; now: accepting, guard peers 11, exit peers 1, direct peers 1

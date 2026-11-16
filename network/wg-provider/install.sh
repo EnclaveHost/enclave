@@ -114,6 +114,9 @@ Wants=network-online.target
 ExecStart=$NODE $OPT/current/wg-provider.mjs $CFG
 Restart=always
 RestartSec=5
+# every app's bytes through this box pass this process: it goes before the box's other services when the
+# processor is short (2026-11-16: on a one-processor edge it waited up to 172 ms of 200)
+CPUWeight=400
 [Install]
 WantedBy=multi-user.target
 EOF

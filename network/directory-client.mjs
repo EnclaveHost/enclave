@@ -1,5 +1,4 @@
-import {recoverMessageAddress} from 'viem';
-import {verifyProviderRecord,validateQualification,qualificationMessage} from './provider-directory.mjs';
+import {verifyProviderRecord,validateQualification,qualificationMessage,recoverSigner} from './provider-directory.mjs';
 import {verifyNetworkPolicy} from './network-policy.mjs';
 import {recordHash} from './route-record.mjs';
 // Public-record transport only. Never send credentials, BYO configs or control
@@ -68,7 +67,7 @@ export class DirectoryClient {
         try{
           const q=validateQualification(env.qualification);
           if(q.expiresAt<=now||q.issuedAt>now+60000||!['providerId','operator','address','wgExitKey','wgGuardKey'].every(k=>q[k]===r[k]))continue;
-          const signer=(await recoverMessageAddress({message:qualificationMessage(q),signature:env.signature})).toLowerCase();
+          const signer=await recoverSigner(qualificationMessage(q),env.signature);
           const old=byChecker.get(signer);
           // Keep signed negative verdicts as well as positive ones. A stale
           // mirror cannot hide a newer security failure seen by another.
