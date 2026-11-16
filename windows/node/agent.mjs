@@ -589,7 +589,9 @@ async function handle(frame) {
   if (p === CAPACITY_CHECK_PATH && method === 'POST') {
     const poc = APPS ? await host.proofOfCapacity().catch(() => null) : null;
     if (!poc) return json(404, { error: 'not_enabled', reason: 'this box does not take part in proof of capacity' });
-    let challenge = null; try { challenge = JSON.parse(Buffer.from(body || '', 'base64').toString('utf8')); } catch {}
+    // (frame.body: the request body as base64, as every route here gets it; reading a name that does not exist threw
+    // inside the try and every challenge was answered 400, which a checker files as "unreachable": found 2026-11-16)
+    let challenge = null; try { challenge = JSON.parse(Buffer.from(String(frame.body || ''), 'base64').toString('utf8')); } catch {}
     try { const r = await poc.answer(challenge); return json(r.status, r.body); }
     catch (e) { return json(503, { error: 'capacity_check_failed', reason: String(e.message || e).slice(0, 200) }); }
   }

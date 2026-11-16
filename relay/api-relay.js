@@ -1544,6 +1544,11 @@ function ownerServedDeployments(row) {
 // relay trust (docs/network/host-liveness.md); public, read-only, and verified by every reader against the registry row
 const BOX_OWN_SURFACES = new Set(["/availability", "/health", "/v1/health", "/v1/version", "/v1/pricing", "/v1/session-jwks",
                                   "/v1/net-map", "/v1/udp-map", "/v1/attestation", ...RAD_PATHS, "/v1/host/capacity"]);
+// POST /v1/host/capacity-check: another host's capacity challenge (proof of capacity, network/proof-of-capacity-host.mjs).
+// The box answers only a host its ledger's prover assigned to check it, over that host's signature, once per checker and
+// epoch; anything else it refuses itself. Without this entry a box reached through this relay could not be checked at
+// all, and the hosts assigned to it would be the ones to lose their standing for not having checked it.
+const BOX_CHECK_SURFACES = new Map([["/v1/host/capacity-check", "POST"]]);
 const CUSTODY_SURFACES = new Map([["/v2/custody/info", "GET"], ["/v2/custody/challenge", "POST"], ["/v2/custody/release", "POST"],
                                    ["/v2/custody/evidence", "POST"], ["/v2/custody/join", "POST"], ["/v2/custody/approve", "POST"],
                                    ["/v2/custody/code-approve", "POST"]]);
@@ -1566,6 +1571,7 @@ function tunnelTenantRefusal(origin, path, method = "GET") {
   const unaltered = canon !== null && canon === raw;          // canonicalizing changed nothing but case
   if (unaltered && /^(?:GET|HEAD|OPTIONS)$/i.test(String(method || ""))
       && (BOX_OWN_SURFACES.has(canon) || BOX_OWN_SURFACES.has(canon.replace(/\/$/, "")))) return null;
+  if (unaltered && BOX_CHECK_SURFACES.get(canon) === String(method || "").toUpperCase()) return null;
   // a custody v2 custodian's tunnel (docs/security/secret-custody-v2.md: a custodian VM attaches by its own quote under
   // custody-<name>): its public API, EXACT paths and methods, never the host-binding route (the host reaches that
   // locally). It serves no tenant app; every answer is checked by its caller (DLEQ proofs, attestation, signatures).

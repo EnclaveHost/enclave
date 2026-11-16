@@ -75,15 +75,25 @@ own proof only when that is what is missing).
 
 `network/proof-of-capacity-host.mjs`, used by both platforms:
 
-- **The check** is measured work whose answer the checker computes itself: a challenge names a nonce, a number of
-  rounds and an amount of memory; the work fills that memory from the epoch's seed and the nonce and mixes it for
-  that many rounds; the digest is the answer (20,000 rounds over 64 MiB by default, about 0.14 s on this
-  workstation, run in millisecond slices so the process's other connections are not held). The checked host signs
-  its answer with its proof key and must answer inside the deadline (20 s).
+- **The check** is measured work whose answer the checker computes itself, **as much of it as the host says it has
+  free**. The checker reads the capacity record the host's operator key signs (`/v1/host/capacity`, the one its
+  customers' readers use; it must be the host's own, for this chain and registry, current and signed by its registry
+  operator) and asks for as many **lanes** as the record has free vCPUs (16 at most), each with its share of the
+  free memory (64 MiB a lane at most). Every lane fills its memory from its own seed and mixes it (300,000 rounds by
+  default: between one and two seconds of one processor), all lanes at once, in worker threads; the digest over the
+  lanes is the answer, signed by the host's proof key.
+- **The clock.** Before it asks, the checker runs one lane itself. The answer must come back within three times
+  that, plus 1.5 s. Lanes run side by side fit; a host that advertises eight free vCPUs and has one runs them one
+  after another and is late by a factor no slack covers: `fail`, "the capacity it advertises as free was not there".
+  So a pass says the host did, now, while whatever else it runs kept running, as much parallel CPU and memory work
+  as it tells the market it has free. The clock does not tell two or three advertised vCPUs from one (the slack
+  covers that much), and a host with no claim the checker can verify is asked for one lane, with the reason recorded.
+- **Further checks** of a host that passed the work plug in (`also`): one that fails makes the verdict a fail with its
+  reason, one that throws is no verdict this round. None is built in (below).
 - **A host answers** `POST /v1/host/capacity-check` only from a host the contract assigned to check it this epoch,
   over that host's proof-key signature, one check at a time and one per checker and epoch.
 - **Verdicts**: `pass` - the digest is the checker's own, signed by the target's proof key, in time. `fail` - a
-  wrong digest, another key, an answer to another challenge, too late. `unreachable` - no row in the registry, no
+  wrong digest, another key, an answer to another challenge, too late, or a further check that failed. `unreachable` - no row in the registry, no
   answer, an HTTP error. No verdict (tried again next round): the checker itself cannot reach the chain, or the
   target says busy, not this epoch, or already checked.
 - **The agent** (`createCapacityAgent`), every `PROOF_OF_CAPACITY_SEC` (300): fixes the epoch's seed if nobody has
@@ -103,10 +113,39 @@ Wired in `supervisor.js` (route, timer, proof-of-time domain) and in the Windows
 `chain.mjs`). The Linux image copies the two shared modules (`Dockerfile`); they import no package, since the
 Windows box has no `node_modules` outside its own folder.
 
-What a pass says, and does not: this host's process did this much CPU and memory work when asked. Nothing about a
-GPU, about what it could do at the same time for others, or about the app it serves. On the Linux hosts the proof
-key is minted in the confidential VM. **On the Windows node the proof key is a file of the node process on the
-host**, so there an answer and an own proof are the host's work signed by the host, not a Shield partition's.
+## What a pass still does not say (2026-11-16, after the check was sized to the claim)
+
+Three things were named as missing. One is built; for the other two and for the Windows key, this is what stands in
+the way, found by reading the code, not guessed:
+
+- **Spare capacity while it serves others: built** (above).
+- **A GPU: not built.** Every card figure a host publishes today is its worker's own word (`gmacPerSec`, `cardTflops`,
+  `vramFreeGb`), and the one real card test (`metal/guest/shielded-probe.mjs`: a masked field GEMM checked with
+  Freivalds) runs on a fixed seed against a worker port only the host's own VM reaches. A check needs that operation
+  driven by the CHECKER's seed through the VM's shielded link, with the digest of the unmasked result returned and
+  recomputed (or Freivalds-checked) by the checker. That is new code in the guest supervisor and can only be
+  qualified on a host with a card. It would plug in as an `also` check. It would prove a correct product of that
+  size came back in time, not which card made it.
+- **The app it serves: not built.** The pieces exist for the paid audits (`availability/verified-http.mjs`: the
+  app's attestation over a fresh nonce on the TLS key of that handshake; SNP by AMD's chain, Shield by the boot's
+  VSM key under a fresh host TPM session that only the relay hands out, one per box per 20 s). A host running it
+  against another host needs what the audit service has: the expectations derived from the ledger and the catalog
+  artifact, the admitted-image policy, AMD collateral, and for Shield targets that relay session. That is the audit
+  service's dependency set inside each host's measured image: a release, not a patch. It would plug in as `also`.
+- **The Windows node's answers are the host's, not a Shield partition's: not fixed, and not fixable in the node.**
+  The proof key there is a file of the node process. Nothing inside a Shield partition can sign such an answer today:
+  a partition holds one P-256 TLS key, no secp256k1 key, no endpoint that signs a caller's message, and its only
+  report over outside data is the nonce slot, which the host can ask for any value. An answer from inside a
+  partition needs a new measured component in the guest that runs this work and holds its key, the relay policy
+  pinned to it, and a path for another host's TLS into a host-owned partition; proofs of time signed in a partition
+  need a new front build with a secp256k1 key bound into the report, and `setProofKey` after every partition
+  restart. Until then, on Windows: the work is the host's and says so.
+
+**Two bugs this work found in the Windows path (fixed):** the node's route read the request body from a name that
+does not exist there, so every challenge was answered 400 and a checker filed the box as unreachable; and the relay
+refused the request before it reached the box (a Windows host's registered endpoint is the relay's `/t/<name>`,
+where only GET of a few paths passed), which a checker took as "try again" every round - and then the CHECKERS were
+the ones out of standing, for not having checked it. The relay now forwards exactly `POST /v1/host/capacity-check`.
 
 ## A host with no ETH: carried proofs (2026-11-16, source and tests)
 
@@ -186,8 +225,9 @@ Two rounds an epoch are enough for every host to do its duty.
   a dead host leaving the roster; one fail against two; who may report, when and how often; an epoch with no seed;
   the proof of time's own limits; `checkpointMany`; the assignment's symmetry. Runtime size 11,900 bytes.
 - `test/proof-of-capacity.test.mjs`: 5 tests of the hosts' side, with the digests pinned to the contract's.
-- `test/proof-of-capacity-host.test.mjs`: 7 tests: the work; a pass between two hosts; each way to fail; each
-  way to be unreachable and the cases that are no verdict; whom a host answers; the agent's round.
+- `test/proof-of-capacity-host.test.mjs`: 10 tests: the work; a pass between two hosts; each way to fail; each
+  way to be unreachable and the cases that are no verdict; whom a host answers; the agent's round; lanes sized to
+  the claim and a host that runs them one after another; the claim as the host's own signed record; further checks.
 - `test/windows-node-proof-of-capacity.test.mjs`: 2 tests: off unless enabled and on a prover that is one; a lone
   box's own proof through the node's operator queue.
 - The supervisor's, the Windows node's and the image and deploy closure suites, unchanged in what they expect

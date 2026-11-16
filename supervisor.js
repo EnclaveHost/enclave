@@ -41,7 +41,7 @@ import { openSync, readSync, closeSync, mkdtempSync, readFileSync, rmSync, mkdir
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { WebSocketServer, createWebSocketStream } from "ws";
-import { verifyMessage, recoverTypedDataAddress, createPublicClient, createWalletClient, http as viemHttp, fallback as viemFallback, getAddress, keccak256, toHex, stringToBytes, parseAbi, parseEventLogs, encodeAbiParameters, encodeFunctionData } from "viem";
+import { verifyMessage, recoverTypedDataAddress, recoverMessageAddress, createPublicClient, createWalletClient, http as viemHttp, fallback as viemFallback, getAddress, keccak256, toHex, stringToBytes, parseAbi, parseEventLogs, encodeAbiParameters, encodeFunctionData } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { SignJWT, jwtVerify } from "jose";
@@ -56,7 +56,7 @@ import { CONTRACT_PINS, initAddressBook, REGISTRY_ADDRESS, DEPLOYMENTS_ADDRESS, 
 // This host's own signed capacity record for independent readers (docs/network/independent-capacity.md).
 import { createHostCapacityProducer, capacityDirectoryOrigins, HOST_CAPACITY_PATH } from "./network/host-capacity-producer.mjs";
 import { CAPACITY_CHECK_PATH, POC_ABI, capacityReader, createCapacityResponder, createCapacityChecker, createCapacityAgent,
-         selfCapacityRecord } from "./network/proof-of-capacity-host.mjs";
+         createClaimReader, selfCapacityRecord } from "./network/proof-of-capacity-host.mjs";
 import { mayReconcile } from "./network/registry-reconcile.mjs";   // the registration rule the Windows node follows too
 // app-funded lease gas: the configuration boundary and sender shared with windows/node/chain.mjs
 import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender } from "./network/lease-gas-runtime.mjs";
@@ -6816,13 +6816,16 @@ async function proofOfCapacity() {
   const domain = { chainId: base.id, contract: address }, host = _enclaveId, sign = (m) => PROOF_ACCOUNT.signTypedData(m);
   const recover = (typedData, signature) => recoverTypedDataAddress({ ...typedData, signature });
   const rowOf = (id) => registryEntry(id);
-  const targetOf = async (id) => { const e = await rowOf(id).catch(() => null); return e && e.active ? { endpoint: e.endpoint, proofKey: e.proofKey } : null; };
+  const targetOf = async (id) => { const e = await rowOf(id).catch(() => null); return e && e.active ? { endpoint: e.endpoint, proofKey: e.proofKey, operator: e.operator } : null; };
   const proofKeyOf = async (id) => { const e = await rowOf(id).catch(() => null); return e && !/^0x0+$/.test(String(e.proofKey)) ? e.proofKey : null; };
   _poc = { address, host,
     answer: createCapacityResponder({ hostId: host, domain, reader, proofKeyOf, sign, recover }),
     agent: createCapacityAgent({ host, domain, reader, sign,
       send: (functionName, args) => sendOperatorTx(address, POC_ABI, functionName, args).receipt,
       check: createCapacityChecker({ host, domain, sign, recover, targetOf,
+        // how much is asked of a host: what its own signed capacity record says it has free (lanes = free vCPUs)
+        claimOf: createClaimReader({ chainId: base.id, registry: getAddress(REGISTRY_ADDRESS),
+          recoverMessage: (message, signature) => recoverMessageAddress({ message, signature }) }),
         // cut off from the outside is not a verdict on anyone: the chain must answer before "unreachable" is signed
         reachable: () => chainClient.getBlockNumber().then(() => true, () => false) }),
       selfCheck: selfCapacityRecord(host),

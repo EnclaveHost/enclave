@@ -41,6 +41,6 @@ test('on: a lone box sends its own proof through the node\'s operator queue, to 
   assert.deepEqual(chain.sent.map(x => [x.address, x.fn]), [[CONTRACT, 'proveSelf']]);
   assert.equal(chain.sent[0].args[0], A);
   // and it answers nobody the contract did not assign
-  const res = await poc.answer({version: 1, epoch: 4, checker: pad(toHex(0xB2), {size: 32}), target: A, seed, nonce: '0x' + '33'.repeat(32), rounds: 10, memoryMiB: 1, signature: '0x00'});
+  const res = await poc.answer({version: 2, lanes: 1, epoch: 4, checker: pad(toHex(0xB2), {size: 32}), target: A, seed, nonce: '0x' + '33'.repeat(32), rounds: 10, memoryMiB: 1, signature: '0x00'});
   assert.equal(res.status, 403);
 });

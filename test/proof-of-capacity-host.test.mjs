@@ -5,8 +5,10 @@ import assert from 'node:assert/strict';
 import {pad, toHex, keccak256, toBytes, recoverTypedDataAddress} from 'viem';
 const recover = (typedData, signature) => recoverTypedDataAddress({...typedData, signature});
 import {generatePrivateKey, privateKeyToAccount} from 'viem/accounts';
-import {capacityWork, createCapacityResponder, createCapacityChecker, createCapacityAgent, selfCapacityRecord,
-  challengeMessage, CAPACITY_CHECK_PATH} from '../network/proof-of-capacity-host.mjs';
+import {capacityWork, capacityLanes, createCapacityResponder, createCapacityChecker, createCapacityAgent, selfCapacityRecord,
+  createClaimReader, challengeMessage, CAPACITY_CHECK_PATH} from '../network/proof-of-capacity-host.mjs';
+import {buildCapacityRecord, signCapacityRecord} from '../network/host-capacity-record.mjs';
+import {recoverMessageAddress} from 'viem';
 import {evidenceDigest} from '../network/proof-of-capacity.mjs';
 
 const domain = {chainId: 8453, contract: '0x00000000000000000000000000000000000c0ffe'};
@@ -44,7 +46,7 @@ function network({checkers = {[A]: [B], [B]: [A]}, epoch = 9} = {}) {
     const body = h.tamper ? h.tamper(r.body) : r.body;
     return {ok: r.status === 200, status: r.status, json: async () => body};
   };
-  const targetOf = async id => hosts[id] ? {endpoint: hosts[id].endpoint, proofKey: hosts[id].key.address} : null;
+  const targetOf = async id => hosts[id] ? {endpoint: hosts[id].endpoint, proofKey: hosts[id].key.address, operator: hosts[id].key.address} : null;
   const checkerOf = (id, over = {}) => createCapacityChecker({recover, host: id, domain, sign: hosts[id].sign, targetOf, fetch, ...small, ...over});
   return {hosts, reader, done, sent, fetch, targetOf, checkerOf, proofKeyOf};
 }
@@ -55,7 +57,8 @@ test('an assigned checker gets a signed answer and passes the host; the record s
   assert.equal(r.verdict, 'pass');
   const rec = JSON.parse(r.evidence);
   assert.deepEqual({kind: rec.kind, epoch: rec.epoch, checker: rec.checker, target: rec.target, rounds: rec.rounds, memoryMiB: rec.memoryMiB, verdict: rec.verdict},
-    {kind: 'enclave-capacity-check/1', epoch: 9, checker: A, target: B, ...small, verdict: 'pass'});
+    {kind: 'enclave-capacity-check/2', epoch: 9, checker: A, target: B, ...small, verdict: 'pass'});
+  assert.equal(rec.lanes, 1); assert.deepEqual(rec.claim, {none: 'no claim reader on this checker'});
   assert.match(rec.digest, /^0x[0-9a-f]{64}$/); assert.match(rec.signature, /^0x[0-9a-f]{130}$/);
 });
 
@@ -67,11 +70,13 @@ test('fail: a wrong digest, another key\'s signature, an answer to another chall
   n = network(); n.hosts[B].tamper = b => ({...b, nonce: '0x' + '22'.repeat(32)});
   assert.match(JSON.parse((await n.checkerOf(A)(B, ctx)).evidence).why, /not for this challenge/);
   n = network(); let t = 0;
-  const late = await n.checkerOf(A, {timeoutMs: 1000, now: () => (t += 1200)})(B, ctx);   // the answer took 1200 ms of a 1000 ms deadline
+  // one lane took this checker 100 ms; the answer took 5000 ms where 3 x 100 + 1500 are allowed
+  const clock = [0, 100, 100, 5100];   // (start of the one lane, its end, the request sent, the answer back)
+  const late = await n.checkerOf(A, {now: () => clock.length > 1 ? clock.shift() : clock[0]})(B, ctx);
   assert.equal(late.verdict, 'fail'); assert.match(JSON.parse(late.evidence).why, /too late/);
   // a host that cheats on the work: the digest of less work is not the digest
   n = network(); n.hosts[B].answer = createCapacityResponder({recover, hostId: B, domain, reader: n.reader, proofKeyOf: n.proofKeyOf, sign: n.hosts[B].sign,
-    work: c => capacityWork({...c, rounds: 1})});
+    work: c => capacityLanes({...c, rounds: 1})});
   assert.match(JSON.parse((await n.checkerOf(A)(B, ctx)).evidence).why, /wrong digest/);
 });
 
@@ -92,7 +97,7 @@ test('unreachable: no answer, an HTTP error, no registry row; but not when it is
 test('a host works only for a checker the contract assigned, over that checker\'s signature, once an epoch', async () => {
   const n = network(), b = n.hosts[B];
   const challenge = async (from, over = {}, signer = from) => {
-    const c = {version: 1, epoch: 9, checker: from, target: B, seed, nonce: '0x' + '33'.repeat(32), ...small, ...over};
+    const c = {version: 2, epoch: 9, checker: from, target: B, seed, nonce: '0x' + '33'.repeat(32), ...small, lanes: 1, ...over};
     return {...c, signature: await n.hosts[signer].sign(challengeMessage(domain, c))};
   };
   assert.equal((await b.answer(await challenge(C))).status, 403);                       // not assigned
@@ -101,6 +106,8 @@ test('a host works only for a checker the contract assigned, over that checker\'
   assert.equal((await b.answer(await challenge(A, {seed: '0x' + '44'.repeat(32)}))).status, 409);
   assert.equal((await b.answer(await challenge(A, {target: C}))).status, 404);
   assert.equal((await b.answer({...(await challenge(A)), rounds: 10 ** 9})).status, 400);
+  assert.equal((await b.answer({...(await challenge(A)), lanes: 1000})).status, 400);
+  assert.equal((await b.answer({...(await challenge(A)), version: 1})).status, 400);
   assert.equal((await b.answer('nonsense')).status, 400);
   const first = await b.answer(await challenge(A)); assert.equal(first.status, 200);
   assert.deepEqual((await b.answer(await challenge(A))).body, first.body);              // the same challenge again: the same answer
@@ -135,6 +142,58 @@ test('the agent: seeds the epoch, checks what it was assigned, reports once, pro
     sign: n2.hosts[A].sign, send: async fn => { sent2.push(fn); throw new Error('no gas'); }, check: n2.checkerOf(A), selfCheck: selfCapacityRecord(A, small), wantsCredit: async () => false});
   const q = await quiet.tick();
   assert.deepEqual(sent2, ['report']); assert.equal(q.reported, 0); assert.equal(q.standing, null);
+});
+
+test('lanes: as many as the host advertises free, side by side; a host that runs them one after another is late', async () => {
+  // the digest is over every lane, and one lane's is not it
+  const one = await capacityLanes({seed, rounds: 500, memoryMiB: 1, lanes: 1}), four = await capacityLanes({seed, rounds: 500, memoryMiB: 1, lanes: 4});
+  assert.notEqual(one, four); assert.equal(await capacityLanes({seed, rounds: 500, memoryMiB: 1, lanes: 4}), four);
+  await assert.rejects(capacityLanes({seed, rounds: 500, memoryMiB: 256, lanes: 64}));   // more memory in all than a check may ask
+  // the checker asks what the host claims (bounded by its own maxLanes), each lane with its share of the free memory
+  const n = network(), claimed = {lanes: 6, freeMiB: 9, record: '0x' + 'ee'.repeat(32)};
+  let r = JSON.parse((await n.checkerOf(A, {claimOf: async () => claimed, maxLanes: 4, memoryMiB: 4})(B, ctx)).evidence);
+  assert.deepEqual({verdict: r.verdict, lanes: r.lanes, memoryMiB: r.memoryMiB, claim: r.claim}, {verdict: 'pass', lanes: 4, memoryMiB: 2, claim: claimed});
+  // a host that has one processor for the four it advertises: the same digest, four times one lane's time
+  const n2 = network();
+  const clock = [0, 1000, 1000, 1000 + 4 * 1000 + 600];   // one lane: 1000 ms here; the answer: 4600 ms; allowed: 3 x 1000 + 1500
+  r = JSON.parse((await n2.checkerOf(A, {claimOf: async () => ({lanes: 4, freeMiB: 64, record: '0x' + 'ee'.repeat(32)}),
+    now: () => clock.length > 1 ? clock.shift() : clock[0]})(B, ctx)).evidence);
+  assert.equal(r.verdict, 'fail'); assert.match(r.why, /4 lanes took 4600 ms where one takes this checker 1000 ms/);
+  // a host with no claim the checker can verify is asked for one lane, and the record says why
+  r = JSON.parse((await network().checkerOf(A, {claimOf: async () => ({none: 'the record is not signed by the host\'s registry operator'})})(B, ctx)).evidence);
+  assert.deepEqual({verdict: r.verdict, lanes: r.lanes, claim: r.claim}, {verdict: 'pass', lanes: 1, claim: {none: 'the record is not signed by the host\'s registry operator'}});
+});
+
+test('the claim is the host\'s own signed capacity record: its host id, its operator, this chain and registry, current', async () => {
+  const op = privateKeyToAccount(generatePrivateKey()), registry = '0x' + '1e'.repeat(20), endpoint = 'https://b2.example';
+  const row = {endpoint, operator: op.address, proofKey: op.address};
+  const envelope = async (over = {}, signer = op) => {
+    const record = buildCapacityRecord({availability: {cpuShareFree: 0.5, nodeVcpus: 16, nodeRamGb: 96, ...over.availability}, chainId: 8453, registry,
+      endpoint: over.endpoint || endpoint, hostId: over.hostId || B, operator: signer.address});
+    return signCapacityRecord(signer, record);
+  };
+  const reader = env => createClaimReader({chainId: 8453, registry, recoverMessage: (message, signature) => recoverMessageAddress({message, signature}),
+    fetch: async url => { assert.equal(url, endpoint + '/v1/host/capacity'); return env ? {ok: true, json: async () => env} : {ok: false, status: 503}; }});
+  const c = await reader(await envelope())(B, row);
+  assert.deepEqual({lanes: c.lanes, freeMiB: c.freeMiB}, {lanes: 8, freeMiB: 49152}); assert.match(c.record, /^0x[0-9a-f]{64}$/);
+  assert.deepEqual({...(await reader(await envelope({availability: {vcpusFree: 3.9, ramGbFree: 1.5}}))(B, row)), record: 0}, {lanes: 3, freeMiB: 1536, record: 0});
+  assert.match((await reader(await envelope({hostId: C}))(B, row)).none, /another host's/);
+  assert.match((await reader(await envelope())(B, {...row, operator: '0x' + '77'.repeat(20)})).none, /not signed by the host's registry operator/);
+  assert.match((await createClaimReader({chainId: 1, registry, recoverMessage: async () => op.address, fetch: async () => ({ok: true, json: async () => envelope()})})(B, row)).none, /another chain or registry/);
+  assert.match((await reader(null)(B, row)).none, /HTTP 503/);
+  const tampered = await envelope(); tampered.record = {...tampered.record, availabilityJson: JSON.stringify({cpuShareFree: 1, nodeVcpus: 64})};
+  assert.match((await reader(tampered)(B, row)).none, /not signed by the host's registry operator/);
+});
+
+test('further checks: one that fails makes the verdict a fail, with its reason; one that throws is no verdict', async () => {
+  const n = network(), seen = [];
+  const served = async (target, row, c) => { seen.push([target, row.endpoint, c.epoch]); return {name: 'served app', ok: true, why: 'answers on its attested key', evidence: '0x' + 'aa'.repeat(32)}; };
+  let r = JSON.parse((await n.checkerOf(A, {also: [served, async () => null]})(B, ctx)).evidence);
+  assert.equal(r.verdict, 'pass'); assert.deepEqual(r.also, [{name: 'served app', ok: true, why: 'answers on its attested key', evidence: '0x' + 'aa'.repeat(32)}]);
+  assert.deepEqual(seen, [[B, n.hosts[B].endpoint, 9]]);
+  r = JSON.parse((await network().checkerOf(A, {also: [async () => ({name: 'card', ok: false, why: 'the result of the card\'s work is not the checker\'s'})]})(B, ctx)).evidence);
+  assert.equal(r.verdict, 'fail'); assert.match(r.why, /^card: the result of the card's work/);
+  await assert.rejects(network().checkerOf(A, {also: [async () => { throw new Error('the verifier has no session'); }]})(B, ctx), /no session/);
 });
 
 test('a host\'s own record is the same work on itself, and its digest is what goes on chain', async () => {

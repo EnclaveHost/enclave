@@ -2,20 +2,35 @@
 // host runs against another, the answer the checked host gives, and the agent that keeps a host in standing.
 //
 // THE CHECK is measured work with an answer the checker can compute itself: a challenge names a seed, a number of
-// rounds and an amount of memory; `capacityWork` fills that memory from the seed and mixes it for that many rounds;
-// the digest is the answer. The checked host signs its answer with its proof key (the key the registry publishes
-// for it and that signs its proofs of time), so the answer is that host's and nobody else's, and it must come back
-// inside the deadline. What a pass says: this host's enclave did this much CPU and memory work when asked, now.
-// It says nothing about a GPU, about work it could do at the same time for others, or about the app it serves.
+// rounds, an amount of memory and a number of LANES; each lane fills that memory from its own seed and mixes it for
+// that many rounds (`capacityWork`), all lanes at once; the digest over the lanes is the answer. The checked host
+// signs its answer with its proof key (the key the registry publishes for it and that signs its proofs of time), so
+// the answer is that host's and nobody else's.
+//
+// HOW MUCH is asked follows what the host itself ADVERTISES AS FREE, in the capacity record its operator key signs
+// (/v1/host/capacity, the one its customers' readers use): as many lanes as it says it has free vCPUs, each with its
+// share of the memory it says is free (bounded, see CHECK_LIMITS). And the answer must come back in about the time ONE
+// lane takes the checker: a host that advertises eight free vCPUs and has one runs the lanes one after another and is
+// late by a factor no slack covers. So a pass says: this host did, now, while whatever else it runs kept running, as
+// much parallel CPU and memory work as it tells the market it has free. It still says nothing about a GPU or about
+// the app it serves by itself: `also` takes further checks of a host (below), and none is built in.
 //
 // A host answers a challenge only from a host the CONTRACT assigned to check it in the current epoch, signed by that
 // host's proof key, and once per checker and epoch: nobody else can make it work.
 import {createHash, randomBytes} from 'node:crypto';
+import {Worker, isMainThread, parentPort, workerData} from 'node:worker_threads';
+import {checkCapacityRecordShape, hostCapacityMessage, hostCapacityHash} from './host-capacity-record.mjs';
 import {capacityDomain, dutyRound, standingRound, VERDICT} from './proof-of-capacity.mjs';
 
 export const CAPACITY_CHECK_PATH = '/v1/host/capacity-check';
-export const CHECK_DEFAULTS = Object.freeze({rounds: 20000, memoryMiB: 64, timeoutMs: 20000});
-export const CHECK_LIMITS = Object.freeze({rounds: 200000, memoryMiB: 256});
+// one lane of the default work takes a current processor between one and two seconds: long against the grace, so that
+// lanes run one after another are told from lanes run side by side (with slack 3: from about four advertised vCPUs up;
+// a host that advertises two or three and has one is not caught by the clock)
+export const CHECK_DEFAULTS = Object.freeze({rounds: 300000, memoryMiB: 64, timeoutMs: 60000,
+  maxLanes: 16,       // the most lanes a checker asks for, whatever the host advertises (the checker computes them all too)
+  slack: 3,           // the answer may take this many times what ONE lane takes the checker (slower processors, a busy moment)
+  graceMs: 1500});    // plus this, for the request's way there and back and the signature
+export const CHECK_LIMITS = Object.freeze({rounds: 2000000, memoryMiB: 256, lanes: 64, totalMiB: 4096});
 const HEX32 = /^0x[0-9a-f]{64}$/;
 const need = (ok, what) => { if (!ok) throw new Error(what); };
 
@@ -73,30 +88,56 @@ export async function capacityWork({seed, rounds, memoryMiB}) {
   return '0x' + state.toString('hex');
 }
 
+/**
+ * The same work in `lanes` lanes at once, each on its own seed and its own `memoryMiB`: -> the digest over the lanes'
+ * digests, in order. More than one lane runs in worker threads (this file is the worker), so the lanes really run side
+ * by side when there are processors for them; a platform without worker threads runs them one after another, which
+ * gives the same digest and, for a host being checked, a late answer.
+ */
+export async function capacityLanes({seed, rounds, memoryMiB, lanes}) {
+  need(Number.isInteger(lanes) && lanes >= 1 && lanes <= CHECK_LIMITS.lanes && lanes * memoryMiB <= CHECK_LIMITS.totalMiB, 'lanes');
+  const laneSeed = i => '0x' + createHash('sha256').update(Buffer.from(seed.slice(2), 'hex')).update(Buffer.from([i >> 8, i & 255])).digest('hex');
+  const one = i => ({seed: laneSeed(i), rounds, memoryMiB});
+  let digests;
+  if (lanes === 1) digests = [await capacityWork(one(0))];
+  else {
+    const inThread = input => new Promise((resolve, reject) => {
+      const w = new Worker(new URL(import.meta.url), {workerData: {capacityLane: input}});
+      w.once('message', resolve); w.once('error', reject); w.once('exit', code => { if (code) reject(new Error('capacity lane ended ' + code)); });
+    });
+    try { digests = await Promise.all(Array.from({length: lanes}, (_, i) => inThread(one(i)))); }
+    catch { digests = []; for (let i = 0; i < lanes; i++) digests.push(await capacityWork(one(i))); }
+  }
+  const h = createHash('sha256'); for (const d of digests) h.update(Buffer.from(d.slice(2), 'hex'));
+  return '0x' + h.digest('hex');
+}
+
 const CHALLENGE = [{name: 'epoch', type: 'uint64'}, {name: 'checker', type: 'bytes32'}, {name: 'target', type: 'bytes32'},
-  {name: 'seed', type: 'bytes32'}, {name: 'nonce', type: 'bytes32'}, {name: 'rounds', type: 'uint32'}, {name: 'memoryMiB', type: 'uint32'}];
+  {name: 'seed', type: 'bytes32'}, {name: 'nonce', type: 'bytes32'}, {name: 'rounds', type: 'uint32'}, {name: 'memoryMiB', type: 'uint32'},
+  {name: 'lanes', type: 'uint32'}];
 const ANSWER = [{name: 'epoch', type: 'uint64'}, {name: 'checker', type: 'bytes32'}, {name: 'target', type: 'bytes32'},
   {name: 'nonce', type: 'bytes32'}, {name: 'digest', type: 'bytes32'}];
 export const challengeMessage = (domain, c) => ({domain: capacityDomain(domain), types: {CapacityChallenge: CHALLENGE}, primaryType: 'CapacityChallenge',
-  message: {epoch: BigInt(c.epoch), checker: c.checker, target: c.target, seed: c.seed, nonce: c.nonce, rounds: c.rounds, memoryMiB: c.memoryMiB}});
+  message: {epoch: BigInt(c.epoch), checker: c.checker, target: c.target, seed: c.seed, nonce: c.nonce, rounds: c.rounds, memoryMiB: c.memoryMiB, lanes: c.lanes}});
 export const answerMessage = (domain, a) => ({domain: capacityDomain(domain), types: {CapacityAnswer: ANSWER}, primaryType: 'CapacityAnswer',
   message: {epoch: BigInt(a.epoch), checker: a.checker, target: a.target, nonce: a.nonce, digest: a.digest}});
 // the seed the work runs on: the challenge's nonce under the epoch's seed, so no answer can be prepared before it is asked
 const workSeed = c => '0x' + createHash('sha256').update(Buffer.from(c.seed.slice(2) + c.nonce.slice(2), 'hex')).digest('hex');
-const validChallenge = c => c && typeof c === 'object' && c.version === 1 && Number.isSafeInteger(c.epoch) && c.epoch >= 0 &&
+const validChallenge = c => c && typeof c === 'object' && c.version === 2 && Number.isSafeInteger(c.epoch) && c.epoch >= 0 &&
   [c.checker, c.target, c.seed, c.nonce].every(v => HEX32.test(String(v))) && c.checker !== c.target &&
   Number.isInteger(c.rounds) && c.rounds >= 1 && c.rounds <= CHECK_LIMITS.rounds &&
-  Number.isInteger(c.memoryMiB) && c.memoryMiB >= 1 && c.memoryMiB <= CHECK_LIMITS.memoryMiB && typeof c.signature === 'string';
+  Number.isInteger(c.memoryMiB) && c.memoryMiB >= 1 && c.memoryMiB <= CHECK_LIMITS.memoryMiB &&
+  Number.isInteger(c.lanes) && c.lanes >= 1 && c.lanes <= CHECK_LIMITS.lanes && c.lanes * c.memoryMiB <= CHECK_LIMITS.totalMiB && typeof c.signature === 'string';
 
 /**
  * The checked host's side: POST CAPACITY_CHECK_PATH. -> answer(body) -> {status, body}
  *   hostId, domain; reader (the contract's views); proofKeyOf(hostId) -> address | null (the registry's);
  *   sign(typedData) by this host's proof key; recover(typedData, signature) -> the signer's address (viem's
- *   recoverTypedDataAddress, handed in); work = capacityWork (replaceable in tests)
+ *   recoverTypedDataAddress, handed in); work = capacityLanes (replaceable in tests)
  * Answers only the current epoch's seed, only a checker the contract assigned to this host, only over that checker's
  * signature, one challenge at a time and one per checker and epoch.
  */
-export function createCapacityResponder({hostId, domain, reader, proofKeyOf, sign, recover, work = capacityWork}) {
+export function createCapacityResponder({hostId, domain, reader, proofKeyOf, sign, recover, work = capacityLanes}) {
   need(HEX32.test(String(hostId)) && typeof recover === 'function', 'host id and signature recovery');
   const answered = new Map();   // "<epoch>:<checker>" -> the answer given (the same challenge again gets the same answer)
   let busy = false;
@@ -115,8 +156,8 @@ export function createCapacityResponder({hostId, domain, reader, proofKeyOf, sig
     if (busy) return no(503, 'busy with another check');
     busy = true;
     try {
-      const digest = await work({seed: workSeed(c), rounds: c.rounds, memoryMiB: c.memoryMiB});
-      const a = {version: 1, epoch, checker: c.checker, target: hostId, nonce: c.nonce, digest};
+      const digest = await work({seed: workSeed(c), rounds: c.rounds, memoryMiB: c.memoryMiB, lanes: c.lanes});
+      const a = {version: 2, epoch, checker: c.checker, target: hostId, nonce: c.nonce, digest};
       const body = {...a, signature: await sign(answerMessage(domain, a))};
       for (const old of answered.keys()) if (!old.startsWith(epoch + ':')) answered.delete(old);
       answered.set(k, {nonce: c.nonce, body});
@@ -126,23 +167,70 @@ export function createCapacityResponder({hostId, domain, reader, proofKeyOf, sig
 }
 
 /**
+ * What a host advertises as free, from the capacity record its operator key signs: for `claimOf` below.
+ *   fetch; recoverMessage(message, signature) -> the signer's address (viem's recoverMessageAddress, handed in);
+ *   chainId and registry the record must be for
+ * -> claimOf(target, row) -> {lanes, freeMiB, record: <the record's hash>} | {none: why}
+ * The record must be the target's own (its hostId, its registered endpoint), signed by its registry operator, current,
+ * and for this chain and registry: a claim it did not sign, or signed for somewhere else, is no claim.
+ */
+export function createClaimReader({fetch = globalThis.fetch, recoverMessage, chainId, registry, timeoutMs = 8000, now = Date.now}) {
+  need(typeof recoverMessage === 'function', 'message signature recovery');
+  return async function claimOf(target, row) {
+    try {
+      const res = await fetch(String(row.endpoint).replace(/\/+$/, '') + '/v1/host/capacity', {redirect: 'error', signal: AbortSignal.timeout(timeoutMs)});
+      if (!res.ok) return {none: `its capacity record answered HTTP ${res.status}`};
+      const env = await res.json(), {record, availability: a} = checkCapacityRecordShape(env?.record, now());
+      if (record.hostId !== target || record.endpoint !== row.endpoint) return {none: 'the record is another host\'s'};
+      if (record.chainId !== chainId || record.registry !== String(registry).toLowerCase()) return {none: 'the record is for another chain or registry'};
+      const signer = String(await recoverMessage(hostCapacityMessage(record), env.signature)).toLowerCase();
+      if (signer !== record.operator || signer !== String(row.operator || '').toLowerCase()) return {none: 'the record is not signed by the host\'s registry operator'};
+      const num = v => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null);
+      const share = num(a.cpuShareFree) ?? 0;
+      const vcpus = num(a.vcpusFree) ?? (num(a.nodeVcpus) !== null ? share * a.nodeVcpus : 0);
+      const ramGb = num(a.ramGbFree) ?? (num(a.nodeRamGb) !== null ? share * a.nodeRamGb : 0);
+      return {lanes: Math.floor(vcpus), freeMiB: Math.floor(ramGb * 1024), record: '0x' + hostCapacityHash(record)};
+    } catch (e) { return {none: String(e?.message || e).slice(0, 120)}; }
+  };
+}
+
+/**
  * The checker's side, as `check` for dutyRound: one challenge to `target`, judged. -> {verdict, evidence}
- *   host (the checker's id), domain, sign (its proof key); targetOf(id) -> {endpoint, proofKey} | null (the registry's row)
- *   fetch; rounds/memoryMiB/timeoutMs; reachable() -> false when THIS host cannot reach the outside (then it throws:
- *   a verdict must be something the checker saw, not something it could not do)
+ *   host (the checker's id), domain, sign (its proof key); targetOf(id) -> {endpoint, proofKey, operator} | null (the
+ *   registry's row); fetch; reachable() -> false when THIS host cannot reach the outside (then it throws: a verdict
+ *   must be something the checker saw, not something it could not do)
+ *   claimOf(target, row) -> {lanes, freeMiB, record} | {none: why}: what the target advertises as free
+ *   (createClaimReader). A host with no claim the checker can verify is asked for ONE lane, and the record says so.
+ *   rounds, memoryMiB: one lane's work (each lane gets memoryMiB, or its share of the free memory if that is less);
+ *   maxLanes, slack, graceMs, timeoutMs: see CHECK_DEFAULTS
+ *   also: [async (target, row, ctx) -> {name, ok, why, evidence?} | null]: further checks of a host that passed the work
+ *   (the app it serves, a card it sells); one that says ok === false makes the verdict a fail, one that throws is no
+ *   verdict this round. None is built in.
  * unreachable: no row, no answer, or an answer that is not an answer (HTTP error, not JSON) inside the deadline.
- * fail: an answer with the wrong digest, the wrong fields or another key's signature, or one that came too late.
+ * fail: an answer with the wrong digest, the wrong fields or another key's signature; one that took longer than
+ *   slack x one lane on the checker + graceMs (the lanes did not run side by side: the capacity advertised is not
+ *   there); a further check that failed.
  */
 export function createCapacityChecker({host, domain, sign, recover, targetOf, fetch = globalThis.fetch, rounds = CHECK_DEFAULTS.rounds,
-  memoryMiB = CHECK_DEFAULTS.memoryMiB, timeoutMs = CHECK_DEFAULTS.timeoutMs, reachable = async () => true, work = capacityWork, now = Date.now}) {
+  memoryMiB = CHECK_DEFAULTS.memoryMiB, timeoutMs = CHECK_DEFAULTS.timeoutMs, maxLanes = CHECK_DEFAULTS.maxLanes, slack = CHECK_DEFAULTS.slack,
+  graceMs = CHECK_DEFAULTS.graceMs, claimOf = null, also = [], reachable = async () => true, work = capacityLanes, now = Date.now}) {
   need(typeof recover === 'function', 'signature recovery');
   return async function check(target, {epoch, seed}) {
-    const record = (verdict, why, extra = {}) => ({verdict, evidence: JSON.stringify({kind: 'enclave-capacity-check/1', epoch, checker: host, target, rounds, memoryMiB, verdict, why, ...extra})});
+    let asked = {rounds, memoryMiB, lanes: 1};
+    const record = (verdict, why, extra = {}) => ({verdict, evidence: JSON.stringify({kind: 'enclave-capacity-check/2', epoch, checker: host, target, ...asked, verdict, why, ...extra})});
     const row = await targetOf(target);
     if (!row?.endpoint || !row.proofKey) return record('unreachable', 'the registry has no endpoint or proof key for it');
-    const c = {version: 1, epoch, checker: host, target, seed, nonce: '0x' + randomBytes(32).toString('hex'), rounds, memoryMiB};
+    // how much: what the host itself says it has free
+    const claim = claimOf ? await claimOf(target, row) : {none: 'no claim reader on this checker'};
+    const lanes = claim.none ? 1 : Math.max(1, Math.min(maxLanes, claim.lanes));
+    const laneMiB = claim.none ? memoryMiB : Math.max(1, Math.min(memoryMiB, Math.floor(claim.freeMiB / lanes)));
+    asked = {rounds, memoryMiB: laneMiB, lanes, claim: claim.none ? {none: claim.none} : {lanes: claim.lanes, freeMiB: claim.freeMiB, record: claim.record}};
+    const c = {version: 2, epoch, checker: host, target, seed, nonce: '0x' + randomBytes(32).toString('hex'), rounds, memoryMiB: laneMiB, lanes};
     c.signature = await sign(challengeMessage(domain, c));
-    const expected = await work({seed: workSeed(c), rounds, memoryMiB});   // before the clock starts: the checker's own time is not the target's
+    // before the clock starts: what one lane takes THIS host (the measure of the deadline), then the answer itself
+    const t0 = now(); await work({seed: workSeed(c), rounds, memoryMiB: laneMiB, lanes: 1}); const oneLaneMs = Math.max(1, now() - t0);
+    const expected = await work({seed: workSeed(c), rounds, memoryMiB: laneMiB, lanes});
+    const allowMs = Math.min(timeoutMs, Math.ceil(slack * oneLaneMs + graceMs));
     const started = now();
     let res, body;
     try {
@@ -153,19 +241,28 @@ export function createCapacityChecker({host, domain, sign, recover, targetOf, fe
       if (!(await reachable())) throw new Error('this host cannot reach the outside: no verdict');
       return record('unreachable', String(e?.name === 'TimeoutError' ? 'no answer inside the deadline' : e?.message || e).slice(0, 120));
     }
-    const elapsedMs = now() - started;
+    const elapsedMs = now() - started, timing = {elapsedMs, oneLaneMs, allowMs};
     if (!res.ok) {
       // a host that is up and says "not this epoch" / "busy" has not been checked: no verdict this round
       if ([409, 429, 503].includes(res.status)) throw new Error(`the host answered ${res.status}: try again`);
       return record('unreachable', `HTTP ${res.status}`);
     }
-    if (!body || body.version !== 1 || body.epoch !== epoch || body.checker !== host || body.target !== target || body.nonce !== c.nonce ||
+    if (!body || body.version !== 2 || body.epoch !== epoch || body.checker !== host || body.target !== target || body.nonce !== c.nonce ||
         !HEX32.test(String(body.digest)) || typeof body.signature !== 'string') return record('fail', 'the answer is not for this challenge');
     let signer = null; try { signer = await recover(answerMessage(domain, body), body.signature); } catch {}
     if (!signer || signer.toLowerCase() !== String(row.proofKey).toLowerCase()) return record('fail', 'the answer is not signed by the host\'s proof key');
-    if (body.digest !== expected) return record('fail', 'wrong digest', {elapsedMs});
-    if (elapsedMs > timeoutMs) return record('fail', 'too late', {elapsedMs});
-    return record('pass', 'the digest is the checker\'s own', {elapsedMs, digest: body.digest, signature: body.signature});
+    if (body.digest !== expected) return record('fail', 'wrong digest', timing);
+    if (elapsedMs > allowMs) return record('fail', lanes > 1
+      ? `${lanes} lanes took ${elapsedMs} ms where one takes this checker ${oneLaneMs} ms: the capacity it advertises as free was not there`
+      : 'too late', timing);
+    const more = [];
+    for (const extra of also) {
+      const r = await extra(target, row, {epoch, seed});
+      if (!r) continue;
+      more.push({name: r.name, ok: r.ok === true, why: r.why || '', ...(r.evidence ? {evidence: r.evidence} : {})});
+      if (r.ok !== true) return record('fail', `${r.name}: ${r.why || 'failed'}`, {...timing, also: more});
+    }
+    return record('pass', 'the digest is the checker\'s own, in time', {...timing, digest: body.digest, signature: body.signature, ...(more.length ? {also: more} : {})});
   };
 }
 
@@ -209,3 +306,6 @@ export const selfCapacityRecord = (host, {rounds = CHECK_DEFAULTS.rounds, memory
     return JSON.stringify({kind: 'enclave-capacity-self/1', epoch, host, rounds, memoryMiB, digest, elapsedMs: now() - started});
   };
 export {VERDICT};
+
+// this file as a worker thread: one lane of capacityLanes
+if (!isMainThread && workerData?.capacityLane) parentPort.postMessage(await capacityWork(workerData.capacityLane));

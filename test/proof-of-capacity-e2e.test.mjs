@@ -27,7 +27,7 @@ import {fileURLToPath} from 'node:url';
 import * as viem from 'viem';
 import {privateKeyToAccount, generatePrivateKey} from 'viem/accounts';
 import {capacityReader, createCapacityResponder, createCapacityChecker, createCapacityAgent, selfCapacityRecord,
-  capacityWork, POC_ABI, CAPACITY_CHECK_PATH} from '../network/proof-of-capacity-host.mjs';
+  capacityLanes, POC_ABI, CAPACITY_CHECK_PATH} from '../network/proof-of-capacity-host.mjs';
 import {proofMessage} from '../network/proof-of-capacity.mjs';
 import {signCarry, carryOrder, CARRY_ABI} from '../network/host-carry.mjs';
 import {linkBytecode} from '../site/js/lib/contract-linker.js';
@@ -92,12 +92,15 @@ async function addHost(name) {
   const row = id => read(addr.registry, A.registry.abi, 'get', [id]).catch(() => null);
   const proofKeyOf = async id => { const e = await row(id); return e && !/^0x0+$/.test(e.proofKey) ? e.proofKey : null; };
   // a host that cheats answers with the digest of one round of the work it was asked for
-  h.answer = createCapacityResponder({hostId: h.id, domain, reader, proofKeyOf, sign, recover, work: c => capacityWork(h.cheat ? {...c, rounds: 1} : c)});
+  h.answer = createCapacityResponder({hostId: h.id, domain, reader, proofKeyOf, sign, recover, work: c => capacityLanes(h.cheat ? {...c, rounds: 1} : c)});
   h.calls = [];
   h.agent = createCapacityAgent({host: h.id, domain, reader, sign, log: m => h.logs.push(m),
     send: async (functionName, args) => { h.calls.push({abi: POC_ABI, functionName, args}); },   // collected: the operator key sends nothing itself
     check: createCapacityChecker({host: h.id, domain, sign, recover, ...WORK, timeoutMs: 10000,
-      targetOf: async id => { const e = await row(id); return e && e.active ? {endpoint: e.endpoint, proofKey: e.proofKey} : null; }}),
+      // every host here says it has three vCPUs and 6 MiB free (the hosts' real claim is their signed capacity record,
+      // which needs an https endpoint; the reader of it is tested in test/proof-of-capacity-host.test.mjs)
+      claimOf: async () => ({lanes: 3, freeMiB: 6, record: viem.zeroHash}),
+      targetOf: async id => { const e = await row(id); return e && e.active ? {endpoint: e.endpoint, proofKey: e.proofKey, operator: e.operator} : null; }}),
     selfCheck: selfCapacityRecord(h.id, WORK)});
   hosts.push(h); return h;
 }
