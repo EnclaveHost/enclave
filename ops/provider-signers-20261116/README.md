@@ -99,3 +99,29 @@ Not part of this release, recorded here because it happened in the same session 
   78 s after everything above (04:51–04:56Z): 26 loss events (5 video, 21 audio); 22 of them within 1.5 s of a
   home-line loss, 3 more within about 2 s of one, and one audio loss (04:54:52.9Z) 9 s from any. Whole-flow
   silences at the gateway: 8, all at a home-line loss. Apart from that one audio loss, nothing was found that is not the home line.
+
+## The NucBox on its Wi-Fi since 04:58:35Z
+
+Done again with what the first attempt taught: the relay VM's resolver already on public servers, Wi-Fi connected
+beside the Ethernet first (API and chain reads unchanged), then preferred (interface metric 20, its default route's
+metric 0; Ethernet stays connected, 50 + 50). The relay VM kept its internet. Its four tunnels could not bind (the
+edges held the sessions of the connections the change had cut) until those sessions were ended on the edges, by
+process id and only those older than the change: tunnels active and `/rpc/base` answering at 05:00:50Z, about two
+minutes after the change. The node stayed attached and admitted; no lease lapsed.
+
+Six test streams of 78 s since (05:07–05:31Z; two more did not start, below): at the gateway no whole-flow silence
+of 120 ms in any, and 7 datagrams passed over in all (before, on the powerline path: 3–8 silences and tens to
+hundreds passed over a run). At the client 0–4 video and 0–6 audio loss events a run. The test client is this
+workstation, which is still behind the powerline link: what the edge sends it crosses that link with no repair.
+
+- **Not persistent by itself.** Windows does not connect Wi-Fi on its own while Ethernet is up, so after a reboot
+  the NucBox is on Ethernet again (the state before tonight), until Wi-Fi is connected again.
+- **Way back:** `Set-NetIPInterface -InterfaceAlias Wi-Fi -AddressFamily IPv4 -InterfaceMetric 900`, then
+  `netsh wlan disconnect interface=Wi-Fi`, then end the stale tunnel sessions on the edges as above.
+- **Open: a start right after another.** Starting the test client again within about a minute of the last stream
+  often hangs at its first HTTPS request (port 47984: connected at the edge, no answer; the plain request on 47989
+  answers), and works again after one to two minutes. Not understood. The test client is stopped by a signal, which
+  the real Moonlight is not; not tried with it. The desktop's page terminal no longer answers (it stopped during
+  the night; a command of mine that ended my two measurement scripts by pattern is the likely cause), so Sunshine's
+  log could not be read.
+- cron (0x38f368d6) is on metal0 since the first outage and answers some of the time.
