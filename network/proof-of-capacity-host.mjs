@@ -12,8 +12,10 @@
 // share of the memory it says is free (bounded, see CHECK_LIMITS). And the answer must come back in about the time ONE
 // lane takes the checker: a host that advertises eight free vCPUs and has one runs the lanes one after another and is
 // late by a factor no slack covers. So a pass says: this host did, now, while whatever else it runs kept running, as
-// much parallel CPU and memory work as it tells the market it has free. It still says nothing about a GPU or about
-// the app it serves by itself: `also` takes further checks of a host (below), and none is built in.
+// much parallel CPU and memory work as it tells the market it has free. What else a host is checked for comes after a
+// pass, as further checks (`also`): an app it is paid for, verified as a customer's page verifies it
+// (proof-of-capacity-app.mjs); a card it sells (proof-of-capacity-card.mjs); and, for an Enclave Shield host, that its
+// proof key lives in a partition and not in the host's own process (proof-of-capacity-partition.mjs).
 //
 // A host answers a challenge only from a host the CONTRACT assigned to check it in the current epoch, signed by that
 // host's proof key, and once per checker and epoch: nobody else can make it work.
@@ -130,41 +132,77 @@ const validChallenge = c => c && typeof c === 'object' && c.version === 2 && Num
   Number.isInteger(c.lanes) && c.lanes >= 1 && c.lanes <= CHECK_LIMITS.lanes && c.lanes * c.memoryMiB <= CHECK_LIMITS.totalMiB && typeof c.signature === 'string';
 
 /**
+ * Who may make this host work: -> admit(c, typedData) -> {epoch} | {status, error}
+ * Only the current epoch's seed, only a checker the contract assigned to this host, only over that checker's proof-key
+ * signature of `typedData` (the challenge as the checker signed it). The one rule for every kind of challenge a host
+ * answers (the work here, a card: proof-of-capacity-card.mjs).
+ */
+export function createChallengeGate({hostId, reader, proofKeyOf, recover}) {
+  need(HEX32.test(String(hostId)) && typeof recover === 'function', 'host id and signature recovery');
+  return async function admit(c, typedData) {
+    if (c.target !== hostId) return {status: 404, error: 'another host'};
+    const epoch = Number(await reader.epochNow());
+    if (c.epoch !== epoch || (await reader.seedOf(epoch)) !== c.seed) return {status: 409, error: 'not this epoch'};
+    if (!(await reader.checkersOf(epoch, hostId)).includes(c.checker)) return {status: 403, error: 'not assigned to check this host'};
+    const key = await proofKeyOf(c.checker);
+    let signer = null; try { signer = await recover(typedData, c.signature); } catch {}
+    if (!key || !signer || signer.toLowerCase() !== String(key).toLowerCase()) return {status: 403, error: 'not signed by the checker\'s proof key'};
+    return {epoch};
+  };
+}
+
+/**
  * The checked host's side: POST CAPACITY_CHECK_PATH. -> answer(body) -> {status, body}
  *   hostId, domain; reader (the contract's views); proofKeyOf(hostId) -> address | null (the registry's);
  *   sign(typedData) by this host's proof key; recover(typedData, signature) -> the signer's address (viem's
  *   recoverTypedDataAddress, handed in); work = capacityLanes (replaceable in tests)
+ *   answerOf(challenge, domain) -> {digest, signature}: instead of work and sign, when both happen elsewhere
  * Answers only the current epoch's seed, only a checker the contract assigned to this host, only over that checker's
  * signature, one challenge at a time and one per checker and epoch.
  */
-export function createCapacityResponder({hostId, domain, reader, proofKeyOf, sign, recover, work = capacityLanes}) {
-  need(HEX32.test(String(hostId)) && typeof recover === 'function', 'host id and signature recovery');
+export function createCapacityResponder({hostId, domain, reader, proofKeyOf, sign, recover, work = capacityLanes, answerOf = null}) {
+  const admit = createChallengeGate({hostId, reader, proofKeyOf, recover});
   const answered = new Map();   // "<epoch>:<checker>" -> the answer given (the same challenge again gets the same answer)
   let busy = false;
   const no = (status, error) => ({status, body: {error}});
   return async function answer(c) {
     if (!validChallenge(c)) return no(400, 'not a capacity challenge');
-    if (c.target !== hostId) return no(404, 'another host');
-    const epoch = Number(await reader.epochNow());
-    if (c.epoch !== epoch || (await reader.seedOf(epoch)) !== c.seed) return no(409, 'not this epoch');
-    if (!(await reader.checkersOf(epoch, hostId)).includes(c.checker)) return no(403, 'not assigned to check this host');
-    const key = await proofKeyOf(c.checker);
-    let signer = null; try { signer = await recover(challengeMessage(domain, c), c.signature); } catch {}
-    if (!key || !signer || signer.toLowerCase() !== String(key).toLowerCase()) return no(403, 'not signed by the checker\'s proof key');
-    const k = `${epoch}:${c.checker}`, before = answered.get(k);
+    const gate = await admit(c, challengeMessage(domain, c));
+    if (gate.error) return no(gate.status, gate.error);
+    const epoch = gate.epoch;
+    const k =`${epoch}:${c.checker}`, before = answered.get(k);
     if (before) return before.nonce === c.nonce ? {status: 200, body: before.body} : no(429, 'already checked by this host in this epoch');
     if (busy) return no(503, 'busy with another check');
     busy = true;
     try {
-      const digest = await work({seed: workSeed(c), rounds: c.rounds, memoryMiB: c.memoryMiB, lanes: c.lanes});
-      const a = {version: 2, epoch, checker: c.checker, target: hostId, nonce: c.nonce, digest};
-      const body = {...a, signature: await sign(answerMessage(domain, a))};
+      // answerOf: the work done AND the answer signed where the proof key lives, when that is not this process (a
+      // Shield host's capacity partition: proof-of-capacity-partition.mjs)
+      const made = answerOf ? await answerOf(c, domain) : {digest: await work({seed: workSeed(c), rounds: c.rounds, memoryMiB: c.memoryMiB, lanes: c.lanes})};
+      const a = {version: 2, epoch, checker: c.checker, target: hostId, nonce: c.nonce, digest: made.digest};
+      const body = {...a, signature: made.signature ?? await sign(answerMessage(domain, a))};
       for (const old of answered.keys()) if (!old.startsWith(epoch + ':')) answered.delete(old);
       answered.set(k, {nonce: c.nonce, body});
       return {status: 200, body};
-    } finally { busy = false; }
+    } catch (e) { if (e?.busy) return no(503, 'busy with another check'); throw e; }
+    finally { busy = false; }
   };
 }
+
+/**
+ * A further check's setting on a host (PROOF_OF_CAPACITY_APP, _CARD, _KEY): "enforce" (the default: a refusal fails
+ * the checked host), "record" (it is written into the record and fails nobody), "off". Anything else is refused.
+ */
+export function furtherMode(value, name = 'the setting') {
+  const v = String(value ?? '').trim() || 'enforce';
+  if (!['enforce', 'record', 'off'].includes(v)) throw new Error(`${name} must be enforce, record or off, not ${JSON.stringify(v)}`);
+  return v;
+}
+
+/** An `answerOf` for a host whose proof key is in this process: the work here, the answer signed by `sign`. */
+export const capacityAnswerHere = async (c, domain, sign, work = capacityLanes) => {
+  const digest = await work({seed: workSeed(c), rounds: c.rounds, memoryMiB: c.memoryMiB, lanes: c.lanes});
+  return {digest, signature: await sign(answerMessage(domain, {epoch: c.epoch, checker: c.checker, target: c.target, nonce: c.nonce, digest}))};
+};
 
 /**
  * What a host advertises as free, from the capacity record its operator key signs: for `claimOf` below.
@@ -189,7 +227,11 @@ export function createClaimReader({fetch = globalThis.fetch, recoverMessage, cha
       const share = num(a.cpuShareFree) ?? 0;
       const vcpus = num(a.vcpusFree) ?? (num(a.nodeVcpus) !== null ? share * a.nodeVcpus : 0);
       const ramGb = num(a.ramGbFree) ?? (num(a.nodeRamGb) !== null ? share * a.nodeRamGb : 0);
-      return {lanes: Math.floor(vcpus), freeMiB: Math.floor(ramGb * 1024), record: '0x' + hostCapacityHash(record)};
+      // the cards it sells by masked offload, each with the rate it states and the share of it that is free now
+      const cards = (Array.isArray(a.shieldedCards) ? a.shieldedCards : []).slice(0, 16)
+        .filter(c => c && Number.isInteger(c.id) && c.id >= 0 && c.id < 16 && num(c.gmacPerSec) !== null)
+        .map(c => ({id: c.id, gmacPerSec: c.gmacPerSec, share: Math.min(1, num(c.gpuShareFree) ?? 0)}));
+      return {lanes: Math.floor(vcpus), freeMiB: Math.floor(ramGb * 1024), record: '0x' + hostCapacityHash(record), cards};
     } catch (e) { return {none: String(e?.message || e).slice(0, 120)}; }
   };
 }
@@ -204,8 +246,9 @@ export function createClaimReader({fetch = globalThis.fetch, recoverMessage, cha
  *   rounds, memoryMiB: one lane's work (each lane gets memoryMiB, or its share of the free memory if that is less);
  *   maxLanes, slack, graceMs, timeoutMs: see CHECK_DEFAULTS
  *   also: [async (target, row, ctx) -> {name, ok, why, evidence?} | null]: further checks of a host that passed the work
- *   (the app it serves, a card it sells); one that says ok === false makes the verdict a fail, one that throws is no
- *   verdict this round. None is built in.
+ *   (the app it serves: proof-of-capacity-app.mjs; a card it sells: proof-of-capacity-card.mjs; where its proof key
+ *   lives: proof-of-capacity-partition.mjs). ok === false makes the verdict a fail; ok === null is "not judged" and
+ *   is recorded with its reason; one that throws is no verdict this round.
  * unreachable: no row, no answer, or an answer that is not an answer (HTTP error, not JSON) inside the deadline.
  * fail: an answer with the wrong digest, the wrong fields or another key's signature; one that took longer than
  *   slack x one lane on the checker + graceMs (the lanes did not run side by side: the capacity advertised is not
@@ -257,10 +300,11 @@ export function createCapacityChecker({host, domain, sign, recover, targetOf, fe
       : 'too late', timing);
     const more = [];
     for (const extra of also) {
-      const r = await extra(target, row, {epoch, seed});
+      const r = await extra(target, row, {epoch, seed, claim});
       if (!r) continue;
-      more.push({name: r.name, ok: r.ok === true, why: r.why || '', ...(r.evidence ? {evidence: r.evidence} : {})});
-      if (r.ok !== true) return record('fail', `${r.name}: ${r.why || 'failed'}`, {...timing, also: more});
+      // ok === null: looked and could not judge (recorded with the reason; the verdict stays with the rest)
+      more.push({name: r.name, ok: r.ok === null ? null : r.ok === true, why: r.why || '', ...(r.evidence ? {evidence: r.evidence} : {})});
+      if (r.ok !== true && r.ok !== null) return record('fail', `${r.name}: ${r.why || 'failed'}`, {...timing, also: more});
     }
     return record('pass', 'the digest is the checker\'s own, in time', {...timing, digest: body.digest, signature: body.signature, ...(more.length ? {also: more} : {})});
   };

@@ -339,6 +339,8 @@ const manager = new Manager({ rpcController, judgeReady: judgeRunning, answerChe
   custodyV2: custodyV2 && launcherOptions ? custodyV2 : null,
   // Match the node agent's advertised hosting RAM, not physical machine RAM.
   ramPoolMiB: env("NODE_APP_RAM_GB") ? Number(env("NODE_APP_RAM_GB")) * 1024 : null,
+  // the host's capacity partition, by the app id the operator pinned; unset = no such spawn is the host's own
+  hostCapacityAppId: env("ENCLAVE_HOST_CAPACITY_APP_ID").toLowerCase() || null,
   // Separate VM budget INCLUDING overhead, after Windows/other workload RAM.
   physicalRamPoolMiB: env("NODE_VM_RAM_GB") ? Number(env("NODE_VM_RAM_GB")) * 1024 : null,
   cpuPoolVcpus, cpuPoolSource,

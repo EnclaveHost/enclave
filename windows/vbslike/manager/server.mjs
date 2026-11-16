@@ -79,6 +79,19 @@ export function refuseUnsupported(req = {}, s = SUPPORTS) {
   return null;
 }
 
+/**
+ * The spawns that are the HOST's own and have no ledger purchase: the pinned readiness witness, and the host's capacity
+ * partition (windows/node/shield-capacity.mjs: the host's proof key and its answers to capacity checks, made inside a
+ * partition), which this manager knows only by the app id its operator pinned (ENCLAVE_HOST_CAPACITY_APP_ID). Both are
+ * sized by their catalog policy alone. -> "witness" | "capacity" | null. A name with another app is neither.
+ */
+export const HOST_CAPACITY_NAME = "host-capacity-v1";
+export function hostOwnedSpawn(name, appId, { hostCapacityAppId = null } = {}) {
+  if (name === "shield-readiness-v1" && appId === READINESS_WITNESS_APP_ID) return "witness";
+  if (name === HOST_CAPACITY_NAME && hostCapacityAppId !== null && appId === hostCapacityAppId && appId !== READINESS_WITNESS_APP_ID) return "capacity";
+  return null;
+}
+
 export class Manager {
   #desktop = null;
   #rpc = null;
@@ -98,7 +111,9 @@ export class Manager {
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
                 runtime = null, shield = null, configEnabled = false, secretsEnabled = false, configSocketServer = false, protectedPorts = false, encVolumes = false, wasmSet = false, memory64 = false, fetchConfig = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null,
                 modelVolumes = null,
-                egress = null, ramPoolMiB = null, cpuPoolVcpus = null, cpuPoolSource = "NODE_VCPUS", physicalRamPoolMiB = null, physicalReservations = null, desktopMemoryProfile = null, directBootstrap = false, custodyV2 = null, images = null, desktopWorker = null, instanceNamespace = null, rpcController = null } = {}) {
+                egress = null, ramPoolMiB = null, cpuPoolVcpus = null, cpuPoolSource = "NODE_VCPUS", physicalRamPoolMiB = null, physicalReservations = null, desktopMemoryProfile = null, directBootstrap = false, custodyV2 = null, images = null, desktopWorker = null, instanceNamespace = null, rpcController = null, hostCapacityAppId = null } = {}) {
+    if (hostCapacityAppId !== null && !/^[0-9a-f]{64}$/.test(String(hostCapacityAppId))) throw new Error("hostCapacityAppId must be an app id (64 lowercase hex)");
+    this.hostCapacityAppId = hostCapacityAppId;
     if (ramPoolMiB !== null && (!Number.isSafeInteger(ramPoolMiB) || ramPoolMiB <= 0))
       throw new Error("ramPoolMiB must be a positive integer");
     this.ramPoolMiB = ramPoolMiB;
@@ -707,8 +722,8 @@ export class Manager {
     // Synthetic readiness witnesses have no ledger purchase. Real deployment
     // names always use the full share of this node's advertised RAM pool.
     let memory = null;
-    const witness = body.name === "shield-readiness-v1" && mapping.appId === READINESS_WITNESS_APP_ID;
-    if (this.ramPoolMiB !== null && !witness) {
+    const hostOwned = hostOwnedSpawn(body.name, mapping.appId, { hostCapacityAppId: this.hostCapacityAppId });
+    if (this.ramPoolMiB !== null && !hostOwned) {
       if (!/^0x[0-9a-f]{64}$/i.test(String(body.name || ""))) throw badRequest("a deployment ID is required for RAM allocation");
       try { memory = appMemoryForShare(this.ramPoolMiB, body.cpuShare, mapping.record.policy.memMiB); }
       catch (e) { throw badRequest(e.message); }
@@ -717,7 +732,7 @@ export class Manager {
     // The SAME share sizes the VM's processors: VP count and a per-VP Limit/Reservation (cpu-share.mjs).
     let cpu = null;
     if (this.cpuPoolVcpus !== null) {
-      try { cpu = witness ? cpuFixedPolicy(mapping.record.policy, "readiness-witness-fixed")
+      try { cpu = hostOwned ? cpuFixedPolicy(mapping.record.policy, hostOwned === "witness" ? "readiness-witness-fixed" : "host-capacity-fixed")
                           : cpuForShare(this.cpuPoolVcpus, body.cpuShare, mapping.record.policy); }
       catch (e) { throw badRequest(e.message); }
     }

@@ -29,6 +29,12 @@ COPY addressbook.js ./
 COPY net-guard.mjs ./
 # the host's own signed capacity record (GET /v1/host/capacity): the producer and the record core, no packages
 COPY network/canonical.mjs network/host-capacity-record.mjs network/host-capacity-producer.mjs network/registry-reconcile.mjs network/proof-of-capacity.mjs network/proof-of-capacity-host.mjs ./network/
+# proof of capacity's further checks of another host: the app it serves, a card it sells, where a Shield host's proof key
+# lives (no packages). The independent verifier as shipped, loaded on first use, and this image's own pinned copy of the
+# Shield app policy (the capacity app it holds another host's proof key to).
+COPY network/proof-of-capacity-app.mjs network/proof-of-capacity-card.mjs network/proof-of-capacity-partition.mjs ./network/
+COPY verifier/web/dist/enclave-verifier-web.js ./verifier/web/dist/
+COPY windows/installer/admitted-shield-policy.json ./windows/installer/
 # app-funded lease gas (claim/renew/release paid by the app's reserve): the runtime shared with the Windows node
 COPY network/lease-gas-runtime.mjs network/lease-gas-owner.mjs network/lease-executor-client.mjs network/lease-executor-authority.mjs network/lease-release-journal.mjs network/rpc-identity.mjs ./network/
 COPY client/lease-executor-client.mjs client/lease-executor-authority.mjs ./client/

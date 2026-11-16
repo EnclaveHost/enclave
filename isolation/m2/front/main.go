@@ -118,6 +118,7 @@ type front struct {
 	appZone          *appZoneIssuer                // direct startup: in-guest ACME for this deployment's app-zone name (appzone.go); nil = none
 	checkpoints      *bootstrap.CheckpointProducer // direct SEV-SNP startup: the attested history checkpoint; nil = none
 	ready            *readiness                    // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
+	capacity         *hostCapacity                 // the host's proof key and capacity answers, only in the image's capacity app (capacity.go); nil = none
 	tsmMu            sync.Mutex
 }
 
@@ -160,6 +161,7 @@ func main() {
 		"root-only /run/enclave/seccomp); read into every self-test this front measures. Empty = none")
 	appMode := flag.String("app-mode", "serve", "how the app runs, for /.well-known/enclave-ready: serve (the runtime serves a wasi:http component) or run (a wasi:cli command binds -upstream itself)")
 	initFD := flag.Int("init-fd", 0, "a pipe from init (M2): after provisioning, the front writes N (no config) or C+config there, and init starts the app only then (provision.go)")
+	capacityApps := flag.String("host-capacity-apps", "/rt/host-capacity-apps", "app ids (hex, one a line) that are a host's capacity app in this image; absent = none (capacity.go)")
 	flag.Parse()
 
 	// The AppID: derived from the code init will run whenever this image holds it (M2/M4a), so report_data[32:64] names
@@ -264,6 +266,11 @@ func main() {
 	// client pins by comparing that key, never by tracking which session came from which handshake.
 	// The name this domain may certify comes from its own HOST_DATA (certs.go); the key is the attested one either way.
 	f.certs = &certState{key: cert.PrivateKey.(crypto.Signer), spki: spki, self: &cert}
+	if f.capacity, err = loadHostCapacity(*capacityApps, appSha, f.certs.key); err != nil {
+		die("host capacity: %v", err)
+	} else if f.capacity != nil {
+		fmt.Printf("DOM host capacity: this domain holds the host's proof key %s (made here, at this start)\n", f.capacity.address)
+	}
 	// HOST_DATA, read once: it names the deployment this guest serves, for both its certificate and its release
 	var hd []byte
 	var hdErr error
@@ -453,6 +460,11 @@ func (f *front) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case readyPath:
 		f.ready.serve(w, r)
 		return
+	case capacityKeyPath, capacityWorkPath, capacitySignPath:
+		if f.capacity != nil { // otherwise the paths stay the app's, as before
+			f.capacity.ServeHTTP(w, r)
+			return
+		}
 	case bootstrap.CheckpointPath:
 		if f.checkpoints != nil { // otherwise the path stays the app's, as before
 			f.checkpoints.ServeHTTP(w, r)

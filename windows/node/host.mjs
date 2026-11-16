@@ -22,7 +22,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import http from "node:http";
 import * as chain from "./chain.mjs";
-import { PROOF_OF_CAPACITY, PROOF_OF_CAPACITY_MS, createNodeProofOfCapacity } from "./proof-of-capacity.mjs";
+import { PROOF_OF_CAPACITY, PROOF_OF_CAPACITY_MS, createNodeProofOfCapacity, nodeFurtherChecks } from "./proof-of-capacity.mjs";
 import {hostAdmissionFromEnv,createHostServiceGate} from './host-admission.bundle.mjs';
 import { desktopReleaseFromEnv, desktopAdoptionRefusal } from './desktop-release.mjs';
 import { DESKTOP_DERIVATION } from '../../relay/shield-desktop-derive.mjs';
@@ -535,6 +535,9 @@ export class Host {
   // its operator deregistered; the initial registration and a corrected proof key or price still go out.
   async ensureRegistered({ phase = "timer" } = {}) {
     if (!this.chainReady || !this.cfg.appsEnabled || !chain.operatorAddress()) return;
+    // the proof key is a capacity partition's and that partition has not stated it yet: nothing is published in its
+    // place (never the zero address, never this process's file key)
+    if (chain.proofKeyPending()) return;
     const proofKey = chain.proofAddress() || "0x0000000000000000000000000000000000000000";
     const act = registrationAction(this.registered, { operator: chain.operatorAddress(), proofKey }, phase);
     if (!act.register) {
@@ -2839,6 +2842,10 @@ export class Host {
   /** This box's part in proof of capacity, or null while it takes none (proof-of-capacity.mjs says when and why). */
   proofOfCapacity() {
     this._poc ||= createNodeProofOfCapacity({ chain, log: (m) => this.log(m),
+      // the work done and the answer signed in the capacity partition, when this box has one (agent.mjs sets it)
+      partitionKey: () => this.capacityPartition?.key ?? null,
+      // on a host that passed the work: the app it serves, and where a Shield host's proof key lives
+      further: (o) => nodeFurtherChecks({ ...o, chain, relayBase: this.cfg.relayBase, log: (m) => this.log(m) }),
       hostId: () => (this.chainReady && this.registered ? this.enclaveId : null),
       // something to be paid for: a paid lease served here now (what proveAll checkpoints)
       wantsCredit: async () => [...this.records.values()].some((rec) => rec && rec.status === "running" && rec.leaseUntil
@@ -3703,6 +3710,7 @@ export class Host {
       gasHoursLeft: this.gasHoursLeft ?? null,     // the key's MEASURED runway (warnLowGas); null until half an hour of samples
 
       proofKey: chain.proofAddress() || null,
+      proofKeyIn: chain.proofKeyIn(),
       // whose deployments this box serves (ownerSet): its operator and its delegated owners, never the payout wallet
       owners: [...this.ownerSet()],
     };

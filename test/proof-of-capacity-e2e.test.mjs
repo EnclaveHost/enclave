@@ -28,6 +28,7 @@ import * as viem from 'viem';
 import {privateKeyToAccount, generatePrivateKey} from 'viem/accounts';
 import {capacityReader, createCapacityResponder, createCapacityChecker, createCapacityAgent, selfCapacityRecord,
   capacityLanes, POC_ABI, CAPACITY_CHECK_PATH} from '../network/proof-of-capacity-host.mjs';
+import {createCardResponder, createCardCheck, softwareCardDriver, CARD_CHECK_PATH} from '../network/proof-of-capacity-card.mjs';
 import {proofMessage} from '../network/proof-of-capacity.mjs';
 import {signCarry, carryOrder, CARRY_ABI} from '../network/host-carry.mjs';
 import {linkBytecode} from '../site/js/lib/contract-linker.js';
@@ -75,9 +76,9 @@ async function addHost(name) {
   h.op = privateKeyToAccount(h.opKey); h.proof = privateKeyToAccount(h.proofKey);
   h.server = http.createServer((req, res) => {
     const chunks = []; req.on('data', c => chunks.push(c)); req.on('end', async () => {
-      if (req.method !== 'POST' || req.url !== CAPACITY_CHECK_PATH) { res.writeHead(404); return res.end(); }
+      if (req.method !== 'POST' || ![CAPACITY_CHECK_PATH, CARD_CHECK_PATH].includes(req.url)) { res.writeHead(404); return res.end(); }
       let body = null; try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch {}
-      const r = await h.answer(body).catch(e => ({status: 503, body: {error: String(e.message)}}));
+      const r = await (req.url === CARD_CHECK_PATH ? h.card : h.answer)(body).catch(e => ({status: 503, body: {error: String(e.message)}}));
       res.writeHead(r.status, {'content-type': 'application/json'}); res.end(JSON.stringify(r.body));
     });
   });
@@ -93,13 +94,21 @@ async function addHost(name) {
   const proofKeyOf = async id => { const e = await row(id); return e && !/^0x0+$/.test(e.proofKey) ? e.proofKey : null; };
   // a host that cheats answers with the digest of one round of the work it was asked for
   h.answer = createCapacityResponder({hostId: h.id, domain, reader, proofKeyOf, sign, recover, work: c => capacityLanes(h.cheat ? {...c, rounds: 1} : c)});
+  // every host also sells one card (computed in software here: the wire to a real worker is test/proof-of-capacity-card.test.mjs),
+  // and answers a check of it under the same rule of the contract: an assigned checker, once an epoch
+  h.cardRuns = 0;
+  h.card = createCardResponder({hostId: h.id, domain, reader, proofKeyOf, sign, recover, cards: async () => [{id: 0, endpoint: '10.0.2.2:9500'}],
+    open: async o => { const card = await softwareCardDriver()(o); return {...card, gemm: (p, m) => { h.cardRuns++; return card.gemm(p, m); }}; }});
+  h.cardVerdicts = [];
+  const cardCheck = createCardCheck({host: h.id, domain, sign, recover, k: 64, n: 48, batch: 4, graceMs: 8000});
   h.calls = [];
   h.agent = createCapacityAgent({host: h.id, domain, reader, sign, log: m => h.logs.push(m),
     send: async (functionName, args) => { h.calls.push({abi: POC_ABI, functionName, args}); },   // collected: the operator key sends nothing itself
     check: createCapacityChecker({host: h.id, domain, sign, recover, ...WORK, timeoutMs: 10000,
       // every host here says it has three vCPUs and 6 MiB free (the hosts' real claim is their signed capacity record,
       // which needs an https endpoint; the reader of it is tested in test/proof-of-capacity-host.test.mjs)
-      claimOf: async () => ({lanes: 3, freeMiB: 6, record: viem.zeroHash}),
+      claimOf: async () => ({lanes: 3, freeMiB: 6, record: viem.zeroHash, cards: [{id: 0, gmacPerSec: 0.0001, share: 1}]}),
+      also: [async (...a) => { const r = await cardCheck(...a); h.cardVerdicts.push(r.ok); return r; }],
       targetOf: async id => { const e = await row(id); return e && e.active ? {endpoint: e.endpoint, proofKey: e.proofKey, operator: e.operator} : null; }}),
     selfCheck: selfCapacityRecord(h.id, WORK)});
   hosts.push(h); return h;
@@ -248,4 +257,10 @@ test('three hosts with empty operator keys: checked by each other, credited thro
     `carrier paid ${Number(sent.reduce((s, x) => s + x.fee, 0n)) / 1e6} USDC; hosts paid out ${Number(sent.reduce((s, x) => s + x.paidOut, 0n)) / 1e6} USDC`);
   assert.equal(await usdcOf(carrier.address), FEE6 * BigInt(sent.length));
   for (const h of hosts) assert.equal(await pc.getBalance({address: h.op.address}), 0n);
+  // the cards: every host that passed the work had its card checked by the host the contract assigned, and passed;
+  // C, which cheated on the work, was failed there and its card never came into it
+  const cards = hosts.map(h => h.cardVerdicts);
+  console.log(`# card checks: ${hosts.map(h => `${h.name} ran ${h.cardVerdicts.length} (${h.cardRuns} frames answered)`).join(', ')}`);
+  assert.ok(cards.flat().length >= 4, 'card checks ran'); assert.ok(cards.flat().every(ok => ok === true), `a card check did not pass: ${JSON.stringify(cards)}`);
+  assert.ok(a.cardRuns > 0 && b.cardRuns > 0);
 });

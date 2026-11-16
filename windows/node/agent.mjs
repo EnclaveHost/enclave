@@ -54,6 +54,8 @@ import { resolveIdentity } from './host-identity.mjs';
 // this box's own signed capacity record for independent readers (docs/network/independent-capacity.md); no packages
 import { createHostCapacityProducer, HOST_CAPACITY_PATH } from '../../network/host-capacity-producer.mjs';
 import { CAPACITY_CHECK_PATH } from '../../network/proof-of-capacity-host.mjs';
+import { CAPACITY_KEY_PATH } from '../../network/proof-of-capacity-partition.mjs';
+import { expectProofSigner, setProofSigner } from './chain.mjs';
 const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
 // SIWE, byte-compatible with the platform's own routes so the console signs what this box issues
 // and posts it back unchanged. The session it mints is for THIS box only (session.mjs).
@@ -496,6 +498,7 @@ async function measureEngineHold() {
 // ---- the public surface over the tunnel ------------------------------------------------------
 let shieldEvidenceReads = 0;
 let shieldWitness = null;
+let shieldCapacity = null;   // the host's capacity partition (shield-capacity.mjs): this box's proof key lives there
 let shieldSecrets = null;
 // GET /v1/host/capacity: the /availability below, signed by this box's registry operator key for the endpoint the
 // registry lists it under (network/host-capacity-producer.mjs), so a reader with no relay can use it. It says who
@@ -594,6 +597,19 @@ async function handle(frame) {
     let challenge = null; try { challenge = JSON.parse(Buffer.from(String(frame.body || ''), 'base64').toString('utf8')); } catch {}
     try { const r = await poc.answer(challenge); return json(r.status, r.body); }
     catch (e) { return json(503, { error: 'capacity_check_failed', reason: String(e.message || e).slice(0, 200) }); }
+  }
+  // GET /v1/host/capacity-key?nonce=: where this box's proof key lives, for a checker to verify itself: the capacity
+  // partition's attestation over the caller's nonce and the proof key's statement by that partition's TLS key. 404 when
+  // the proof key is this process's file (no capacity partition): that is then the answer.
+  if (p === CAPACITY_KEY_PATH && method === 'GET') {
+    if (!shieldCapacity) return json(404, { error: 'no_capacity_partition', reason: 'this box\'s proof key is a key of its host process, not of a Shield partition' });
+    if (shieldEvidenceReads >= 2) return json(429, { error: 'evidence_busy' });
+    const nonce = new URL(String(frame.path), 'http://localhost').searchParams.get('nonce');
+    if (!/^[0-9a-f]{64}$/.test(nonce || '')) return json(400, { error: 'nonce_required' });
+    shieldEvidenceReads++;
+    try { return json(200, await shieldCapacity.evidence(nonce)); }
+    catch (e) { return json(503, { error: 'capacity_partition_unavailable', reason: String(e.message).slice(0, 300) }); }
+    finally { shieldEvidenceReads--; }
   }
   if (p === HOST_CAPACITY_PATH && method === 'GET') {
     const c = capacityProducer();
@@ -929,7 +945,41 @@ async function startHostingControls() {
     host.cfg.sessionKid = sessionKey.kid;
     log(`session: ES256 key ${sessionKey.kid.slice(0, 12)}… (in the agent's process, not the enclave)`);
     setInterval(() => nonces.sweep(), 60_000).unref?.();
+    // THE HOST'S CAPACITY PARTITION (shield-capacity.mjs), with proof of capacity on and its pinned config given: this
+    // box's proof key is then the one that partition makes at each start, and never this process's file. Said BEFORE
+    // the chain is touched, so the file key is not published even once; nothing is proven or registered until the
+    // partition has stated its key.
+    const capacityConfig = process.env.PROOF_OF_CAPACITY === '1' && APPS ? process.env.SHIELD_CAPACITY_CONFIG || '' : '';
+    if (capacityConfig) expectProofSigner();
     await host.init();
+    if (capacityConfig && host.cfg.isolationManager && host.cfg.isolationDataAddr) {
+      const {createShieldCapacity} = await import('./shield-capacity.mjs');
+      shieldCapacity = createShieldCapacity({config:JSON.parse(fs.readFileSync(capacityConfig,'utf8')),
+        base:host.cfg.isolationManager, dataAddr:host.cfg.isolationDataAddr});
+      host.capacityPartition = shieldCapacity;
+      let lastCapacityError = '', stated = '';
+      const tickCapacity = async () => {
+        try {
+          if (host.hostingCaps().paused === true) {
+            if (await shieldCapacity.stop()) log('capacity partition stopped: hosting is off');
+            if (stated) { setProofSigner(null); stated = ''; }
+          } else {
+            await shieldCapacity.ensure();
+            const address = await shieldCapacity.key.address({fresh:true});
+            if (address !== stated) {
+              setProofSigner({address, sign:(m) => shieldCapacity.key.sign(m)}); stated = address;
+              log(`proof key ${address}: made in the capacity partition at its start; the registry is brought to it`);
+              host.ensureRegistered().catch((e) => log(`registry: ${e.message}`));
+            }
+          }
+          lastCapacityError = '';
+        } catch (e) {
+          if (e.message !== lastCapacityError) log(`capacity partition: ${e.message}`);
+          lastCapacityError = e.message;
+        }
+      };
+      tickCapacity(); setInterval(tickCapacity, 30000).unref?.();
+    } else if (capacityConfig) log('capacity partition: SHIELD_CAPACITY_CONFIG is set and this box has no isolation manager: no proof key, nothing is proven');
     if (process.env.SHIELD_WITNESS_CONFIG && host.cfg.isolationManager && host.cfg.isolationDataAddr) {
       const {createShieldWitness} = await import('./shield-witness.mjs');
       shieldWitness = createShieldWitness({config:JSON.parse(fs.readFileSync(process.env.SHIELD_WITNESS_CONFIG,'utf8')),

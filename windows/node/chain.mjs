@@ -869,12 +869,29 @@ export function newProofKey(keyFile) {
   proofAcct = privateKeyToAccount(hex);
   return proofAcct.address;
 }
-export const proofAddress = () => (proofAcct ? proofAcct.address : null);
+// THE PROOF KEY HELD ELSEWHERE than this process: a Shield host's capacity partition (shield-capacity.mjs) makes the key in
+// its own memory and signs there. expectProofSigner() says such a key is this box's (the file key is then never used or
+// published, even while the partition is down: proofAddress() is null until its address is known); setProofSigner gives
+// it, and again after every restart of the partition, whose key is then another one.
+let proofSigner = null, proofSignerExpected = false;
+export function expectProofSigner() { proofSignerExpected = true; }
+export function setProofSigner(s) {
+  if (s !== null && (!/^0x[0-9a-fA-F]{40}$/.test(String(s?.address)) || typeof s.sign !== "function")) throw new Error("a proof signer has an address and signs");
+  proofSigner = s; if (s) proofSignerExpected = true;
+}
+export const proofKeyPending = () => proofSignerExpected && !proofSigner;
+export const proofKeyIn = () => (proofSignerExpected ? "shield-partition" : "host-process");
+const proofSignTyped = (typedData) => {
+  if (proofSignerExpected) { if (!proofSigner) throw new Error("the capacity partition's proof key is not known yet"); return proofSigner.sign(typedData); }
+  if (!proofAcct) throw new Error("no proof key on this box");
+  return proofAcct.signTypedData(typedData);
+};
+export const proofAddress = () => (proofSignerExpected ? (proofSigner ? proofSigner.address : null) : proofAcct ? proofAcct.address : null);
 // Under PROOF_OF_CAPACITY=1 the ledger's prover is an EnclaveProofOfCapacity (windows/node/proof-of-capacity.mjs): the same
 // ProofOfTime message, signed under that contract's name. Off: EnclaveProofOfTime, as always.
 const PROOF_DOMAIN_NAME = process.env.PROOF_OF_CAPACITY === "1" ? "EnclaveProofOfCapacity" : "EnclaveProofOfTime";
 /** EIP-712 typed data signed by this box's proof key (the capacity check's challenge, answer, report and own proof). */
-export const proofSign = (typedData) => { if (!proofAcct) throw new Error("no proof key on this box"); return proofAcct.signTypedData(typedData); };
+export const proofSign = (typedData) => proofSignTyped(typedData);
 export const chainId = base.id;
 export const setProofKey = (id, addr) => send(addresses.registry, SET_PROOF_KEY_ABI, "setProofKey", [id, addr]);
 export const unprovenSec = (id) => publicClient().readContract({ address: addresses.proofOfTime, abi: PROOF_ABI, functionName: "unprovenSec", args: [id] });
@@ -891,11 +908,11 @@ async function withCheckpointAnchor(fn) {
 }
 /** One checkpoint: "deployment <id> was serving on this box up to <upto>", anchored to a block. */
 export async function checkpoint({ id, enclaveId, upto }) {
-  if (!proofAcct) throw new Error("no proof key on this box");
+  if (!proofAddress()) throw new Error("no proof key on this box");
   if (!addresses.proofOfTime) throw new Error("the address book publishes no proofOfTime");
   const plan = await withCheckpointAnchor(async ({ anchorBlock, anchorHash, client }) => {
     const message = { id, enclaveId, operator: acct.address, upto: BigInt(upto), anchorBlock: BigInt(anchorBlock), anchorHash };
-    const sig = await proofAcct.signTypedData({
+    const sig = await proofSignTyped({
       domain: { name: PROOF_DOMAIN_NAME, version: "1", chainId: base.id, verifyingContract: getAddress(addresses.proofOfTime) },
       types: PROOF_TYPES, primaryType: "ProofOfTime", message });
     return (await planCheckpoints({client, ledger: addresses.deployments,
@@ -912,13 +929,13 @@ export async function checkpoint({ id, enclaveId, upto }) {
  */
 export async function checkpointBatch(items) {
   if (!items.length) return [];
-  if (!proofAcct) throw new Error("no proof key on this box");
+  if (!proofAddress()) throw new Error("no proof key on this box");
   if (!addresses.proofOfTime) throw new Error("the address book publishes no proofOfTime");
   const plans = await withCheckpointAnchor(async ({ anchorBlock, anchorHash, client }) => {
     const batch = [];
     for (const { id, enclaveId, upto } of items) {
       const message = { id, enclaveId, operator: acct.address, upto: BigInt(upto), anchorBlock: BigInt(anchorBlock), anchorHash };
-      const sig = await proofAcct.signTypedData({
+      const sig = await proofSignTyped({
         domain: { name: PROOF_DOMAIN_NAME, version: "1", chainId: base.id, verifyingContract: getAddress(addresses.proofOfTime) },
         types: PROOF_TYPES, primaryType: "ProofOfTime", message });
       batch.push({ ...message, sig });

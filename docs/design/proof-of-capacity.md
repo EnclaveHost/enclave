@@ -113,33 +113,139 @@ Wired in `supervisor.js` (route, timer, proof-of-time domain) and in the Windows
 `chain.mjs`). The Linux image copies the two shared modules (`Dockerfile`); they import no package, since the
 Windows box has no `node_modules` outside its own folder.
 
-## What a pass still does not say (2026-11-16, after the check was sized to the claim)
+## What else a pass says: the three further checks (2026-11-16, source and tests)
 
-Three things were named as missing. One is built; for the other two and for the Windows key, this is what stands in
-the way, found by reading the code, not guessed:
+After the work, a checker runs further checks on the host (`createCapacityChecker`'s `also`). Each has a setting on
+the checker, `enforce` (the default), `record` or `off`: `PROOF_OF_CAPACITY_APP`, `PROOF_OF_CAPACITY_CARD`,
+`PROOF_OF_CAPACITY_KEY`. A check that was made and refused turns the pass into a fail. A check that could not be made
+(a relay that is busy, a guest still starting, nothing to check) is written into the record as **not judged** with
+its reason and leaves the verdict to the rest: a checker never fails a host for what the checker or the relay could
+not do. Every check's outcome is in the record whose hash goes on chain.
 
-- **Spare capacity while it serves others: built** (above).
-- **A GPU: not built.** Every card figure a host publishes today is its worker's own word (`gmacPerSec`, `cardTflops`,
-  `vramFreeGb`), and the one real card test (`metal/guest/shielded-probe.mjs`: a masked field GEMM checked with
-  Freivalds) runs on a fixed seed against a worker port only the host's own VM reaches. A check needs that operation
-  driven by the CHECKER's seed through the VM's shielded link, with the digest of the unmasked result returned and
-  recomputed (or Freivalds-checked) by the checker. That is new code in the guest supervisor and can only be
-  qualified on a host with a card. It would plug in as an `also` check. It would prove a correct product of that
-  size came back in time, not which card made it.
-- **The app it serves: not built.** The pieces exist for the paid audits (`availability/verified-http.mjs`: the
-  app's attestation over a fresh nonce on the TLS key of that handshake; SNP by AMD's chain, Shield by the boot's
-  VSM key under a fresh host TPM session that only the relay hands out, one per box per 20 s). A host running it
-  against another host needs what the audit service has: the expectations derived from the ledger and the catalog
-  artifact, the admitted-image policy, AMD collateral, and for Shield targets that relay session. That is the audit
-  service's dependency set inside each host's measured image: a release, not a patch. It would plug in as `also`.
-- **The Windows node's answers are the host's, not a Shield partition's: not fixed, and not fixable in the node.**
-  The proof key there is a file of the node process. Nothing inside a Shield partition can sign such an answer today:
-  a partition holds one P-256 TLS key, no secp256k1 key, no endpoint that signs a caller's message, and its only
-  report over outside data is the nonce slot, which the host can ask for any value. An answer from inside a
-  partition needs a new measured component in the guest that runs this work and holds its key, the relay policy
-  pinned to it, and a path for another host's TLS into a host-owned partition; proofs of time signed in a partition
-  need a new front build with a secp256k1 key bound into the report, and `setProofKey` after every partition
-  restart. Until then, on Windows: the work is the host's and says so.
+### The app it serves (`network/proof-of-capacity-app.mjs`)
+
+The check a customer's own page runs, with the same code: the independent browser verifier as shipped
+(`verifier/web/dist/enclave-verifier-web.js`, one file with no dependencies; it runs under Node, and both host
+images now carry it).
+
+- Which app: the public apps the relay lists for the host's box, of those only the ones **the ledger** says are
+  leased to this host now (the checker's own chain read), and of those one chosen from the epoch's seed and the
+  checker's id. The host cannot know which before the seed is fixed.
+- What is verified: the host first (a confidential server's AMD report, an Enclave Shield box's TPM session, a
+  phone's protected-VM chain, each over the checker's own nonce), then the app guest's report over a second nonce:
+  the vendor's chain, the binding of the TLS key, the app, the deployment, the measurement.
+- What counts against the host: only the verifier's `rejected` with a check that came out false. Its `error`, a
+  refusal with no failed check ("the relay answered for another nonce"), no leased app, an unknown tier: not judged.
+- What it leans on, and says in the record: which box is the host's, which measurements are admitted and which app
+  a deployment names are the relay's statements (the verifier's "limited" and its omissions). The relay cannot forge
+  a report. It can withhold one (nothing is judged), and it can state a wrong expectation: then an honest host is
+  refused by every checker alike. `record` is the setting for anyone who will not carry that.
+- Cost to a Shield host: one TPM quote and one partition report per check. The relay allows one check per box per
+  20 s; a second checker inside that gets "busy", which is not judged.
+
+### A card it sells (`network/proof-of-capacity-card.mjs`)
+
+For the card of a confidential server that is sold by masked offload (the worker on the untrusted host, driven from
+inside the VM). The work is the operation the card is sold for, the worker's `FIELD_GEMM`, on a weight matrix and on
+vectors the checker's seeds determine. The checker does not repeat it: it checks rows of the answer with
+preprocessed Freivalds, the check the guest runs on every product. One pass over the matrix, then K + N operations
+per row, against K x N for whoever computes it.
+
+Three requests, `POST /v1/host/card-check`, under the same rule as the work (only a checker the contract assigned,
+over its proof key's signature, once per checker and epoch, one check at a time):
+
+1. **prepare**: the signed challenge. The host derives the matrix and installs it on the card. Not timed.
+2. **run**: a value the checker draws only now. The host derives the vectors from it, has the card multiply them,
+   and answers with the SHA-256 of every product row, signed by its proof key. Timed.
+3. **open**: 24 rows the checker picks after it holds those digests. Each must hash to its digest and pass
+   Freivalds. A host that made up a tenth of the rows is caught 92 times in 100.
+
+How much is asked follows the host's own signed capacity record: the card's stated rate (`shieldedCards[].gmacPerSec`,
+the worker's measurement) times the share of the card it says is free now, for two seconds; the run must come back
+within three times that plus 2.5 s. Defaults: K = N = 4096, 32 vectors a frame (0.54 G products), 256 frames at most
+(a faster card is then timed over a shorter run).
+
+What a pass says: that many correct field products came back in that time, through the path a tenant's products
+take. What it does not say: which silicon made them (a processor fast enough is a card of that rate), and nothing
+about the card's memory (the matrix is 16 MB). A host that advertises a card and answers 404 for it fails. A host
+whose card is fully sold is not judged.
+
+Checked against the real worker: `shielded/worker.py` in its reference mode (no card) answers the driver's frames
+and its products are the integer products, row for row, and a whole check passes over it
+(`test/proof-of-capacity-card.test.mjs`). **Not run on a card.** The form the production kernel takes (q8_0 quants
+with a block scale) is sent with every scale 1/256, under which the shared weight encoding gives the quant itself
+(pinned against `metal/guest/shielded.mjs`); the kernel itself was not run. This workstation's cards are production
+and were not touched.
+
+Wired in `supervisor.js` (the route, and the check among a checker's further checks); a Windows box sells no such
+card and answers no such check, but checks one like any other checker.
+
+### Where an Enclave Shield host's proof key lives (the capacity partition)
+
+On a confidential server the supervisor runs in the confidential VM and makes its proof key there. On an Enclave
+Shield host the supervisor is a process of the host OS, so its proof key was a file of the host and its answers the
+host's word about itself. Now:
+
+**In the guest** (`isolation/m2/capacity`, `isolation/m2/front/capacity.go`). The front of a partition makes a
+secp256k1 key in its memory at start and serves three paths, only when the image says this domain's app is the
+host's capacity app (`/rt/host-capacity-apps` in the measured initrd lists app ids; every image without the file and
+every domain running another app leaves the paths to the app, so no customer's domain can be made to work or sign
+for a host):
+
+- `GET /.well-known/enclave-capacity-key`: the key's address, signed by the domain's TLS key (the key the
+  partition's hardware report binds).
+- `POST /.well-known/enclave-capacity`: a challenge. The work runs there, in as many goroutines as lanes, and the
+  answer is signed there over the digest that code computed. No signature exists for work not done in the partition.
+- `POST /.well-known/enclave-capacity-sign`: the other messages the proof key signs (reports on other hosts, the
+  own proof, proofs of time, the challenges it sends), as fixed types assembled there from their fields. Never a
+  caller's digest, never an answer. The partition does not judge these: it cannot know whether the host served an
+  app or checked a peer. What it adds is that only a running partition of that image, on that boot of that machine,
+  can have signed them.
+
+The Go work and messages are held to the hosts' JavaScript bit for bit: `testdata/vectors.json` is written by the
+hosts' code and viem, checked by `go test`, and a JS test refuses a stale file. Signatures from the Go code are
+byte-identical to viem's. Keccak is written out in the package so the measured image takes no further module.
+
+**On the host** (`windows/node/shield-capacity.mjs`, `chain.mjs`, `agent.mjs`). With `SHIELD_CAPACITY_CONFIG` (a
+pinned record like the readiness witness's) and proof of capacity on, the node keeps one host-owned partition
+`host-capacity-v1`, asks it for its key, and from then on the box's proof key is that key: answers to checks are
+forwarded into the partition, every other signature is made there, and the registry is brought to the new key after
+each start of the partition. The file key is then never used or published, even while the partition is down
+(nothing is proven or registered until the partition has stated its key). `GET /v1/host/capacity-key?nonce=` hands
+a checker the partition's attestation and key statement; without a partition it answers 404, and that is the answer.
+The manager sizes by catalog policy alone only the pinned witness and the one app id its operator pins
+(`ENCLAVE_HOST_CAPACITY_APP_ID`).
+
+**On the checker** (`network/proof-of-capacity-partition.mjs`). For a host the relay says is an Enclave Shield box,
+the checker verifies the capacity partition as a customer's page verifies a Shield app, with the independent
+verifier unchanged: the host's TPM session through the relay first, then the partition's report under that boot's
+key. The one request the relay would answer (the app's attestation) is answered from the host instead, and beside
+it the checker puts **its own** expectation: the capacity app its own copy of the Shield policy pins
+(`capacity: {appSha256, runtimeId}` in `enclave-shield-app-policy/1`) and the images that policy admits for that
+runtime. Then the key statement must be the attested TLS key's, and its address the proof key the registry
+publishes. A verified key is remembered for a day, for as long as the registry publishes it.
+
+An Enclave Shield host that serves no partition key, or whose registered key is not the partition's, **fails**.
+With no capacity app pinned in the checker's policy the check is not judged. That is the state today: the policy
+in the repository pins none, so nothing changes for any host until one is pinned.
+
+What a pass says: the key that signs this host's answers and proofs was made in, and has never left, a partition
+of an admitted image running the pinned capacity app, on a boot whose TPM the checker just heard from. What it
+does not say: that the host OS cannot read that partition (the Shield tier's standing limit: `hostExcluded` stays
+false), or that the partition judged anything but the work.
+
+**What activation needs, none of it done:**
+
+1. A guest image built with `/rt/host-capacity-apps` naming the capacity app, measured, and its measurement added to
+   the Shield policy's `images`. No image was built; the front change compiles into every variant and its tests
+   pass, but nothing of it ran in a partition.
+2. A capacity app in the catalog (the bundle the partition runs; its policy sizes the partition: a check asks for
+   as many lanes at once as the host advertises free vCPUs, 16 at most, so a partition with fewer processors
+   answers late), and its id pinned in the policy as `capacity` and on the manager.
+3. The pinned config on the box, and `PROOF_OF_CAPACITY=1`.
+
+Every restart of the partition is a new proof key and one `register` transaction; proofs signed by the old key and
+not yet landed are lost.
 
 **Two bugs this work found in the Windows path (fixed):** the node's route read the request body from a name that
 does not exist there, so every challenge was answered 400 and a checker filed the box as unreachable; and the relay
@@ -214,7 +320,10 @@ Two rounds an epoch are enough for every host to do its duty.
 
 - Deployment tooling (`scripts/build-contract-artifacts.mjs` has no entry for it, so no ABI file is emitted).
 - A carrier service, and the hosts choosing a carried order over their own transaction when the key is empty.
-- A check that runs where the apps run (inside a Shield partition or beside the app in the VM), and a GPU check.
+- A check of a card's memory, and of a card that is not sold by masked offload (a card inside the VM has no worker to
+  ask; no host sells one today).
+- The capacity partition's image, its catalog app and their pins (above): until then a Windows host's proof key is
+  still its host's file.
 - No real box has run any of this, and the end-to-end test drives the host module directly, not `supervisor.js` or
   the Windows node around it.
 
@@ -225,9 +334,24 @@ Two rounds an epoch are enough for every host to do its duty.
   a dead host leaving the roster; one fail against two; who may report, when and how often; an epoch with no seed;
   the proof of time's own limits; `checkpointMany`; the assignment's symmetry. Runtime size 11,900 bytes.
 - `test/proof-of-capacity.test.mjs`: 5 tests of the hosts' side, with the digests pinned to the contract's.
-- `test/proof-of-capacity-host.test.mjs`: 10 tests: the work; a pass between two hosts; each way to fail; each
+- `test/proof-of-capacity-host.test.mjs`: 12 tests (with: a further check that could not judge; a proof key held
+  elsewhere than the host process; the settings): the work; a pass between two hosts; each way to fail; each
   way to be unreachable and the cases that are no verdict; whom a host answers; the agent's round; lanes sized to
   the claim and a host that runs them one after another; the claim as the host's own signed record; further checks.
+- `test/proof-of-capacity-app.test.mjs`: 8 tests: a pass and what its record names; how the app is chosen; each
+  tier's verifier; refused evidence; everything that is not judged; the verifier as shipped against a dead relay.
+- `test/proof-of-capacity-card.test.mjs`: 10 tests: the work from the seeds; Freivalds; a pass sized to the claim;
+  each way to fail; "not now"; whom a host works its card for; the wire against `shielded/worker.py`; the
+  production encoding.
+- `test/proof-of-capacity-partition.test.mjs`: 11 tests: the vectors are current; a key statement made by the Go
+  code verifies; the host's use of its partition; a checked host answering from it; the checker's verification and
+  each way to fail it; the node's partition module; the manager's rule. `test/windows-proof-signer.test.mjs`: the
+  file key is never the box's once a partition's is expected.
+- `go test ./capacity/ ./front/ -run 'Capacity|Keccak|Work|Messages|Answer|Keys|Only'` in `isolation/m2`: the work
+  and every message against the vectors, signatures equal to viem's, the answer only over work done, the paths off
+  unless the image lists the app.
+- The end-to-end test now gives every host a card (computed in software) and runs the card check through the real
+  contract's assignment: ten card checks in the run, all passed.
 - `test/windows-node-proof-of-capacity.test.mjs`: 2 tests: off unless enabled and on a prover that is one; a lone
   box's own proof through the node's operator queue.
 - The supervisor's, the Windows node's and the image and deploy closure suites, unchanged in what they expect

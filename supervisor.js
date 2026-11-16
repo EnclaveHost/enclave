@@ -56,7 +56,10 @@ import { CONTRACT_PINS, initAddressBook, REGISTRY_ADDRESS, DEPLOYMENTS_ADDRESS, 
 // This host's own signed capacity record for independent readers (docs/network/independent-capacity.md).
 import { createHostCapacityProducer, capacityDirectoryOrigins, HOST_CAPACITY_PATH } from "./network/host-capacity-producer.mjs";
 import { CAPACITY_CHECK_PATH, POC_ABI, capacityReader, createCapacityResponder, createCapacityChecker, createCapacityAgent,
-         createClaimReader, selfCapacityRecord } from "./network/proof-of-capacity-host.mjs";
+         createClaimReader, selfCapacityRecord, furtherMode } from "./network/proof-of-capacity-host.mjs";
+import { createAppCheck } from "./network/proof-of-capacity-app.mjs";
+import { CARD_CHECK_PATH, createCardResponder, createCardCheck, shieldedCardDriver } from "./network/proof-of-capacity-card.mjs";
+import { createProofKeyCheck } from "./network/proof-of-capacity-partition.mjs";
 import { mayReconcile } from "./network/registry-reconcile.mjs";   // the registration rule the Windows node follows too
 // app-funded lease gas: the configuration boundary and sender shared with windows/node/chain.mjs
 import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender } from "./network/lease-gas-runtime.mjs";
@@ -6801,6 +6804,38 @@ if (_capacity && _capacityDirs.length) setInterval(() => {
 // is signed its proofSchema must read 3; a prover that is not one leaves all of this off and says so once.
 const PROOF_OF_CAPACITY = process.env.PROOF_OF_CAPACITY === "1";
 const PROOF_OF_CAPACITY_SEC = Math.max(60, parseInt(process.env.PROOF_OF_CAPACITY_SEC || "300", 10) || 300);
+// FURTHER CHECKS of a host that passed the work, each "enforce" (default), "record" or "off":
+//   PROOF_OF_CAPACITY_APP   an app the host is paid for, verified as a customer's page verifies it (the independent
+//                           verifier as shipped, verifier/web/dist: network/proof-of-capacity-app.mjs)
+//   PROOF_OF_CAPACITY_CARD  a card it sells by masked offload: field products on the checker's seeds, sized to the rate
+//                           it advertises, rows checked with Freivalds (network/proof-of-capacity-card.mjs). This host
+//                           ANSWERS such a check for its own shielded cards whatever this setting is.
+//   PROOF_OF_CAPACITY_KEY   where an Enclave Shield host's proof key lives: in a capacity partition of an admitted image
+//                           (network/proof-of-capacity-partition.mjs), against the capacity app the Shield policy this
+//                           image carries pins (SHIELD_APP_POLICY_FILE; none pinned = not judged)
+// The app and key checks go through the relay (CAPACITY_API): it lists a box's apps and carries a Shield host's TPM
+// session. It cannot forge a report; what the verdicts lean on it for is in each record.
+// a setting that is none of the three stops the host at start: a check that silently does not run is worse than no host
+if (PROOF_OF_CAPACITY) for (const k of ["PROOF_OF_CAPACITY_APP", "PROOF_OF_CAPACITY_CARD", "PROOF_OF_CAPACITY_KEY"]) furtherMode(process.env[k], k);
+const CAPACITY_API = (process.env.CAPACITY_API ?? "https://api.enclave.host").trim().replace(/\/+$/, "");
+const SHIELD_APP_POLICY_FILE = process.env.SHIELD_APP_POLICY_FILE || new URL("./windows/installer/admitted-shield-policy.json", import.meta.url).pathname;
+const capacityVerifier = () => import("./verifier/web/dist/enclave-verifier-web.js");
+function capacityFurtherChecks({ host, domain, sign, recover }) {
+  const mode = (k) => furtherMode(process.env[k], k), app = mode("PROOF_OF_CAPACITY_APP"), card = mode("PROOF_OF_CAPACITY_CARD"), key = mode("PROOF_OF_CAPACITY_KEY");
+  const out = [], relay = /^https:\/\//.test(CAPACITY_API);
+  if (!relay && (app !== "off" || key !== "off")) console.warn("[capacity-proof] no relay base (CAPACITY_API): no app and no proof-key check of other hosts");
+  if (card !== "off") out.push(createCardCheck({ host, domain, sign, recover, enforce: card === "enforce" }));
+  // (the key before the app: both ask an Enclave Shield box for a TPM session and the relay allows one per box per 20 s.
+  // A verified key is remembered for a day, so the app gets the session on every round after the first.)
+  if (relay && key !== "off") out.push(createProofKeyCheck({ host, apiBase: CAPACITY_API, verifier: capacityVerifier, enforce: key === "enforce",
+    policy: () => JSON.parse(readFileSync(SHIELD_APP_POLICY_FILE, "utf8")) }));
+  if (relay && app !== "off") out.push(createAppCheck({ host, apiBase: CAPACITY_API, verifier: capacityVerifier, enforce: app === "enforce",
+    leaseOf: async (id) => {
+      const d = await chainClient.readContract({ address: getAddress(DEPLOYMENTS_ADDRESS), abi: (await depsAbi()).abi, functionName: "get", args: [id] });
+      return d ? { runner: d.runner, leaseUntil: Number(d.leaseUntil), active: d.active === true, isPublic: d.isPublic === true } : null;
+    } }));
+  return out;
+}
 let _poc = null, _pocRefused = "";
 async function proofOfCapacity() {
   if (!PROOF_OF_CAPACITY || !PROOF_READY()) return null;
@@ -6820,6 +6855,10 @@ async function proofOfCapacity() {
   const proofKeyOf = async (id) => { const e = await rowOf(id).catch(() => null); return e && !/^0x0+$/.test(String(e.proofKey)) ? e.proofKey : null; };
   _poc = { address, host,
     answer: createCapacityResponder({ hostId: host, domain, reader, proofKeyOf, sign, recover }),
+    // a check of a card this host sells by masked offload: the worker's own FIELD_GEMM on the checker's seeds, through
+    // the endpoint the guest already reaches the card at (the verdict file's, as every tenant's link)
+    card: createCardResponder({ hostId: host, domain, reader, proofKeyOf, sign, recover, open: shieldedCardDriver(),
+      cards: async () => { shieldedCapacity(); return _shieldedCache.cards.map((c) => ({ id: c.id, endpoint: c.endpoint })); } }),
     agent: createCapacityAgent({ host, domain, reader, sign,
       send: (functionName, args) => sendOperatorTx(address, POC_ABI, functionName, args).receipt,
       check: createCapacityChecker({ host, domain, sign, recover, targetOf,
@@ -6827,7 +6866,8 @@ async function proofOfCapacity() {
         claimOf: createClaimReader({ chainId: base.id, registry: getAddress(REGISTRY_ADDRESS),
           recoverMessage: (message, signature) => recoverMessageAddress({ message, signature }) }),
         // cut off from the outside is not a verdict on anyone: the chain must answer before "unreachable" is signed
-        reachable: () => chainClient.getBlockNumber().then(() => true, () => false) }),
+        reachable: () => chainClient.getBlockNumber().then(() => true, () => false),
+        also: capacityFurtherChecks({ host, domain, sign, recover }) }),
       selfCheck: selfCapacityRecord(host),
       // something to be paid for: a paid lease this host holds and serves now (what proofTick would checkpoint)
       wantsCredit: async () => [...deployments.values()].some((r) => r._onchain && r.status === "running" && r._leaseUntil * 1000 > Date.now() && !freeLease(r)),
@@ -6840,6 +6880,12 @@ app.post(CAPACITY_CHECK_PATH, async (req, res) => {
   if (!poc) return fail(res, 404, "not_enabled", "this host does not take part in proof of capacity");
   try { const r = await poc.answer(req.body); res.status(r.status).json(r.body); }
   catch (e) { fail(res, 503, "capacity_check_failed", String(e.message || e).slice(0, 200)); }
+});
+app.post(CARD_CHECK_PATH, async (req, res) => {
+  const poc = await proofOfCapacity().catch(() => null);
+  if (!poc) return fail(res, 404, "not_enabled", "this host does not take part in proof of capacity");
+  try { const r = await poc.card(req.body); res.status(r.status).json(r.body); }
+  catch (e) { fail(res, 503, "card_check_failed", String(e.message || e).slice(0, 200)); }
 });
 if (PROOF_OF_CAPACITY) setInterval(() => {
   proofOfCapacity().then((poc) => poc?.agent.tick()).catch((e) => console.warn(`[capacity-proof] ${String(e.message || e).slice(0, 200)}`));

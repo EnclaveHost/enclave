@@ -68,7 +68,7 @@ export function csrSpki(pem) {
 
 // One TLS session to the guest through guestd's data plane, and one HTTP exchange on it. The handshake key must be
 // the route's verified key, or the exchange never starts.
-function exchange(dataAddr, route, servername, method, path, body, timeoutMs) {
+function exchange(dataAddr, route, servername, method, path, body, timeoutMs, contentType = "application/x-pem-file") {
   return openSplice(dataAddr, route, { timeoutMs }).then((sock) => new Promise((resolve, reject) => {
     const s = tls.connect({ socket: sock, servername, rejectUnauthorized: false });
     const t = setTimeout(() => { s.destroy(); reject(new Error(`the guest did not answer ${path} within ${timeoutMs} ms`)); }, timeoutMs);
@@ -78,7 +78,7 @@ function exchange(dataAddr, route, servername, method, path, body, timeoutMs) {
       const spki = s.getPeerX509Certificate()?.publicKey.export({ type: "spki", format: "der" });
       if (!spki || sha(spki) !== route.key) return done(new Error("the guest's handshake key is not the key guestd verified"));
       const req = http.request({ createConnection: () => s, method, path, headers: {
-        host: servername, ...(body ? { "content-type": "application/x-pem-file", "content-length": Buffer.byteLength(body) } : {}) } },
+        host: servername, ...(body ? { "content-type": contentType, "content-length": Buffer.byteLength(body) } : {}) } },
       (res) => {
         const chunks = []; let n = 0;
         res.on("data", (c) => { n += c.length; if (n > 256 << 10) { res.destroy(); return done(new Error("answer too large")); } chunks.push(c); });
@@ -105,6 +105,16 @@ export async function readGuestAttestation({ transport, dataAddr, instanceId, ex
   if (doc?.nonce !== nonce.toString('hex') || doc.appSha256 !== expectAppId ||
       doc.transportKey !== a.spki.toString('base64')) throw new Error('guest evidence differs from request or TLS peer');
   return { doc, handshakeSpki: a.spki.toString('base64') };
+}
+
+// One request to a guest's front on the key guestd verified for that instance and app (a path the front serves itself:
+// the host's capacity partition, windows/node/shield-capacity.mjs). -> { status, body, spki (base64) }
+export async function guestRequest({ transport, dataAddr, instanceId, expectAppId, name, method = 'GET', path, body = null,
+  contentType = 'application/json', timeoutMs = 15_000 }) {
+  if (!/^\/\.well-known\/[a-z0-9-]{1,64}(\?[A-Za-z0-9=&_-]{0,256})?$/.test(String(path))) throw new Error('a well-known path of the front is required');
+  const route = await routeFor(transport, instanceId, expectAppId, { timeoutMs });
+  const a = await exchange(dataAddr, route, name, method, path, body, timeoutMs, contentType);
+  return { status: a.status, body: a.body, spki: a.spki.toString('base64') };
 }
 
 const renewAtOf = (leaf) => {

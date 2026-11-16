@@ -1548,7 +1548,10 @@ const BOX_OWN_SURFACES = new Set(["/availability", "/health", "/v1/health", "/v1
 // The box answers only a host its ledger's prover assigned to check it, over that host's signature, once per checker and
 // epoch; anything else it refuses itself. Without this entry a box reached through this relay could not be checked at
 // all, and the hosts assigned to it would be the ones to lose their standing for not having checked it.
-const BOX_CHECK_SURFACES = new Map([["/v1/host/capacity-check", "POST"]]);
+// POST /v1/host/card-check: the same for a card the box sells (network/proof-of-capacity-card.mjs). GET
+// /v1/host/capacity-key: the attestation of the box's capacity partition and its proof key's statement, over the
+// caller's nonce (network/proof-of-capacity-partition.mjs): the caller verifies it, the relay vouches for nothing.
+const BOX_CHECK_SURFACES = new Map([["/v1/host/capacity-check", "POST"], ["/v1/host/card-check", "POST"], ["/v1/host/capacity-key", "GET"]]);
 const CUSTODY_SURFACES = new Map([["/v2/custody/info", "GET"], ["/v2/custody/challenge", "POST"], ["/v2/custody/release", "POST"],
                                    ["/v2/custody/evidence", "POST"], ["/v2/custody/join", "POST"], ["/v2/custody/approve", "POST"],
                                    ["/v2/custody/code-approve", "POST"]]);

@@ -6,7 +6,7 @@ import {pad, toHex, keccak256, toBytes, recoverTypedDataAddress} from 'viem';
 const recover = (typedData, signature) => recoverTypedDataAddress({...typedData, signature});
 import {generatePrivateKey, privateKeyToAccount} from 'viem/accounts';
 import {capacityWork, capacityLanes, createCapacityResponder, createCapacityChecker, createCapacityAgent, selfCapacityRecord,
-  createClaimReader, challengeMessage, CAPACITY_CHECK_PATH} from '../network/proof-of-capacity-host.mjs';
+  createClaimReader, challengeMessage, capacityAnswerHere, furtherMode, CAPACITY_CHECK_PATH} from '../network/proof-of-capacity-host.mjs';
 import {buildCapacityRecord, signCapacityRecord} from '../network/host-capacity-record.mjs';
 import {recoverMessageAddress} from 'viem';
 import {evidenceDigest} from '../network/proof-of-capacity.mjs';
@@ -176,7 +176,10 @@ test('the claim is the host\'s own signed capacity record: its host id, its oper
     fetch: async url => { assert.equal(url, endpoint + '/v1/host/capacity'); return env ? {ok: true, json: async () => env} : {ok: false, status: 503}; }});
   const c = await reader(await envelope())(B, row);
   assert.deepEqual({lanes: c.lanes, freeMiB: c.freeMiB}, {lanes: 8, freeMiB: 49152}); assert.match(c.record, /^0x[0-9a-f]{64}$/);
-  assert.deepEqual({...(await reader(await envelope({availability: {vcpusFree: 3.9, ramGbFree: 1.5}}))(B, row)), record: 0}, {lanes: 3, freeMiB: 1536, record: 0});
+  assert.deepEqual({...(await reader(await envelope({availability: {vcpusFree: 3.9, ramGbFree: 1.5}}))(B, row)), record: 0}, {lanes: 3, freeMiB: 1536, record: 0, cards: []});
+  // the cards it sells by masked offload: each with the rate it states and the share of it that is free now
+  const sold = await reader(await envelope({availability: {shieldedCards: [{id: 0, gmacPerSec: 6.2, gpuShareFree: 0.5, card: 'x'}, {id: 1, gmacPerSec: 3}, {id: 99, gmacPerSec: 1}, {gmacPerSec: 1}, null]}}))(B, row);
+  assert.deepEqual(sold.cards, [{id: 0, gmacPerSec: 6.2, share: 0.5}, {id: 1, gmacPerSec: 3, share: 0}]);
   assert.match((await reader(await envelope({hostId: C}))(B, row)).none, /another host's/);
   assert.match((await reader(await envelope())(B, {...row, operator: '0x' + '77'.repeat(20)})).none, /not signed by the host's registry operator/);
   assert.match((await createClaimReader({chainId: 1, registry, recoverMessage: async () => op.address, fetch: async () => ({ok: true, json: async () => envelope()})})(B, row)).none, /another chain or registry/);
@@ -194,6 +197,30 @@ test('further checks: one that fails makes the verdict a fail, with its reason; 
   r = JSON.parse((await network().checkerOf(A, {also: [async () => ({name: 'card', ok: false, why: 'the result of the card\'s work is not the checker\'s'})]})(B, ctx)).evidence);
   assert.equal(r.verdict, 'fail'); assert.match(r.why, /^card: the result of the card's work/);
   await assert.rejects(network().checkerOf(A, {also: [async () => { throw new Error('the verifier has no session'); }]})(B, ctx), /no session/);
+  // one that could not judge is recorded with its reason and leaves the verdict to the rest; each is handed the claim
+  const got = [];
+  r = JSON.parse((await network().checkerOf(A, {claimOf: async () => ({lanes: 1, freeMiB: 64, record: '0x' + '11'.repeat(32), cards: [{id: 0, gmacPerSec: 5, share: 1}]}),
+    also: [async (_t, _row, c) => { got.push(c.claim.cards); return {name: 'served-app', ok: null, why: 'the relay is busy'}; }, served]})(B, ctx)).evidence);
+  assert.equal(r.verdict, 'pass'); assert.deepEqual(r.also[0], {name: 'served-app', ok: null, why: 'the relay is busy'}); assert.equal(r.also[1].ok, true);
+  assert.deepEqual(got, [[{id: 0, gmacPerSec: 5, share: 1}]]);
+});
+
+test('a host whose proof key is elsewhere hands the challenge over: the work and the signature come back together', async () => {
+  const n = network(), elsewhere = privateKeyToAccount(generatePrivateKey()), asked = [];
+  n.hosts[B].key = elsewhere;   // the registry publishes the partition's key
+  n.hosts[B].answer = createCapacityResponder({recover, hostId: B, domain, reader: n.reader, proofKeyOf: n.proofKeyOf, sign: async () => { throw new Error('this process holds no proof key'); },
+    answerOf: async (c, d) => { asked.push([c.lanes, d.contract]); return capacityAnswerHere(c, d, m => elsewhere.signTypedData(m)); }});
+  const r = await n.checkerOf(A)(B, ctx);
+  assert.equal(r.verdict, 'pass'); assert.deepEqual(asked, [[1, domain.contract]]);
+  // busy there is busy here: no verdict, tried again
+  n.hosts[B].answer = createCapacityResponder({recover, hostId: B, domain, reader: n.reader, proofKeyOf: n.proofKeyOf, sign: n.hosts[B].sign,
+    answerOf: async () => { throw Object.assign(new Error('busy'), {busy: true}); }});
+  await assert.rejects(n.checkerOf(A)(B, ctx), /answered 503/);
+});
+
+test('a further check is enforce, record or off, and nothing else', () => {
+  assert.equal(furtherMode(undefined), 'enforce'); assert.equal(furtherMode(''), 'enforce'); assert.equal(furtherMode(' record '), 'record'); assert.equal(furtherMode('off'), 'off');
+  assert.throws(() => furtherMode('no', 'PROOF_OF_CAPACITY_APP'), /PROOF_OF_CAPACITY_APP must be enforce, record or off/);
 });
 
 test('a host\'s own record is the same work on itself, and its digest is what goes on chain', async () => {
