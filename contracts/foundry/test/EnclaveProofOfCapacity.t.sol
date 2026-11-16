@@ -54,8 +54,8 @@ contract ProofOfCapacityTest is Test {
         vm.stopPrank();
     }
     function _self(uint256 i) internal {
-        Host memory h = hosts[i]; bytes32 seed = poc.touch(); uint64 e = poc.epochNow();
-        poc.proveSelf(h.id, bytes32("self"), _sig(h.key, poc.selfDigest(e, h.id, seed, bytes32("self"))));
+        Host memory h = hosts[i]; uint64 e = poc.epochNow(); bytes32 anchor = blockhash(blockNo - 1);
+        poc.proveSelf(h.id, uint64(blockNo - 1), anchor, bytes32("self"), _sig(h.key, poc.selfDigest(e, h.id, uint64(blockNo - 1), anchor, bytes32("self"))));
     }
     function _report(uint256 checker, uint256 target, uint64 epoch, uint8 verdict) internal {
         Host memory c = hosts[checker];
@@ -116,13 +116,18 @@ contract ProofOfCapacityTest is Test {
 
     function testASelfProofIsOnlyTheHostsOwnKeyAndOnlyThisEpoch() public {
         _to(T + 10); _lease(0); _to(T + 600);
-        bytes32 seed = poc.touch(); uint64 e = poc.epochNow();
-        bytes32 d = poc.selfDigest(e, hosts[0].id, seed, bytes32("self"));
-        vm.expectRevert(bytes("bad self-proof signature")); poc.proveSelf(hosts[0].id, bytes32("self"), _sig(hosts[1].key, d));
+        uint64 e = poc.epochNow(); uint64 ab = uint64(blockNo - 1); bytes32 anchor = blockhash(blockNo - 1);
+        bytes32 d = poc.selfDigest(e, hosts[0].id, ab, anchor, bytes32("self"));
+        vm.expectRevert(bytes("bad self-proof signature")); poc.proveSelf(hosts[0].id, ab, anchor, bytes32("self"), _sig(hosts[1].key, d));
         bytes memory good = _sig(hosts[0].key, d);
-        poc.proveSelf(hosts[0].id, bytes32("self"), good);
+        assertEq(poc.seedOf(e), bytes32(0));
+        poc.proveSelf(hosts[0].id, ab, anchor, bytes32("self"), good);   // in the epoch's first transaction: it fixes the seed itself
+        assertTrue(poc.seedOf(e) != bytes32(0));
+        // an anchor that is not a block's hash, and the same proof an epoch later (its epoch is signed)
+        vm.expectRevert(bytes("stale or unknown anchor")); poc.proveSelf(hosts[0].id, ab, bytes32("other"), bytes32("self"), good);
         _to(_epochStart(e + 1) + 300);
-        vm.expectRevert(bytes("bad self-proof signature")); poc.proveSelf(hosts[0].id, bytes32("self"), good);   // another seed
+        vm.setBlockhash(ab, anchor);
+        vm.expectRevert(bytes("bad self-proof signature")); poc.proveSelf(hosts[0].id, ab, anchor, bytes32("self"), good);
         assertFalse(poc.selfProved(e + 1, hosts[0].id));
     }
 
@@ -294,7 +299,7 @@ contract ProofOfCapacityTest is Test {
         vm.etch(address(fixed_), address(poc).code);
         bytes32 a = bytes32(uint256(0xA1)); bytes32 b = bytes32(uint256(0xB2)); bytes32 seed = keccak256("seed"); bytes32 ev = keccak256("evidence");
         assertEq(fixed_.reportDigest(495000, a, b, 1, seed, ev), 0x13391c317e45a647fc8a1cffaab5b38edec71610cbaa1af9dbacd49a8903f6ba);
-        assertEq(fixed_.selfDigest(495000, a, seed, ev), 0xf0fb7c458454ef71aa272c79ecaa7ffe4aa67625218ced2da664dfc85e13ff80);
+        assertEq(fixed_.selfDigest(495000, a, 1099, keccak256("anchor"), ev), 0x392035b56ddab176db418739be37be8398c012bd35d9a1dc95c4ee749951cdca);
         assertEq(fixed_.proofDigest(b, a, address(0x1234), 1800000600, 1099, keccak256("anchor")), 0x8fe5b3045f7eb0e314870e125f23b10bd185ac176491b4a77413810c17ebd70d);
     }
 

@@ -36,21 +36,24 @@ export function carryMessage({chainId, operator, ledger}, c) {
  * One signed order for `calls` ([{abi, functionName, args}], in order) to `target`.
  *   nonce: the key's carryNonce now; fee6: what the host offers, in USDC units; payee: the carrier, or none for whoever
  *   sends it; payout: where the rest of the key's earnings go, or none to leave them; ttlSec: how long the order stands
- * -> {operator, carry: {...}, calls: [bytes], signature}: exactly `carry`'s arguments
+ *   authorization: the operator key's signed EIP-7702 authorization for the executor, when the key does not run it yet
+ *   (its first order); the carrier attaches it to the transaction
+ * -> {operator, carry: {...}, calls: [bytes], signature[, authorization]}: `carry`'s arguments
  */
-export async function signCarry({eth, chainId, operator, ledger, target, calls, nonce, fee6, payee = ZERO, payout = ZERO, ttlSec = 300, sign, now = Date.now}) {
+export async function signCarry({eth, chainId, operator, ledger, target, calls, nonce, fee6, payee = ZERO, payout = ZERO, ttlSec = 300, sign, authorization = null, now = Date.now}) {
   need(Array.isArray(calls) && calls.length > 0 && calls.length <= 64, 'calls: 1 to 64');
   need(Number.isInteger(ttlSec) && ttlSec >= 30 && ttlSec <= 3600, 'ttlSec: 30 s to an hour');
   const data = calls.map(c => eth.encodeFunctionData(c));
   const carry = {target, callsHash: callsHash(eth, data), nonce: BigInt(nonce), deadline: BigInt(Math.floor(now() / 1000) + ttlSec),
     payee, fee6: BigInt(fee6), payout};
-  return {operator, carry, calls: data, signature: await sign(carryMessage({chainId, operator, ledger}, carry))};
+  return {operator, carry, calls: data, signature: await sign(carryMessage({chainId, operator, ledger}, carry)), ...(authorization ? {authorization} : {})};
 }
 
 /**
  * A carrier's side: would this order pay, and if so send it. The carrier loses its gas on an order that reverts, so it
  * asks the chain first, from its own address, and sends only what that says will succeed.
  *   client.simulateContract / wallet.writeContract (viem's); minFee6: the least the carrier takes for its gas
+ *   An order's EIP-7702 authorization goes into the transaction (and the simulation) as it came.
  * -> {sent: hash} | {refused: why}
  */
 export async function carryOrder({order, client, wallet, account, minFee6 = 0n, now = Date.now}) {
@@ -60,7 +63,8 @@ export async function carryOrder({order, client, wallet, account, minFee6 = 0n, 
   if (BigInt(c.deadline) <= BigInt(Math.floor(now() / 1000) + 15)) return {refused: 'the order is about to expire'};
   const mine = String(account.address ?? account).toLowerCase();
   if (String(c.payee).toLowerCase() !== ZERO && String(c.payee).toLowerCase() !== mine) return {refused: 'the order pays another carrier'};
-  const call = {address: order.operator, abi: CARRY_ABI, functionName: 'carry', args: [c, order.calls, order.signature], account};
+  const call = {address: order.operator, abi: CARRY_ABI, functionName: 'carry', args: [c, order.calls, order.signature], account,
+    ...(order.authorization ? {authorizationList: [order.authorization]} : {})};
   try { await client.simulateContract(call); }
   catch (e) { return {refused: `it would revert: ${String(e?.shortMessage || e?.message || e).slice(0, 160)}`}; }
   return {sent: await wallet.writeContract(call)};

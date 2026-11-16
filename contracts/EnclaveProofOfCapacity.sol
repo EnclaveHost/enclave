@@ -131,7 +131,7 @@ contract EnclaveProofOfCapacity {
     bytes32 private constant REPORT_TYPEHASH = keccak256(
         "CapacityReport(uint64 epoch,bytes32 checker,bytes32 target,uint8 verdict,bytes32 seed,bytes32 evidence)");
     bytes32 private constant SELF_TYPEHASH = keccak256(
-        "CapacitySelf(uint64 epoch,bytes32 host,bytes32 seed,bytes32 evidence)");
+        "CapacitySelf(uint64 epoch,bytes32 host,uint64 anchorBlock,bytes32 anchorHash,bytes32 evidence)");
 
     event Checkpointed(bytes32 indexed id, bytes32 indexed enclaveId, address indexed operator,
                        uint64 provenUntil, uint64 secondsProven, uint64 anchorBlock);
@@ -237,9 +237,11 @@ contract EnclaveProofOfCapacity {
             keccak256(abi.encode(REPORT_TYPEHASH, epoch, checker, target, verdict, seed, evidence))));
     }
 
-    function selfDigest(uint64 epoch, bytes32 host, bytes32 seed, bytes32 evidence) public view returns (bytes32) {
+    function selfDigest(uint64 epoch, bytes32 host, uint64 anchorBlock, bytes32 anchorHash, bytes32 evidence)
+        public view returns (bytes32)
+    {
         return keccak256(abi.encodePacked("\x19\x01", domainSeparator(),
-            keccak256(abi.encode(SELF_TYPEHASH, epoch, host, seed, evidence))));
+            keccak256(abi.encode(SELF_TYPEHASH, epoch, host, anchorBlock, anchorHash, evidence))));
     }
 
     /// A checker's verdict on a host it was assigned, for the current epoch or (within the grace) the one before.
@@ -261,13 +263,18 @@ contract EnclaveProofOfCapacity {
         emit CapacityReported(epoch, checker, target, verdict, evidence);
     }
 
-    /// A host's own proof of capacity for the current epoch, signed by its proof key over the epoch's seed.
-    function proveSelf(bytes32 host, bytes32 evidence, bytes calldata sig) external {
-        bytes32 seed = touch();
+    /// A host's own proof of capacity for the current epoch, signed by its proof key over a RECENT BLOCK (as a proof of
+    /// time is: the hash did not exist before that block and cannot be redeemed 256 blocks later). Not over the epoch's
+    /// seed: the seed is fixed by the epoch's first transaction, so a proof over it could never be IN that transaction,
+    /// and a lone host whose transactions are carried for a share of what they unlock would have nobody to send the
+    /// first one.
+    function proveSelf(bytes32 host, uint64 anchorBlock, bytes32 anchorHash, bytes32 evidence, bytes calldata sig) external {
+        require(anchorHash != bytes32(0) && blockhash(anchorBlock) == anchorHash, "stale or unknown anchor");
+        touch();
         uint64 e = epochNow();
         address key = registry.get(host).proofKey;
         require(key != address(0), "host has no proof key");
-        require(_recover(selfDigest(e, host, seed, evidence), sig) == key, "bad self-proof signature");
+        require(_recover(selfDigest(e, host, anchorBlock, anchorHash, evidence), sig) == key, "bad self-proof signature");
         selfProved[e][host] = true;
         emit CapacitySelfProved(e, host, evidence);
     }

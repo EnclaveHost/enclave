@@ -19,7 +19,7 @@ export const capacityDomain = ({chainId, contract}) => {
 const TYPES = {
   CapacityReport: [{name: 'epoch', type: 'uint64'}, {name: 'checker', type: 'bytes32'}, {name: 'target', type: 'bytes32'},
     {name: 'verdict', type: 'uint8'}, {name: 'seed', type: 'bytes32'}, {name: 'evidence', type: 'bytes32'}],
-  CapacitySelf: [{name: 'epoch', type: 'uint64'}, {name: 'host', type: 'bytes32'}, {name: 'seed', type: 'bytes32'}, {name: 'evidence', type: 'bytes32'}],
+  CapacitySelf: [{name: 'epoch', type: 'uint64'}, {name: 'host', type: 'bytes32'}, {name: 'anchorBlock', type: 'uint64'}, {name: 'anchorHash', type: 'bytes32'}, {name: 'evidence', type: 'bytes32'}],
   ProofOfTime: [{name: 'id', type: 'bytes32'}, {name: 'enclaveId', type: 'bytes32'}, {name: 'operator', type: 'address'},
     {name: 'upto', type: 'uint64'}, {name: 'anchorBlock', type: 'uint64'}, {name: 'anchorHash', type: 'bytes32'}],
 };
@@ -33,10 +33,11 @@ export function reportMessage(domain, {epoch, checker, target, verdict, seed, ev
   need(HEX32.test(evidence), 'evidence: a 32-byte digest');
   return typed(domain, 'CapacityReport', {epoch: BigInt(epoch), checker, target, verdict, seed, evidence});
 }
-export function selfMessage(domain, {epoch, host, seed, evidence}) {
+// (over a recent block, not the epoch's seed: the seed is fixed by the epoch's first transaction, which this may be)
+export function selfMessage(domain, {epoch, host, anchorBlock, anchorHash, evidence}) {
   need(Number.isSafeInteger(epoch) && epoch >= 0 && HEX32.test(host), 'epoch and host id');
-  need(HEX32.test(seed) && !/^0x0+$/.test(seed) && HEX32.test(evidence), 'seed and evidence');
-  return typed(domain, 'CapacitySelf', {epoch: BigInt(epoch), host, seed, evidence});
+  need(BigInt(anchorBlock) > 0n && HEX32.test(anchorHash) && !/^0x0+$/.test(anchorHash) && HEX32.test(evidence), 'anchor and evidence');
+  return typed(domain, 'CapacitySelf', {epoch: BigInt(epoch), host, anchorBlock: BigInt(anchorBlock), anchorHash, evidence});
 }
 export function proofMessage(domain, {id, enclaveId, operator, upto, anchorBlock, anchorHash}) {
   need(HEX32.test(id) && HEX32.test(enclaveId) && ADDR.test(String(operator || '')) && HEX32.test(anchorHash), 'deployment, host, operator and anchor');
@@ -75,9 +76,11 @@ export async function dutyRound({domain, host, reader, sign, check}) {
 
 /**
  * What `host` still needs to be credited in the current epoch, from the contract's own `standing`.
- *   reader: {epochNow(), seedOf(epoch), standing(host, epoch) -> [ok, why]}
- *   selfCheck({epoch, seed}) -> text of the host's own capacity record (only called when its own proof is what is missing)
- * -> {epoch, ok: true} | {epoch, ok: false, why} | {epoch, ok: false, why, self: {epoch, host, evidence, signature}}
+ *   reader: {epochNow(), standing(host, epoch) -> [ok, why], anchor() -> {number, hash} of a recent block}
+ *   selfCheck({epoch, seed}) -> text of the host's own capacity record, the work seeded by that block's hash (only called
+ *   when its own proof is what is missing)
+ * -> {epoch, ok: true} | {epoch, ok: false, why}
+ *  | {epoch, ok: false, why, self: {epoch, host, anchorBlock, anchorHash, evidence, signature}}
  * A missing duty or failed checks cannot be signed away: those return `why` and nothing to submit.
  */
 export async function standingRound({domain, host, reader, sign, selfCheck}) {
@@ -86,8 +89,8 @@ export async function standingRound({domain, host, reader, sign, selfCheck}) {
   const [ok, why] = await reader.standing(host, epoch);
   if (ok) return {epoch, ok: true};
   if (why !== 'needs its own proof of capacity') return {epoch, ok: false, why};
-  const seed = await reader.seedOf(epoch);
-  if (!HEX32.test(String(seed)) || /^0x0+$/.test(seed)) return {epoch, ok: false, why: 'the epoch has no seed yet (touch the contract first)'};
-  const evidence = evidenceDigest(await selfCheck({epoch, seed}));
-  return {epoch, ok: false, why, self: {epoch, host, evidence, signature: await sign(selfMessage(domain, {epoch, host, seed, evidence}))}};
+  const a = await reader.anchor(), anchorBlock = BigInt(a.number), anchorHash = a.hash;
+  const evidence = evidenceDigest(await selfCheck({epoch, seed: anchorHash}));
+  return {epoch, ok: false, why, self: {epoch, host, anchorBlock, anchorHash, evidence,
+    signature: await sign(selfMessage(domain, {epoch, host, anchorBlock, anchorHash, evidence}))}};
 }

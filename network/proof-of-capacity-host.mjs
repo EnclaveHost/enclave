@@ -32,7 +32,7 @@ export const POC_ABI = Object.freeze([
   fn('standing', [['host', 'bytes32'], ['epoch', 'uint64']], [['ok', 'bool'], ['why', 'string']]),
   fn('touch', [], [['', 'bytes32']], 'nonpayable'),
   fn('report', [['epoch', 'uint64'], ['checker', 'bytes32'], ['target', 'bytes32'], ['verdict', 'uint8'], ['evidence', 'bytes32'], ['sig', 'bytes']], [], 'nonpayable'),
-  fn('proveSelf', [['host', 'bytes32'], ['evidence', 'bytes32'], ['sig', 'bytes']], [], 'nonpayable'),
+  fn('proveSelf', [['host', 'bytes32'], ['anchorBlock', 'uint64'], ['anchorHash', 'bytes32'], ['evidence', 'bytes32'], ['sig', 'bytes']], [], 'nonpayable'),
 ]);
 /** The contract's views, from a viem public client. */
 export function capacityReader(client, address) {
@@ -41,6 +41,8 @@ export function capacityReader(client, address) {
     proofSchema: () => read('proofSchema'), epochNow: () => read('epochNow'), seedOf: e => read('seedOf', [BigInt(e)]),
     targetsOf: (e, h) => read('targetsOf', [BigInt(e), h]), checkersOf: (e, h) => read('checkersOf', [BigInt(e), h]),
     verdictOf: (e, c, t) => read('verdictOf', [BigInt(e), c, t]), standing: (h, e) => read('standing', [h, BigInt(e)]),
+    // the parent of the latest block: always within the 256 the contract can look back
+    anchor: async () => { const head = await client.getBlock({blockTag: 'latest'}); return client.getBlock({blockNumber: head.number - 1n}); },
   };
 }
 
@@ -192,7 +194,7 @@ export function createCapacityAgent({host, domain, reader, sign, send, check, se
     if (await wantsCredit()) {
       const st = await standingRound({domain, host, reader, sign, selfCheck});
       out.standing = {ok: st.ok, why: st.why || ''};
-      if (st.self) out.selfProved = await attempt('own proof', () => send('proveSelf', [st.self.host, st.self.evidence, st.self.signature]));
+      if (st.self) out.selfProved = await attempt('own proof', () => send('proveSelf', [st.self.host, st.self.anchorBlock, st.self.anchorHash, st.self.evidence, st.self.signature]));
       else if (!st.ok) log(`proof of capacity: not in standing for epoch ${st.epoch}: ${st.why}`);
     }
     return out;

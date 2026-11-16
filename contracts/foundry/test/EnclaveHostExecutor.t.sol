@@ -50,12 +50,10 @@ contract HostExecutorTest is Test {
     /// the calls of one round of a lone host: fix the seed, its own proof of capacity, its checkpoint
     function _round() internal returns (bytes[] memory calls) {
         uint64 e = poc.epochNow();
-        bytes32 seed = poc.seedOf(e);
-        if (seed == bytes32(0)) seed = keccak256(abi.encode(blockhash(block.number - 1), e, address(poc)));   // what touch() will fix
         uint64 upto = nowT; bytes32 anchor = blockhash(blockNo - 1);
         calls = new bytes[](3);
         calls[0] = abi.encodeCall(poc.touch, ());
-        calls[1] = abi.encodeCall(poc.proveSelf, (host, bytes32("self"), _sig(PROOF_KEY, poc.selfDigest(e, host, seed, bytes32("self")))));
+        calls[1] = abi.encodeCall(poc.proveSelf, (host, uint64(blockNo - 1), anchor, bytes32("self"), _sig(PROOF_KEY, poc.selfDigest(e, host, uint64(blockNo - 1), anchor, bytes32("self")))));
         calls[2] = abi.encodeCall(poc.checkpoint, (app, host, upto, uint64(blockNo - 1), anchor,
             _sig(PROOF_KEY, poc.proofDigest(app, host, operator, upto, uint64(blockNo - 1), anchor))));
     }

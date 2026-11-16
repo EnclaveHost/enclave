@@ -29,7 +29,7 @@ function network({checkers = {[A]: [B], [B]: [A]}, epoch = 9} = {}) {
   const hosts = {}, done = {}, sent = [];
   const reader = {epochNow: async () => BigInt(epoch), seedOf: async () => seed,
     checkersOf: async (_e, t) => checkers[t] || [], targetsOf: async (_e, c) => Object.keys(checkers).filter(t => checkers[t].includes(c)),
-    verdictOf: async (_e, c, t) => done[`${c}>${t}`] || 0, standing: async () => [true, '']};
+    verdictOf: async (_e, c, t) => done[`${c}>${t}`] || 0, standing: async () => [true, ''], anchor: async () => ({number: 77n, hash: keccak256(toBytes('recent'))})};
   for (const id of [A, B, C]) {
     const key = privateKeyToAccount(generatePrivateKey()), sign = m => key.signTypedData(m);
     hosts[id] = {id, key, sign, endpoint: `https://${id.slice(-2)}.example`};
@@ -122,7 +122,7 @@ test('the agent: seeds the epoch, checks what it was assigned, reports once, pro
   assert.deepEqual(sent.filter(x => x[0] === 'report').map(x => [x[1][2], x[1][3]]).sort(), [[B, 1], [C, 3]].sort());
   assert.deepEqual({reported: r.reported, selfProved: r.selfProved, standing: r.standing}, {reported: 2, selfProved: true, standing: {ok: false, why: 'needs its own proof of capacity'}});
   const self = sent.find(x => x[0] === 'proveSelf')[1];
-  assert.equal(self[0], A); assert.match(self[1], /^0x[0-9a-f]{64}$/);
+  assert.equal(self[0], A); assert.deepEqual([self[1], self[2]], [77n, keccak256(toBytes('recent'))]); assert.match(self[3], /^0x[0-9a-f]{64}$/);
   // next tick: nothing left to report; in standing: nothing to send
   sent.length = 0; standing = [true, ''];
   assert.deepEqual((await agent.tick()).standing, {ok: true, why: ''}); assert.deepEqual(sent, []);

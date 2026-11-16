@@ -14,7 +14,7 @@ function chainStub({schema = 3n, standing = [false, 'needs its own proof of capa
     verdictOf: () => 0, standing: () => standing};
   return {key, sent, chainId: 8453, addresses: {proofOfTime: CONTRACT}, proofAddress: () => key.address,
     proofSign: m => key.signTypedData(m), blockNumber: async () => 1n, readEnclave: async () => null,
-    publicClient: () => ({readContract: async ({functionName, args}) => { if (schema === null) throw new Error('execution reverted'); return views[functionName](...args); }}),
+    publicClient: () => ({getBlock: async ({blockNumber} = {}) => ({number: blockNumber ?? 100n, hash: seed}), readContract: async ({functionName, args}) => { if (schema === null) throw new Error('execution reverted'); return views[functionName](...args); }}),
     sendOperatorTx: async (address, abi, fn, args) => { sent.push({address, fn, args}); return '0xhash'; }};
 }
 

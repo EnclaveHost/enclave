@@ -44,7 +44,9 @@ an owner's action, with the escrow question that every ledger replacement has.
 - **Report**: `CapacityReport(epoch, checker, target, verdict, seed, evidence)`, EIP-712, signed by the checker's
   registry **proof key** (the in-enclave key that signs its proofs of time). Accepted during its epoch and for
   `reportGraceSec` after, once per (epoch, checker, target), from anyone who carries it.
-- **Own proof**: `CapacitySelf(epoch, host, seed, evidence)`, signed by the host's proof key, for the current epoch.
+- **Own proof**: `CapacitySelf(epoch, host, anchorBlock, anchorHash, evidence)`, signed by the host's proof key, for
+  the current epoch, over a recent block (as a proof of time is), not over the seed: the seed is fixed by the
+  epoch's first transaction, and a lone host's own proof must be able to be in that transaction.
 - **Checkpoint**: `EnclaveProofOfTime`'s, with `standing` required in front of it and the roster kept behind it.
 - No owner, no parameter that can change after deployment.
 
@@ -140,12 +142,42 @@ these calls, once and in time; the named carrier is paid whoever sends; a failin
 Not done: the hosts do not use it (they still send their own transactions from the operator key), no carrier
 runs anywhere, and no operator key is delegated to it. Moving a key to this delegate is one EIP-7702 authorization.
 
+## End to end on a local chain (2026-11-16)
+
+`test/proof-of-capacity-e2e.test.mjs`, on anvil (chain id 8453, Prague): the repository's ledger and registry,
+`EnclaveProofOfCapacity` as the ledger's prover, `EnclaveHostExecutor` as the EIP-7702 delegate of each operator
+key, three hosts running the real host code (agent, checker, responder over real HTTP) and one carrier. Operator
+keys hold no ETH whenever an order is carried; they are given ETH only to register and to claim or renew a lease
+(the paymaster's and the lease-gas reserve's paths in production, not what this test is about).
+
+| epoch | what happens |
+|---|---|
+| 0 | three new hosts: each its own proof and its checkpoint in one carried transaction (the key's first, with its delegation); all credited |
+| 1 | on the roster, not yet checked: own proof once more; they check each other over HTTP. Host C answers with the digest of less work: both of its checkers report a fail |
+| 2 | A and B in standing with no proof of their own. C's order would revert (`failed its capacity checks`): the carrier does not send it, C is not credited. C stops answering: A and B report it unreachable |
+| 3 | the roster is A and B, one checker each. C is back but checked nobody in epoch 2: `did not check the hosts it was assigned`, not carried |
+| 4 | C is a new host again: its own proof, credited |
+
+From the receipts: 18 orders carried, 2 not; 417,429 gas for a key's first order (with its delegation), 302,529 on
+average after (reports, checkpoint, withdrawal, two transfers); the carrier received exactly the signed fee each
+time (0.36 USDC in all at the test's 0.02) and the hosts 80.76 USDC to their payout addresses; no operator key held
+ETH at any carry, and nothing was left on the ledger or on a key afterwards.
+
+**What building it found.** A host's own proof was first signed over the epoch's seed. The seed is fixed by the
+epoch's first transaction, so the proof could never be in that transaction, and a lone host whose transactions are
+paid out of what they unlock had nobody to send the first one. The own proof now names a recent block instead.
+
+**What it shows about ordering.** The host whose order is the first of an epoch cannot know whom to check until
+that order has landed (it fixes the seed), so it does its checks on its next round; the hosts after it check at once.
+Two rounds an epoch are enough for every host to do its duty.
+
 ## Not built
 
 - Deployment tooling (`scripts/build-contract-artifacts.mjs` has no entry for it, so no ABI file is emitted).
 - A carrier service, and the hosts choosing a carried order over their own transaction when the key is empty.
 - A check that runs where the apps run (inside a Shield partition or beside the app in the VM), and a GPU check.
-- No host has run any of this: not on a test chain end to end, not on a real box.
+- No real box has run any of this, and the end-to-end test drives the host module directly, not `supervisor.js` or
+  the Windows node around it.
 
 ## Checked
 

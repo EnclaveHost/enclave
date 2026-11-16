@@ -10,13 +10,13 @@ const digestOf = hashTypedData;
 
 const domain = {chainId: 8453, contract: '0x00000000000000000000000000000000000c0ffe'};
 const A = pad(toHex(0xA1), {size: 32}), B = pad(toHex(0xB2), {size: 32}), C = pad(toHex(0xC3), {size: 32});
-const seed = keccak256(toBytes('seed')), ev = keccak256(toBytes('evidence'));
+const seed = keccak256(toBytes('seed')), ev = keccak256(toBytes('evidence')), ANCHOR = keccak256(toBytes('a recent block'));
 export const VECTORS = {
   report: digestOf(reportMessage(domain, {epoch: 495000, checker: A, target: B, verdict: 1, seed, evidence: ev})),
-  self: digestOf(selfMessage(domain, {epoch: 495000, host: A, seed, evidence: ev})),
+  self: digestOf(selfMessage(domain, {epoch: 495000, host: A, anchorBlock: 1099, anchorHash: keccak256(toBytes('anchor')), evidence: ev})),
   proof: digestOf(proofMessage(domain, {id: B, enclaveId: A, operator: '0x0000000000000000000000000000000000001234', upto: 1800000600, anchorBlock: 1099, anchorHash: keccak256(toBytes('anchor'))})),
 };
-const PINNED = {report: '0x13391c317e45a647fc8a1cffaab5b38edec71610cbaa1af9dbacd49a8903f6ba', self: '0xf0fb7c458454ef71aa272c79ecaa7ffe4aa67625218ced2da664dfc85e13ff80', proof: '0x8fe5b3045f7eb0e314870e125f23b10bd185ac176491b4a77413810c17ebd70d'};
+const PINNED = {report: '0x13391c317e45a647fc8a1cffaab5b38edec71610cbaa1af9dbacd49a8903f6ba', self: '0x392035b56ddab176db418739be37be8398c012bd35d9a1dc95c4ee749951cdca', proof: '0x8fe5b3045f7eb0e314870e125f23b10bd185ac176491b4a77413810c17ebd70d'};
 
 test('the three digests are the contract\'s', () => { assert.deepEqual(VECTORS, PINNED); });
 
@@ -25,7 +25,8 @@ test('a message with a missing or impossible field is refused before anything is
   for (const bad of [{epoch: -1}, {checker: 'x'}, {target: A}, {verdict: 0}, {verdict: 4}, {seed: '0x' + '00'.repeat(32)}, {evidence: '0x12'}])
     assert.throws(() => reportMessage(domain, {...ok, ...bad}), JSON.stringify(bad));
   assert.throws(() => reportMessage({chainId: 0, contract: domain.contract}, ok));
-  assert.throws(() => selfMessage(domain, {epoch: 5, host: A, seed: '0x' + '00'.repeat(32), evidence: ev}));
+  assert.throws(() => selfMessage(domain, {epoch: 5, host: A, anchorBlock: 9, anchorHash: '0x' + '00'.repeat(32), evidence: ev}));
+  assert.throws(() => selfMessage(domain, {epoch: 5, host: A, anchorBlock: 0, anchorHash: seed, evidence: ev}));
   assert.throws(() => evidenceDigest(''));
   assert.equal(evidenceDigest('abc'), '0x' + createHash('sha256').update('abc').digest('hex'));
 });
@@ -34,7 +35,7 @@ function world({targets = [B, C], done = {}, seedOf = seed, standing = [true, ''
   const key = privateKeyToAccount(generatePrivateKey());
   return {key, sign: m => key.signTypedData(m),
     reader: {epochNow: async () => 7n, seedOf: async () => seedOf, targetsOf: async () => targets,
-      verdictOf: async (_e, _c, t) => done[t] || 0, standing: async () => standing}};
+      verdictOf: async (_e, _c, t) => done[t] || 0, standing: async () => standing, anchor: async () => ({number: 4242n, hash: ANCHOR})}};
 }
 
 test('a round of duty: one signed report per assigned host not yet reported on; a check that throws is no verdict', async () => {
@@ -75,8 +76,11 @@ test('standing: in standing, nothing to do; its own proof only when that is what
   }
   w = world({standing: [false, 'needs its own proof of capacity']});
   const r = await standingRound({domain, host: A, reader: w.reader, sign: w.sign, selfCheck: async ctx => `measured under seed ${ctx.seed}`});
-  assert.equal(r.ok, false); assert.equal(r.self.evidence, evidenceDigest(`measured under seed ${seed}`));
-  assert.equal(await recoverTypedDataAddress({...selfMessage(domain, {epoch: 7, host: A, seed, evidence: r.self.evidence}), signature: r.self.signature}), w.key.address);
+  // the work is seeded by a recent block's hash, and the proof names that block
+  assert.equal(r.ok, false); assert.equal(r.self.evidence, evidenceDigest(`measured under seed ${ANCHOR}`));
+  assert.deepEqual([r.self.anchorBlock, r.self.anchorHash], [4242n, ANCHOR]);
+  assert.equal(await recoverTypedDataAddress({...selfMessage(domain, {epoch: 7, host: A, anchorBlock: 4242n, anchorHash: ANCHOR, evidence: r.self.evidence}), signature: r.self.signature}), w.key.address);
+  // it needs no seed: an epoch nobody has touched yet is exactly where a lone host sends it
   w = world({standing: [false, 'needs its own proof of capacity'], seedOf: '0x' + '00'.repeat(32)});
-  assert.equal((await standingRound({domain, host: A, reader: w.reader, sign: w.sign, selfCheck: async () => 'x'})).self, undefined);
+  assert.ok((await standingRound({domain, host: A, reader: w.reader, sign: w.sign, selfCheck: async () => 'x'})).self);
 });
