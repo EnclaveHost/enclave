@@ -166,16 +166,30 @@ within three times that plus 2.5 s. Defaults: K = N = 4096, 32 vectors a frame (
 (a faster card is then timed over a shorter run).
 
 What a pass says: that many correct field products came back in that time, through the path a tenant's products
-take. What it does not say: which silicon made them (a processor fast enough is a card of that rate), and nothing
-about the card's memory (the matrix is 16 MB). A host that advertises a card and answers 404 for it fails. A host
+take. What it does not say: that the card reaches the rate it advertises (see the run on a card below), which
+silicon made them, and nothing about the card's memory (the matrix is 16 MB). A host that advertises a card and answers 404 for it fails. A host
 whose card is fully sold is not judged.
 
 Checked against the real worker: `shielded/worker.py` in its reference mode (no card) answers the driver's frames
 and its products are the integer products, row for row, and a whole check passes over it
-(`test/proof-of-capacity-card.test.mjs`). **Not run on a card.** The form the production kernel takes (q8_0 quants
-with a block scale) is sent with every scale 1/256, under which the shared weight encoding gives the quant itself
-(pinned against `metal/guest/shielded.mjs`); the kernel itself was not run. This workstation's cards are production
-and were not touched.
+(`test/proof-of-capacity-card.test.mjs`).
+
+**Run on a card (2026-11-17).** A private copy of the production worker binary (`v100-shield-9e519007`, the one the
+sold cards run) on this workstation's desktop card (RTX 3070 Ti, not sold), on its own port and outside the shared
+GPU daemon; the two production workers were not touched. Both weight forms (the kernel's q8_0 form and the
+pre-encoded one):
+
+- the card's products equal the integer products computed in software, row for row;
+- a whole check passes: 256 frames, 137 G products, answered in 0.53 s, 24 opened rows verified.
+
+**What that run showed about the clock: it does not hold a fast card to its rate.** The worker states 2,650 G
+products a second for that card. Of the 0.53 s, the card worked 0.07 s; the rest is the host moving vectors in and
+rows out over the worker's socket (234 MB) and hashing them, about 260 G/s end to end whatever the card (460 G/s at
+K = N = 8192). The allowance was 2.66 s. A host advertising ten times the card's real rate passed just the same.
+What the clock enforces is the floor each record now states (`enforcedGmacPerSec`, 52 G/s in that run, 2% of the
+card's rate): it tells a card from no card and does not tell a card from a card a tenth as fast. Holding a card to
+its figure needs the products to stay on the card's side of the link (the shared-memory ring tenants use, or a
+worker that answers with digests of its rows). That is a change to the worker and is not made.
 
 Wired in `supervisor.js` (the route, and the check among a checker's further checks); a Windows box sells no such
 card and answers no such check, but checks one like any other checker.

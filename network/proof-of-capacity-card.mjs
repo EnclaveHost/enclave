@@ -19,8 +19,19 @@
 // (shieldedCards[].gmacPerSec, the worker's own measurement) times the share of the card it says is free now, for
 // `targetSec` seconds. The answer to `run` must come back within slack x that + graceMs.
 //
+// THE CLOCK, and how little it sees of a fast card (measured 2026-11-17 on an RTX 3070 Ti with the production worker
+// binary, which states 2,650 G products a second for itself): the default run, 137 G products, took 0.53 s end to end,
+// of which the card worked 0.07 s. The rest is the host moving the vectors in and the rows out over the worker's socket
+// (234 MB) and hashing them: about 260 G/s end to end whatever the card (460 G/s at K = N = 8192). So the run is over
+// long before the allowance, and a host that advertised TEN TIMES that card's rate passed all the same. What the
+// clock enforces on such a card is the floor in the record (`enforcedGmacPerSec`, about 52 G/s here, 2% of the rate):
+// enough to tell a card from no card, not to hold a card to its figure. Holding it to the figure needs the products
+// to stay on the card's side of the link (the shared-memory ring tenants use, or a worker that answers with digests):
+// a change to the worker, not made here.
+//
 // WHAT A PASS SAYS: that many correct field products came back in that time, through the same path a tenant's products
-// take. It does not say which silicon made them (a processor fast enough is a card of that rate, and may sell as one),
+// take, and that the rows opened are the products (exact, on the card's production kernel). It does not say the card
+// reaches the rate it advertises once that rate is past what the link carries, nor which silicon made them (a processor fast enough is a card of that rate, and may sell as one),
 // and nothing about the card's memory: the matrix here is megabytes.
 //
 // Vectors are small on purpose: |x| <= 31 and |w| <= 119 keep every true product far inside the field (K = 4096: the
@@ -270,7 +281,9 @@ export function createCardCheck({host, domain, sign, recover, fetch = globalThis
     if (!(rate > 0)) return out(null, `card ${card.id}: none of it is advertised as free now`);
     const frames = Math.max(1, Math.min(maxFrames, CARD_LIMITS.frames, Math.ceil(rate * targetSec / frameGmac)));
     const gmac = frames * frameGmac, allowMs = Math.min(timeoutMs, Math.ceil(slack * gmac / rate * 1000 + graceMs));
-    const asked = {epoch, card: card.id, k, n, batch, frames, gmac: +gmac.toFixed(3), advertised: {gmacPerSec: card.gmacPerSec, share: card.share}, allowMs};
+    const asked = {epoch, card: card.id, k, n, batch, frames, gmac: +gmac.toFixed(3), advertised: {gmacPerSec: card.gmacPerSec, share: card.share}, allowMs,
+      // what the clock actually holds the host to: this many products inside the allowance (see THE CLOCK above)
+      enforcedGmacPerSec: +(gmac / allowMs * 1000).toFixed(2)};
     const c = {phase: 'prepare', version: 1, epoch, checker: host, target, seed, nonce: '0x' + random(32).toString('hex'), card: card.id, k, n, batch, frames};
     c.signature = await sign(cardChallengeMessage(domain, c));
     const post = async (body, ms) => {
