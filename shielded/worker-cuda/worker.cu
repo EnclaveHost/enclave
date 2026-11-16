@@ -36,6 +36,10 @@
  * kernel accumulates each plane with dp4a and recombines the three residues by
  * Garner CRT in the epilogue. One int32 per output. The TEE subtracts u = r.W.
  *
+ * FIELD_CHAIN (1.5) is that product fed back into itself on the card, answered
+ * with digests: how a card's rate is checked by someone who does not hold it.
+ * See field_chain() below and shielded/protocol.py.
+ *
  * The weight layout is GGUF's own: one row per OUTPUT, K contiguous bytes. A
  * decode GEMV is then N dot products over contiguous rows, which is the shape a
  * GPU reads at full bandwidth, and the TEE never transposes anything.
@@ -106,12 +110,21 @@ enum : uint8_t {
     CMD_FIELD_GEMM24 = 13,   /* 1.2: the same request, 3-byte reply values */
     CMD_SHM_ATTACH = 14,     /* 1.2: bind a shared-memory ring to this connection */
     CMD_PUBLIC_WEIGHT_CACHE = 15, /* 1.4: optional public weight RAM reuse */
-    CMD_COUNT = 16,
+    CMD_FIELD_CHAIN = 16,    /* 1.5: FIELD_GEMM fed back into itself on the card; the reply is digests */
+    CMD_COUNT = 17,
 };
 /* 1.2: SHM_ATTACH -- the shared-memory ring. A 1.1 link never sends it.
  * 1.3: HELLO carries an optional u64 reservation and the reply names the
  *      card's reservations. A 4-byte HELLO is a 1.2 link: reserves nothing. */
-static const int PROTO_MAJOR = 1, PROTO_MINOR = 4, PROTO_PATCH = 0;
+static const int PROTO_MAJOR = 1, PROTO_MINOR = 5, PROTO_PATCH = 0;
+/* FIELD_CHAIN's bounds and its reduction (shielded/protocol.py, CMD_FIELD_CHAIN). */
+static const int CHAIN_MOD = 63;
+static const uint32_t CHAIN_MAX_ROUNDS = 1u << 20, CHAIN_MAX_COMMITS = 4096;
+#ifdef SH_VULKAN
+#define SH_FIELD_CHAIN "0"
+#else
+#define SH_FIELD_CHAIN "1"
+#endif
 static std::unique_ptr<PublicWeightCache> g_public_weights(new PublicWeightCache());
 static const uint8_t STATUS_OK = 0, STATUS_VIOLATION = 1;
 static const size_t MAX_FRAME = (size_t)256 << 20;
@@ -539,6 +552,17 @@ __global__ void pack24_kernel(const int32_t *__restrict__ y, uint32_t *__restric
         default: w = ((va >> 16) & 0xffu) | (vb << 8); break;
     }
     o[k] = w;
+}
+
+/* FIELD_CHAIN's step between two products: x[i] = ((y[i] + pad[i]) mod 63) - 31.
+ * y is the balanced product the epilogue wrote, |y| < M/2 < 2^23, pad < 63. */
+__global__ void chain_reduce_kernel(const int32_t *__restrict__ y, const uint8_t *__restrict__ pad,
+                                    int8_t *__restrict__ x, long long n) {
+    const long long i = (long long)blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+    int v = (y[i] + (int)pad[i]) % CHAIN_MOD;
+    if (v < 0) v += CHAIN_MOD;
+    x[i] = (int8_t)(v - 31);
 }
 #endif
 static void pack24_launch(const int32_t *y, uint8_t *o, long long E, cudaStream_t s) {
@@ -1527,8 +1551,8 @@ static void owner_shell_poll() {
 struct GpuTurn {
     GpuTenant &t; std::unique_lock<std::mutex> lk; std::chrono::steady_clock::time_point t0;
     uint64_t cls;                        /* the class of turn for the solo floors; 0 = unclassed, gated but not judged */
-    GpuTurn(GpuTenant &tenant, long long reserve, long long budget, uint64_t klass = 0) : t(tenant), cls(klass) {
-        t.share = (reserve > 0 && budget > 0) ? (double)reserve / (double)budget : g_share_default;
+    GpuTurn(GpuTenant &tenant, long long reserve, long long budget, uint64_t klass = 0, double share = 0) : t(tenant), cls(klass) {
+        t.share = share > 0 ? share : (reserve > 0 && budget > 0) ? (double)reserve / (double)budget : g_share_default;
         if (g_fair_share) g_sched.acquire(t);
         lk = std::unique_lock<std::mutex>(g_gpu);
         if (g_yield) t.yield_seconds += g_yield_gate.wait();
@@ -1948,7 +1972,7 @@ struct Conn {
                    "\"vram_budget\":%lld,\"vram_reserved\":%lld,\"vram_reserve\":%lld,"
                    "\"sm_count\":%d,\"capability\":\"%d.%d\","
                    "\"clock_khz\":%d,\"card_tflops\":%.1f,"
-                   "\"field_gmac_per_s\":%.1f,\"public_weight_cache_bytes\":%llu,\"worker\":\"" SH_WORKER_NAME "\"}",
+                   "\"field_gmac_per_s\":%.1f,\"public_weight_cache_bytes\":%llu,\"field_chain\":" SH_FIELD_CHAIN ",\"worker\":\"" SH_WORKER_NAME "\"}",
                    PROTO_MAJOR, PROTO_MINOR, PROTO_PATCH, g_props.name,
                    (unsigned long long)g_props.totalGlobalMem, (unsigned long long)freeb,
                    g_vram_budget, g_reserved, reserve, g_props.multiProcessorCount, g_props.major, g_props.minor,
@@ -2379,6 +2403,88 @@ struct Conn {
         resp_len = ybytes;
     }
 
+    /* FIELD_CHAIN (1.5): | node u32 | m u32 | rounds u32 | stride u32 | trace bid u64 | trace offset u64 |
+     *                     | x int8[m][K] | pad uint8[m][K] |
+     * -> | SHA-256 of state row r after (c+1)*stride products, at 32 * (c * m + r) |, c < rounds / stride.
+     *
+     * The node's product fed back into itself: y = x . W (the same kernel and
+     * the same passes of <= 8 rows a tenant's product runs, y in device
+     * memory as the throughput probe has it), x' = ((y + pad) mod 63) - 31,
+     * `rounds` times. Nothing but the digests comes back, so a run's time is
+     * the card's and not the link's: that is what lets someone who does not
+     * hold the card hold it to a rate (network/proof-of-capacity-card.mjs).
+     * Every `stride` products the state is kept in the caller's trace region,
+     * where GET_TENSOR's declared-output rule lets it be read back to show
+     * any step, and its rows are hashed -- on this thread, while the card is
+     * already working the next stride.
+     *
+     * One turn on the card per stride, so tenants' exchanges interleave. A
+     * link with no reservation runs a chain at the weight of everything that
+     * is NOT reserved (not at the default share): a check of the card's free
+     * capacity gets what is free, and a tenant keeps the share it reserved. */
+    std::string field_chain(const uint8_t *p, size_t n) {
+#ifdef SH_VULKAN
+        (void)p; (void)n;
+        VIOLATE("FIELD_CHAIN is not built into this worker");
+#else
+        if (n < 32) VIOLATE("truncated FIELD_CHAIN");
+        const uint32_t idx = rd_u32(p), m = rd_u32(p + 4), rounds = rd_u32(p + 8), stride = rd_u32(p + 12);
+        const uint64_t tbid = rd_u64(p + 16), toff = rd_u64(p + 24);
+        Node &nd = node_ok(idx);
+        if (nd.K != nd.N) VIOLATE("FIELD_CHAIN needs a square node; node %u is %lldx%lld", idx, (long long)nd.N, (long long)nd.K);
+        if (m < 1 || (uint64_t)m > (uint64_t)nd.max_m) VIOLATE("m=%u outside [1,%d] for node %u", m, nd.max_m, idx);
+        if (stride < 1 || rounds < stride || rounds % stride || rounds > CHAIN_MAX_ROUNDS)
+            VIOLATE("FIELD_CHAIN of %u rounds in strides of %u", rounds, stride);
+        const uint32_t commits = rounds / stride;
+        if (commits > CHAIN_MAX_COMMITS) VIOLATE("FIELD_CHAIN keeps %u states; at most %u", commits, CHAIN_MAX_COMMITS);
+        const size_t K = (size_t)nd.K, state = (size_t)m * K;          /* m <= 4096, K <= 2^20 */
+        if (n != 32 + 2 * state) VIOLATE("FIELD_CHAIN payload is %zu bytes, expected %zu", n, 32 + 2 * state);
+        Buffer &tb = region_ok(tbid, toff, (uint64_t)commits * state);
+        if (tb.role != "activations" || !tb.dev) VIOLATE("FIELD_CHAIN trace must lie in an 'activations' buffer");
+
+        /* x, then pad, in the plane scratch; the products in the int32 scratch. */
+        ensure_dx(2 * state);
+        ensure_dy32(state * 4);
+        int8_t *dx = d_x; uint8_t *dpad = (uint8_t *)d_x + state;
+        struct Pinned { uint8_t *p = nullptr; ~Pinned() { if (p) cudaFreeHost(p); } } hb[2];
+        for (auto &h : hb) ck(cudaHostAlloc((void **)&h.p, state, cudaHostAllocDefault), "chain staging");
+        double share = 0;
+        if (!reserve && g_vram_budget > 0) {
+            std::lock_guard<std::mutex> lk(g_gpu);
+            share = std::max(g_share_default, 1.0 - (double)g_reserved / (double)g_vram_budget);
+        }
+        std::string out((size_t)commits * m * 32, '\0');
+        const auto hash_commit = [&](uint32_t c) {
+            const uint8_t *rows = hb[c & 1].p;
+            for (uint32_t r = 0; r < m; r++) {
+                sha256_ctx h; sha_init(&h); sha_update(&h, rows + (size_t)r * K, K);
+                sha_final(&h, (uint8_t *)&out[((size_t)c * m + r) * 32]);
+            }
+        };
+        const uint32_t klass[5] = { 3, idx, m, stride, (uint32_t)K };
+        const uint64_t cls = yield_class(klass, 5, 0x6669656c64636861ull);
+        const unsigned blocks = (unsigned)((state + 255) / 256);
+        const auto t0 = std::chrono::steady_clock::now();
+        for (uint32_t c = 0; c < commits; c++) {
+            GpuTurn turn(sched, reserve, g_vram_budget, cls, share);
+            if (!c) ck(cudaMemcpyAsync(d_x, p + 32, 2 * state, cudaMemcpyHostToDevice, stream), "chain upload");
+            for (uint32_t s = 0; s < stride; s++) {
+                field_gemm_launch(nd.w, (int)K, (int)nd.N, dx, (int)m, (long long)K, 0, d_y32, stream);
+                chain_reduce_kernel<<<blocks, 256, 0, stream>>>(d_y32, dpad, dx, (long long)state);
+                ck(cudaGetLastError(), "chain reduce launch");
+            }
+            ck(cudaMemcpyAsync(tb.dev + toff + (size_t)c * state, dx, state, cudaMemcpyDeviceToDevice, stream), "chain trace");
+            ck(cudaMemcpyAsync(hb[c & 1].p, dx, state, cudaMemcpyDeviceToHost, stream), "chain readback");
+            if (c) hash_commit(c - 1);                 /* the last stride's rows, while the card works this one */
+            ck(cudaStreamSynchronize(stream), "chain sync");
+        }
+        hash_commit(commits - 1);
+        gemm_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        recomputes += rounds;
+        return out;
+#endif
+    }
+
     /* SHM_ATTACH: | ring u32 | -> | granted u8 | ring_bytes u64 | req_cap u64 | rep_cap u64 |.
      * Needs an installed graph (the ring carries FIELD_GEMM and nothing else),
      * one ring per connection, one connection per ring. A refusal is an
@@ -2508,6 +2614,7 @@ struct Conn {
             case CMD_FIELD_GEMM24:    field_gemm(p, n, true);  return std::string();
             case CMD_SHM_ATTACH:      return shm_attach(p, n);
             case CMD_PUBLIC_WEIGHT_CACHE: return public_weight_cache(p, n);
+            case CMD_FIELD_CHAIN:     return field_chain(p, n);
             case CMD_BUFFER_GET_BASE: case CMD_GET_ALIGNMENT: case CMD_GET_MAX_SIZE:
             case CMD_GET_DEVICE_MEMORY: case CMD_DEVICE_COUNT:
                 return "";

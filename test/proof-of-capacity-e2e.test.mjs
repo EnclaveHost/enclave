@@ -98,9 +98,9 @@ async function addHost(name) {
   // and answers a check of it under the same rule of the contract: an assigned checker, once an epoch
   h.cardRuns = 0;
   h.card = createCardResponder({hostId: h.id, domain, reader, proofKeyOf, sign, recover, cards: async () => [{id: 0, endpoint: '10.0.2.2:9500'}],
-    open: async o => { const card = await softwareCardDriver()(o); return {...card, gemm: (p, m) => { h.cardRuns++; return card.gemm(p, m); }}; }});
+    open: async o => { const card = await softwareCardDriver()(o); return {...card, chain: (x, p, rounds, stride) => { h.cardRuns += rounds; return card.chain(x, p, rounds, stride); }}; }});
   h.cardVerdicts = [];
-  const cardCheck = createCardCheck({host: h.id, domain, sign, recover, k: 64, n: 48, batch: 4, graceMs: 8000});
+  const cardCheck = createCardCheck({host: h.id, domain, sign, recover, k: 64, batch: 4, stride: 4, graceMs: 8000});
   h.calls = [];
   h.agent = createCapacityAgent({host: h.id, domain, reader, sign, log: m => h.logs.push(m),
     send: async (functionName, args) => { h.calls.push({abi: POC_ABI, functionName, args}); },   // collected: the operator key sends nothing itself
@@ -260,7 +260,7 @@ test('three hosts with empty operator keys: checked by each other, credited thro
   // the cards: every host that passed the work had its card checked by the host the contract assigned, and passed;
   // C, which cheated on the work, was failed there and its card never came into it
   const cards = hosts.map(h => h.cardVerdicts);
-  console.log(`# card checks: ${hosts.map(h => `${h.name} ran ${h.cardVerdicts.length} (${h.cardRuns} frames answered)`).join(', ')}`);
+  console.log(`# card checks: ${hosts.map(h => `${h.name} ran ${h.cardVerdicts.length} (${h.cardRuns} rounds of the chain worked)`).join(', ')}`);
   assert.ok(cards.flat().length >= 4, 'card checks ran'); assert.ok(cards.flat().every(ok => ok === true), `a card check did not pass: ${JSON.stringify(cards)}`);
   assert.ok(a.cardRuns > 0 && b.cardRuns > 0);
 });

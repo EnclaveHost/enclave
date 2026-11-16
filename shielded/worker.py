@@ -42,6 +42,7 @@ serialises allocation accounting.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import socket
@@ -60,7 +61,7 @@ import numpy as np
 DEVICE = "cuda"
 import torch
 
-from protocol import (CMD_ALLOC_BUFFER, CMD_FIELD_GEMM, CMD_FIELD_GEMM24, CMD_FREE_BUFFER,
+from protocol import (CHAIN_MOD, CMD_ALLOC_BUFFER, CMD_FIELD_CHAIN, CMD_FIELD_GEMM, CMD_FIELD_GEMM24, CMD_FREE_BUFFER,
                       CMD_GET_TENSOR, CMD_GRAPH_INSTALL, CMD_GRAPH_RECOMPUTE,
                       CMD_HELLO, CMD_SET_TENSOR, CMD_PUBLIC_WEIGHT_CACHE, PROTO_VERSION, ProtocolViolation,
                       ReservationLedger, ShieldedWorkerState)
@@ -259,6 +260,7 @@ class Connection:
                 "vram_reserve": self.state.reserve,
                 "public_weight_cache_bytes": self.public_cache.budget,
                 "field_gmac_per_s": round(FIELD_GMACS, 1),
+                "field_chain": 1,
                 "worker": "shielded/worker.py",
                 **dev,
             }
@@ -346,6 +348,34 @@ class Connection:
                     raise ProtocolViolation("internal: packed reply size disagrees with the rule")
                 return reply
             return b"".join(o.cpu().numpy().tobytes() for o in outs)
+
+        if cmd == CMD_FIELD_CHAIN:
+            # 1.5: the node's product fed back into itself (protocol.py,
+            # CMD_FIELD_CHAIN). The card is taken one stride at a time, so a
+            # chain waits its turn between other links' exchanges.
+            node = self.nodes[res["node"]]
+            m, K, stride, commits = res["m"], res["K"], res["stride"], res["commits"]
+            raw = bytearray(payload[res["x_at"]:])
+            x = torch.frombuffer(raw, dtype=torch.int8, count=m * K).view(m, K).to(DEVICE)
+            pad = torch.frombuffer(raw, dtype=torch.uint8, count=m * K, offset=m * K).view(m, K).to(DEVICE).to(torch.int64)
+            trace = self._typed(res["trace_bid"], res["trace_offset"], (commits, m, K), torch.int8, "activations")
+            digests = []
+            t0 = time.perf_counter()
+            for c in range(commits):
+                with GPU_LOCK:
+                    for _ in range(stride):
+                        y = node.gemm([x, x, x], m)
+                        x = (torch.remainder(y.to(torch.int64) + pad, CHAIN_MOD) - 31).to(torch.int8)
+                    trace[c].copy_(x)
+                    if DEVICE == "cuda": torch.cuda.synchronize()
+                    rows = x.cpu().numpy()
+                digests.extend(hashlib.sha256(rows[r].tobytes()).digest() for r in range(m))
+            self.gemm_ms += (time.perf_counter() - t0) * 1e3
+            self.recomputes += res["rounds"]
+            reply = b"".join(digests)
+            if len(reply) != res["reply_bytes"]:
+                raise ProtocolViolation("internal: chain reply size disagrees with the rule")
+            return reply
 
         return b""
 

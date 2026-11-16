@@ -45,7 +45,7 @@ because the failure mode of guessing is running an attacker's graph.
 import json
 import struct
 
-PROTO_VERSION = (1, 4, 0)   # 1.1: FIELD_GEMM; 1.2: packed reply/ring; 1.3: reserves; 1.4: optional public weight RAM cache
+PROTO_VERSION = (1, 5, 0)   # 1.1: FIELD_GEMM; 1.2: packed reply/ring; 1.3: reserves; 1.4: optional public weight RAM cache; 1.5: FIELD_CHAIN
 
 # HELLO (1.3): | major u32 | [reserve_bytes u64] |
 #
@@ -92,7 +92,37 @@ CMD_FIELD_GEMM24 = 13    # the SAME request; the products as 3-byte values (1.2)
 REPLY_WIDTH = {CMD_FIELD_GEMM: 4, CMD_FIELD_GEMM24: 3}
 CMD_SHM_ATTACH = 14      # 1.2: bind a shared-memory ring to this connection (FIELD_GEMM only)
 CMD_PUBLIC_WEIGHT_CACHE = 15  # 1.4: optional immutable PUBLIC weights, RAM only
-CMD_COUNT = 16
+CMD_FIELD_CHAIN = 16     # 1.5: FIELD_GEMM fed back into itself on the card; the reply is digests
+CMD_COUNT = 17
+
+# FIELD_CHAIN (1.5) is how a card's RATE is checked by someone who does not
+# hold the card (network/proof-of-capacity-card.mjs). A FIELD_GEMM exchange
+# moves its planes in and its products out, and on a fast card the link, not
+# the card, sets how long a run takes: timed over the socket, a card and one a
+# tenth as fast look the same. A chain keeps the products on the card:
+#
+#   x_0 = the caller's m x K values, pad = the caller's m x K values in [0, 62]
+#   y_t = x_t . W over Z_M (one node, N = K, the SAME kernel a tenant's product runs)
+#   x_{t+1}[i] = ((y_t[i] + pad[i]) mod CHAIN_MOD) - 31        in [-31, 31]
+#
+# for `rounds` products. After every `stride` of them the state x is kept in
+# the caller's trace region (so it can be read back later, by GET_TENSOR's
+# declared-output rule, to show any step) and its rows are hashed; the reply
+# is those SHA-256 digests, 32 bytes a row, and nothing else.
+#
+# It is the one op here that is not linear in the activation, and it is not an
+# exception to "no nonlinear ops on secret data": what a chain returns is a
+# function of what its caller sent on this connection and of public weights,
+# the same boundary FIELD_GEMM has, and a digest of it at that. It does none of
+# the TEE's work (no norm, no softmax, nothing a model has), so a guest cannot
+# be talked into running its plaintext through it. Bounded: one node, the
+# node's own max_m, CHAIN_MAX_ROUNDS products, CHAIN_MAX_COMMITS kept states,
+# a trace that must lie inside an 'activations' buffer the link already paid
+# for. The worker takes the card one stride at a time, so a chain waits its
+# turn between tenants' exchanges like anything else.
+CHAIN_MOD = 63
+CHAIN_MAX_ROUNDS = 1 << 20
+CHAIN_MAX_COMMITS = 4096
 
 # The shared-memory ring (wasm/ggml-shielded/shielded-wire.h): a file (the
 # ivshmem backing store of the CVM) of SHM_RING_BYTES rings. The ring carries
@@ -113,6 +143,7 @@ COMMAND_NAMES = {
     CMD_GRAPH_RECOMPUTE: "GRAPH_RECOMPUTE", CMD_FIELD_GEMM: "FIELD_GEMM",
     CMD_FIELD_GEMM24: "FIELD_GEMM24",
     CMD_PUBLIC_WEIGHT_CACHE: "PUBLIC_WEIGHT_CACHE",
+    CMD_FIELD_CHAIN: "FIELD_CHAIN",
 }
 
 # Commands that exist in stock ggml-rpc and are deliberately absent here. Named
@@ -297,6 +328,8 @@ class ShieldedWorkerState:
             return self._shm_attach(payload)
         if cmd == CMD_PUBLIC_WEIGHT_CACHE:
             return self._public_weight_cache(payload)
+        if cmd == CMD_FIELD_CHAIN:
+            return self._field_chain(payload)
         if cmd in (CMD_BUFFER_GET_BASE, CMD_GET_ALIGNMENT, CMD_GET_MAX_SIZE,
                    CMD_GET_DEVICE_MEMORY, CMD_DEVICE_COUNT):
             return {"ok": True}
@@ -505,6 +538,43 @@ class ShieldedWorkerState:
         return {"ok": True, "nodes": ids, "m": m, "K": K, "planes_at": off,
                 "width": REPLY_WIDTH[cmd], "reply_bytes": reply_bytes}
 
+    def _field_chain(self, payload):
+        """| node u32 | m u32 | rounds u32 | stride u32 | trace bid u64 | trace offset u64 |
+        | x int8[m][K] | pad uint8[m][K] | -> | SHA-256 of state row r after (c+1)*stride
+        products, at 32 * (c * m + r) |, for c < rounds / stride. See CMD_FIELD_CHAIN above.
+        The reply's size is defined by the request: 32 * (rounds / stride) * m."""
+        if self.graph is None:
+            raise ProtocolViolation("FIELD_CHAIN with no installed graph")
+        idx, off = _u32(payload, 0)
+        m, off = _u32(payload, off)
+        rounds, off = _u32(payload, off)
+        stride, off = _u32(payload, off)
+        bid, off = _u64(payload, off)
+        offset, off = _u64(payload, off)
+        if idx >= len(self.graph.nodes):
+            raise ProtocolViolation(f"FIELD_CHAIN of node {idx}, graph has {len(self.graph.nodes)}")
+        node = self.graph.nodes[idx]
+        if node.get("op") != "FIELD_GEMM":
+            raise ProtocolViolation(f"node {idx} is metadata-only; nothing to compute")
+        K, N = int(node.get("K", 0)), int(node.get("N", 0))
+        if K != N:
+            raise ProtocolViolation(f"FIELD_CHAIN needs a square node; node {idx} is {N}x{K}")
+        if m < 1 or m > int(node.get("max_m", 0)):
+            raise ProtocolViolation(f"m={m} outside [1,{node.get('max_m')}] for node {idx}")
+        if stride < 1 or rounds < stride or rounds % stride or rounds > CHAIN_MAX_ROUNDS:
+            raise ProtocolViolation(f"FIELD_CHAIN of {rounds} rounds in strides of {stride}")
+        commits = rounds // stride
+        if commits > CHAIN_MAX_COMMITS:
+            raise ProtocolViolation(f"FIELD_CHAIN keeps {commits} states; at most {CHAIN_MAX_COMMITS}")
+        state = m * K
+        if len(payload) != off + 2 * state:
+            raise ProtocolViolation(f"FIELD_CHAIN payload is {len(payload)} bytes, expected {off + 2 * state}")
+        buf = self._region_ok(bid, offset, commits * state)
+        if buf.role != "activations":
+            raise ProtocolViolation("FIELD_CHAIN trace must lie in an 'activations' buffer")
+        return {"ok": True, "node": idx, "m": m, "K": K, "rounds": rounds, "stride": stride,
+                "commits": commits, "trace_bid": bid, "trace_offset": offset,
+                "x_at": off, "pad_at": off + state, "reply_bytes": 32 * commits * m}
 
     def _shm_attach(self, payload):
         """| ring u32 | -> granted + the ring geometry. Needs an installed graph
@@ -788,6 +858,57 @@ def selftest():
     r1.release()
     out["reserve_released_on_close"] = (ledger.reserved == 64 * MiB and ledger.card_free == 136 * MiB
                                         and hello(ShieldedWorkerState(vram_bytes=300 * MiB, ledger=ledger))["vram_reserved"] == 64 * MiB)
+
+    # 1.5 FIELD_CHAIN: one square node, the node's own max_m, whole strides, a
+    # bounded number of kept states, and a trace inside an 'activations' buffer
+    cs = ShieldedWorkerState(vram_bytes=64 * MiB)
+    hello(cs)
+    cw = cs.handle(*parse_frame(build_frame(CMD_ALLOC_BUFFER, struct.pack("<QI", 4096, 7) + b"weights")))["bid"]
+    ca = cs.handle(*parse_frame(build_frame(CMD_ALLOC_BUFFER, struct.pack("<QI", 8192, 11) + b"activations")))["bid"]
+    sq = {"op": "FIELD_GEMM", "w": {"bid": cw, "offset": 0}, "x": {"bid": ca, "offset": 0}, "y": {"bid": ca, "offset": 512}, "max_m": 2}
+    cs.handle(*parse_frame(build_frame(CMD_GRAPH_INSTALL, json.dumps({
+        "nodes": [dict(sq, K=32, N=32), dict(sq, K=32, N=64)], "outputs": [{"bid": ca, "offset": 1024, "nbytes": 64}]}).encode())))
+
+    def chain(node=0, m=2, rounds=8, stride=4, bid=None, offset=1024, body=None):
+        body = bytes(2 * m * 32) if body is None else body
+        return cs.handle(*parse_frame(build_frame(CMD_FIELD_CHAIN, struct.pack(
+            "<IIIIQQ", node, m, rounds, stride, ca if bid is None else bid, offset) + body)))
+
+    def chain_refused(**kw):
+        try:
+            chain(**kw)
+            return False
+        except ProtocolViolation:
+            return True
+
+    r = chain()
+    out["chain_ok"] = r["ok"] and r["commits"] == 2 and r["reply_bytes"] == 32 * 2 * 2 and r["pad_at"] - r["x_at"] == 64
+    out["chain_bounds_refused"] = all((
+        chain_refused(node=1),                       # not square
+        chain_refused(node=2),                       # no such node
+        chain_refused(m=3), chain_refused(m=0),      # outside the node's max_m
+        chain_refused(rounds=6), chain_refused(stride=0), chain_refused(rounds=0),
+        chain_refused(rounds=CHAIN_MAX_ROUNDS + 4),
+        chain_refused(rounds=(CHAIN_MAX_COMMITS + 1) * 4),
+        chain_refused(body=bytes(2 * 2 * 32 - 1)),   # not exactly x and pad
+        chain_refused(offset=8192 - 127),            # the kept states would leave the buffer
+        chain_refused(bid=cw),                       # a 'weights' buffer is not a trace
+        chain_refused(bid=99),
+    ))
+    try:
+        fresh = ShieldedWorkerState()
+        hello(fresh)
+        fresh.handle(*parse_frame(build_frame(CMD_FIELD_CHAIN, bytes(32))))
+        out["chain_before_install_refused"] = False
+    except ProtocolViolation:
+        out["chain_before_install_refused"] = True
+    # and what a chain kept is read back only as a declared output
+    try:
+        cs.handle(*parse_frame(build_frame(CMD_GET_TENSOR, struct.pack("<QQQ", ca, 1088, 64))))
+        out["chain_trace_read_needs_declared_output"] = False
+    except ProtocolViolation:
+        out["chain_trace_read_needs_declared_output"] = cs.handle(
+            *parse_frame(build_frame(CMD_GET_TENSOR, struct.pack("<QQQ", ca, 1024, 64))))["ok"]
 
     out["removed_commands"] = sorted(REMOVED_COMMANDS)
     out["op_allowlist"] = sorted(OP_ALLOWLIST)

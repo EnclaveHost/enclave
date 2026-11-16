@@ -303,7 +303,9 @@ every prompt. Peak |y| reached 2.1e6 against M/2 = 7.2e6.
   reference and the test fixture; both speak protocol 1.3 (1.1 plus FIELD_GEMM24,
   the same exchange with 3-byte reply values -- every product is below 2^24 -- which
   the TEE takes when the worker's HELLO offers minor >= 2; SHIELDED_REPLY32=1 keeps int32;
-  1.3 adds the reservation to HELLO, below).
+  1.3 adds the reservation to HELLO, below). 1.5 adds FIELD_CHAIN: the product fed back into itself on the
+  card and answered with digests, which is how a card's rate is checked by someone who does not hold it
+  (`protocol.py`, `network/proof-of-capacity-card.mjs`); built and run on a card, not in any deployed worker.
 - **`--vram-gb` is the budget, and a tenant reserves its share at HELLO (1.3).**
   The budget is the part of the card dedicated to Enclave: the fleet sees a card of
   exactly that size, 100% free until an app has reserved a share. The worker holds

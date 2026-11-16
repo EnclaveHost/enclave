@@ -84,3 +84,13 @@ test("dangerous stock commands stay deleted", () => {
     assert.ok(removed.has(c), `${c} must not be reintroduced`);
   }
 });
+
+test("FIELD_CHAIN is bounded: one square node, whole strides, a trace the link holds", () => {
+  // 1.5: the product fed back into itself on the card, answered with digests (how a card's rate is checked).
+  // The one op that is not linear in the activation; what keeps it from being a primitive is its bounds.
+  const r = run();
+  assert.equal(r.chain_ok, true);
+  assert.equal(r.chain_bounds_refused, true);
+  assert.equal(r.chain_before_install_refused, true);
+  assert.equal(r.chain_trace_read_needs_declared_output, true, "a kept state is readable only where the graph declared it");
+});

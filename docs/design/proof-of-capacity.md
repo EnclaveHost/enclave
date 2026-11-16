@@ -146,50 +146,79 @@ images now carry it).
 ### A card it sells (`network/proof-of-capacity-card.mjs`)
 
 For the card of a confidential server that is sold by masked offload (the worker on the untrusted host, driven from
-inside the VM). The work is the operation the card is sold for, the worker's `FIELD_GEMM`, on a weight matrix and on
-vectors the checker's seeds determine. The checker does not repeat it: it checks rows of the answer with
-preprocessed Freivalds, the check the guest runs on every product. One pass over the matrix, then K + N operations
-per row, against K x N for whoever computes it.
+inside the VM). The work is the operation the card is sold for, the worker's `FIELD_GEMM`, fed back into itself on
+the card: `x' = ((x.W + pad) mod 63) - 31`, round after round, for 32 rows side by side, on a matrix, starting rows
+and pads the checker's seeds determine. That is a new command of the worker, `FIELD_CHAIN` (protocol 1.5, below).
+Every 16 products the worker keeps the rows and hashes them, and only those digests cross the link. The checker
+repeats none of it: it asks to see a few stretches of 16 products and checks each product with preprocessed
+Freivalds, the check the guest runs on every product. One pass over the matrix, then 2 K operations a product,
+against K x K for whoever computes it.
 
 Three requests, `POST /v1/host/card-check`, under the same rule as the work (only a checker the contract assigned,
 over its proof key's signature, once per checker and epoch, one check at a time):
 
 1. **prepare**: the signed challenge. The host derives the matrix and installs it on the card. Not timed.
-2. **run**: a value the checker draws only now. The host derives the vectors from it, has the card multiply them,
-   and answers with the SHA-256 of every product row, signed by its proof key. Timed.
-3. **open**: 24 rows the checker picks after it holds those digests. Each must hash to its digest and pass
-   Freivalds. A host that made up a tenth of the rows is caught 92 times in 100.
+2. **run**: a value the checker draws only now. The starting rows and the pads come from it. The host answers with
+   the root of a Merkle tree over the digests, signed by its proof key. Timed.
+3. **open**: 24 stretches the checker picks after it holds that root. For each the host shows the rows it started
+   from and the 16 products after them. The start must be the state committed before it (or the seed's rows), every
+   product must pass Freivalds, and the end must be the state committed after it. A host that made up a tenth of
+   the stretches is caught 92 times in 100.
+
+Nothing of a run can be worked before the run's value is known. The matrix is known at prepare, and without the pad
+a host could work stretches from rows of its own choosing during prepare and commit to those; the pad enters every
+step, so every product after the first of a stretch waits for the run's value, and a stretch that does not join the
+committed states on both sides fails when opened.
 
 How much is asked follows the host's own signed capacity record: the card's stated rate (`shieldedCards[].gmacPerSec`,
-the worker's measurement) times the share of the card it says is free now, for two seconds; the run must come back
-within three times that plus 2.5 s. Defaults: K = N = 4096, 32 vectors a frame (0.54 G products), 256 frames at most
-(a faster card is then timed over a shorter run).
+the worker's measurement) times the share of the card it says is free now, for four seconds of it; the run must come
+back within 1.5 times that plus 2.5 s. So a card must deliver about 47% of the free rate it advertises
+(1 / (1.5 + 2.5 / 4)): the 1.5 is for a card shared with tenants, the 2.5 s for the request's own travel. Each
+record states the floor its clock enforced (`enforcedGmacPerSec`). Defaults: K = 4096, 32 rows (0.54 G products a
+round), 2,048 kept states at most (268 MB of the card; a card past 4,400 G/s free is then timed over a shorter run,
+and its floor is lower: the record says what it was).
 
-What a pass says: that many correct field products came back in that time, through the path a tenant's products
-take. What it does not say: that the card reaches the rate it advertises (see the run on a card below), which
-silicon made them, and nothing about the card's memory (the matrix is 16 MB). A host that advertises a card and answers 404 for it fails. A host
-whose card is fully sold is not judged.
+What a pass says: that many correct field products were made in that time by whatever answers at the card's
+endpoint, with the kernel and the shape a tenant's products take. What it does not say: which silicon made them (a
+processor fast enough is a card of that rate), and nothing about the card's memory (the matrix is 16 MB). A host
+that advertises a card and answers 404 for it fails; so does one whose worker has no `FIELD_CHAIN` (it answers
+501): a card that is advertised and cannot show its rate. A host whose card is fully sold is not judged.
 
-Checked against the real worker: `shielded/worker.py` in its reference mode (no card) answers the driver's frames
-and its products are the integer products, row for row, and a whole check passes over it
-(`test/proof-of-capacity-card.test.mjs`).
+**The worker's side: `FIELD_CHAIN`** (`shielded/protocol.py` for the rule, `shielded/worker.py` the reference,
+`shielded/worker-cuda/worker.cu` the card). One installed square node, the caller's rows and pads, `rounds`
+products in strides; after each stride the state goes to a trace region inside an 'activations' buffer the link
+already holds, and its rows are hashed on the worker's thread while the card works the next stride. The reply is
+the digests. A kept state is read back only as a declared output of the installed graph, as everything is. It is
+the one op of the worker that is not linear in what it is sent, and it stays inside the worker's boundary: it
+returns a function of what its caller sent on that connection and of public weights, a digest of it at that, and
+it does none of the work a model has. Bounded: 2^20 rounds, 4,096 kept states, the node's own row limit. The card
+is taken one stride at a time, so tenants' exchanges run in between, and a link with no reservation runs a chain
+at the weight of everything that is not reserved (a check of what is free gets what is free; a tenant keeps the
+share it reserved). The Vulkan build does not have it and says so in its HELLO.
 
-**Run on a card (2026-11-17).** A private copy of the production worker binary (`v100-shield-9e519007`, the one the
-sold cards run) on this workstation's desktop card (RTX 3070 Ti, not sold), on its own port and outside the shared
-GPU daemon; the two production workers were not touched. Both weight forms (the kernel's q8_0 form and the
-pre-encoded one):
+Checked against the real worker: `shielded/worker.py` in its reference mode (no card) works the chain the driver
+asks for, digest for digest and kept state for kept state the chain worked in software, and a whole check passes
+over it (`test/proof-of-capacity-card.test.mjs`).
 
-- the card's products equal the integer products computed in software, row for row;
-- a whole check passes: 256 frames, 137 G products, answered in 0.53 s, 24 opened rows verified.
+**Run on a card (2026-11-16).** The CUDA worker built from this source, a private copy on this workstation's
+desktop card (RTX 3070 Ti, not sold), on its own port and outside the shared GPU daemon; the two production workers
+were not touched, and the private worker was stopped afterwards. The worker states 2,826 G products a second for
+that card.
 
-**What that run showed about the clock: it does not hold a fast card to its rate.** The worker states 2,650 G
-products a second for that card. Of the 0.53 s, the card worked 0.07 s; the rest is the host moving vectors in and
-rows out over the worker's socket (234 MB) and hashing them, about 260 G/s end to end whatever the card (460 G/s at
-K = N = 8192). The allowance was 2.66 s. A host advertising ten times the card's real rate passed just the same.
-What the clock enforces is the floor each record now states (`enforcedGmacPerSec`, 52 G/s in that run, 2% of the
-card's rate): it tells a card from no card and does not tell a card from a card a tenth as fast. Holding a card to
-its figure needs the products to stay on the card's side of the link (the shared-memory ring tenants use, or a
-worker that answers with digests of its rows). That is a change to the worker and is not made.
+- The card's chain at K = 4096 is the chain worked in software, every digest and every kept state, in both weight
+  forms (the kernel's q8_0 form and the pre-encoded one).
+- Advertising its own figure: 11,304 G products asked, answered in 3.82 s (2,961 G/s), 24 stretches verified;
+  passes. The time is the card's: of a 6.43 s run the worker held the card 6.27 s.
+- Advertising 2 times its figure: passes, at 6.45 s of 7.17 s allowed. That is the slack, and the cap on kept
+  states (17,592 G asked where 22,600 would be four seconds of the claim).
+- Advertising 3 times: fails (6.42 s, 5.61 s allowed). Advertising 10 times: fails (6.43 s, 3.43 s allowed).
+
+The first form of this check, run earlier the same day on the same card with the production binary, moved every vector in
+and every product out over the worker's socket: the link set the time, about 260 G/s whatever the card, the clock
+enforced 52 G/s (2% of the card's rate), and a host advertising ten times the rate passed. That form is gone.
+
+What is not measured: a run answered through the relay or from another machine (the answer to open is 8.5 MB of
+JSON; here it crossed a function call), a card shared with a working tenant, and any card but this one.
 
 Wired in `supervisor.js` (the route, and the check among a checker's further checks); a Windows box sells no such
 card and answers no such check, but checks one like any other checker.
@@ -336,6 +365,11 @@ Two rounds an epoch are enough for every host to do its duty.
 - A carrier service, and the hosts choosing a carried order over their own transaction when the key is empty.
 - A check of a card's memory, and of a card that is not sold by masked offload (a card inside the VM has no worker to
   ask; no host sells one today).
+- A released card worker with `FIELD_CHAIN`. The workers on the sold cards are at protocol 1.4: with the card check
+  enforced as it stands, every host that sells a card would fail it (501) until its worker is replaced. The check
+  goes to `record` or stays off until then.
+- The card check through the relay, and against a card a tenant is working (the fair-share weight a chain runs at
+  is in the worker and has not been measured under load).
 - The capacity partition's image, its catalog app and their pins (above): until then a Windows host's proof key is
   still its host's file.
 - No real box has run any of this, and the end-to-end test drives the host module directly, not `supervisor.js` or
@@ -354,9 +388,12 @@ Two rounds an epoch are enough for every host to do its duty.
   the claim and a host that runs them one after another; the claim as the host's own signed record; further checks.
 - `test/proof-of-capacity-app.test.mjs`: 8 tests: a pass and what its record names; how the app is chosen; each
   tier's verifier; refused evidence; everything that is not judged; the verifier as shipped against a dead relay.
-- `test/proof-of-capacity-card.test.mjs`: 10 tests: the work from the seeds; Freivalds; a pass sized to the claim;
-  each way to fail; "not now"; whom a host works its card for; the wire against `shielded/worker.py`; the
-  production encoding.
+- `test/proof-of-capacity-card.test.mjs`: 13 tests: the work from the seeds; Freivalds; the commitment; the chain
+  in software; a pass sized to the claim; each way to fail (made-up digests, a chain worked before the run was
+  known, a stretch from rows of the host's choosing); the clock (the same honest work passes at its own rate and at
+  twice it, fails at 2.2 and at 10 times); "not now"; whom a host works its card for; the wire against
+  `shielded/worker.py`; a worker without the chain; the production encoding.
+- `test/shielded-protocol.test.mjs`: the chain's bounds in the worker's admission rules.
 - `test/proof-of-capacity-partition.test.mjs`: 11 tests: the vectors are current; a key statement made by the Go
   code verifies; the host's use of its partition; a checked host answering from it; the checker's verification and
   each way to fail it; the node's partition module; the manager's rule. `test/windows-proof-signer.test.mjs`: the
