@@ -2,9 +2,11 @@
 // contract's own (contracts/foundry/test/EnclaveProofOfCapacity.t.sol testDigestVectors asserts the same values).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {keccak256, toBytes, pad, toHex, recoverTypedDataAddress} from 'viem';
+import {keccak256, toBytes, pad, toHex, recoverTypedDataAddress, hashTypedData} from 'viem';
+import {createHash} from 'node:crypto';
 import {generatePrivateKey, privateKeyToAccount} from 'viem/accounts';
-import {reportMessage, selfMessage, proofMessage, digestOf, evidenceDigest, dutyRound, standingRound, VERDICT} from '../network/proof-of-capacity.mjs';
+import {reportMessage, selfMessage, proofMessage, evidenceDigest, dutyRound, standingRound, VERDICT} from '../network/proof-of-capacity.mjs';
+const digestOf = hashTypedData;
 
 const domain = {chainId: 8453, contract: '0x00000000000000000000000000000000000c0ffe'};
 const A = pad(toHex(0xA1), {size: 32}), B = pad(toHex(0xB2), {size: 32}), C = pad(toHex(0xC3), {size: 32});
@@ -25,6 +27,7 @@ test('a message with a missing or impossible field is refused before anything is
   assert.throws(() => reportMessage({chainId: 0, contract: domain.contract}, ok));
   assert.throws(() => selfMessage(domain, {epoch: 5, host: A, seed: '0x' + '00'.repeat(32), evidence: ev}));
   assert.throws(() => evidenceDigest(''));
+  assert.equal(evidenceDigest('abc'), '0x' + createHash('sha256').update('abc').digest('hex'));
 });
 
 function world({targets = [B, C], done = {}, seedOf = seed, standing = [true, '']} = {}) {

@@ -1,6 +1,7 @@
 # Proof of capacity: a host is paid while others vouch for it and it has vouched for them
 
-Status, 2026-11-16: **source and tests only.** Nothing here is deployed, bound into a ledger or run by any host.
+Status, 2026-11-16: **source and tests only.** Nothing here is deployed or bound into a ledger, and no host has
+the setting on.
 
 ## The rule
 
@@ -68,12 +69,49 @@ own proof only when that is what is missing).
 - **Reports can arrive late.** A host that checkpoints at the very start of an epoch, before its checkers' reports
   for the epoch before have landed, is asked for its own proof or has to wait for them.
 
+## The hosts (wired 2026-11-16, off by default)
+
+`network/proof-of-capacity-host.mjs`, used by both platforms:
+
+- **The check** is measured work whose answer the checker computes itself: a challenge names a nonce, a number of
+  rounds and an amount of memory; the work fills that memory from the epoch's seed and the nonce and mixes it for
+  that many rounds; the digest is the answer (20,000 rounds over 64 MiB by default, about 0.14 s on this
+  workstation, run in millisecond slices so the process's other connections are not held). The checked host signs
+  its answer with its proof key and must answer inside the deadline (20 s).
+- **A host answers** `POST /v1/host/capacity-check` only from a host the contract assigned to check it this epoch,
+  over that host's proof-key signature, one check at a time and one per checker and epoch.
+- **Verdicts**: `pass` - the digest is the checker's own, signed by the target's proof key, in time. `fail` - a
+  wrong digest, another key, an answer to another challenge, too late. `unreachable` - no row in the registry, no
+  answer, an HTTP error. No verdict (tried again next round): the checker itself cannot reach the chain, or the
+  target says busy, not this epoch, or already checked.
+- **The agent** (`createCapacityAgent`), every `PROOF_OF_CAPACITY_SEC` (300): fixes the epoch's seed if nobody has
+  and this host holds a paid lease; checks and reports on every host it was assigned and has not reported on; and
+  sends its own proof only when the contract's `standing` says that is what is missing. Each transaction goes
+  through the host's own operator queue; one that fails is logged and tried on the next round.
+
+**The setting.** `PROOF_OF_CAPACITY=1` on a host, and only then. With it:
+
+- the proof of time is signed under the name `EnclaveProofOfCapacity` (the same message, that contract's domain),
+  so it must be set exactly when the ledger's prover is one;
+- before anything else the prover's `proofSchema` must read 3; otherwise all of the above stays off and the host
+  says why once.
+
+Wired in `supervisor.js` (route, timer, proof-of-time domain) and in the Windows node
+(`windows/node/proof-of-capacity.mjs`, the route in `agent.mjs`, the timer in `host.mjs`, the domain in
+`chain.mjs`). The Linux image copies the two shared modules (`Dockerfile`); they import no package, since the
+Windows box has no `node_modules` outside its own folder.
+
+What a pass says, and does not: this host's process did this much CPU and memory work when asked. Nothing about a
+GPU, about what it could do at the same time for others, or about the app it serves. On the Linux hosts the proof
+key is minted in the confidential VM. **On the Windows node the proof key is a file of the node process on the
+host**, so there an answer and an own proof are the host's work signed by the host, not a Shield partition's.
+
 ## Not built
 
-- The check itself. `dutyRound` takes a `check(target)` function; the workload and its judging exist for the paid
-  audits (`availability/workload.mjs`, the Capacity Work app) and are not yet wired to it.
-- The hosts: neither `supervisor.js` nor the Windows node calls any of this.
 - Deployment tooling (`scripts/build-contract-artifacts.mjs` has no entry for it, so no ABI file is emitted).
+- Paying whoever carries a transaction (above).
+- A check that runs where the apps run (inside a Shield partition or beside the app in the VM), and a GPU check.
+- No host has run any of this: not on a test chain end to end, not on a real box.
 
 ## Checked
 
@@ -82,8 +120,15 @@ own proof only when that is what is missing).
   a dead host leaving the roster; one fail against two; who may report, when and how often; an epoch with no seed;
   the proof of time's own limits; `checkpointMany`; the assignment's symmetry. Runtime size 11,900 bytes.
 - `test/proof-of-capacity.test.mjs`: 5 tests of the hosts' side, with the digests pinned to the contract's.
+- `test/proof-of-capacity-host.test.mjs`: 7 tests: the work; a pass between two hosts; each way to fail; each
+  way to be unreachable and the cases that are no verdict; whom a host answers; the agent's round.
+- `test/windows-node-proof-of-capacity.test.mjs`: 2 tests: off unless enabled and on a prover that is one; a lone
+  box's own proof through the node's operator queue.
+- The supervisor's, the Windows node's and the image and deploy closure suites, unchanged in what they expect
+  apart from the two new files: 562 tests pass.
 
-Run: `forge test --offline --match-contract ProofOfCapacityTest` and `node --test test/proof-of-capacity.test.mjs`.
+Run: `forge test --offline --match-contract ProofOfCapacityTest` and
+`node --test test/proof-of-capacity.test.mjs test/proof-of-capacity-host.test.mjs test/windows-node-proof-of-capacity.test.mjs`.
 
 ---
 

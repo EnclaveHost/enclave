@@ -5,7 +5,8 @@
 // Nothing here decides who checks whom or what standing is: the contract does, and this code asks it
 // (`targetsOf`, `standing`, `seedOf`). What a check IS (the workload a checker runs against its target and how the
 // result is judged) is the caller's `check` function; its digest goes on chain as the report's `evidence`.
-import {hashTypedData, keccak256, toBytes} from 'viem';
+// (no package import: the Windows node ships this file outside its own folder, where there is no node_modules)
+import {createHash} from 'node:crypto';
 
 export const VERDICT = Object.freeze({pass: 1, fail: 2, unreachable: 3});
 const HEX32 = /^0x[0-9a-f]{64}$/, ADDR = /^0x[0-9a-fA-F]{40}$/;
@@ -41,9 +42,8 @@ export function proofMessage(domain, {id, enclaveId, operator, upto, anchorBlock
   need(HEX32.test(id) && HEX32.test(enclaveId) && ADDR.test(String(operator || '')) && HEX32.test(anchorHash), 'deployment, host, operator and anchor');
   return typed(domain, 'ProofOfTime', {id, enclaveId, operator: String(operator).toLowerCase(), upto: BigInt(upto), anchorBlock: BigInt(anchorBlock), anchorHash});
 }
-export const digestOf = message => hashTypedData(message);
-// the digest of an off-chain record (canonical JSON text), as a report's or a self-proof's `evidence`
-export const evidenceDigest = text => { need(typeof text === 'string' && text.length > 0, 'evidence text'); return keccak256(toBytes(text)); };
+// the SHA-256 of an off-chain record's text, as a report's or a self-proof's `evidence` (the contract only stores it)
+export const evidenceDigest = text => { need(typeof text === 'string' && text.length > 0, 'evidence text'); return '0x' + createHash('sha256').update(text, 'utf8').digest('hex'); };
 
 /**
  * One round of duty for `host` in the contract's current epoch.

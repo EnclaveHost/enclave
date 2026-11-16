@@ -870,6 +870,12 @@ export function newProofKey(keyFile) {
   return proofAcct.address;
 }
 export const proofAddress = () => (proofAcct ? proofAcct.address : null);
+// Under PROOF_OF_CAPACITY=1 the ledger's prover is an EnclaveProofOfCapacity (windows/node/proof-of-capacity.mjs): the same
+// ProofOfTime message, signed under that contract's name. Off: EnclaveProofOfTime, as always.
+const PROOF_DOMAIN_NAME = process.env.PROOF_OF_CAPACITY === "1" ? "EnclaveProofOfCapacity" : "EnclaveProofOfTime";
+/** EIP-712 typed data signed by this box's proof key (the capacity check's challenge, answer, report and own proof). */
+export const proofSign = (typedData) => { if (!proofAcct) throw new Error("no proof key on this box"); return proofAcct.signTypedData(typedData); };
+export const chainId = base.id;
 export const setProofKey = (id, addr) => send(addresses.registry, SET_PROOF_KEY_ABI, "setProofKey", [id, addr]);
 export const unprovenSec = (id) => publicClient().readContract({ address: addresses.proofOfTime, abi: PROOF_ABI, functionName: "unprovenSec", args: [id] });
 
@@ -890,7 +896,7 @@ export async function checkpoint({ id, enclaveId, upto }) {
   const plan = await withCheckpointAnchor(async ({ anchorBlock, anchorHash, client }) => {
     const message = { id, enclaveId, operator: acct.address, upto: BigInt(upto), anchorBlock: BigInt(anchorBlock), anchorHash };
     const sig = await proofAcct.signTypedData({
-      domain: { name: "EnclaveProofOfTime", version: "1", chainId: base.id, verifyingContract: getAddress(addresses.proofOfTime) },
+      domain: { name: PROOF_DOMAIN_NAME, version: "1", chainId: base.id, verifyingContract: getAddress(addresses.proofOfTime) },
       types: PROOF_TYPES, primaryType: "ProofOfTime", message });
     return (await planCheckpoints({client, ledger: addresses.deployments,
       proof: addresses.proofOfTime, batch: [{...message,sig}],
@@ -913,7 +919,7 @@ export async function checkpointBatch(items) {
     for (const { id, enclaveId, upto } of items) {
       const message = { id, enclaveId, operator: acct.address, upto: BigInt(upto), anchorBlock: BigInt(anchorBlock), anchorHash };
       const sig = await proofAcct.signTypedData({
-        domain: { name: "EnclaveProofOfTime", version: "1", chainId: base.id, verifyingContract: getAddress(addresses.proofOfTime) },
+        domain: { name: PROOF_DOMAIN_NAME, version: "1", chainId: base.id, verifyingContract: getAddress(addresses.proofOfTime) },
         types: PROOF_TYPES, primaryType: "ProofOfTime", message });
       batch.push({ ...message, sig });
     }

@@ -53,6 +53,7 @@ import { measureGflops } from './compute-measure.mjs';
 import { resolveIdentity } from './host-identity.mjs';
 // this box's own signed capacity record for independent readers (docs/network/independent-capacity.md); no packages
 import { createHostCapacityProducer, HOST_CAPACITY_PATH } from '../../network/host-capacity-producer.mjs';
+import { CAPACITY_CHECK_PATH } from '../../network/proof-of-capacity-host.mjs';
 const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
 // SIWE, byte-compatible with the platform's own routes so the console signs what this box issues
 // and posts it back unchanged. The session it mints is for THIS box only (session.mjs).
@@ -584,6 +585,14 @@ async function handle(frame) {
     shielded: card && host.sellsCard() ? { ...card, ...(cardProof ? { proof:cardProof } : {}),
       ...(host.managerInference?.ready ? { model:host.managerInference.model, minimumGpuMilli:host.managerInference.minimumGpuMilli, runtimeId:host.managerInference.runtimeId } : {}) } : null,
     model: MODEL ? path.basename(MODEL) : null, attachedAt, ...(APPS ? host.availability() : {}) });
+  // POST /v1/host/capacity-check: another host's capacity challenge (proof of capacity; 404 unless this box takes part)
+  if (p === CAPACITY_CHECK_PATH && method === 'POST') {
+    const poc = APPS ? await host.proofOfCapacity().catch(() => null) : null;
+    if (!poc) return json(404, { error: 'not_enabled', reason: 'this box does not take part in proof of capacity' });
+    let challenge = null; try { challenge = JSON.parse(Buffer.from(body || '', 'base64').toString('utf8')); } catch {}
+    try { const r = await poc.answer(challenge); return json(r.status, r.body); }
+    catch (e) { return json(503, { error: 'capacity_check_failed', reason: String(e.message || e).slice(0, 200) }); }
+  }
   if (p === HOST_CAPACITY_PATH && method === 'GET') {
     const c = capacityProducer();
     return c ? c.frame() : json(503, { error: 'capacity_not_signed', reason: 'no operator key on this box: it signs no capacity record' });

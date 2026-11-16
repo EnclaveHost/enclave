@@ -41,7 +41,7 @@ import { openSync, readSync, closeSync, mkdtempSync, readFileSync, rmSync, mkdir
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { WebSocketServer, createWebSocketStream } from "ws";
-import { verifyMessage, createPublicClient, createWalletClient, http as viemHttp, fallback as viemFallback, getAddress, keccak256, toHex, stringToBytes, parseAbi, parseEventLogs, encodeAbiParameters, encodeFunctionData } from "viem";
+import { verifyMessage, recoverTypedDataAddress, createPublicClient, createWalletClient, http as viemHttp, fallback as viemFallback, getAddress, keccak256, toHex, stringToBytes, parseAbi, parseEventLogs, encodeAbiParameters, encodeFunctionData } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { SignJWT, jwtVerify } from "jose";
@@ -55,6 +55,8 @@ import { CONTRACT_PINS, initAddressBook, REGISTRY_ADDRESS, DEPLOYMENTS_ADDRESS, 
          FORWARDER_ADDRESS, PROOF_OF_TIME_ADDRESS } from "./addressbook.js";
 // This host's own signed capacity record for independent readers (docs/network/independent-capacity.md).
 import { createHostCapacityProducer, capacityDirectoryOrigins, HOST_CAPACITY_PATH } from "./network/host-capacity-producer.mjs";
+import { CAPACITY_CHECK_PATH, POC_ABI, capacityReader, createCapacityResponder, createCapacityChecker, createCapacityAgent,
+         selfCapacityRecord } from "./network/proof-of-capacity-host.mjs";
 import { mayReconcile } from "./network/registry-reconcile.mjs";   // the registration rule the Windows node follows too
 // app-funded lease gas: the configuration boundary and sender shared with windows/node/chain.mjs
 import { leaseGasConfigured, loadLeaseGasConfig, configuredLeaseSender } from "./network/lease-gas-runtime.mjs";
@@ -6788,6 +6790,58 @@ if (_capacity && _capacityDirs.length) setInterval(() => {
     .catch((e) => console.warn(`[capacity] not published: ${e.message}`));
 }, 150_000).unref();
 
+// PROOF OF CAPACITY (docs/design/proof-of-capacity.md), OFF unless PROOF_OF_CAPACITY=1. It is only right on a ledger whose
+// prover is an EnclaveProofOfCapacity: that contract credits proven time only to a host in standing - checked by the hosts
+// assigned to it, and having checked the hosts it was assigned; alone, by its own proof. With it on, this host:
+//   - answers POST /v1/host/capacity-check from a host the contract assigned to check it (measured CPU and memory work,
+//     signed by the in-enclave proof key);
+//   - every PROOF_OF_CAPACITY_SEC checks the hosts it was assigned and reports, and sends its own proof when the contract
+//     says that is what is missing (network/proof-of-capacity-host.mjs createCapacityAgent).
+// The contract is the address the proof of time already uses (PROOF_OF_TIME_ADDRESS: the ledger's prover). Before anything
+// is signed its proofSchema must read 3; a prover that is not one leaves all of this off and says so once.
+const PROOF_OF_CAPACITY = process.env.PROOF_OF_CAPACITY === "1";
+const PROOF_OF_CAPACITY_SEC = Math.max(60, parseInt(process.env.PROOF_OF_CAPACITY_SEC || "300", 10) || 300);
+let _poc = null, _pocRefused = "";
+async function proofOfCapacity() {
+  if (!PROOF_OF_CAPACITY || !PROOF_READY()) return null;
+  const address = getAddress(PROOF_OF_TIME_ADDRESS);
+  if (_poc?.address === address && _poc.host === _enclaveId) return _poc;
+  const reader = capacityReader(chainClient, address);
+  let schema = null; try { schema = Number(await reader.proofSchema()); } catch {}
+  if (schema !== 3) {
+    const why = `the ledger's prover ${address} is not an EnclaveProofOfCapacity (proofSchema ${schema ?? "unread"})`;
+    if (why !== _pocRefused) console.warn(`[capacity-proof] off: ${why}`);
+    _pocRefused = why; return null;
+  }
+  const domain = { chainId: base.id, contract: address }, host = _enclaveId, sign = (m) => PROOF_ACCOUNT.signTypedData(m);
+  const recover = (typedData, signature) => recoverTypedDataAddress({ ...typedData, signature });
+  const rowOf = (id) => registryEntry(id);
+  const targetOf = async (id) => { const e = await rowOf(id).catch(() => null); return e && e.active ? { endpoint: e.endpoint, proofKey: e.proofKey } : null; };
+  const proofKeyOf = async (id) => { const e = await rowOf(id).catch(() => null); return e && !/^0x0+$/.test(String(e.proofKey)) ? e.proofKey : null; };
+  _poc = { address, host,
+    answer: createCapacityResponder({ hostId: host, domain, reader, proofKeyOf, sign, recover }),
+    agent: createCapacityAgent({ host, domain, reader, sign,
+      send: (functionName, args) => sendOperatorTx(address, POC_ABI, functionName, args).receipt,
+      check: createCapacityChecker({ host, domain, sign, recover, targetOf,
+        // cut off from the outside is not a verdict on anyone: the chain must answer before "unreachable" is signed
+        reachable: () => chainClient.getBlockNumber().then(() => true, () => false) }),
+      selfCheck: selfCapacityRecord(host),
+      // something to be paid for: a paid lease this host holds and serves now (what proofTick would checkpoint)
+      wantsCredit: async () => [...deployments.values()].some((r) => r._onchain && r.status === "running" && r._leaseUntil * 1000 > Date.now() && !freeLease(r)),
+      log: (m) => console.warn(`[capacity-proof] ${m}`) }) };
+  console.log(`[capacity-proof] on: ${address}, host ${host.slice(0, 10)}, every ${PROOF_OF_CAPACITY_SEC}s`);
+  return _poc;
+}
+app.post(CAPACITY_CHECK_PATH, async (req, res) => {
+  const poc = await proofOfCapacity().catch(() => null);
+  if (!poc) return fail(res, 404, "not_enabled", "this host does not take part in proof of capacity");
+  try { const r = await poc.answer(req.body); res.status(r.status).json(r.body); }
+  catch (e) { fail(res, 503, "capacity_check_failed", String(e.message || e).slice(0, 200)); }
+});
+if (PROOF_OF_CAPACITY) setInterval(() => {
+  proofOfCapacity().then((poc) => poc?.agent.tick()).catch((e) => console.warn(`[capacity-proof] ${String(e.message || e).slice(0, 200)}`));
+}, PROOF_OF_CAPACITY_SEC * 1000).unref();
+
 // External proof that MPS caps are live: each running tenant's granted SM count
 // (sanitized - no tenant ids). A 25% tenant should report ~33 of 132 SMs.
 //
@@ -12823,7 +12877,8 @@ async function tenantServing(rec) {
 // make our own logs lie about what we proved.
 async function signCheckpoint(rec, upto, anchorBlock, anchorHash) {
   const sig = await PROOF_ACCOUNT.signTypedData({
-    domain: { name: "EnclaveProofOfTime", version: "1", chainId: base.id,
+    // (under PROOF_OF_CAPACITY the ledger's prover is an EnclaveProofOfCapacity: the same message, that contract's domain)
+    domain: { name: PROOF_OF_CAPACITY ? "EnclaveProofOfCapacity" : "EnclaveProofOfTime", version: "1", chainId: base.id,
               verifyingContract: getAddress(PROOF_OF_TIME_ADDRESS) },
     types: PROOF_712_TYPES,
     primaryType: "ProofOfTime",

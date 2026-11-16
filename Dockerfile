@@ -28,7 +28,7 @@ COPY egress.js ./
 COPY addressbook.js ./
 COPY net-guard.mjs ./
 # the host's own signed capacity record (GET /v1/host/capacity): the producer and the record core, no packages
-COPY network/canonical.mjs network/host-capacity-record.mjs network/host-capacity-producer.mjs network/registry-reconcile.mjs ./network/
+COPY network/canonical.mjs network/host-capacity-record.mjs network/host-capacity-producer.mjs network/registry-reconcile.mjs network/proof-of-capacity.mjs network/proof-of-capacity-host.mjs ./network/
 # app-funded lease gas (claim/renew/release paid by the app's reserve): the runtime shared with the Windows node
 COPY network/lease-gas-runtime.mjs network/lease-gas-owner.mjs network/lease-executor-client.mjs network/lease-executor-authority.mjs network/lease-release-journal.mjs network/rpc-identity.mjs ./network/
 COPY client/lease-executor-client.mjs client/lease-executor-authority.mjs ./client/

@@ -22,6 +22,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import http from "node:http";
 import * as chain from "./chain.mjs";
+import { PROOF_OF_CAPACITY, PROOF_OF_CAPACITY_MS, createNodeProofOfCapacity } from "./proof-of-capacity.mjs";
 import {hostAdmissionFromEnv,createHostServiceGate} from './host-admission.bundle.mjs';
 import { desktopReleaseFromEnv, desktopAdoptionRefusal } from './desktop-release.mjs';
 import { DESKTOP_DERIVATION } from '../../relay/shield-desktop-derive.mjs';
@@ -388,6 +389,9 @@ export class Host {
     setInterval(() => this.renewDue().catch((e) => this.log(`renewals: ${e.message}`)), RENEW_KEEPER_MS);
     setInterval(() => this.heartbeat().catch(() => {}), GAS_CHECK_MS);
     setInterval(() => this.proveAll().catch((e) => this.log(`proof: ${e.message}`)), PROOF_MS);
+    // proof of capacity (proof-of-capacity.mjs): nothing unless PROOF_OF_CAPACITY=1 and the ledger's prover is one
+    if (PROOF_OF_CAPACITY) setInterval(() => this.proofOfCapacity().then((poc) => poc?.agent.tick())
+      .catch((e) => this.log(`proof of capacity: ${String(e.message || e).slice(0, 200)}`)), PROOF_OF_CAPACITY_MS).unref?.();
     this.tick().catch(() => {});
   }
   async refreshRegistration({ quiet = false } = {}) {
@@ -2832,6 +2836,15 @@ export class Host {
    * proofRequiredFrom every paid partition lease on a Windows host earned nothing, and a fee-contract source's budget
    * (capacity audits) never accrued.
    */
+  /** This box's part in proof of capacity, or null while it takes none (proof-of-capacity.mjs says when and why). */
+  proofOfCapacity() {
+    this._poc ||= createNodeProofOfCapacity({ chain, log: (m) => this.log(m),
+      hostId: () => (this.chainReady && this.registered ? this.enclaveId : null),
+      // something to be paid for: a paid lease served here now (what proveAll checkpoints)
+      wantsCredit: async () => [...this.records.values()].some((rec) => rec && rec.status === "running" && rec.leaseUntil
+        && !(rec.rate6 !== undefined && BigInt(rec.rate6 || 0) === 0n)) });
+    return this._poc();
+  }
   async proveAll() {
     if (!this.chainReady || !chain.proofAddress() || !this.registered) return;
     const due = [];
