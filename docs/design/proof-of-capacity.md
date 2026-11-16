@@ -106,10 +106,44 @@ GPU, about what it could do at the same time for others, or about the app it ser
 key is minted in the confidential VM. **On the Windows node the proof key is a file of the node process on the
 host**, so there an answer and an own proof are the host's work signed by the host, not a Shield partition's.
 
+## A host with no ETH: carried proofs (2026-11-16, source and tests)
+
+The ledger credits a host's earnings to its operator key and only that key can withdraw them, so a host needed ETH
+on that key to send its own proofs. `contracts/EnclaveHostExecutor.sol` is the operator key's EIP-7702 delegate in
+the place `EnclaveLeaseExecutor` holds (it inherits it: `lease` is the same code, signatures and nonces) with one
+function more:
+
+- The operator key signs, with no ETH, a `Carry` order: these exact calls to this prover in this order (its
+  checkpoints, and its reports, its own proof and the epoch's seed with them), this fee in the ledger's USDC to this
+  carrier or to whoever sends it, and the rest of the key's earnings to this payout address or left where they are.
+- Anyone sends it. The code runs as the operator key: it makes the calls (all must succeed), reads how much the
+  key's earned balance on the ledger grew, and reverts everything unless that growth covers the fee. Then one
+  withdrawal, the fee to the carrier, the rest to the payout.
+- So the fee comes out of what the order itself unlocked, never out of earlier earnings, and a carrier that asks
+  the chain first risks nothing. The host names the fee; nothing prices gas and there is no oracle.
+
+`network/host-carry.mjs`: the order as the host signs it (`signCarry`; its digest and its commitment to the calls
+are pinned to the contract's in both test suites) and a carrier's side (`carryOrder`: enough fee, still standing,
+payable to it, and it would not revert; then send).
+
+Limits: calls that unlock nothing in the same transaction cannot be paid for this way (a duty report goes with the
+round's checkpoints, or is paid for). The first transaction of a key through a new delegate carries its EIP-7702
+authorization, 25,000 gas the host's fee should cover. With no payout named and a fee, the rest of the earnings end
+up as USDC on the operator key, since the ledger has no partial withdrawal.
+
+Checked: `contracts/foundry/test/EnclaveHostExecutor.t.sol`, 8 tests with the executor's code on an operator key
+that never holds ETH, against the real ledger, registry and `EnclaveProofOfCapacity`: credited and the carrier paid;
+a fee above what was unlocked reverts everything; the fee never reaches earlier earnings; only the key's own order,
+these calls, once and in time; the named carrier is paid whoever sends; a failing call takes the order with it.
+`test/host-carry.test.mjs`, 4 tests.
+
+Not done: the hosts do not use it (they still send their own transactions from the operator key), no carrier
+runs anywhere, and no operator key is delegated to it. Moving a key to this delegate is one EIP-7702 authorization.
+
 ## Not built
 
 - Deployment tooling (`scripts/build-contract-artifacts.mjs` has no entry for it, so no ABI file is emitted).
-- Paying whoever carries a transaction (above).
+- A carrier service, and the hosts choosing a carried order over their own transaction when the key is empty.
 - A check that runs where the apps run (inside a Shield partition or beside the app in the VM), and a GPU check.
 - No host has run any of this: not on a test chain end to end, not on a real box.
 
