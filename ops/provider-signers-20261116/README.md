@@ -33,9 +33,13 @@ answered after. `signers-edges.sh revert` puts the one-hop bundle back. The payl
 (`provider-signers-20261116/payload` beside the one-hop payload).
 
 Also set on each edge, with no restart (`systemctl set-property`, kept in `/etc/systemd/system.control`):
-`enclave-network-provider` `CPUWeight=400`, `enclave-public-directory` `CPUWeight=20`. The directory uses 40% of an
-edge's one processor (a `/v1/network/routes` request takes 4–6 s there, several a minute); that is not changed here,
-only that it now waits behind the provider and the gateway. No installer in main makes the directory's unit.
+`enclave-network-provider` `CPUWeight=400`. The public directory was first put behind it (`CPUWeight=20`, ca-east
+02:29Z, the others 03:05Z) and is back at the default (100) since 03:26Z: the provider reads each owner's policy from
+the directories with an 8 s limit while it answers a host's request, and a directory that waits for the processor
+makes those requests time out (provider journal: `The operation was aborted due to timeout`, 03:25–03:35Z, when every
+circuit of the NucBox asked again at once). The directory uses 40% of an edge's one processor (a
+`/v1/network/routes` request takes 4–6 s there, several a minute); that is not changed here. No installer in main
+makes the directory's unit.
 
 **Checked.** The replacement text by itself against viem (`qualify/replacement-check.mjs`: same signer, remembered,
 loop not held, both builds). The one-hop tunnel qualification with the new bundles as guard and exit, both ways
@@ -54,3 +58,28 @@ association of the same client and app that the client has not written to for 5 
 (`gamestream.mjs`, `supersedeMs`; a live client writes twice a second on each port). Gateway bundle
 `4ca5fffb…3ef0224b` on the four edges since 03:14Z (`ops/stream-flow-20261115/edges.sh activate`); four starts back
 to back each got 16 of 16.
+
+## The outage of 03:26–04:21Z, caused by this night's work on the NucBox's uplink
+
+Not part of this release, recorded here because it happened in the same session and cost every app on the NucBox.
+
+- **What I did.** The NucBox's Ethernet reaches the home router over a powerline link that loses runs of packets
+  every 10–25 s. Its Wi-Fi reaches the same router directly, and a two-path probe (500 datagrams a second by each,
+  120 s, 03:22Z) lost 62 in 36 runs by Ethernet and 2 in one run by Wi-Fi. At 03:25:10Z I made Wi-Fi the preferred
+  route (Ethernet left connected), and put it back at 03:29:37Z when the apps stopped answering.
+- **What broke.** The relay (api.enclave.host) is a VM on the NucBox whose gateway and DNS server are the NucBox
+  itself. After the change its resolver's AAAA lookups timed out (A lookups answered), every name lookup in the VM
+  hung, and the relay could reach no chain RPC (`RPC upstream unavailable`). With no chain reads the relay refuses
+  hosts' work: metal0's and the NucBox's circuits lost their grants, routes were withdrawn, the NucBox's node stopped
+  mid-pass at 03:44:36Z and its apps' leases ran out. A restarted node (03:58Z) attached but stayed suspended
+  (`owner-only starts SUSPENDED: no successful owner read within the grace`), for the same reason.
+- **What ended it.** 04:15Z, in the relay's VM: `resolvectl dns eth0 1.1.1.1 9.9.9.9` (runtime only;
+  `resolvectl revert eth0` or a restart of systemd-resolved undoes it). Chain reads answered at once, the NucBox
+  was admitted at 04:15:47Z and claimed its apps again; all ten names answered at 04:21Z. The KVM Box's partition was
+  never retired (its lease had 160 s left). cron moved to metal0 during the gap.
+- **Left as it is.** The relay VM's resolver still points at the two public servers. The NucBox's Wi-Fi is
+  disconnected, its interface metric is 900 (it was automatic) and the stale Wi-Fi default route has metric 0
+  (as found).
+- **For next time.** A change of the NucBox's uplink is a change under the relay: do it with the relay VM's resolver
+  already on servers that do not depend on the NucBox, and watch `https://api.enclave.host/rpc/base` during it. The
+  Wi-Fi path itself was not shown to be at fault; the measurement above stands.
