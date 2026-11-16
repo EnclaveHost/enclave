@@ -83,3 +83,19 @@ Not part of this release, recorded here because it happened in the same session 
 - **For next time.** A change of the NucBox's uplink is a change under the relay: do it with the relay VM's resolver
   already on servers that do not depend on the NucBox, and watch `https://api.enclave.host/rpc/base` during it. The
   Wi-Fi path itself was not shown to be at fault; the measurement above stands.
+
+## A second gap, 04:28–04:46Z, and where the stream's losses are
+
+- **The relay's tunnels.** The relay VM reaches each edge by an ssh connection that forwards three ports back to it.
+  After the first outage each edge still held an sshd session of a connection that had died on the VM's side (the
+  edges' sshd has `ClientAliveInterval 0`), so the VM's new connections failed with `remote port forwarding failed for
+  listen port 30443` and the tunnel units restarted every minute (16 times by 04:28Z). When the old sessions stopped
+  carrying traffic the API was unreachable on all four edges. 04:35Z: I ended the sshd sessions that held the
+  forwarded ports on each edge (by process id); the tunnels bound at once, the NucBox's apps answered again at
+  04:46:56Z. Not changed: the edges' sshd settings. With a client-alive interval a dead session would let go of its
+  ports within a minute.
+- **The client's losses, with times.** The test client's log lines now carry a time (`test.sh`), and each loss is
+  held against the home line's own losses in the same run (200 pings a second to the second router). Three runs of
+  78 s after everything above (04:51–04:56Z): 31 loss events (5 video, 21 audio, 5 unrecoverable-frame notes are of
+  the same events), 27 of them within 1.5 s of a home-line loss and the other 4 within 3 s of one. Whole-flow
+  silences at the gateway: 8, all at a home-line loss. Nothing was found that is not the home line.
