@@ -31,6 +31,26 @@ test('market qualification is connection-bound and routes only each verified liv
  await x.market.refresh([x.host],[x.row]);assert.equal(x.market.eligible(x.host),true);
  x.setClock(1300001);assert.equal(x.market.eligible(x.host),false);assert.equal(x.market.servesUntil(x.host,x.row),0);
 });
+test('attested is per app: only what this relay verified on the current attachment, and only until it lapses',async()=>{
+ const x=fixture();assert.equal(x.market.attestation(x.host,x.row),null);assert.deepEqual(x.market.attested(x.host,[x.row]),[]);
+ x.hub.verifyShieldApp=()=>({ok:true,spkiSha256:'aa'.repeat(32),scope:'policy-accepted app image, runtime and key on an attested VBS platform'});
+ await x.market.refresh([x.host],[x.row]);
+ const a=x.market.attestation(x.host,x.row);
+ assert.deepEqual(a,{attested:true,by:'relay',evidence:'vbs-vm-report',until:x.market.servesUntil(x.host,x.row),checkedAt:1000,
+  keySha256:'aa'.repeat(32),scope:'policy-accepted app image, runtime and key on an attested VBS platform'});
+ const other={...x.row,id:'0x'+'33'.repeat(32)};
+ assert.deepEqual(x.market.attested(x.host,[other,x.row]),[{id:x.row.id,...a}]);
+ // another configuration of the same deployment, a secret the policy does not cover, another attachment, time: not attested
+ assert.equal(x.market.attestation(x.host,{...x.row,configCid:'{}'}),null);
+ x.setSecret(true);assert.equal(x.market.attestation(x.host,x.row),null);x.setSecret(false);
+ x.setSession('connection2');assert.equal(x.market.attestation(x.host,x.row),null);x.setSession('connection1');
+ assert.ok(x.market.attestation(x.host,x.row));
+ x.setClock(1300001);assert.equal(x.market.attestation(x.host,x.row),null);
+ // a verification that fails takes it away
+ x.setClock(1000000);await x.market.refresh([x.host],[x.row]);assert.ok(x.market.attestation(x.host,x.row));
+ x.hub.verifyShieldApp=()=>({ok:false,reason:'report signature'});
+ x.setClock(1000000+10*60000);await x.market.refresh([x.host],[x.row]);assert.equal(x.market.attestation(x.host,x.row),null);
+});
 test('fresh certificate verification refuses another key and a reconnect during the challenge',async()=>{
  const x=fixture();assert.equal((await x.market.certificate(x.host,x.row,'aa'.repeat(32))).ok,true);
  assert.equal((await x.market.certificate(x.host,x.row,'bb'.repeat(32))).ok,false);

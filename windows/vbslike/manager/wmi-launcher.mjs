@@ -84,10 +84,21 @@ export function certNameFor(name) {
  * domain says so, and the two launchers must NOT say the same thing (enclave-99).
  *
  * TYPE 1 IS A CONFIGURATION, NOT A MEASUREMENT. The hypervisor is configured to keep VTL0 RAM
- * host-private on a VBS partition, and the guest reports `hv_isolation=vbs` - but no host-side read
- * has been shown to be refused (E3 NOT RUN) and no report chain is verified (E2 NOT complete). So
- * `hostExcluded` and `attested` stay false, exactly as the recipe's own boot prints them, and
- * nothing this launcher produces may be advertised as verified or host-excluded capacity.
+ * host-private on a VBS partition, and the guest reports `hv_isolation=vbs`. This launcher measures
+ * none of that and verifies nothing: `attested: false` here is the LAUNCHER's statement about itself,
+ * a process of the host, and stays false whatever is verified elsewhere.
+ *
+ * WHERE A PARTITION IS ATTESTED (2026-11-16; the earlier text here said no report chain was verified,
+ * which stopped being true on 2026-09-30): outside this host. The guest monitor's hardware report
+ * (signed by the boot's VSM key, itself taken only from the TPM-authenticated log of that boot) is
+ * verified per app by the relay and by the independent and browser verifiers
+ * (relay/shield-app-policy.mjs verifyShieldAppPolicy), and the relay publishes what it verified and
+ * has not let lapse (relay/shield-marketplace.mjs attestation: `attestedDeployments` on the host's
+ * row). A reader asks them, never this manager.
+ *
+ * `hostExcluded` is another matter and stays false: that the host OS cannot read a type-1 guest was
+ * demonstrated once on one box (E3, 2026-10-23), which no report can show for a partition running
+ * now, and the hypervisor, the firmware and physical access stay trusted.
  */
 export const BOUNDARY = Object.freeze({
   tier: "T0-hv",
@@ -96,8 +107,10 @@ export const BOUNDARY = Object.freeze({
   hostExcluded: false,
   attested: false,
   note: "a Gen2 OpenHCL partition with GuestStateIsolationType 1 (VBS), defined through WMI. The hypervisor "
-      + "is CONFIGURED to keep VTL0 RAM host-private; that is not a measurement. The host is NOT shown to be "
-      + "excluded and no chain is verified: never advertise this as verified or host-excluded capacity.",
+      + "is CONFIGURED to keep VTL0 RAM host-private; that is not a measurement, and this launcher attests "
+      + "nothing (a partition's hardware report is verified outside the host, per app: the relay's "
+      + "attestedDeployments). The host is NOT shown to be excluded: never advertise this as verified or "
+      + "host-excluded capacity.",
 });
 
 /**

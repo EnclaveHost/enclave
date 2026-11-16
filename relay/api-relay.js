@@ -3020,7 +3020,10 @@ function handleRequest(req, res) {
                                     // (B) the deployments an owner-only hv-node row carries now: the data-plane daemons splice
                                     // ONLY these to it (fleet.mjs servesDeployment), never re-deriving the rule from row fields
                                     ...(e.ownerOnly ? { servesDeployments: ownerServedDeployments(e) } : {}),
-                                    ...(shieldMarket.eligible(e) ? { ownerOnly: false, tier: "enclave-shield", appEvidenceRequired: true, protection: "host-os-isolation", operatorExcluded: false } : {}),
+                                    ...(shieldMarket.eligible(e) ? { ownerOnly: false, tier: "enclave-shield", appEvidenceRequired: true, protection: "host-os-isolation", operatorExcluded: false,
+                                      // per app, what this relay verified and has not let lapse (shield-marketplace.mjs attestation): the
+                                      // partition's hardware report, image, runtime and TLS key. Never a statement about the host as a whole.
+                                      attestedDeployments: shieldMarket.attested(e, _ledger.rows || []) } : {}),
                                     ...(pvmMarket.eligible(e) ? { appEvidenceRequired: true, protection: "pkvm-protected-vm", servesDeployments: pvmMarket.served(e, _ledger.rows || []) } : {}),
                                     ...(pvmCpuLaneOf(e) ? { lane: pvmCpuLaneOf(e) } : {}) }; });
     const agg = {

@@ -71,7 +71,7 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
       state = stateFor(host);
       const until = now() + TTL;
       state.until = until;
-      state.apps.set(d.id, {until, checked:now(), fingerprint:fingerprint(d), ownerException, spkiSha256:proof.spkiSha256});
+      state.apps.set(d.id, {until, checked:now(), fingerprint:fingerprint(d), ownerException, spkiSha256:proof.spkiSha256, scope:proof.scope||null});
       state.verdicts.add(d.id);
       if (policy.marketEnabled === true) hub.notifyShieldMarket(host.name, sid, until);
       log(`[shield-market] verified ${host.name}/${d.id.slice(0,10)} runtime app and TLS key (market=${policy.marketEnabled === true})`);
@@ -102,8 +102,24 @@ export function createShieldMarketplace({ hub, policyFile = '', policy: supplied
       state.witnessVerified = true;
     } catch(e) { log(`[shield-market] ${host.name}: readiness witness: ${e.message}`); }
   }
+  // ATTESTED, per app: what this relay itself verified for a deployment on this host's CURRENT attachment and has not
+  // let lapse - the partition's hardware report (signed by the boot's VSM key, which is taken only from the
+  // TPM-authenticated log of that boot), an admitted image and runtime, and the TLS key the app serves on
+  // (verifyShieldAppPolicy). It is this relay's statement, with its time limit; the host's own processes (manager,
+  // node) never make it, and it says nothing about host exclusion. -> null while servesUntil is 0.
+  function attestation(host, d) {
+    const until = servesUntil(host, d), app = until ? stateFor(host).apps.get(d.id) : null;
+    return app ? {attested:true, by:'relay', evidence:'vbs-vm-report', until, checkedAt:Math.floor(app.checked/1000),
+      keySha256:app.spkiSha256, ...(app.scope ? {scope:app.scope} : {})} : null;
+  }
+  // the deployments of `rows` this host carries with a current attestation: [{id, ...attestation}]
+  function attested(host, rows) {
+    const out = [];
+    for (const d of rows || []) { const a = attestation(host, d); if (a) out.push({id:d.id, ...a}); }
+    return out;
+  }
   return {
-    configured, eligible, servesUntil,
+    configured, eligible, servesUntil, attestation, attested,
     // true until this host's current attachment has a verdict on d (relay/route-grace.mjs keeps a route meanwhile)
     pending: (host, d) => !stateFor(host)?.verdicts?.has(d?.id),
     certificate: (host, d, spki) => admit(host, d, spki),
