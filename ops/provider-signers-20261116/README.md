@@ -125,3 +125,30 @@ workstation, which is still behind the powerline link: what the edge sends it cr
   the night; a command of mine that ended my two measurement scripts by pattern is the likely cause), so Sunshine's
   log could not be read.
 - cron (0x38f368d6) is on metal0 since the first outage and answers some of the time.
+
+## The stream without the internet: a local adapter (05:35Z on)
+
+Moonlight and the NucBox are on the same local network, a fraction of a millisecond apart, and the stream went out
+through an edge and back, twice across the home's powerline link. The RISC Box never did: its Moonlight adapter on the
+workstation reaches the VM on the NucBox directly. The KVM Box now has the same road.
+
+- `network/wg-provider/gamestream-local.mjs`: the gateway the edges run (`gamestream.mjs`, unchanged: port tunnels,
+  UDP as a flow of lanes), started on the owner's machine and reaching the app's front at an address the operator
+  gives, with the SHA-256 of the front's public key pinned. For a Shield partition on a Windows host both come from
+  the host's manager (`GET /vms/<id>`: `relay.port`, `transportKeySha256`), the port forwarded over ssh. A front with
+  another key is refused. Test: `test/wg-provider-gamestream-local.test.mjs`.
+- `network/wg-provider/gamestream-local-install.sh` (bundle from `scripts/network/build-gamestream-local.mjs`): three
+  user services on the machine Moonlight runs on: the ssh forward, the adapter, and a timer that follows the VM's
+  port and key (a VM restart changes both). Installed on the workstation 05:48Z as `enclave-kvm-box-tunnel`,
+  `enclave-kvm-box-moonlight`, `enclave-kvm-box-refresh.timer`; the adapter listens on `127.0.0.3`.
+- What this road does not pass: the edges, the provider, the host's network agent and its lease and visitor checks.
+  It is the operator's own access to a VM on their own host (ssh to the host, then the VM's loopback port), as the
+  RISC Box adapter is. Sunshine's pairing still decides which Moonlight may stream. The adapter takes every client
+  that reaches its address for this app's, so it is bound to a loopback address.
+
+Measured with the no-display test client through it (960x600 at 6 Mbit/s for 78 s and 300 s, 1920x1080 at 20 Mbit/s
+for 180 s and three times 120 s started 8 s apart): no video or audio loss event, no frame dropped, no key-frame
+request in any run; nothing passed over at the adapter; audio 12 ms late at the median and 98 ms at the most; the
+longest silence of all lanes 80 ms. Every start worked, also right after another.
+
+**Not checked:** the user's own Moonlight (GUI) through `127.0.0.3`; a VM restart followed by the timer.
