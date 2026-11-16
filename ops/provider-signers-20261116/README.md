@@ -96,6 +96,6 @@ Not part of this release, recorded here because it happened in the same session 
   ports within a minute.
 - **The client's losses, with times.** The test client's log lines now carry a time (`test.sh`), and each loss is
   held against the home line's own losses in the same run (200 pings a second to the second router). Three runs of
-  78 s after everything above (04:51–04:56Z): 31 loss events (5 video, 21 audio, 5 unrecoverable-frame notes are of
-  the same events), 27 of them within 1.5 s of a home-line loss and the other 4 within 3 s of one. Whole-flow
-  silences at the gateway: 8, all at a home-line loss. Nothing was found that is not the home line.
+  78 s after everything above (04:51–04:56Z): 26 loss events (5 video, 21 audio); 22 of them within 1.5 s of a
+  home-line loss, 3 more within about 2 s of one, and one audio loss (04:54:52.9Z) 9 s from any. Whole-flow
+  silences at the gateway: 8, all at a home-line loss. Apart from that one audio loss, nothing was found that is not the home line.
