@@ -845,17 +845,27 @@ static bool selftest() {
  * Reported in HELLO and advertised to the fleet as this card's rate for the
  * operation it actually performs -- not a spec-sheet FP16 number.
  *
- * The figure is the card's SUSTAINED rate: the card is worked for SH_GMACS_WARM_MS
- * before the clock starts and timed over SH_GMACS_TIMED_MS, in bursts that are
- * each waited for and that a fast card makes long (half a window): twenty
- * products from idle and one wait (the first form, about a millisecond on a
- * V100) read 10-35% under what the same kernel does when it is kept busy, which
- * is what a tenant gets and what a capacity check holds the card to (FIELD_CHAIN
- * on the two sold cards, 2026-11-17: 3,050-3,280 G/s against 2,310-2,760
- * stated). A card that is being time-sliced still answers its contended figure:
- * both windows are wall time. A slow card works one burst of twenty for each. */
+ * The figure is the card's SUSTAINED rate. The card is first worked until it
+ * stops getting faster (a burst no more than 3% quicker than the one before
+ * it, twice in a row; at least SH_GMACS_WARM_MS, at most SH_GMACS_WARM_MAX_MS) and only
+ * then
+ * timed, over SH_GMACS_TIMED_MS, in bursts that are each waited for and that a
+ * fast card makes long (half a timed window). The first form was twenty
+ * products from idle and one wait, about a millisecond on a V100, and it read
+ * under what the same kernel does when it is kept busy, which is what a tenant
+ * gets and what a capacity check holds the card to (FIELD_CHAIN, 2026-11-17):
+ * 10-35% under on the two sold Tesla cards (2,310-2,760 stated, 3,050-3,280 made;
+ * the wait was a tenth of the time behind the shared GPU daemon), and 2.6
+ * times under on a Radeon 780M (173 stated, 450 made), whose clocks take a
+ * few hundred milliseconds to come up: there a fixed 15 ms of warm-up still
+ * read 173 and 300 ms read 470-490. A card that is already working is warm and
+ * leaves after three bursts; one that is being time-sliced still answers its
+ * contended figure, since every window is wall time. */
 #ifndef SH_GMACS_WARM_MS
 #define SH_GMACS_WARM_MS  15.0
+#endif
+#ifndef SH_GMACS_WARM_MAX_MS
+#define SH_GMACS_WARM_MAX_MS 300.0
 #endif
 #ifndef SH_GMACS_TIMED_MS
 #define SH_GMACS_TIMED_MS 15.0
@@ -871,15 +881,21 @@ static double measure_gmacs() {
     cudaStream_t s; cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking);
     const auto ms_since = [](std::chrono::steady_clock::time_point t) {
         return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t).count(); };
-    const auto work = [&](int n) {
+    const auto work = [&](int n) {                    /* -> the milliseconds n products took, the wait included */
+        const auto b0 = std::chrono::steady_clock::now();
         for (int i = 0; i < n; i++) field_gemm_launch(dW, K, N, dX, m, K, (long long)m * K, dY, s);
-        cudaStreamSynchronize(s); };
+        cudaStreamSynchronize(s);
+        return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - b0).count(); };
     const auto w0 = std::chrono::steady_clock::now();
-    work(20);
     /* the burst that takes this card half a timed window, from the first twenty (which include the wake-up) */
-    const double first = ms_since(w0);
+    const double first = work(20);
     const int burst = first > 0 ? (int)std::min(400.0, std::max(20.0, 20.0 * (SH_GMACS_TIMED_MS / 2) / first)) : 20;
-    for (int b = 0; b < 16 && ms_since(w0) < SH_GMACS_WARM_MS; b++) work(burst);
+    int level = 0;                                    /* bursts in a row that were no faster than the one before */
+    for (double last = 0, t = 0; ms_since(w0) < SH_GMACS_WARM_MAX_MS; last = t) {
+        t = work(burst);
+        level = last > 0 && t * 1.03 >= last ? level + 1 : 0;
+        if (level >= 2 && ms_since(w0) >= SH_GMACS_WARM_MS) break;   /* the clocks come up in steps: one level burst is not the top */
+    }
     long long done = 0;
     const auto t0 = std::chrono::steady_clock::now();
     for (int b = 0; b < 16 && (b == 0 || ms_since(t0) < SH_GMACS_TIMED_MS); b++) { work(burst); done += burst; }
@@ -1513,7 +1529,16 @@ struct YieldGate {
                 const bool calm = probe_floor >= YIELD_MIN_FLOOR_S / 2 && probe_held <= YIELD_LEAVE_RATIO * probe_floor;
                 char why[96]; snprintf(why, sizeof why, "a %.0f ms full-speed probe ran at %.2fx the floor", YIELD_PROBE_S * 1e3, probe_floor > 0 ? probe_held / probe_floor : 0);
                 probe_until = -1; probing = false; probe_next = now + YIELD_PROBE_PERIOD_S;
-                if (calm) { timing = false; settle(why); }
+                if (calm) {
+                    /* What the windows hold was measured while the worker was duty-cycling: turns that each
+                     * followed a sleep, on a card whose clocks had dropped. On a card that wakes slowly that
+                     * alone reads past the ENTER ratio (Radeon 780M, 2026-11-17: 1.6x, where the V100 reads
+                     * 1.25-1.3x), and the very next turn put the owner back 2 ms after the probe had found
+                     * the card calm: 25% of the card for good, with nobody else on it. The judgement starts
+                     * again from the turns that follow. */
+                    for (Bucket &old : buckets) old = Bucket();
+                    timing = false; settle(why);
+                }
                 else if (trace) fprintf(trace, "# probe kept the state: %s\n", why);
             }
         } else if (!shell && now >= probe_next) {    /* the shell's word needs no probe */
@@ -1579,17 +1604,18 @@ static void owner_shell_poll() {
 struct GpuTurn {
     GpuTenant &t; std::unique_lock<std::mutex> lk; std::chrono::steady_clock::time_point t0;
     uint64_t cls;                        /* the class of turn for the solo floors; 0 = unclassed, gated but not judged */
-    GpuTurn(GpuTenant &tenant, long long reserve, long long budget, uint64_t klass = 0, double share = 0) : t(tenant), cls(klass) {
+    bool gated;                          /* false: outside background mode altogether (FIELD_CHAIN, which says why) */
+    GpuTurn(GpuTenant &tenant, long long reserve, long long budget, uint64_t klass = 0, double share = 0, bool gate = true) : t(tenant), cls(klass), gated(gate) {
         t.share = share > 0 ? share : (reserve > 0 && budget > 0) ? (double)reserve / (double)budget : g_share_default;
         if (g_fair_share) g_sched.acquire(t);
         lk = std::unique_lock<std::mutex>(g_gpu);
-        if (g_yield) t.yield_seconds += g_yield_gate.wait();
+        if (g_yield && gated) t.yield_seconds += g_yield_gate.wait();
         t0 = std::chrono::steady_clock::now();
     }
     ~GpuTurn() {
         const double held = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
         lk.unlock();
-        if (g_yield) { if (cls) g_yield_gate.observe(cls, held); g_yield_gate.after_turn(held); }
+        if (g_yield && gated) { if (cls) g_yield_gate.observe(cls, held); g_yield_gate.after_turn(held); }
         if (g_fair_share) g_sched.release(t, held); else { t.gpu_seconds += held; t.turns++; }
     }
 };
@@ -2449,7 +2475,18 @@ struct Conn {
      * One turn on the card per stride, so tenants' exchanges interleave. A
      * link with no reservation runs a chain at the weight of everything that
      * is NOT reserved (not at the default share): a check of the card's free
-     * capacity gets what is free, and a tenant keeps the share it reserved. */
+     * capacity gets what is free, and a tenant keeps the share it reserved.
+     *
+     * A chain's turns are outside background mode: not delayed by it and not
+     * judged by it. The figure a chain holds the card to (measure_gmacs) is
+     * measured outside it too, so an owner who is on the card shows in both
+     * the same way, as contention. And a chain after a pause is the load the
+     * detector reads wrong on a card that wakes slowly (Radeon 780M,
+     * 2026-11-17: the second check of a session started on dropped clocks,
+     * its first turns ran 1.6x their floor for longer than the 100 ms the
+     * entry rule allows a card to wake, the worker took 25% of the card, and
+     * no 50 ms probe ever found the card awake again: 6 s of work did not
+     * finish in 13). A check is at most a few seconds an epoch a checker. */
     std::string field_chain(const uint8_t *p, size_t n) {
         if (n < 32) VIOLATE("truncated FIELD_CHAIN");
         const uint32_t idx = rd_u32(p), m = rd_u32(p + 4), rounds = rd_u32(p + 8), stride = rd_u32(p + 12);
@@ -2487,11 +2524,9 @@ struct Conn {
                 sha_final(&h, (uint8_t *)&out[((size_t)c * m + r) * 32]);
             }
         };
-        const uint32_t klass[5] = { 3, idx, m, stride, (uint32_t)K };
-        const uint64_t cls = yield_class(klass, 5, 0x6669656c64636861ull);
         const auto t0 = std::chrono::steady_clock::now();
         for (uint32_t c = 0; c < commits; c++) {
-            GpuTurn turn(sched, reserve, g_vram_budget, cls, share);
+            GpuTurn turn(sched, reserve, g_vram_budget, 0, share, false);
             if (!c) {
                 ck(cudaMemcpyAsync(dx, p + 32, state, cudaMemcpyHostToDevice, stream), "chain upload");
                 ck(cudaMemcpyAsync(dpad, p + 32 + state, state, cudaMemcpyHostToDevice, stream), "chain upload");
