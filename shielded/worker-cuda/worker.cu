@@ -846,17 +846,22 @@ static bool selftest() {
  * operation it actually performs -- not a spec-sheet FP16 number.
  *
  * The figure is the card's SUSTAINED rate: the card is worked for SH_GMACS_WARM_MS
- * before the clock starts and timed over SH_GMACS_TIMED_MS. Twenty products
- * from idle (the first form, about a millisecond on a V100) read 10-35% under
- * what the same kernel does when it is kept busy, which is what a tenant gets
- * and what a capacity check holds the card to (FIELD_CHAIN on the two sold
- * cards, 2026-11-17: 3,050-3,280 G/s against 2,310-2,760 stated). A card that
- * is being time-sliced still answers its contended figure: both windows are
- * wall time. */
+ * before the clock starts and timed over SH_GMACS_TIMED_MS, in bursts that are
+ * each waited for and that a fast card makes long (half a window): twenty
+ * products from idle and one wait (the first form, about a millisecond on a
+ * V100) read 10-35% under what the same kernel does when it is kept busy, which
+ * is what a tenant gets and what a capacity check holds the card to (FIELD_CHAIN
+ * on the two sold cards, 2026-11-17: 3,050-3,280 G/s against 2,310-2,760
+ * stated). A card that is being time-sliced still answers its contended figure:
+ * both windows are wall time. A slow card works one burst of twenty for each. */
+#ifndef SH_GMACS_WARM_MS
 #define SH_GMACS_WARM_MS  15.0
+#endif
+#ifndef SH_GMACS_TIMED_MS
 #define SH_GMACS_TIMED_MS 15.0
+#endif
 static double measure_gmacs() {
-    const int K = 4096, N = 4096, m = 8, burst = 20;
+    const int K = 4096, N = 4096, m = 8;
     int8_t *dW = nullptr, *dX = nullptr; int32_t *dY = nullptr;
     if (dmalloc((void **)&dW, (size_t)N * K) != cudaSuccess) return 0.0;
     if (dmalloc((void **)&dX, (size_t)3 * m * K) != cudaSuccess) { dfree(dW); return 0.0; }
@@ -866,19 +871,18 @@ static double measure_gmacs() {
     cudaStream_t s; cudaStreamCreateWithFlags(&s, cudaStreamNonBlocking);
     const auto ms_since = [](std::chrono::steady_clock::time_point t) {
         return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t).count(); };
-    /* bursts are synchronised one by one, so a slow card stops close to the window (at most 64 either way) */
+    const auto work = [&](int n) {
+        for (int i = 0; i < n; i++) field_gemm_launch(dW, K, N, dX, m, K, (long long)m * K, dY, s);
+        cudaStreamSynchronize(s); };
     const auto w0 = std::chrono::steady_clock::now();
-    for (int b = 0; b < 64 && (b == 0 || ms_since(w0) < SH_GMACS_WARM_MS); b++) {
-        for (int i = 0; i < burst; i++) field_gemm_launch(dW, K, N, dX, m, K, (long long)m * K, dY, s);
-        cudaStreamSynchronize(s);
-    }
+    work(20);
+    /* the burst that takes this card half a timed window, from the first twenty (which include the wake-up) */
+    const double first = ms_since(w0);
+    const int burst = first > 0 ? (int)std::min(400.0, std::max(20.0, 20.0 * (SH_GMACS_TIMED_MS / 2) / first)) : 20;
+    for (int b = 0; b < 16 && ms_since(w0) < SH_GMACS_WARM_MS; b++) work(burst);
     long long done = 0;
     const auto t0 = std::chrono::steady_clock::now();
-    for (int b = 0; b < 64 && (b == 0 || ms_since(t0) < SH_GMACS_TIMED_MS); b++) {
-        for (int i = 0; i < burst; i++) field_gemm_launch(dW, K, N, dX, m, K, (long long)m * K, dY, s);
-        cudaStreamSynchronize(s);
-        done += burst;
-    }
+    for (int b = 0; b < 16 && (b == 0 || ms_since(t0) < SH_GMACS_TIMED_MS); b++) { work(burst); done += burst; }
     const double dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
     cudaStreamDestroy(s);
     dfree(dW); dfree(dX); dfree(dY);
