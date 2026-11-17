@@ -54,6 +54,7 @@ import { resolveIdentity } from './host-identity.mjs';
 // this box's own signed capacity record for independent readers (docs/network/independent-capacity.md); no packages
 import { createHostCapacityProducer, HOST_CAPACITY_PATH } from '../../network/host-capacity-producer.mjs';
 import { CAPACITY_CHECK_PATH } from '../../network/proof-of-capacity-host.mjs';
+import { CARD_CHECK_PATH } from '../../network/proof-of-capacity-card.mjs';
 import { CAPACITY_KEY_PATH } from '../../network/proof-of-capacity-partition.mjs';
 import { expectProofSigner, setProofSigner } from './chain.mjs';
 const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
@@ -210,6 +211,7 @@ const host = new Host({
   // advertises, the price it posts and every card-dialled claim it accepts all hang off whether a
   // worker is answering right now. `card` is null while it is not.
   card: () => card,
+  cardWorkerPort: WORKER_PORT,     // where that card's worker listens: a card check is worked there (proof of capacity)
   // How the box proves who is asking, handed to the Host so the check can live at the funnel while
   // the key stays here. Null until the key is minted, and host.proxy fails CLOSED on null.
   sessionVerify: (headers, id) => addressFor(sessionKey, headers, id),
@@ -597,6 +599,14 @@ async function handle(frame) {
     let challenge = null; try { challenge = JSON.parse(Buffer.from(String(frame.body || ''), 'base64').toString('utf8')); } catch {}
     try { const r = await poc.answer(challenge); return json(r.status, r.body); }
     catch (e) { return json(503, { error: 'capacity_check_failed', reason: String(e.message || e).slice(0, 200) }); }
+  }
+  // POST /v1/host/card-check: the same for the card this box sells, worked by its own worker (network/proof-of-capacity-card.mjs)
+  if (p === CARD_CHECK_PATH && method === 'POST') {
+    const poc = APPS ? await host.proofOfCapacity().catch(() => null) : null;
+    if (!poc) return json(404, { error: 'not_enabled', reason: 'this box does not take part in proof of capacity' });
+    let body = null; try { body = JSON.parse(Buffer.from(String(frame.body || ''), 'base64').toString('utf8')); } catch {}
+    try { const r = await poc.card(body); return json(r.status, r.body); }
+    catch (e) { return json(503, { error: 'card_check_failed', reason: String(e.message || e).slice(0, 200) }); }
   }
   // GET /v1/host/capacity-key?nonce=: where this box's proof key lives, for a checker to verify itself: the capacity
   // partition's attestation over the caller's nonce and the proof key's statement by that partition's TLS key. 404 when

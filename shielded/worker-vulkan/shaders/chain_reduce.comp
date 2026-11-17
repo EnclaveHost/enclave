@@ -1,0 +1,26 @@
+#version 460
+/* chain_reduce.comp -- FIELD_CHAIN's step between two products, whole words: byte i of x is
+ * ((y[i] + pad[i]) mod 63) - 31. y is the balanced product, |y| < 2^23, so adding 63 * 133153 (the
+ * first multiple of 63 above 2^23) makes the sum non-negative and the unsigned remainder the residue
+ * (% on a negative operand is undefined here). x and pad are word-aligned; the bytes of the last word
+ * past n are written as zero into the padding the worker leaves there. */
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+layout(local_size_x = 256) in;
+layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer Ints { int v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer Pads { uint v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) buffer Words { uint v[]; };
+layout(push_constant, std430) uniform PC { uint64_t y; uint64_t pad; uint64_t x; int n; } pc;
+void main() {
+    const int k = int(gl_GlobalInvocationID.x);
+    if (4 * k >= pc.n) return;
+    const uint p = Pads(pc.pad).v[k];
+    uint w = 0u;
+    for (int j = 0; j < 4; j++) {
+        const int i = 4 * k + j;
+        if (i >= pc.n) break;
+        const uint v = uint(Ints(pc.y).v[i] + int((p >> (8 * j)) & 0xffu) + 8388639) % 63u;
+        w |= ((v - 31u) & 0xffu) << (8 * j);
+    }
+    Words(pc.x).v[k] = w;
+}

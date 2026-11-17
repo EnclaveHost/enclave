@@ -19,7 +19,7 @@
  *                     cudaHostAllocMapped hands the kernel that address to write the reply into.
  *   cudaMemGetInfo    VK_EXT_memory_budget.
  *   kernels           vk_launch_gemm / vk_launch_pack24 record dispatches of the SPIR-V modules in
- *                     shaders/ (32 field_gemm variants + pack24), push constants = the GemmTab.
+ *                     shaders/ (32 field_gemm variants + pack24 + chain_reduce), push constants = the GemmTab.
  */
 #pragma once
 #include <cstdint>
@@ -34,8 +34,8 @@ typedef enum {
 } cudaError_t;
 typedef enum { cudaMemcpyHostToDevice = 1, cudaMemcpyDeviceToHost = 2, cudaMemcpyDeviceToDevice = 3 } cudaMemcpyKind;
 typedef enum { cudaStreamCaptureModeGlobal = 0, cudaStreamCaptureModeThreadLocal = 1, cudaStreamCaptureModeRelaxed = 2 } cudaStreamCaptureMode;
-typedef enum { cudaMemPoolAttrReleaseThreshold = 4, cudaMemPoolAttrReservedMemCurrent = 5 } cudaMemPoolAttr;
-enum { cudaStreamNonBlocking = 1, cudaHostAllocDefault = 0, cudaHostAllocMapped = 2, cudaDeviceScheduleSpin = 1, cudaDeviceMapHost = 8,
+typedef enum { cudaMemPoolAttrReleaseThreshold = 4, cudaMemPoolAttrReservedMemCurrent = 5, cudaMemPoolAttrUsedMemCurrent = 7 } cudaMemPoolAttr;
+enum { cudaStreamNonBlocking = 1, cudaHostAllocDefault = 0, cudaHostAllocMapped = 2, cudaHostRegisterMapped = 2, cudaDeviceScheduleSpin = 1, cudaDeviceMapHost = 8,
        cudaEventRecordExternal = 1 };
 typedef unsigned long long cuuint64_t;
 
@@ -52,6 +52,7 @@ cudaError_t cudaGetDeviceProperties(cudaDeviceProp *, int);
 cudaError_t cudaDeviceSynchronize();
 cudaError_t cudaGetLastError();
 const char *cudaGetErrorString(cudaError_t);
+const char *cudaGetErrorName(cudaError_t);
 cudaError_t cudaMemGetInfo(size_t *free_bytes, size_t *total_bytes);
 
 cudaError_t cudaStreamCreateWithFlags(cudaStream_t *, unsigned);
@@ -76,6 +77,10 @@ cudaError_t cudaMemset(void *dst, int byte, size_t n);
 cudaError_t cudaHostAlloc(void **, size_t, unsigned flags);
 cudaError_t cudaFreeHost(void *);
 cudaError_t cudaHostGetDevicePointer(void **dev, void *host, unsigned);
+/* Memory the worker did not get from cudaHostAlloc (the shared ring) has no device address here: registering it is
+ * refused, and the worker copies into the ring as it does wherever the mapping is not granted. */
+cudaError_t cudaHostRegister(void *, size_t, unsigned);
+cudaError_t cudaHostUnregister(void *);
 
 cudaError_t cudaEventCreate(cudaEvent_t *);
 cudaError_t cudaEventDestroy(cudaEvent_t);
@@ -97,6 +102,8 @@ struct GemmTab {
 };
 void vk_launch_gemm(int mr, int g, const GemmTab &tab, int nblocks, int K, const int8_t *X, long long xstride, long long pstride, cudaStream_t s);
 void vk_launch_pack24(const int32_t *y, uint8_t *o, long long E, cudaStream_t s);
+/* FIELD_CHAIN's step: x[i] = ((y[i] + pad[i]) mod 63) - 31 for i < n. x and pad word-aligned, with room to the next word. */
+void vk_launch_chain_reduce(const int32_t *y, const uint8_t *pad, int8_t *x, long long n, cudaStream_t s);
 /* Which device (index among Vulkan physical devices, env SHIELDED_VK_DEVICE) and where the SPIR-V
  * lives (env SHIELDED_VK_SHADERS, default: shaders/ beside the binary). Called once from main. */
 void vk_init(const char *argv0);

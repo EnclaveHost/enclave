@@ -250,7 +250,8 @@ static bool cmd_copy(VkStreamImpl *s, void *dst, const void *src, size_t n, cuda
 /* ---- pipelines --------------------------------------------------------------------------- */
 struct PC { uint64_t W[8], Y[8]; int32_t N[8], blk0[8]; uint64_t X; int32_t K, xs16, ps16, n, pack; };
 struct PCpack { uint64_t y, o; int32_t E; };
-static VkPipelineLayout g_layout, g_layout_pack; static VkPipeline g_gemm[9][9], g_pack;
+struct PCchain { uint64_t y, pad, x; int32_t n; };
+static VkPipelineLayout g_layout, g_layout_pack, g_layout_chain; static VkPipeline g_gemm[9][9], g_pack, g_chain;
 static std::vector<char> read_file(const std::string &p) {
     FILE *f = fopen(p.c_str(), "rb"); if (!f) { fprintf(stderr, "[shielded-worker] vulkan: cannot open %s\n", p.c_str()); exit(75); }
     fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET); std::vector<char> v(n); if (fread(v.data(), 1, n, f) != (size_t)n) exit(75); fclose(f); return v;
@@ -370,6 +371,9 @@ void vk_init(const char *argv0) {
     for (int mr = 1; mr <= 8; mr++) for (int g = 1; g <= 8; g <<= 1)
         g_gemm[mr][g] = make_pipeline(g_shader_dir + "/field_gemm_mr" + std::to_string(mr) + "_g" + std::to_string(g) + ".spv", g_layout, true);
     g_pack = make_pipeline(g_shader_dir + "/pack24.spv", g_layout_pack, false);
+    VkPushConstantRange pr3{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PCchain)}; li.pPushConstantRanges = &pr3;
+    if (vkCreatePipelineLayout(D.dev, &li, nullptr, &g_layout_chain) != VK_SUCCESS) fatal("layout");
+    g_chain = make_pipeline(g_shader_dir + "/chain_reduce.spv", g_layout_chain, false);
 }
 const char *vk_queue_priority() { return D.prio_name.c_str(); }
 const char *vk_device_name() { return D.name.c_str(); }
@@ -384,6 +388,11 @@ cudaError_t cudaGetDeviceProperties(cudaDeviceProp *p, int) { API_LOCK;
 }
 cudaError_t cudaDeviceSynchronize() { API_LOCK; flush(g_immediate); vkDeviceWaitIdle(D.dev); return cudaSuccess; }
 cudaError_t cudaGetLastError() { API_LOCK; cudaError_t e = g_last; g_last = cudaSuccess; return e; }
+const char *cudaGetErrorName(cudaError_t e) {
+    switch (e) { case cudaSuccess: return "cudaSuccess"; case cudaErrorMemoryAllocation: return "cudaErrorMemoryAllocation"; case cudaErrorInvalidValue: return "cudaErrorInvalidValue"; default: return "cudaErrorUnknown"; }
+}
+cudaError_t cudaHostRegister(void *, size_t, unsigned) { return cudaErrorInvalidValue; }   /* not "the last error": the caller asks, and falls back */
+cudaError_t cudaHostUnregister(void *) { return cudaErrorInvalidValue; }
 const char *cudaGetErrorString(cudaError_t e) {
     switch (e) { case cudaSuccess: return "no error"; case cudaErrorMemoryAllocation: return "out of memory"; case cudaErrorInvalidValue: return "invalid value"; default: return "vulkan error"; }
 }
@@ -425,7 +434,9 @@ cudaError_t cudaFreeAsync(void *p, cudaStream_t s) { API_LOCK; flush(stream_of(s
 cudaError_t cudaDeviceGetDefaultMemPool(cudaMemPool_t *pool, int) { API_LOCK; *pool = (cudaMemPool_t)1; return cudaSuccess; }
 cudaError_t cudaMemPoolGetAttribute(cudaMemPool_t, cudaMemPoolAttr a, void *v) { API_LOCK;
     std::lock_guard<std::mutex> lk(g_mem_mu);
-    if (a == cudaMemPoolAttrReservedMemCurrent) *(cuuint64_t *)v = reserved_now(); else if (a == cudaMemPoolAttrReleaseThreshold) *(cuuint64_t *)v = g_threshold; return cudaSuccess;
+    if (a == cudaMemPoolAttrReservedMemCurrent) *(cuuint64_t *)v = reserved_now(); else if (a == cudaMemPoolAttrReleaseThreshold) *(cuuint64_t *)v = g_threshold;
+    else if (a == cudaMemPoolAttrUsedMemCurrent) { uint64_t u = 0; for (auto &kv : g_blocks) u += kv.second->used; *(cuuint64_t *)v = u; }
+    return cudaSuccess;
 }
 cudaError_t cudaMemPoolSetAttribute(cudaMemPool_t, cudaMemPoolAttr a, void *v) { API_LOCK; std::lock_guard<std::mutex> lk(g_mem_mu); if (a == cudaMemPoolAttrReleaseThreshold) g_threshold = *(cuuint64_t *)v; return cudaSuccess; }
 cudaError_t cudaMemPoolTrimTo(cudaMemPool_t, size_t keep) { API_LOCK; std::lock_guard<std::mutex> lk(g_mem_mu); trim_to(keep); return cudaSuccess; }
@@ -489,4 +500,10 @@ void vk_launch_pack24(const int32_t *y, uint8_t *o, long long E, cudaStream_t s)
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, g_pack);
     vkCmdPushConstants(cb, g_layout_pack, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof pc, &pc);
     vkCmdDispatch(cb, (uint32_t)(((3 * E + 3) / 4 + 255) / 256), 1, 1); cmd_barrier(cb);
+}
+void vk_launch_chain_reduce(const int32_t *y, const uint8_t *pad, int8_t *x, long long n, cudaStream_t s) { API_LOCK;
+    PCchain pc{(uint64_t)(uintptr_t)y, (uint64_t)(uintptr_t)pad, (uint64_t)(uintptr_t)x, (int32_t)n}; VkCommandBuffer cb = cb_of(stream_of(s));
+    vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, g_chain);
+    vkCmdPushConstants(cb, g_layout_chain, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof pc, &pc);
+    vkCmdDispatch(cb, (uint32_t)(((n + 3) / 4 + 255) / 256), 1, 1); cmd_barrier(cb);
 }

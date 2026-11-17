@@ -180,6 +180,11 @@ test('the claim is the host\'s own signed capacity record: its host id, its oper
   // the cards it sells by masked offload: each with the rate it states and the share of it that is free now
   const sold = await reader(await envelope({availability: {shieldedCards: [{id: 0, gmacPerSec: 6.2, gpuShareFree: 0.5, card: 'x'}, {id: 1, gmacPerSec: 3}, {id: 99, gmacPerSec: 1}, {gmacPerSec: 1}, null]}}))(B, row);
   assert.deepEqual(sold.cards, [{id: 0, gmacPerSec: 6.2, share: 0.5}, {id: 1, gmacPerSec: 3, share: 0}]);
+  // a Windows box's one card, as its row states it: card 0, free as its memory is free
+  const win = await reader(await envelope({availability: {shielded: {worker: 'vulkan', gmacPerSec: 173, vramBudgetGb: 12, vramFreeGb: 9}}}))(B, row);
+  assert.deepEqual(win.cards, [{id: 0, gmacPerSec: 173, share: 0.75}]);
+  assert.deepEqual((await reader(await envelope({availability: {shielded: {gmacPerSec: 173}}}))(B, row)).cards, [{id: 0, gmacPerSec: 173, share: 0}]);
+  assert.deepEqual((await reader(await envelope({availability: {shielded: null}}))(B, row)).cards, []);
   assert.match((await reader(await envelope({hostId: C}))(B, row)).none, /another host's/);
   assert.match((await reader(await envelope())(B, {...row, operator: '0x' + '77'.repeat(20)})).none, /not signed by the host's registry operator/);
   assert.match((await createClaimReader({chainId: 1, registry, recoverMessage: async () => op.address, fetch: async () => ({ok: true, json: async () => envelope()})})(B, row)).none, /another chain or registry/);

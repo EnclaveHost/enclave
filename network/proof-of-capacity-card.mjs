@@ -22,6 +22,9 @@
 //            from and the `stride` products after them. The start must be the committed state before (or the seed's
 //            rows), every product must pass Freivalds, and the end must be the committed state after: the chain is one
 //            chain. A host that made up a tenth of the stretches is caught by 24 of them 92 times in 100.
+//            A stretch is stride x K products of three bytes each (a true product is far inside 24 bits): 197 KB with
+//            the defaults. They are asked for a few at a time (`opensPerRequest`), so no answer is more than about a
+//            megabyte of JSON whatever carries it; the last request says so (`last`) and the host lets the card go.
 //
 // HOW MUCH is asked follows what the host ADVERTISES: the card's rate in the capacity record its operator key signs
 // (shieldedCards[].gmacPerSec, the worker's own measurement) times the share of the card it says is free now, for
@@ -61,7 +64,7 @@ export const CARD_DEFAULTS = Object.freeze({k: 4096, batch: 32,
   stride: 16,            // products between two kept states: the hash is 1/(stride x N) of the bytes, a stretch opened is stride x N values
   targetSec: 4,          // the run is sized to take the advertised rate this long
   maxCommits: 2048,      // whatever the rate (a faster card is then timed over a shorter run): the kept rows are maxCommits x batch x K bytes of the card
-  slack: 1.5, graceMs: 2500, opens: 24, prepareTimeoutMs: 90000, timeoutMs: 60000});
+  slack: 1.5, graceMs: 2500, opens: 24, opensPerRequest: 4, prepareTimeoutMs: 90000, timeoutMs: 60000});
 export const CARD_LIMITS = Object.freeze({k: 16384, batch: 64, stride: 64, commits: 4096, opens: 64, weightBytes: 1 << 28, traceBytes: 1 << 29, sessionMs: 180000});
 const HEX32 = /^0x[0-9a-f]{64}$/, QK = 32, W_MAX = 119, X_MAX = 31, CHAIN_MOD = 2 * X_MAX + 1;
 const P2 = 2147483647, S_RANGE = 1 << 20, REPS = 2;
@@ -104,6 +107,17 @@ export function chainStep(y, pad, k) {
   const x = new Int8Array(k);
   for (let j = 0; j < k; j++) { const v = (y.readInt32LE(j * 4) + pad[j]) % CHAIN_MOD; x[j] = (v < 0 ? v + CHAIN_MOD : v) - X_MAX; }
   return x;
+}
+/** Products as they are shown: int32 LE -> 3 bytes LE each, and back. A true product is inside 24 bits; one that is not cannot be shown. */
+export function pack24(y) {
+  const out = Buffer.alloc(y.length / 4 * 3);
+  for (let i = 0, o = 0; i < y.length; i += 4, o += 3) { out[o] = y[i]; out[o + 1] = y[i + 1]; out[o + 2] = y[i + 2]; }
+  return out;
+}
+export function unpack24(b) {
+  const out = Buffer.alloc(b.length / 3 * 4);
+  for (let i = 0, o = 0; i < b.length; i += 3, o += 4) { out[o] = b[i]; out[o + 1] = b[i + 1]; out[o + 2] = b[i + 2]; out[o + 3] = b[i + 2] & 128 ? 255 : 0; }
+  return out;
 }
 /** The products in software: m rows of N int32 LE from m rows of K int8. What a card computes; here for the tests and a host without one. */
 export function softwareGemm(w, k, n, rows, m) {
@@ -323,7 +337,8 @@ export function createCardResponder({hostId, domain, reader, proofKeyOf, sign, r
       const s = mine(b);
       if (!s || s.state !== 'ran') return no(409, 'no finished run for this');
       const {c} = s, total = (c.rounds / c.stride) * c.batch, want = b.stretches;
-      if (!Array.isArray(want) || !want.length || want.length > CARD_LIMITS.opens || !want.every(i => int(i, 0, total - 1))) { drop(); return no(400, 'stretches to open'); }
+      // over as many requests as the checker likes, CARD_LIMITS.opens stretches in all
+      if (!Array.isArray(want) || !want.length || want.length > CARD_LIMITS.opens - (s.shown || 0) || !want.every(i => int(i, 0, total - 1))) { drop(); return no(400, 'stretches to open'); }
       const kept = new Map(), stretches = [];
       try {
         for (const i of want) {
@@ -332,11 +347,11 @@ export function createCardResponder({hostId, domain, reader, proofKeyOf, sign, r
           if (at && !kept.has(at - 1)) kept.set(at - 1, await s.card.state(at - 1));
           const x = Buffer.from(rowOf(at ? kept.get(at - 1) : s.start.x)), ys = [];
           for (let j = 0, cur = x; j < c.stride; j++) { const y = await s.card.gemm(cur, 1); ys.push(y); cur = bytesOf(chainStep(y, pad, c.k)); }
-          stretches.push({x: x.toString('base64'), ys: Buffer.concat(ys).toString('base64'),
+          stretches.push({x: x.toString('base64'), ys: pack24(Buffer.concat(ys)).toString('base64'),
             before: at ? merkleProof(s.levels, i - c.batch).toString('base64') : '', after: merkleProof(s.levels, i).toString('base64')});
         }
       } catch (e) { drop(); return no(503, 'the card did not show the work: ' + String(e?.message || e).slice(0, 120)); }
-      drop();
+      if (session === s) { s.shown = (s.shown || 0) + want.length; if (b.last === true || s.shown >= CARD_LIMITS.opens) drop(); }
       return {status: 200, body: {stretches}};
     }
     return no(400, 'phase: prepare, run or open');
@@ -346,7 +361,7 @@ export function createCardResponder({hostId, domain, reader, proofKeyOf, sign, r
 /**
  * The checker's side: an `also` check. -> async (target, row, {epoch, seed, claim}) -> {name, ok: true|false|null, why, evidence?}
  *   host (the checker's id), domain, sign (its proof key), recover; fetch
- *   k, batch, stride, targetSec, maxCommits, slack, graceMs, opens: see CARD_DEFAULTS; enforce: false records and fails nobody
+ *   k, batch, stride, targetSec, maxCommits, slack, graceMs, opens, opensPerRequest: see CARD_DEFAULTS; enforce: false records and fails nobody
  * not judged (ok null): the host advertises no card, or none of it as free; it says "not now" (409, 429, 503).
  * fail: it advertises a card and does not answer for it (404), or its worker cannot run the check (501), or it does
  *   not take or finish the work inside the deadline; an answer that is not for this challenge or not signed by its
@@ -355,7 +370,7 @@ export function createCardResponder({hostId, domain, reader, proofKeyOf, sign, r
  */
 export function createCardCheck({host, domain, sign, recover, fetch = globalThis.fetch, k = CARD_DEFAULTS.k, batch = CARD_DEFAULTS.batch, stride = CARD_DEFAULTS.stride,
   targetSec = CARD_DEFAULTS.targetSec, maxCommits = CARD_DEFAULTS.maxCommits, slack = CARD_DEFAULTS.slack, graceMs = CARD_DEFAULTS.graceMs, opens = CARD_DEFAULTS.opens,
-  prepareTimeoutMs = CARD_DEFAULTS.prepareTimeoutMs, timeoutMs = CARD_DEFAULTS.timeoutMs, enforce = true, now = Date.now, random = randomBytes}) {
+  opensPerRequest = CARD_DEFAULTS.opensPerRequest, prepareTimeoutMs = CARD_DEFAULTS.prepareTimeoutMs, timeoutMs = CARD_DEFAULTS.timeoutMs, enforce = true, now = Date.now, random = randomBytes}) {
   need(HEX32.test(String(host)) && typeof recover === 'function' && validShape({k, batch, stride, rounds: stride}), 'card check: host id, signature recovery and a shape');
   const roundGmac = batch * k * k / 1e9, commitsMax = Math.max(1, Math.min(maxCommits, CARD_LIMITS.commits, Math.floor(CARD_LIMITS.traceBytes / (batch * k))));
   return async function cardCheck(target, row, {epoch, seed, claim}) {
@@ -398,28 +413,32 @@ export function createCardCheck({host, domain, sign, recover, fetch = globalThis
     // only now, with the root held: which stretches to see
     const pick = new Set(); const count = Math.min(opens, total, CARD_LIMITS.opens);
     while (pick.size < count) pick.add(random(4).readUInt32LE() % total);
-    const stretches = [...pick];
-    try { r = await post({phase: 'open', epoch, checker: host, nonce: c.nonce, stretches}, timeoutMs); }
-    catch (e) { return out(false, `card ${card.id}: the work was not shown (${String(e?.message || e).slice(0, 80)})`, measured); }
-    const shown = r.status === 200 && Array.isArray(r.body?.stretches) && r.body.stretches.length === stretches.length ? r.body.stretches : null;
-    if (!shown) return out(false, `card ${card.id}: the work was not shown (HTTP ${r.status})`, measured);
+    const stretches = [...pick], per = Math.max(1, Math.min(opensPerRequest, count));
     // the verifier's own preparation, after the clock has stopped: the matrix and its Freivalds vectors
     const verifier = new CardVerifier(cardWeights(weightSeed(c), k, k), k, k), root = hex(a.root), b64 = v => Buffer.from(typeof v === 'string' ? v : '', 'base64');
-    for (let i = 0; i < stretches.length; i++) {
-      const at = Math.floor(stretches[i] / batch), rw = stretches[i] % batch, what = `stretch ${at} of row ${rw}`;
-      const x = b64(shown[i].x), ys = b64(shown[i].ys), pad = cardPad(run, rw, k);
-      if (x.length !== k || ys.length !== stride * k * 4) return out(false, `card ${card.id}: ${what} was not shown whole`, measured);
-      // where it starts: the seed's row, or the state committed before it
-      const from = at ? merkleRoot(sha(x), stretches[i] - batch, total, b64(shown[i].before)) : null;
-      if (at ? !from || !from.equals(root) : !x.equals(bytesOf(cardVector(run, rw, k)))) return out(false, `card ${card.id}: ${what} does not start at the state it committed to`, measured);
-      let cur = new Int8Array(x.buffer, x.byteOffset, k);
-      for (let j = 0; j < stride; j++) {
-        const y = ys.subarray(j * k * 4, (j + 1) * k * 4);
-        if (!verifier.check(cur, y)) return out(false, `card ${card.id}: ${what}, step ${j}: the row is not the product`, measured);
-        cur = chainStep(y, pad, k);
+    for (let first = 0; first < stretches.length; first += per) {
+      const part = stretches.slice(first, first + per), last = first + per >= stretches.length;
+      try { r = await post({phase: 'open', epoch, checker: host, nonce: c.nonce, stretches: part, ...(last ? {last} : {})}, timeoutMs); }
+      catch (e) { return out(false, `card ${card.id}: the work was not shown (${String(e?.message || e).slice(0, 80)})`, measured); }
+      const shown = r.status === 200 && Array.isArray(r.body?.stretches) && r.body.stretches.length === part.length ? r.body.stretches : null;
+      if (!shown) return out(false, `card ${card.id}: the work was not shown (HTTP ${r.status})`, measured);
+      for (let i = 0; i < part.length; i++) {
+        const at = Math.floor(part[i] / batch), rw = part[i] % batch, what = `stretch ${at} of row ${rw}`;
+        const x = b64(shown[i].x), packed = b64(shown[i].ys), pad = cardPad(run, rw, k);
+        if (x.length !== k || packed.length !== stride * k * 3) return out(false, `card ${card.id}: ${what} was not shown whole`, measured);
+        const ys = unpack24(packed);
+        // where it starts: the seed's row, or the state committed before it
+        const from = at ? merkleRoot(sha(x), part[i] - batch, total, b64(shown[i].before)) : null;
+        if (at ? !from || !from.equals(root) : !x.equals(bytesOf(cardVector(run, rw, k)))) return out(false, `card ${card.id}: ${what} does not start at the state it committed to`, measured);
+        let cur = new Int8Array(x.buffer, x.byteOffset, k);
+        for (let j = 0; j < stride; j++) {
+          const y = ys.subarray(j * k * 4, (j + 1) * k * 4);
+          if (!verifier.check(cur, y)) return out(false, `card ${card.id}: ${what}, step ${j}: the row is not the product`, measured);
+          cur = chainStep(y, pad, k);
+        }
+        const to = merkleRoot(sha(bytesOf(cur)), part[i], total, b64(shown[i].after));
+        if (!to || !to.equals(root)) return out(false, `card ${card.id}: ${what} does not end at the state it committed to`, measured);
       }
-      const to = merkleRoot(sha(bytesOf(cur)), stretches[i], total, b64(shown[i].after));
-      if (!to || !to.equals(root)) return out(false, `card ${card.id}: ${what} does not end at the state it committed to`, measured);
     }
     return out(true, `card ${card.id}: ${gmac.toFixed(1)} G products in ${elapsedMs} ms, ${stretches.length} stretches of ${stride} checked`, {...measured, opened: stretches.length, root: a.root, signature: a.signature});
   };

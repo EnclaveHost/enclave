@@ -9,7 +9,8 @@ import {spawn, spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {pad, toHex, keccak256, toBytes, recoverTypedDataAddress} from 'viem';
 import {generatePrivateKey, privateKeyToAccount} from 'viem/accounts';
-import {cardWeights, cardVector, cardPad, cardStart, chainStep, softwareGemm, CardVerifier, merkleLevels, merkleProof, merkleRoot, createCardResponder, createCardCheck,
+import {tunnelHop} from './fixtures/tunnel-hop.mjs';
+import {cardWeights, cardVector, cardPad, cardStart, chainStep, softwareGemm, pack24, unpack24, CardVerifier, merkleLevels, merkleProof, merkleRoot, createCardResponder, createCardCheck,
   softwareCardDriver, shieldedCardDriver, cardChallengeMessage, CARD_CHECK, CARD_CHECK_PATH, CARD_LIMITS} from '../network/proof-of-capacity-card.mjs';
 
 const recover = (typedData, signature) => recoverTypedDataAddress({...typedData, signature});
@@ -108,7 +109,10 @@ const ctx = (c = claim()) => ({epoch: 9, seed, claim: c});
 test('a host that sells a card is asked for its advertised rate and passes with a correct chain in time', async () => {
   const n = network(), r = await n.check()(B, n.row, ctx());
   assert.equal(r.name, CARD_CHECK); assert.equal(r.ok, true, r.why);
-  assert.deepEqual(n.log, ['prepare', 'run', 'open']);
+  // the 24 stretches are asked for four at a time
+  assert.deepEqual(n.log, ['prepare', 'run', 'open', 'open', 'open', 'open', 'open', 'open']);
+  const one = network(), all = await one.check({opensPerRequest: 64})(B, one.row, ctx());
+  assert.equal(all.ok, true, all.why); assert.deepEqual(one.log, ['prepare', 'run', 'open']); assert.equal(all.evidence.opened, 24);
   const e = r.evidence;
   // 0.0001 G/s for 4 s = 400,000 products = 24.4 rounds: 7 stretches of 4, 28 rounds
   assert.deepEqual({card: e.card, k: e.k, batch: e.batch, rounds: e.rounds, stride: e.stride, advertised: e.advertised}, {card: 0, ...shape, rounds: 28, advertised: {gmacPerSec: 0.0001, share: 1}});
@@ -230,6 +234,46 @@ test('a host works its card only for a checker the contract assigned, once an ep
   assert.equal((await card({phase: 'open', epoch: 9, checker: A, nonce: c.nonce, stretches: [0, 8]})).status, 400);   // a stretch that is not there (and the check ends)
   assert.equal((await card(await challenge(A))).status, 429);                                   // once per checker and epoch
   assert.equal((await card({phase: 'x'})).status, 400);
+});
+
+test('the work is shown over several requests, three bytes a product, and the card is let go at the last', async () => {
+  // a product as it is shown
+  const y = Buffer.alloc(16); [0, -1, 8388607, -8388608].forEach((v, i) => y.writeInt32LE(v, i * 4));
+  assert.equal(pack24(y).length, 12); assert.deepEqual(unpack24(pack24(y)), y);
+  let closed = 0;
+  const n = network({open: async o => { const c = await softwareCardDriver()(o); return {...c, close() { closed++; }}; }}), card = n.hosts[B].card;
+  const c = {phase: 'prepare', version: 2, epoch: 9, checker: A, target: B, seed, nonce: keccak256(toBytes('several')), card: 0, ...shape, rounds: 8};
+  c.signature = await n.hosts[A].sign(cardChallengeMessage(domain, c));
+  const open = (stretches, more = {}) => card({phase: 'open', epoch: 9, checker: A, nonce: c.nonce, stretches, ...more});
+  assert.equal((await card(c)).status, 200); assert.equal((await card({phase: 'run', epoch: 9, checker: A, nonce: c.nonce, run})).status, 200);
+  const first = await open([0, 5]);
+  assert.equal(first.status, 200); assert.equal(first.body.stretches.length, 2); assert.equal(closed, 0);
+  for (const v of first.body.stretches) assert.equal(Buffer.from(v.ys, 'base64').length, shape.stride * shape.k * 3);
+  assert.equal((await open([1])).status, 200); assert.equal(closed, 0);
+  assert.equal((await open([2], {last: true})).status, 200); assert.equal(closed, 1);
+  assert.equal((await open([3])).status, 409);                                               // nothing is held any more
+  // no more than CARD_LIMITS.opens in all, however they are asked for
+  const m = network(), card2 = m.hosts[B].card, c2 = {...c, nonce: keccak256(toBytes('many'))};
+  c2.signature = await m.hosts[A].sign(cardChallengeMessage(domain, c2));
+  await card2(c2); await card2({phase: 'run', epoch: 9, checker: A, nonce: c2.nonce, run});
+  const ask = stretches => card2({phase: 'open', epoch: 9, checker: A, nonce: c2.nonce, stretches});
+  assert.equal((await ask(Array.from({length: CARD_LIMITS.opens - 1}, () => 0))).status, 200);
+  assert.equal((await ask([0, 1])).status, 400);
+});
+
+test('a host behind the relay\'s tunnel is checked like any other, and no answer is large', async () => {
+  // the relay's hub and a box attached to it; the checker's requests go in at the relay's HTTP side
+  const n = network();
+  const hop = await tunnelHop(async (method, path, body) => (method === 'POST' && path === CARD_CHECK_PATH ? n.hosts[B].card(JSON.parse(body.toString())) : {status: 404, body: {}}));
+  try {
+    const r = await n.check({fetch: globalThis.fetch})(B, {...n.row, endpoint: hop.origin}, ctx());
+    assert.equal(r.ok, true, r.why); assert.equal(r.evidence.opened, 24);
+    assert.equal(hop.frames.length, 8); assert.ok(hop.frames.every(f => f.path === CARD_CHECK_PATH));
+    // an opened stretch is stride x K x 3 bytes, in base64, and its two proofs: four of them and no more in an answer
+    const stretch = Math.ceil(shape.stride * shape.k * 3 / 3) * 4;
+    for (const f of hop.frames.slice(2)) assert.ok(f.responseBytes > 4 * stretch && f.responseBytes < 4 * (stretch + 2000), `an answer of ${f.responseBytes} bytes`);
+    assert.ok(hop.frames.slice(0, 2).every(f => f.responseBytes < 1000));
+  } finally { await hop.close(); }
 });
 
 // ---- the wire: the worker a card runs, in its reference mode (the pre-encoded (N,K) form; exact, slow, no card) -----------

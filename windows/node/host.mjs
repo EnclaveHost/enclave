@@ -186,6 +186,7 @@ export class Host {
     /// the pool this box sells is only as real as the worker that answers for it. Null when this
     /// box has no card or its worker is down, which sells nothing.
     this.card = cfg.card || (() => null);
+    this.cardWorkerPort = Number(cfg.cardWorkerPort) || 0;
     this.apps = new Map();                           // id -> App
     this.records = new Map();                        // id -> { id, status, reason, appRef, cid, version, leaseUntil, claimedAt, provenAt }
     this.enclaveId = chain.enclaveIdOf(cfg.endpoint);
@@ -2844,6 +2845,8 @@ export class Host {
     this._poc ||= createNodeProofOfCapacity({ chain, log: (m) => this.log(m),
       // the work done and the answer signed in the capacity partition, when this box has one (agent.mjs sets it)
       partitionKey: () => this.capacityPartition?.key ?? null,
+      // the card it sells and the worker that drives it (agent.mjs sets the port); none while it sells none
+      cards: () => (this.sellsCard() && this.card?.() && this.cardWorkerPort ? [{ id: 0, endpoint: `127.0.0.1:${this.cardWorkerPort}` }] : []),
       // on a host that passed the work: the app it serves, and where a Shield host's proof key lives
       further: (o) => nodeFurtherChecks({ ...o, chain, relayBase: this.cfg.relayBase, log: (m) => this.log(m) }),
       hostId: () => (this.chainReady && this.registered ? this.enclaveId : null),

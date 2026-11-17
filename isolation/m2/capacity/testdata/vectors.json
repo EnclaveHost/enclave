@@ -115,12 +115,25 @@
     "nonce": "0xd5f64610b964fb23f571be3187bccb956f2b740ca9516ce4459f3ecffa49a392",
     "card": "1",
     "k": "4096",
-    "n": "4096",
     "batch": "32",
-    "frames": "19"
+    "rounds": "1600",
+    "stride": "16"
    },
-   "digest": "0xf0b87bc591ba9d3c03aed537da9f0bc828908a2f1bc3b66a64742396cc567270",
-   "signature": "0x9c0a5e01b61b64f1836152d6c18525e053f9e47f7a5ffc64bad1261abfeaa8987bc6a87a9ccafa49fddbf7129835b3ddac6c2914379fe4bb2cc25b54fe469f201c"
+   "digest": "0x9897d418e0c2a37144b8b05f377a311432e5018ed304681ccbc6f4ee2cd8cc4d",
+   "signature": "0x704e8c557c43583d42d1b5a4ed69cf075a87a2a31ac16347965cfc6f6c24021860765e0c5ca8600d2fdaada3b57b185cf3e108509336d3566fd6dde052b526a31c"
+  },
+  {
+   "primaryType": "CardAnswer",
+   "values": {
+    "epoch": "7",
+    "checker": "0xd453fc7143508047f9b74865ec0af1190918b0f0bd8f36fda701dc0b0ec6ab91",
+    "target": "0xc41c2d5b88043011dea505e6d96085ea2b45a5202af03eaf202b51efce9ad7ef",
+    "nonce": "0xd5f64610b964fb23f571be3187bccb956f2b740ca9516ce4459f3ecffa49a392",
+    "run": "0x89996abc4592965c3986db29472fbb2b5107e01bf18c09a45b063f99c42cbf01",
+    "root": "0xb3aee4df23c9de601b397ee8508dd538ab10ffbea4180ea640edcd549ee34793"
+   },
+   "digest": "0xd1c649f67981eef1f3b4c1dab5237c9b16c147108d10df9d4b59e0ec3db60b06",
+   "signature": "0x98bb7a3d745581b8b4b5e752f7af6bda935ad7278f1192bda6121d6c7c73895376990f05c3f449ca79819132010422cd14946b142d46011a0c9b8d3b8e40f7ee1b"
   }
  ],
  "answer": {

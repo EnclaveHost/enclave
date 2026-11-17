@@ -231,6 +231,10 @@ export function createClaimReader({fetch = globalThis.fetch, recoverMessage, cha
       const cards = (Array.isArray(a.shieldedCards) ? a.shieldedCards : []).slice(0, 16)
         .filter(c => c && Number.isInteger(c.id) && c.id >= 0 && c.id < 16 && num(c.gmacPerSec) !== null)
         .map(c => ({id: c.id, gmacPerSec: c.gmacPerSec, share: Math.min(1, num(c.gpuShareFree) ?? 0)}));
+      // a Windows box states its one card as `shielded` (windows/node/shieldedcard.mjs): card 0, free as its memory is free
+      const one = a.shielded;
+      if (!cards.length && one && typeof one === 'object' && num(one.gmacPerSec) !== null)
+        cards.push({id: 0, gmacPerSec: one.gmacPerSec, share: num(one.vramBudgetGb) > 0 ? Math.min(1, (num(one.vramFreeGb) ?? 0) / one.vramBudgetGb) : 0});
       return {lanes: Math.floor(vcpus), freeMiB: Math.floor(ramGb * 1024), record: '0x' + hostCapacityHash(record), cards};
     } catch (e) { return {none: String(e?.message || e).slice(0, 120)}; }
   };

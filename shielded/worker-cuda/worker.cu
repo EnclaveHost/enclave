@@ -120,11 +120,6 @@ static const int PROTO_MAJOR = 1, PROTO_MINOR = 5, PROTO_PATCH = 0;
 /* FIELD_CHAIN's bounds and its reduction (shielded/protocol.py, CMD_FIELD_CHAIN). */
 static const int CHAIN_MOD = 63;
 static const uint32_t CHAIN_MAX_ROUNDS = 1u << 20, CHAIN_MAX_COMMITS = 4096;
-#ifdef SH_VULKAN
-#define SH_FIELD_CHAIN "0"
-#else
-#define SH_FIELD_CHAIN "1"
-#endif
 static std::unique_ptr<PublicWeightCache> g_public_weights(new PublicWeightCache());
 static const uint8_t STATUS_OK = 0, STATUS_VIOLATION = 1;
 static const size_t MAX_FRAME = (size_t)256 << 20;
@@ -565,6 +560,14 @@ __global__ void chain_reduce_kernel(const int32_t *__restrict__ y, const uint8_t
     x[i] = (int8_t)(v - 31);
 }
 #endif
+static void chain_reduce_launch(const int32_t *y, const uint8_t *pad, int8_t *x, long long n, cudaStream_t s) {
+#ifdef SH_VULKAN
+    vk_launch_chain_reduce(y, pad, x, n, s);
+#else
+    chain_reduce_kernel<<<(unsigned)((n + 255) / 256), 256, 0, s>>>(y, pad, x, n);
+    ck(cudaGetLastError(), "chain reduce launch");
+#endif
+}
 static void pack24_launch(const int32_t *y, uint8_t *o, long long E, cudaStream_t s) {
 #ifdef SH_VULKAN
     vk_launch_pack24(y, o, E, s);
@@ -1972,7 +1975,7 @@ struct Conn {
                    "\"vram_budget\":%lld,\"vram_reserved\":%lld,\"vram_reserve\":%lld,"
                    "\"sm_count\":%d,\"capability\":\"%d.%d\","
                    "\"clock_khz\":%d,\"card_tflops\":%.1f,"
-                   "\"field_gmac_per_s\":%.1f,\"public_weight_cache_bytes\":%llu,\"field_chain\":" SH_FIELD_CHAIN ",\"worker\":\"" SH_WORKER_NAME "\"}",
+                   "\"field_gmac_per_s\":%.1f,\"public_weight_cache_bytes\":%llu,\"field_chain\":1,\"worker\":\"" SH_WORKER_NAME "\"}",
                    PROTO_MAJOR, PROTO_MINOR, PROTO_PATCH, g_props.name,
                    (unsigned long long)g_props.totalGlobalMem, (unsigned long long)freeb,
                    g_vram_budget, g_reserved, reserve, g_props.multiProcessorCount, g_props.major, g_props.minor,
@@ -2423,10 +2426,6 @@ struct Conn {
      * is NOT reserved (not at the default share): a check of the card's free
      * capacity gets what is free, and a tenant keeps the share it reserved. */
     std::string field_chain(const uint8_t *p, size_t n) {
-#ifdef SH_VULKAN
-        (void)p; (void)n;
-        VIOLATE("FIELD_CHAIN is not built into this worker");
-#else
         if (n < 32) VIOLATE("truncated FIELD_CHAIN");
         const uint32_t idx = rd_u32(p), m = rd_u32(p + 4), rounds = rd_u32(p + 8), stride = rd_u32(p + 12);
         const uint64_t tbid = rd_u64(p + 16), toff = rd_u64(p + 24);
@@ -2442,10 +2441,12 @@ struct Conn {
         Buffer &tb = region_ok(tbid, toff, (uint64_t)commits * state);
         if (tb.role != "activations" || !tb.dev) VIOLATE("FIELD_CHAIN trace must lie in an 'activations' buffer");
 
-        /* x, then pad, in the plane scratch; the products in the int32 scratch. */
-        ensure_dx(2 * state);
+        /* x, then pad, in the plane scratch, each from a word boundary (the Vulkan
+         * step works whole words); the products in the int32 scratch. */
+        const size_t span = (state + 3) & ~(size_t)3;
+        ensure_dx(2 * span);
         ensure_dy32(state * 4);
-        int8_t *dx = d_x; uint8_t *dpad = (uint8_t *)d_x + state;
+        int8_t *dx = d_x; uint8_t *dpad = (uint8_t *)d_x + span;
         struct Pinned { uint8_t *p = nullptr; ~Pinned() { if (p) cudaFreeHost(p); } } hb[2];
         for (auto &h : hb) ck(cudaHostAlloc((void **)&h.p, state, cudaHostAllocDefault), "chain staging");
         double share = 0;
@@ -2463,15 +2464,16 @@ struct Conn {
         };
         const uint32_t klass[5] = { 3, idx, m, stride, (uint32_t)K };
         const uint64_t cls = yield_class(klass, 5, 0x6669656c64636861ull);
-        const unsigned blocks = (unsigned)((state + 255) / 256);
         const auto t0 = std::chrono::steady_clock::now();
         for (uint32_t c = 0; c < commits; c++) {
             GpuTurn turn(sched, reserve, g_vram_budget, cls, share);
-            if (!c) ck(cudaMemcpyAsync(d_x, p + 32, 2 * state, cudaMemcpyHostToDevice, stream), "chain upload");
+            if (!c) {
+                ck(cudaMemcpyAsync(dx, p + 32, state, cudaMemcpyHostToDevice, stream), "chain upload");
+                ck(cudaMemcpyAsync(dpad, p + 32 + state, state, cudaMemcpyHostToDevice, stream), "chain upload");
+            }
             for (uint32_t s = 0; s < stride; s++) {
                 field_gemm_launch(nd.w, (int)K, (int)nd.N, dx, (int)m, (long long)K, 0, d_y32, stream);
-                chain_reduce_kernel<<<blocks, 256, 0, stream>>>(d_y32, dpad, dx, (long long)state);
-                ck(cudaGetLastError(), "chain reduce launch");
+                chain_reduce_launch(d_y32, dpad, dx, (long long)state, stream);
             }
             ck(cudaMemcpyAsync(tb.dev + toff + (size_t)c * state, dx, state, cudaMemcpyDeviceToDevice, stream), "chain trace");
             ck(cudaMemcpyAsync(hb[c & 1].p, dx, state, cudaMemcpyDeviceToHost, stream), "chain readback");
@@ -2482,7 +2484,6 @@ struct Conn {
         gemm_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
         recomputes += rounds;
         return out;
-#endif
     }
 
     /* SHM_ATTACH: | ring u32 | -> | granted u8 | ring_bytes u64 | req_cap u64 | rep_cap u64 |.

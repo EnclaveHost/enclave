@@ -9,7 +9,7 @@ import {hashTypedData} from 'viem';
 import {privateKeyToAccount} from 'viem/accounts';
 import {capacityLanes, challengeMessage, answerMessage} from '../../../network/proof-of-capacity-host.mjs';
 import {reportMessage, selfMessage, proofMessage} from '../../../network/proof-of-capacity.mjs';
-import {cardChallengeMessage} from '../../../network/proof-of-capacity-card.mjs';
+import {cardChallengeMessage, cardAnswerMessage} from '../../../network/proof-of-capacity-card.mjs';
 
 const H = n => '0x' + createHash('sha256').update('capacity vector ' + n).digest('hex');
 const domain = {chainId: 8453, contract: '0x' + H('contract').slice(2, 42)};
@@ -33,7 +33,8 @@ export async function vectors() {
     reportMessage(domain, {epoch: 7, checker: c.checker, target: c.target, verdict: 2, seed, evidence: H('evidence')}),
     selfMessage(domain, {epoch: 7, host: c.target, anchorBlock: 123456789, anchorHash: H('anchor'), evidence: H('evidence')}),
     proofMessage(domain, {id: H('deployment'), enclaveId: c.target, operator: '0x' + H('operator').slice(2, 42), upto: 1800000000, anchorBlock: 123456789, anchorHash: H('anchor')}),
-    cardChallengeMessage(domain, {epoch: 7, checker: c.checker, target: c.target, seed, nonce, card: 1, k: 4096, n: 4096, batch: 32, frames: 19}),
+    cardChallengeMessage(domain, {epoch: 7, checker: c.checker, target: c.target, seed, nonce, card: 1, k: 4096, batch: 32, rounds: 1600, stride: 16}),
+    cardAnswerMessage(domain, {epoch: 7, checker: c.checker, target: c.target, nonce, run: H('run'), root: H('root')}),
   ];
   const messages = [];
   for (const m of typed) messages.push({primaryType: m.primaryType, values: flat(m), digest: hashTypedData(m),

@@ -144,7 +144,10 @@ var messages = map[string][]field{
 	"CapacityReport":    {{"epoch", "uint64"}, {"checker", "bytes32"}, {"target", "bytes32"}, {"verdict", "uint8"}, {"seed", "bytes32"}, {"evidence", "bytes32"}},
 	"CapacitySelf":      {{"epoch", "uint64"}, {"host", "bytes32"}, {"anchorBlock", "uint64"}, {"anchorHash", "bytes32"}, {"evidence", "bytes32"}},
 	"ProofOfTime":       {{"id", "bytes32"}, {"enclaveId", "bytes32"}, {"operator", "address"}, {"upto", "uint64"}, {"anchorBlock", "uint64"}, {"anchorHash", "bytes32"}},
-	"CardChallenge":     {{"epoch", "uint64"}, {"checker", "bytes32"}, {"target", "bytes32"}, {"seed", "bytes32"}, {"nonce", "bytes32"}, {"card", "uint32"}, {"k", "uint32"}, {"n", "uint32"}, {"batch", "uint32"}, {"frames", "uint32"}},
+	"CardChallenge":     {{"epoch", "uint64"}, {"checker", "bytes32"}, {"target", "bytes32"}, {"seed", "bytes32"}, {"nonce", "bytes32"}, {"card", "uint32"}, {"k", "uint32"}, {"batch", "uint32"}, {"rounds", "uint32"}, {"stride", "uint32"}},
+	// The answer for a card (proof-of-capacity-card.mjs). The card is the host's, outside this partition: the
+	// signature says the holder of this host's proof key passed that root on, and the checker's opening says the rest.
+	"CardAnswer": {{"epoch", "uint64"}, {"checker", "bytes32"}, {"target", "bytes32"}, {"nonce", "bytes32"}, {"run", "bytes32"}, {"root", "bytes32"}},
 }
 
 // Signable are the messages SignMessage takes: every one but the answer, which only Answer signs.

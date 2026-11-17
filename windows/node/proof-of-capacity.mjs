@@ -10,7 +10,7 @@ import {recoverTypedDataAddress, recoverMessageAddress} from 'viem';
 import fs from 'node:fs';
 import {createAppCheck} from '../../network/proof-of-capacity-app.mjs';
 import {createProofKeyCheck} from '../../network/proof-of-capacity-partition.mjs';
-import {createCardCheck} from '../../network/proof-of-capacity-card.mjs';
+import {createCardCheck, createCardResponder, shieldedCardDriver} from '../../network/proof-of-capacity-card.mjs';
 import {capacityReader, createCapacityResponder, createCapacityChecker, createCapacityAgent, selfCapacityRecord, createClaimReader,
   capacityAnswerHere, furtherMode, POC_ABI} from '../../network/proof-of-capacity-host.mjs';
 
@@ -25,8 +25,8 @@ const verifier = () => import('../../verifier/web/dist/enclave-verifier-web.js')
  *   - the app the host serves (PROOF_OF_CAPACITY_APP), verified as a customer's page verifies it;
  *   - where an Enclave Shield host's proof key lives (PROOF_OF_CAPACITY_KEY), against the capacity app THIS box's own
  *     Shield policy pins (policyFile; none pinned = not judged).
- *   - a card the host sells by masked offload (PROOF_OF_CAPACITY_CARD): this box sells none and answers no such
- *     check, but it checks one like any other checker (the check needs no card on the checker's side).
+ *   - a card the host sells by masked offload (PROOF_OF_CAPACITY_CARD): the check needs no card on the checker's
+ *     side. (This box's own card is answered for below: createNodeProofOfCapacity's `cards`.)
  * The first two need the relay (it carries a Shield host's TPM session and lists a box's apps); with no relay base
  * neither runs.
  */
@@ -49,9 +49,12 @@ export const PROOF_OF_CAPACITY_MS = Math.max(60, parseInt(process.env.PROOF_OF_C
  * chain: {addresses, publicClient(), readEnclave(id), sendOperatorTx(address, abi, fn, args), proofSign(typedData),
  *         proofAddress(), blockNumber(), chainId}
  * hostId() -> this box's enclave id (null until registered); wantsCredit() -> a paid lease is being served now
+ * cards() -> [{id, endpoint}]: the card this box sells now and its worker (none: a card check is answered 404);
+ *   openCard: the driver (the worker's wire)
  * -> get(): the responder and the agent, or null while off / not ready / the prover is not one (said once per reason)
  */
-export function createNodeProofOfCapacity({chain, hostId, wantsCredit, log = () => {}, enabled = PROOF_OF_CAPACITY, partitionKey = () => null, further = () => []}) {
+export function createNodeProofOfCapacity({chain, hostId, wantsCredit, log = () => {}, enabled = PROOF_OF_CAPACITY, partitionKey = () => null, further = () => [],
+  cards = () => [], openCard = shieldedCardDriver()}) {
   let current = null, refused = '';
   return async function get() {
     const address = chain.addresses.proofOfTime, host = hostId();
@@ -72,6 +75,9 @@ export function createNodeProofOfCapacity({chain, hostId, wantsCredit, log = () 
     current = {address, host,
       answer: createCapacityResponder({hostId: host, domain, reader, proofKeyOf, sign, recover,
         answerOf: (c, d) => { const k = partitionKey(); return k ? k.answerOf(c, d) : capacityAnswerHere(c, d, sign); }}),
+      // the card this box sells, worked by its own worker for a checker the contract assigned (the answer's signature
+      // is the proof key's, wherever that key is)
+      card: createCardResponder({hostId: host, domain, reader, proofKeyOf, sign, recover, cards: async () => cards(), open: openCard}),
       agent: createCapacityAgent({host, domain, reader, sign, wantsCredit, log: m => log(m),
         send: (functionName, args) => chain.sendOperatorTx(address, POC_ABI, functionName, args),
         check: createCapacityChecker({host, domain, sign, recover, targetOf,

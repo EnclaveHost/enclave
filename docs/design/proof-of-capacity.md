@@ -194,7 +194,8 @@ returns a function of what its caller sent on that connection and of public weig
 it does none of the work a model has. Bounded: 2^20 rounds, 4,096 kept states, the node's own row limit. The card
 is taken one stride at a time, so tenants' exchanges run in between, and a link with no reservation runs a chain
 at the weight of everything that is not reserved (a check of what is free gets what is free; a tenant keeps the
-share it reserved). The Vulkan build does not have it and says so in its HELLO.
+share it reserved). Both builds of the worker have it: CUDA, and Vulkan (the step between two products is the
+shader `shielded/worker-vulkan/shaders/chain_reduce.comp`).
 
 Checked against the real worker: `shielded/worker.py` in its reference mode (no card) works the chain the driver
 asks for, digest for digest and kept state for kept state the chain worked in software, and a whole check passes
