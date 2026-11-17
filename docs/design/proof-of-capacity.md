@@ -163,7 +163,9 @@ over its proof key's signature, once per checker and epoch, one check at a time)
 3. **open**: 24 stretches the checker picks after it holds that root. For each the host shows the rows it started
    from and the 16 products after them. The start must be the state committed before it (or the seed's rows), every
    product must pass Freivalds, and the end must be the state committed after it. A host that made up a tenth of
-   the stretches is caught 92 times in 100.
+   the stretches is caught 92 times in 100. A product is shown as three bytes (a true one is far inside 24 bits)
+   and the stretches are asked for four at a time, so no answer is over 1.1 MB of JSON; the last request says it
+   is the last and the host lets the card go.
 
 Nothing of a run can be worked before the run's value is known. The matrix is known at prepare, and without the pad
 a host could work stretches from rows of its own choosing during prepare and commit to those; the pad enters every
@@ -175,8 +177,10 @@ the worker's measurement) times the share of the card it says is free now, for f
 back within 1.5 times that plus 2.5 s. So a card must deliver about 47% of the free rate it advertises
 (1 / (1.5 + 2.5 / 4)): the 1.5 is for a card shared with tenants, the 2.5 s for the request's own travel. Each
 record states the floor its clock enforced (`enforcedGmacPerSec`). Defaults: K = 4096, 32 rows (0.54 G products a
-round), 2,048 kept states at most (268 MB of the card; a card past 4,400 G/s free is then timed over a shorter run,
-and its floor is lower: the record says what it was).
+round), 2,048 kept states at most (268 MB of the card). A rate those do not cover for four seconds in stretches of
+16 gets longer stretches, up to 64 products each (17,600 G/s); only past that is the run shorter and the floor
+lower, and the record says what it was. A host works its card for one check no longer than 12 s at the rate it
+states itself (three times what a checker sizes a run to) and refuses a challenge for more.
 
 What a pass says: that many correct field products were made in that time by whatever answers at the card's
 endpoint, with the kernel and the shape a tenant's products take. What it does not say: which silicon made them (a
@@ -218,11 +222,45 @@ The first form of this check, run earlier the same day on the same card with the
 and every product out over the worker's socket: the link set the time, about 260 G/s whatever the card, the clock
 enforced 52 G/s (2% of the card's rate), and a host advertising ten times the rate passed. That form is gone.
 
-What is not measured: a run answered through the relay or from another machine (the answer to open is 8.5 MB of
-JSON; here it crossed a function call), a card shared with a working tenant, and any card but this one.
+**On every worker, through the relay, and with a tenant on the card (2026-11-16, later the same day).**
 
-Wired in `supervisor.js` (the route, and the check among a checker's further checks); a Windows box sells no such
-card and answers no such check, but checks one like any other checker.
+- *The Vulkan build.* It did not have the chain, and it did not compile from main at all: three CUDA calls added
+  to the worker since its last build had no counterpart in its device layer (`vkdev`). Both fixed. Run as a
+  private worker on the same desktop card: its chain is the chain worked in software in both weight forms, and a
+  whole check passes (8,599 G products in 3.86 s where that worker states 2,148 G/s).
+- *Through the relay.* The relay's own tunnel hub (`relay/tunnel.js`) with a box attached to it, the checker's
+  requests entering at an HTTP front that carries them as `api-relay.js` does (the body buffered, one frame each
+  way): 8 requests, the largest answer 1.08 MB, the 24 stretches 6.5 MB in all and shown in 0.14 to 0.29 s; the
+  run's own request is the longest, about 4 s where the hub gives a request 30 s. `test/fixtures/tunnel-hop.mjs`
+  is that hop, and the card tests pass a check through it. Not run: the deployed relay itself, which has no host
+  that answers this check yet.
+- *A tenant on the card.* A tenant holding half the card by reservation and working it without pause (six links
+  of `shielded/worker-vulkan/fair_share_test.py`'s kind), and a check during it. The check got half the card's
+  time in both builds: 1,525 G/s on CUDA (3,005 alone), 1,190 G/s on Vulkan (2,225 alone). A host advertising
+  half of its card free passed (3.7 s and 3.8 s of 8.5 s allowed); one advertising all of it free while half was at work
+  still passed, at 7.4 s and 7.6 s of 8.5 s (that is the slack: half delivered is above the 47% floor); one
+  advertising three times the card's rate failed. The tenant kept its half.
+- *The sold cards.* The worker with the chain is released on this host (`v100-shield-2243e7a97`, both units,
+  21:10 and 21:13 local; no tenant was connected to either worker; the previous release is the rollback named in
+  its `release.json`), and the check was run against both production workers:
+
+  | card | the worker states | its own figure | 2.5 times | 3 times |
+  |---|---|---|---|---|
+  | Tesla V100 | 2,269 G/s | pass, 9,080 G in 3.01 s | pass, 7.40 s of 8.50 s | fail, 8.90 s of 8.50 s |
+  | Tesla PG500-216 | 2,530 G/s | pass, 10,128 G in 3.17 s | pass, 7.89 s of 8.50 s | fail, 9.42 s of 8.50 s |
+
+  A chain on these cards runs at about 3,050 and 3,200 G/s, a third above the figure the worker states (which is
+  measured with the rows moving), so the claim that fails is nearer three times the stated figure than twice.
+  The first run on the V100 found the hole the longer stretches close: with stretches fixed at 16, a claim of
+  three times the figure was timed over 2.6 s of work, the 2.5 s grace was two fifths of the allowance, and it
+  passed (5.77 s of 6.38 s).
+
+What is still not measured: the deployed relay, a checker on another machine, and a Windows box's card (below).
+
+Wired in `supervisor.js` (the route, and the check among a checker's further checks) and in the Windows node
+(`windows/node/agent.mjs`: the box answers for the card it sells from its own worker; its row states that one card
+as `shielded`, which a checker reads as card 0, free as its memory is free). The Windows worker is the Vulkan
+build; the binary in the installer's bundle is older than the chain and answers 501.
 
 ### Where an Enclave Shield host's proof key lives (the capacity partition)
 
@@ -366,11 +404,11 @@ Two rounds an epoch are enough for every host to do its duty.
 - A carrier service, and the hosts choosing a carried order over their own transaction when the key is empty.
 - A check of a card's memory, and of a card that is not sold by masked offload (a card inside the VM has no worker to
   ask; no host sells one today).
-- A released card worker with `FIELD_CHAIN`. The workers on the sold cards are at protocol 1.4: with the card check
-  enforced as it stands, every host that sells a card would fail it (501) until its worker is replaced. The check
-  goes to `record` or stays off until then.
-- The card check through the relay, and against a card a tenant is working (the fair-share weight a chain runs at
-  is in the worker and has not been measured under load).
+- A Windows worker with `FIELD_CHAIN` in the installer's bundle. The source has it (the Vulkan build); the bundle
+  pins an older `shielded-worker.exe` and its shaders by hash (`windows/installer/build-bundle.ps1`), and a new one
+  is built with `cl` on a Windows machine (`windows/worker-win/build-vulkan.cmd`) and shipped as an installer
+  release. Until then a Windows box that sells a card answers 501, so the card check stays at `record` or off.
+- The card check against the deployed relay and from another machine.
 - The capacity partition's image, its catalog app and their pins (above): until then a Windows host's proof key is
   still its host's file.
 - No real box has run any of this, and the end-to-end test drives the host module directly, not `supervisor.js` or
@@ -389,7 +427,8 @@ Two rounds an epoch are enough for every host to do its duty.
   the claim and a host that runs them one after another; the claim as the host's own signed record; further checks.
 - `test/proof-of-capacity-app.test.mjs`: 8 tests: a pass and what its record names; how the app is chosen; each
   tier's verifier; refused evidence; everything that is not judged; the verifier as shipped against a dead relay.
-- `test/proof-of-capacity-card.test.mjs`: 13 tests: the work from the seeds; Freivalds; the commitment; the chain
+- `test/proof-of-capacity-card.test.mjs`: 15 tests (with: the work shown over several requests; a check through
+  the relay's tunnel hub; longer stretches for a rate the kept states do not cover; a host's own bound on the work): the work from the seeds; Freivalds; the commitment; the chain
   in software; a pass sized to the claim; each way to fail (made-up digests, a chain worked before the run was
   known, a stretch from rows of the host's choosing); the clock (the same honest work passes at its own rate and at
   twice it, fails at 2.2 and at 10 times); "not now"; whom a host works its card for; the wire against
@@ -404,7 +443,7 @@ Two rounds an epoch are enough for every host to do its duty.
   unless the image lists the app.
 - The end-to-end test now gives every host a card (computed in software) and runs the card check through the real
   contract's assignment: ten card checks in the run, all passed.
-- `test/windows-node-proof-of-capacity.test.mjs`: 2 tests: off unless enabled and on a prover that is one; a lone
+- `test/windows-node-proof-of-capacity.test.mjs`: 3 tests (with: the box answering for the card it sells): off unless enabled and on a prover that is one; a lone
   box's own proof through the node's operator queue.
 - The supervisor's, the Windows node's and the image and deploy closure suites, unchanged in what they expect
   apart from the two new files: 562 tests pass.

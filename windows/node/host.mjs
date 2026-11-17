@@ -2846,7 +2846,7 @@ export class Host {
       // the work done and the answer signed in the capacity partition, when this box has one (agent.mjs sets it)
       partitionKey: () => this.capacityPartition?.key ?? null,
       // the card it sells and the worker that drives it (agent.mjs sets the port); none while it sells none
-      cards: () => (this.sellsCard() && this.card?.() && this.cardWorkerPort ? [{ id: 0, endpoint: `127.0.0.1:${this.cardWorkerPort}` }] : []),
+      cards: () => (this.sellsCard() && this.card?.() && this.cardWorkerPort ? [{ id: 0, endpoint: `127.0.0.1:${this.cardWorkerPort}`, gmacPerSec: Number(this.card().gmacPerSec) || 0 }] : []),
       // on a host that passed the work: the app it serves, and where a Shield host's proof key lives
       further: (o) => nodeFurtherChecks({ ...o, chain, relayBase: this.cfg.relayBase, log: (m) => this.log(m) }),
       hostId: () => (this.chainReady && this.registered ? this.enclaveId : null),

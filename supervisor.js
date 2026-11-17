@@ -6858,7 +6858,7 @@ async function proofOfCapacity() {
     // a check of a card this host sells by masked offload: the worker's own FIELD_GEMM on the checker's seeds, through
     // the endpoint the guest already reaches the card at (the verdict file's, as every tenant's link)
     card: createCardResponder({ hostId: host, domain, reader, proofKeyOf, sign, recover, open: shieldedCardDriver(),
-      cards: async () => { shieldedCapacity(); return _shieldedCache.cards.map((c) => ({ id: c.id, endpoint: c.endpoint })); } }),
+      cards: async () => { shieldedCapacity(); return _shieldedCache.cards.map((c) => ({ id: c.id, endpoint: c.endpoint, gmacPerSec: Number(c.gmacPerSec) || 0 })); } }),
     agent: createCapacityAgent({ host, domain, reader, sign,
       send: (functionName, args) => sendOperatorTx(address, POC_ABI, functionName, args).receipt,
       check: createCapacityChecker({ host, domain, sign, recover, targetOf,

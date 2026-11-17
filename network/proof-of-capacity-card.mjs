@@ -37,8 +37,8 @@
 // is as long as the advertised rate makes it and a slower card is late. What the clock holds a host to is in every
 // record (`enforcedGmacPerSec`): with the defaults, a card must deliver about 47% of the free rate it advertises
 // (1 / (slack + graceMs / targetSec)); the slack is for a card shared with tenants and the grace for the request's
-// own travel. A card faster than `maxCommits` stretches cover in `targetSec` is timed over a shorter run, and the
-// record says so.
+// own travel. A rate that `maxCommits` stretches do not cover for `targetSec` gets longer stretches (up to
+// CARD_LIMITS.stride products each); past that the run is shorter, and the record says what it enforced.
 //
 // WHAT A PASS SAYS: that many correct field products were made in that time on whatever answers at the card's
 // endpoint, with the kernel shape a tenant's products take, and that the stretches opened are the products (exact).
@@ -65,7 +65,8 @@ export const CARD_DEFAULTS = Object.freeze({k: 4096, batch: 32,
   targetSec: 4,          // the run is sized to take the advertised rate this long
   maxCommits: 2048,      // whatever the rate (a faster card is then timed over a shorter run): the kept rows are maxCommits x batch x K bytes of the card
   slack: 1.5, graceMs: 2500, opens: 24, opensPerRequest: 4, prepareTimeoutMs: 90000, timeoutMs: 60000});
-export const CARD_LIMITS = Object.freeze({k: 16384, batch: 64, stride: 64, commits: 4096, opens: 64, weightBytes: 1 << 28, traceBytes: 1 << 29, sessionMs: 180000});
+export const CARD_LIMITS = Object.freeze({k: 16384, batch: 64, stride: 64, commits: 4096, opens: 64, weightBytes: 1 << 28, traceBytes: 1 << 29, sessionMs: 180000,
+  workSec: 12});          // a host works its card for a check no longer than this at the rate it states (three times what a checker sizes a run to)
 const HEX32 = /^0x[0-9a-f]{64}$/, QK = 32, W_MAX = 119, X_MAX = 31, CHAIN_MOD = 2 * X_MAX + 1;
 const P2 = 2147483647, S_RANGE = 1 << 20, REPS = 2;
 const need = (ok, what) => { if (!ok) throw new Error(what); };
@@ -281,7 +282,9 @@ const validChallenge = c => c && typeof c === 'object' && c.version === 2 && Num
 /**
  * The checked host's side: POST CARD_CHECK_PATH. -> answer(body) -> {status, body}
  *   hostId, domain, reader, proofKeyOf, sign, recover: as createCapacityResponder
- *   cards() -> [{id, endpoint}]: the cards this host sells now; open: a driver (shieldedCardDriver())
+ *   cards() -> [{id, endpoint, gmacPerSec?}]: the cards this host sells now (with the rate it states, a challenge for
+ *     more than CARD_LIMITS.workSec of it is refused: a checker sizes a run to four seconds of the claim, and nobody
+ *     gets to hold the card for minutes); open: a driver (shieldedCardDriver())
  * One check at a time, one per checker and epoch, and a check that is not finished in CARD_LIMITS.sessionMs is dropped.
  */
 export function createCardResponder({hostId, domain, reader, proofKeyOf, sign, recover, cards, open, now = Date.now}) {
@@ -304,6 +307,7 @@ export function createCardResponder({hostId, domain, reader, proofKeyOf, sign, r
       if (session) return session.key === key && session.nonce === c.nonce && session.state === 'ready' ? {status: 200, body: {ready: true, device: session.card.device}} : no(503, 'busy with another check');
       const sold = (await cards()).find(x => x && x.id === c.card && x.endpoint);
       if (!sold) return no(404, 'no such card');
+      if (sold.gmacPerSec > 0 && c.rounds * c.batch * c.k * c.k / 1e9 > sold.gmacPerSec * CARD_LIMITS.workSec) return no(400, 'more work than this card advertises');
       session = {key, nonce: c.nonce, c, state: 'opening', card: {close() {}}, at: now()};
       const held = session;
       try {
@@ -381,12 +385,16 @@ export function createCardCheck({host, domain, sign, recover, fetch = globalThis
     const card = [...sold].sort((a, b) => (sha(hex(seed), hex(host), u32(a.id)).toString('hex') < sha(hex(seed), hex(host), u32(b.id)).toString('hex') ? -1 : 1))[0];
     const rate = card.gmacPerSec * card.share;
     if (!(rate > 0)) return out(null, `card ${card.id}: none of it is advertised as free now`);
-    const commits = Math.max(1, Math.min(commitsMax, Math.ceil(rate * targetSec / roundGmac / stride))), rounds = commits * stride;
+    // a rate that `maxCommits` stretches of `stride` do not cover for `targetSec` gets longer stretches, so that the run
+    // still takes the advertised rate that long (found on a V100, 2026-11-16: with the stretch fixed, a claim of three
+    // times the card's figure was timed over 2.6 s, the grace was two fifths of the allowance, and it passed)
+    const need = rate * targetSec / roundGmac, span = Math.min(CARD_LIMITS.stride, Math.max(stride, Math.ceil(need / commitsMax)));
+    const commits = Math.max(1, Math.min(commitsMax, Math.ceil(need / span))), rounds = commits * span;
     const gmac = rounds * roundGmac, allowMs = Math.min(timeoutMs, Math.ceil(slack * gmac / rate * 1000 + graceMs));
-    const asked = {epoch, card: card.id, k, batch, rounds, stride, gmac: +gmac.toFixed(6), advertised: {gmacPerSec: card.gmacPerSec, share: card.share}, allowMs,
+    const asked = {epoch, card: card.id, k, batch, rounds, stride: span, gmac: +gmac.toFixed(6), advertised: {gmacPerSec: card.gmacPerSec, share: card.share}, allowMs,
       // what the clock holds the host to: this many products inside the allowance (see THE CLOCK above)
       enforcedGmacPerSec: +(gmac / allowMs * 1000).toPrecision(4)};
-    const c = {phase: 'prepare', version: 2, epoch, checker: host, target, seed, nonce: '0x' + random(32).toString('hex'), card: card.id, k, batch, rounds, stride};
+    const c = {phase: 'prepare', version: 2, epoch, checker: host, target, seed, nonce: '0x' + random(32).toString('hex'), card: card.id, k, batch, rounds, stride: span};
     c.signature = await sign(cardChallengeMessage(domain, c));
     const post = async (body, ms) => {
       const res = await fetch(String(row.endpoint).replace(/\/+$/, '') + CARD_CHECK_PATH, {method: 'POST', redirect: 'error', headers: {'content-type': 'application/json'},
@@ -413,7 +421,7 @@ export function createCardCheck({host, domain, sign, recover, fetch = globalThis
     // only now, with the root held: which stretches to see
     const pick = new Set(); const count = Math.min(opens, total, CARD_LIMITS.opens);
     while (pick.size < count) pick.add(random(4).readUInt32LE() % total);
-    const stretches = [...pick], per = Math.max(1, Math.min(opensPerRequest, count));
+    const stretches = [...pick], per = Math.max(1, Math.min(Math.floor(opensPerRequest * stride / span) || 1, count));   // longer stretches, fewer a request
     // the verifier's own preparation, after the clock has stopped: the matrix and its Freivalds vectors
     const verifier = new CardVerifier(cardWeights(weightSeed(c), k, k), k, k), root = hex(a.root), b64 = v => Buffer.from(typeof v === 'string' ? v : '', 'base64');
     for (let first = 0; first < stretches.length; first += per) {
@@ -425,13 +433,13 @@ export function createCardCheck({host, domain, sign, recover, fetch = globalThis
       for (let i = 0; i < part.length; i++) {
         const at = Math.floor(part[i] / batch), rw = part[i] % batch, what = `stretch ${at} of row ${rw}`;
         const x = b64(shown[i].x), packed = b64(shown[i].ys), pad = cardPad(run, rw, k);
-        if (x.length !== k || packed.length !== stride * k * 3) return out(false, `card ${card.id}: ${what} was not shown whole`, measured);
+        if (x.length !== k || packed.length !== span * k * 3) return out(false, `card ${card.id}: ${what} was not shown whole`, measured);
         const ys = unpack24(packed);
         // where it starts: the seed's row, or the state committed before it
         const from = at ? merkleRoot(sha(x), part[i] - batch, total, b64(shown[i].before)) : null;
         if (at ? !from || !from.equals(root) : !x.equals(bytesOf(cardVector(run, rw, k)))) return out(false, `card ${card.id}: ${what} does not start at the state it committed to`, measured);
         let cur = new Int8Array(x.buffer, x.byteOffset, k);
-        for (let j = 0; j < stride; j++) {
+        for (let j = 0; j < span; j++) {
           const y = ys.subarray(j * k * 4, (j + 1) * k * 4);
           if (!verifier.check(cur, y)) return out(false, `card ${card.id}: ${what}, step ${j}: the row is not the product`, measured);
           cur = chainStep(y, pad, k);
@@ -440,6 +448,6 @@ export function createCardCheck({host, domain, sign, recover, fetch = globalThis
         if (!to || !to.equals(root)) return out(false, `card ${card.id}: ${what} does not end at the state it committed to`, measured);
       }
     }
-    return out(true, `card ${card.id}: ${gmac.toFixed(1)} G products in ${elapsedMs} ms, ${stretches.length} stretches of ${stride} checked`, {...measured, opened: stretches.length, root: a.root, signature: a.signature});
+    return out(true, `card ${card.id}: ${gmac.toFixed(1)} G products in ${elapsedMs} ms, ${stretches.length} stretches of ${span} checked`, {...measured, opened: stretches.length, root: a.root, signature: a.signature});
   };
 }

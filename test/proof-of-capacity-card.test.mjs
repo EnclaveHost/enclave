@@ -123,9 +123,15 @@ test('a host that sells a card is asked for its advertised rate and passes with 
   // half the card free: half the work
   const n2 = network(), half = await n2.check()(B, n2.row, ctx(claim(0.0001, 0.5)));
   assert.equal(half.ok, true); assert.equal(half.evidence.rounds, 16);
-  // a faster card than the cap covers is timed over the cap
+  // a rate the kept states (7 here) do not cover in stretches of 4 gets longer stretches: 0.001 G/s for 4 s is 245 rounds, 7 stretches of 35
+  const n4 = network(), longer = await n4.check({maxCommits: 7})(B, n4.row, ctx(claim(0.001, 1)));
+  assert.equal(longer.ok, true, longer.why);
+  assert.deepEqual({rounds: longer.evidence.rounds, stride: longer.evidence.stride}, {rounds: 245, stride: 35});
+  assert.ok(longer.evidence.allowMs >= 8020 && longer.evidence.allowMs <= 8030, `allowed ${longer.evidence.allowMs} ms`);   // the full 4 s of the claim, x 1.5, and the grace
+  // ... up to the longest stretch a host takes; past that the run is shorter, and the record says what was enforced
   const n3 = network(), fast = await n3.check({maxCommits: 3})(B, n3.row, ctx(claim(50, 1)));
-  assert.equal(fast.ok, true, fast.why); assert.equal(fast.evidence.rounds, 12); assert.equal(fast.evidence.opened, 12);
+  assert.equal(fast.ok, true, fast.why); assert.deepEqual({rounds: fast.evidence.rounds, stride: fast.evidence.stride}, {rounds: 3 * CARD_LIMITS.stride, stride: CARD_LIMITS.stride});
+  assert.equal(fast.evidence.opened, 12); assert.ok(fast.evidence.enforcedGmacPerSec < 0.5 * 50);
 });
 
 test('no card advertised, or none of it free: not judged, and the host is not asked', async () => {
@@ -222,6 +228,11 @@ test('a host works its card only for a checker the contract assigned, once an ep
   for (const bad of [{stride: CARD_LIMITS.stride + 1}, {rounds: 6}, {rounds: 0}, {rounds: (CARD_LIMITS.commits + 1) * 4}, {k: 48}, {batch: 0}, {version: 1}])
     assert.equal((await card({...(await challenge(A)), ...bad})).status, 400, JSON.stringify(bad));
   assert.equal((await card({phase: 'run', epoch: 9, checker: A, nonce: seed, run})).status, 409);   // nothing prepared
+  // a card with a stated rate is not worked for more than CARD_LIMITS.workSec of it: 8 rounds here are 131,072 products
+  const stated = rate => createCardResponder({hostId: B, domain, reader: n.reader, proofKeyOf: n.proofKeyOf, sign: n.hosts[B].sign, recover, open: softwareCardDriver(),
+    cards: async () => [{id: 0, endpoint: '10.0.2.2:9500', gmacPerSec: rate}]});
+  assert.equal((await stated(131072 / 1e9 / CARD_LIMITS.workSec * 0.99)(await challenge(A))).status, 400);
+  assert.equal((await stated(131072 / 1e9 / CARD_LIMITS.workSec * 1.01)(await challenge(A))).status, 200);
   const c = await challenge(A);
   assert.deepEqual((await card(c)).body, {ready: true, device: 'software'});
   assert.deepEqual((await card(c)).body, {ready: true, device: 'software'});                    // the same challenge again
