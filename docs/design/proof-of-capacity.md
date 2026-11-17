@@ -173,14 +173,15 @@ step, so every product after the first of a stretch waits for the run's value, a
 committed states on both sides fails when opened.
 
 How much is asked follows the host's own signed capacity record: the card's stated rate (`shieldedCards[].gmacPerSec`,
-the worker's measurement) times the share of the card it says is free now, for four seconds of it; the run must come
-back within 1.5 times that plus 2.5 s. So a card must deliver about 47% of the free rate it advertises
-(1 / (1.5 + 2.5 / 4)): the 1.5 is for a card shared with tenants, the 2.5 s for the request's own travel. Each
-record states the floor its clock enforced (`enforcedGmacPerSec`). Defaults: K = 4096, 32 rows (0.54 G products a
-round), 2,048 kept states at most (268 MB of the card). A rate those do not cover for four seconds in stretches of
-16 gets longer stretches, up to 64 products each (17,600 G/s); only past that is the run shorter and the floor
-lower, and the record says what it was. A host works its card for one check no longer than 12 s at the rate it
-states itself (three times what a checker sizes a run to) and refuses a challenge for more.
+the worker's measurement) times the share of the card it says is free now, for six seconds of it; the run must come
+back within 1.25 times that plus 1 s. So a card must deliver about 70% of the free rate it advertises
+(1 / (1.25 + 1 / 6)): the 1.25 is for a figure that is itself a measurement of a few milliseconds, the second for
+the request's own travel. (Until 2026-11-17: four seconds, 1.5 times and 2.5 s, a floor of 47%; see the runs of
+that day below.) Each record states the floor its clock enforced (`enforcedGmacPerSec`). Defaults: K = 4096, 32
+rows (0.54 G products a round), 2,048 kept states at most (268 MB of the card). A rate those do not cover for six
+seconds in stretches of 16 gets longer stretches, up to 64 products each (11,700 G/s); only past that is the run
+shorter and the floor lower, and the record says what it was. A host works its card for one check no longer than
+12 s at the rate it states itself (twice what a checker sizes a run to) and refuses a challenge for more.
 
 What a pass says: that many correct field products were made in that time by whatever answers at the card's
 endpoint, with the kernel and the shape a tenant's products take. What it does not say: which silicon made them (a
@@ -255,12 +256,62 @@ enforced 52 G/s (2% of the card's rate), and a host advertising ten times the ra
   three times the figure was timed over 2.6 s of work, the 2.5 s grace was two fifths of the allowance, and it
   passed (5.77 s of 6.38 s).
 
-What is still not measured: the deployed relay, a checker on another machine, and a Windows box's card (below).
+**The slack cut, the figure a worker states, and a Windows card (2026-11-17).**
+
+- *The figure was the loose part.* A chain made 3,050 to 3,280 G/s on the sold cards where their workers stated
+  2,310 to 2,760: the worker's benchmark (`measure_gmacs`) was twenty products from idle and one wait, about a
+  millisecond. It now works the card until two bursts in a row are no faster than the one before (15 ms at least,
+  300 at most), then times 15 ms, in bursts a fast card makes long, so the wait is not a tenth of the time. The
+  sold V100 states 2,490 to 2,680 with it and the PG500 2,760; the chain still makes 13 to 21% more there (32 rows
+  side by side where the benchmark has 8, and a figure taken over 15 ms scatters by 5%). A longer warm-up changes
+  nothing on those cards (40 and 100 ms were tried).
+- *The defaults.* An honest card finishes in 0.81 to 0.89 of the run's length on the sold cards and 1.00 to 1.03
+  on the Radeon below, so 1.25 is the slack; the run is six seconds so that a second of grace is a sixth of it.
+- *The sold cards again* (`v100-shield-1cf852cc4`, both units, no tenant connected at the roll; rollback
+  `v100-shield-2243e7a97`):
+
+  | card | the worker states | its own figure | 1.3 times | 1.5 times | 1.75 times |
+  |---|---|---|---|---|---|
+  | Tesla V100 | 2,548 G/s | pass, 5.07 s of 8.50 s | pass, 6.46 s | pass, 7.50 s | fail, 8.71 s |
+  | Tesla PG500-216 | 2,764 G/s | pass, 5.24 s of 8.50 s | pass, 6.77 s | pass, 7.78 s | fail, 9.01 s |
+
+  Before: 2.5 times passed and 3 times failed.
+- *A checker somewhere else.* The checker's requests sent to a machine 25 ms away and back from there to the
+  tunnel hub (two SSH forwards, so every request crosses that link twice; an empty request takes 50 ms), against
+  the sold V100: passes, the run 4.87 to 4.91 s for 14,715 G, the whole check 7.6 to 7.8 s where it takes 6.0 s
+  at home (the 6.5 MB of opened stretches crossing twice).
+- *A Windows card.* The worker built on nucbox-k11-4 with `cl` from this source (`windows/worker-win/build-vulkan.cmd`;
+  it compiled as it was) and run as a private worker on that box's Radeon 780M, on loopback with a 1 GiB budget,
+  beside the installed worker and not in its place; the checker here, through an SSH forward. A masked exchange
+  is exact (`synth_exchange.py`: 8 exchanges, Freivalds verified, equal to the int64 reference), and a check
+  passes at the worker's own figure (6.0 to 6.2 s of 8.5 s) and at 1.3 times it (7.8 s) and fails at 1.5 times.
+  Two things that card showed, both fixed in the worker:
+  - It stated 173 G/s and its chain made 450. Its clocks take a few hundred milliseconds to come up, and the
+    benchmark read the cold figure (the same 173 with 15 ms of warm-up, 470 to 490 with 300 ms). The warm-up now
+    ends when the card has stopped getting faster; it states 440 to 490. Every Windows row has advertised that
+    card at well under half its rate.
+  - With background mode on (as installed), a second check in one session did not finish: 6 s of work was not done
+    in 13. It started on dropped clocks, its first turns read 1.6 times their floor for longer than the 100 ms the
+    detector lets a card wake, the worker took 25% of the card for an owner who was not there, and no 50 ms probe
+    found the card awake again. A chain's turns are now outside background mode (not delayed, not judged), as the
+    figure they are held to is measured outside it; and a probe that finds the card calm discards the windows
+    measured while duty-cycling, which put the owner back 2 ms after the probe. Five checks in a row then pass.
+    The detector itself is as it was for a tenant's turns: on that card it still takes a resumed load for an
+    owner until the next probe (seen in the log between checks). Not looked into further here.
+- *The deployed relay, asked* (two empty POSTs, 2026-11-17). For metal0 it carries `/v1/host/card-check` to the
+  box, whose supervisor answers 404 "No such route": that supervisor is older than the capacity check. For
+  nucbox-k11-4 it answers 503 `host_ineligible` itself: the deployed relay is older than the entry that lets a
+  check through to a Windows box (2be2732b9, 2026-11-16). So a check cannot cross the deployed relay until the
+  relay and a host are deployed from main, and no host admits a checker until the contract exists.
+
+What is still not measured: a check across the deployed relay (above), and a Windows box's installed worker.
 
 Wired in `supervisor.js` (the route, and the check among a checker's further checks) and in the Windows node
 (`windows/node/agent.mjs`: the box answers for the card it sells from its own worker; its row states that one card
 as `shielded`, which a checker reads as card 0, free as its memory is free). The Windows worker is the Vulkan
-build; the binary in the installer's bundle is older than the chain and answers 501.
+build. The installer's bundle now pins the build above (`windows/installer/build-bundle.ps1`,
+`builds/worker-chain-1cf852cc4.json`); no released bundle has it, and the box's installed worker (2026-09-21)
+answers 501 until one does.
 
 ### Where an Enclave Shield host's proof key lives (the capacity partition)
 
@@ -404,11 +455,12 @@ Two rounds an epoch are enough for every host to do its duty.
 - A carrier service, and the hosts choosing a carried order over their own transaction when the key is empty.
 - A check of a card's memory, and of a card that is not sold by masked offload (a card inside the VM has no worker to
   ask; no host sells one today).
-- A Windows worker with `FIELD_CHAIN` in the installer's bundle. The source has it (the Vulkan build); the bundle
-  pins an older `shielded-worker.exe` and its shaders by hash (`windows/installer/build-bundle.ps1`), and a new one
-  is built with `cl` on a Windows machine (`windows/worker-win/build-vulkan.cmd`) and shipped as an installer
-  release. Until then a Windows box that sells a card answers 501, so the card check stays at `record` or off.
-- The card check against the deployed relay and from another machine.
+- A Windows host release that carries the new worker. The bundle's pins name it and it was run on the box's card
+  (above), but no bundle has been built or published with it: a release from main also carries every change to
+  the Windows node since 2026.10.12.47 (2026-10-18), which is more than this change. Until then a Windows box
+  that sells a card answers 501, so the card check stays at `record` or off there.
+- The card check across the deployed relay: it needs the relay and a host deployed from main (the deployed ones
+  are older than the check; asked 2026-11-17, above) and the contract.
 - The capacity partition's image, its catalog app and their pins (above): until then a Windows host's proof key is
   still its host's file.
 - No real box has run any of this, and the end-to-end test drives the host module directly, not `supervisor.js` or
@@ -431,7 +483,7 @@ Two rounds an epoch are enough for every host to do its duty.
   the relay's tunnel hub; longer stretches for a rate the kept states do not cover; a host's own bound on the work): the work from the seeds; Freivalds; the commitment; the chain
   in software; a pass sized to the claim; each way to fail (made-up digests, a chain worked before the run was
   known, a stretch from rows of the host's choosing); the clock (the same honest work passes at its own rate and at
-  twice it, fails at 2.2 and at 10 times); "not now"; whom a host works its card for; the wire against
+  1.3 times it, fails at 1.5 and at 10 times); "not now"; whom a host works its card for; the wire against
   `shielded/worker.py`; a worker without the chain; the production encoding.
 - `test/shielded-protocol.test.mjs`: the chain's bounds in the worker's admission rules.
 - `test/proof-of-capacity-partition.test.mjs`: 11 tests: the vectors are current; a key statement made by the Go

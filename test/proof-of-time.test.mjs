@@ -120,10 +120,13 @@ test("the signature's s value is canonical (the contract rejects the high-s twin
 test("the supervisor signs for the same domain the contract verifies", () => {
   // Pinned against supervisor.js's source: a typo in the domain name or version
   // there produces valid signatures that verify against nothing.
-  const m = /domain: \{ name: "([^"]+)", version: "([^"]+)", chainId: base\.id,/.exec(SUP);
+  // (with PROOF_OF_CAPACITY on, the ledger's prover is an EnclaveProofOfCapacity and the same message is signed under
+  // that contract's name: test/proof-of-capacity.test.mjs holds that half)
+  const m = /domain: \{ name: PROOF_OF_CAPACITY \? "([^"]+)" : "([^"]+)", version: "([^"]+)", chainId: base\.id,/.exec(SUP);
   assert.ok(m, "signCheckpoint still builds an EIP-712 domain literal");
-  assert.equal(m[1], "EnclaveProofOfTime");
-  assert.equal(m[2], "1");
+  assert.equal(m[1], "EnclaveProofOfCapacity");
+  assert.equal(m[2], "EnclaveProofOfTime");
+  assert.equal(m[3], "1");
   // and the contract hashes those same two literals
   assert.match(SOL, /keccak256\("EnclaveProofOfTime"\),\s*\n?\s*keccak256\("1"\)/);
 });

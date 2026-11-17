@@ -114,20 +114,20 @@ test('a host that sells a card is asked for its advertised rate and passes with 
   const one = network(), all = await one.check({opensPerRequest: 64})(B, one.row, ctx());
   assert.equal(all.ok, true, all.why); assert.deepEqual(one.log, ['prepare', 'run', 'open']); assert.equal(all.evidence.opened, 24);
   const e = r.evidence;
-  // 0.0001 G/s for 4 s = 400,000 products = 24.4 rounds: 7 stretches of 4, 28 rounds
-  assert.deepEqual({card: e.card, k: e.k, batch: e.batch, rounds: e.rounds, stride: e.stride, advertised: e.advertised}, {card: 0, ...shape, rounds: 28, advertised: {gmacPerSec: 0.0001, share: 1}});
+  // 0.0001 G/s for 6 s = 600,000 products = 36.6 rounds: 10 stretches of 4, 40 rounds
+  assert.deepEqual({card: e.card, k: e.k, batch: e.batch, rounds: e.rounds, stride: e.stride, advertised: e.advertised}, {card: 0, ...shape, rounds: 40, advertised: {gmacPerSec: 0.0001, share: 1}});
   assert.equal(e.opened, 24); assert.match(e.root, /^0x[0-9a-f]{64}$/);
-  // the allowance: 1.5 x the 4.59 s the advertised rate takes for it, and the grace; what that holds the host to is in the record
-  assert.ok(e.allowMs >= 8880 && e.allowMs <= 8890, `allowed ${e.allowMs} ms`);
-  assert.ok(Math.abs(e.enforcedGmacPerSec - 28 * 16384 / 1e9 / e.allowMs * 1000) < 1e-8); assert.ok(e.enforcedGmacPerSec > 0.5 * 0.0001);
+  // the allowance: 1.25 x the 6.55 s the advertised rate takes for it, and the grace (2 s here); what that holds the host to is in the record
+  assert.ok(e.allowMs >= 10190 && e.allowMs <= 10195, `allowed ${e.allowMs} ms`);
+  assert.ok(Math.abs(e.enforcedGmacPerSec - 40 * 16384 / 1e9 / e.allowMs * 1000) < 1e-8); assert.ok(e.enforcedGmacPerSec > 0.5 * 0.0001);
   // half the card free: half the work
   const n2 = network(), half = await n2.check()(B, n2.row, ctx(claim(0.0001, 0.5)));
-  assert.equal(half.ok, true); assert.equal(half.evidence.rounds, 16);
-  // a rate the kept states (7 here) do not cover in stretches of 4 gets longer stretches: 0.001 G/s for 4 s is 245 rounds, 7 stretches of 35
+  assert.equal(half.ok, true); assert.equal(half.evidence.rounds, 20);
+  // a rate the kept states (7 here) do not cover in stretches of 4 gets longer stretches: 0.001 G/s for 6 s is 371 rounds, 7 stretches of 53
   const n4 = network(), longer = await n4.check({maxCommits: 7})(B, n4.row, ctx(claim(0.001, 1)));
   assert.equal(longer.ok, true, longer.why);
-  assert.deepEqual({rounds: longer.evidence.rounds, stride: longer.evidence.stride}, {rounds: 245, stride: 35});
-  assert.ok(longer.evidence.allowMs >= 8020 && longer.evidence.allowMs <= 8030, `allowed ${longer.evidence.allowMs} ms`);   // the full 4 s of the claim, x 1.5, and the grace
+  assert.deepEqual({rounds: longer.evidence.rounds, stride: longer.evidence.stride}, {rounds: 371, stride: 53});
+  assert.ok(longer.evidence.allowMs >= 9595 && longer.evidence.allowMs <= 9602, `allowed ${longer.evidence.allowMs} ms`);   // the full 6 s of the claim, x 1.25, and the grace
   // ... up to the longest stretch a host takes; past that the run is shorter, and the record says what was enforced
   const n3 = network(), fast = await n3.check({maxCommits: 3})(B, n3.row, ctx(claim(50, 1)));
   assert.equal(fast.ok, true, fast.why); assert.deepEqual({rounds: fast.evidence.rounds, stride: fast.evidence.stride}, {rounds: 3 * CARD_LIMITS.stride, stride: CARD_LIMITS.stride});
@@ -172,9 +172,9 @@ test('each way a host fails its card check', async () => {
   n = network(); n.hosts[B].tamper = (phase, body) => (phase === 'run' ? {...body, root: keccak256(toBytes('other'))} : body);
   await fails(n, /not signed by the host's proof key/);
   // too slow for the rate it advertises: the clock is the checker's
-  n = network(); const clock = [0, 9000];
+  n = network(); const clock = [0, 11000];
   const r = await fails(n, /G\/s where 0\.00 G\/s is advertised as free/, {now: () => (clock.length > 1 ? clock.shift() : clock[0])});
-  assert.equal(r.evidence.elapsedMs, 9000);
+  assert.equal(r.evidence.elapsedMs, 11000);
   // it advertises a card and does not answer for it; or refuses the checker
   n = network(); n.hosts[B].status = {prepare: 404};
   await fails(n, /advertised, and the host does not answer for it \(HTTP 404\)/);
@@ -189,18 +189,18 @@ test('each way a host fails its card check', async () => {
   assert.equal(soft.ok, null); assert.match(soft.why, /^recorded, not enforced: card 0: advertised/);
 });
 
-test('the clock holds a card to its rate: the same honest work passes at its own rate and fails at ten times it', async () => {
+test('the clock holds a card to its rate: the same honest work passes at its own rate and fails at one and a half times it', async () => {
   // a card that makes 0.0001 G products a second: every chain takes it rounds x 16,384 / 100,000 seconds, on the checker's clock
   const real = 0.0001; let t = 0, took = 0;
   const open = async o => { const card = await softwareCardDriver()(o); return {...card, chain: async (x, p, rounds, stride) => { took = rounds * 16384 / 1e9 / real * 1000; return card.chain(x, p, rounds, stride); }}; };
   const timed = n => { const inner = n.fetch; return async (url, init) => { const r = await inner(url, init); if (JSON.parse(init.body).phase === 'run') t += took; return r; }; };
-  for (const [advertised, ok] of [[1, true], [2, true], [2.2, false], [10, false]]) {
+  for (const [advertised, ok] of [[1, true], [1.3, true], [1.5, false], [10, false]]) {
     const n = network({open}), fetch = timed(n);
     const r = await createCardCheck({host: A, domain, sign: n.hosts[A].sign, recover, fetch, ...shape, now: () => t})(B, n.row, ctx(claim(real * advertised)));
     assert.equal(r.ok, ok, `advertising ${advertised}x: ${r.why}`);
     // what the record says the clock enforced is what decided it
     assert.equal(r.evidence.gmacPerSec >= r.evidence.enforcedGmacPerSec, ok);
-    assert.ok(r.evidence.enforcedGmacPerSec > 0.45 * real * advertised && r.evidence.enforcedGmacPerSec < 0.5 * real * advertised);
+    assert.ok(r.evidence.enforcedGmacPerSec > 0.69 * real * advertised && r.evidence.enforcedGmacPerSec < 0.72 * real * advertised);
   }
 });
 

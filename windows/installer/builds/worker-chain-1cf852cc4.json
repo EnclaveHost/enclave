@@ -1,0 +1,47 @@
+{
+  "commit": "1cf852cc4ac1a14ba9f20a07747bc83517c7fffb",
+  "command": "windows\\worker-win\\build-vulkan.cmd (cl /O2 /std:c++17 /EHsc /fp:precise /DSH_VULKAN /FI win-compat.h /TP worker.cu; link ws2_32.lib)",
+  "compiler": "MSVC 14.51.36231 (Visual Studio 18 Build Tools), x64",
+  "vulkanHeaders": "KhronosGroup/Vulkan-Headers 6802bb4733b63ed5efd3adb308a6c885ef180ea1",
+  "builtOn": "nucbox-k11-4, Windows 10.0.26200",
+  "binaries": [
+    {
+      "name": "shielded-worker.exe",
+      "bytes": 382976,
+      "sha256": "c9c3772c98e71c86de320958ce8311c7cd3e272668a0ee23253904c7fcf8aa75"
+    }
+  ],
+  "shaders": {
+    "files": 34,
+    "treeSha256": "a0b83275f35fd3fe823c4562eeed6213f398533ddbe692dd20f03f4d0d04747e",
+    "source": "shielded/worker-vulkan/shaders/*.spv as committed (built on Linux by make there)"
+  },
+  "protocol": "1.5.0",
+  "activated": false,
+  "verifiedAt": "2026-11-17",
+  "verified": [
+    "a private worker on the box's Radeon 780M (127.0.0.1, 1 GiB budget, background mode on as installed), beside the installed worker and not in its place",
+    "start-up self-test passes; states 440 to 490 G products a second (the 2026-09-21 build states 173 on this card)",
+    "shielded/worker-vulkan/synth_exchange.py: 3 nodes, 8 masked exchanges, Freivalds verified, exact against the int64 reference",
+    "card check (network/proof-of-capacity-card.mjs, defaults): passes at the figure the worker states (6.0 to 6.2 s of 8.5) and at 1.3 times it (7.8 s), fails at 1.5 times it; 24 stretches opened and exact each time"
+  ],
+  "notVerified": [
+    "a tenant guest on the box through shielded-bridge.exe (guest\\runtime-shield-gpu.bin is the 2026-09-29 image)",
+    "the installed service (\\Enclave\\Card, session 0, 12 GiB budget)"
+  ],
+  "sourceFiles": {
+    "shielded/worker-cuda/worker.cu": "1d6739eecf0515cee719df3f0b61d7d83b82eabcc111c9a9e67f1ff6c57c0c6e",
+    "shielded/worker-cuda/device.h": "6e0634fa627e404c13b6b2222d2ab5906f50d79ad218332f3873ad55af78edfb",
+    "shielded/worker-cuda/public-weight-cache.h": "dd5377f111410ff83b1a18b37f2c7a24dd5589866743498772ebccd08a318dbe",
+    "shielded/worker-cuda/captured-graphs.h": "9d1539ffcfd1b903abd9171aee07cd82ceff4ff710218a8e7c8bdd3d2218486d",
+    "shielded/worker-cuda/exchange-profile.h": "20569bd919371462e4ddc9066254d70414518c620a0b72c2ec2992c9f2d98034",
+    "shielded/worker-cuda/scratch-growth.h": "7117f47134bfa97dec436c35a919ebf6cc05623dc961573f3bd5466f0c6ef891",
+    "shielded/worker-vulkan/vkdev.cpp": "5e6817c7b1aa3ff80958ada39c8c5dc99ca3eda9148e814401a7881a9c3e94e4",
+    "shielded/worker-vulkan/vkdev.h": "63c31d0245af737f66bf84b8c1540a16af40545749a0d372deb3a3b3eb6e2488",
+    "wasm/ggml-shielded/shielded-field.c": "ffe2655492c20c7a38758bdaf5df190b0a90e4b1bf151a6d8bd0f21ec5ff68f4",
+    "wasm/ggml-shielded/shielded-field.h": "1693cae50a6e31ad6395fc90982b9ec2a10052e6ca5fbddb6d50be3b0341ef31",
+    "wasm/ggml-shielded/shielded-sha256.h": "d14ff2af54899a9d14b47fa838ba1f8f5d2ac0a3d7098f9f6fa942cb3ec8e90c",
+    "windows/worker-win/win-compat.h": "9f8e36f3614ce48598cddee1b1f4ac422340c844691ab8d3e0fcdb5307cb5a0b",
+    "windows/worker-win/build-vulkan.cmd": "413ac5a6a3929ba10dd287478c63ff49e31e36f5a41ea7114c3c06c325e06991"
+  }
+}

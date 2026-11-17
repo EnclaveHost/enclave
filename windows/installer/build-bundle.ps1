@@ -40,14 +40,19 @@ $Binaries = [ordered]@{
   # hyperv.psm1 imports it from its own folder at load: without it no partition starts (every 2026.10.12 bundle lacked it)
   "guest\utilities.psm1"    = @("utilities.psm1",                                           "517766e996ddb021594c0ae2c7a60688d4293e2ee9459f558f2a436e6da30731")
   "guest\runtime.json"      = @("vbs-like\releases\risc-service-20261002\runtime.json",     "c60712e8d90b2b8c3e23e98f62c25f5278bcbffacb26113729a1bd6600b720d0")
-  # Enclave Shield's GPU half (windows/vbslike/SHIELDED-GPU.md): the Vulkan card worker (the yield build: it backs off to a
-  # duty cycle while the owner uses the card) and the measured guest image a GPU app runs in (Qwen2.5-0.5B, same runtime)
-  "bin\shielded-worker.exe"    = @("vbs\vkw\shielded-worker-yield.exe",                                 "e3bdf862c0b970d3484852b9642774942311b420ffa447baf8d03236c89db417")
+  # Enclave Shield's GPU half (windows/vbslike/SHIELDED-GPU.md): the Vulkan card worker (it backs off to a duty cycle
+  # while the owner uses the card) and the measured guest image a GPU app runs in (Qwen2.5-0.5B, same runtime).
+  # The worker is built from source at 1cf852cc4 (windows/worker-win/build-vulkan.cmd, cl 14.51 on nucbox-k11-4): protocol
+  # 1.5 with FIELD_CHAIN, which a card check needs (network/proof-of-capacity-card.mjs; the 2026-09-21 build it replaces,
+  # e3bdf862, answers such a check 501), and a rate figure that is the card's sustained one. Source hashes, the build and
+  # what was run on the box's Radeon 780M: builds/worker-chain-1cf852cc4.json. In no released bundle yet.
+  "bin\shielded-worker.exe"    = @("vbs-like\releases\worker-chain-1cf852cc4\shielded-worker.exe",       "c9c3772c98e71c86de320958ce8311c7cd3e272668a0ee23253904c7fcf8aa75")
   "guest\runtime-shield-gpu.bin" = @("vbs-like\releases\shield-gpu-20260929\guest\runtime-shield-gpu.bin", "7c41baaf494bebc631e83a548d5bc363ca6dbdda72947acbe739aa306d35398b")
 }
 # folders: bundle path = (source folder, sha256 of its sorted "<sha256>  <name>" lines, one per file, each ending in \n)
 $Folders = [ordered]@{
-  "bin\shaders" = @("vbs\vkw\worker-vulkan\shaders", "5073051686b2d124f76593b983abe4c9e00cd91fd1a5ad7c087d9ebee52ed872")   # the worker's SPIR-V
+  # the worker's SPIR-V: shielded/worker-vulkan/shaders/*.spv at 1cf852cc4 (34 files, chain_reduce.spv among them)
+  "bin\shaders" = @("vbs-like\releases\worker-chain-1cf852cc4\shaders", "a0b83275f35fd3fe823c4562eeed6213f398533ddbe692dd20f03f4d0d04747e")
 }
 $NodeZip   = @{ url = "https://nodejs.org/dist/v24.16.0/node-v24.16.0-win-x64.zip"; sha = "edaca9bd58ec8e92037dac4e877d52f6b8f430b81c18b57e264b4e2fb111cd56"; dir = "node-v24.16.0-win-x64" }
 $PythonZip = @{ url = "https://www.python.org/ftp/python/3.14.5/python-3.14.5-embed-amd64.zip"; sha = "ba6bd811c4eedb19195cf275770ef127e893d63701e24152606e2cb76f6d876a" }

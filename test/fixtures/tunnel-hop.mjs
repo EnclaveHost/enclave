@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
 import {WebSocket} from 'ws';
 import {createTunnelHub} from '../../relay/tunnel.js';
 
-export async function tunnelHop(handle, {name = 'metal0', reqTimeoutMs = 30000} = {}) {
+export async function tunnelHop(handle, {name = 'metal0', reqTimeoutMs = 30000, port: listen = 0} = {}) {
   const token = 'tunnel-hop-token', origin = `tunnel://${name}`, frames = [];
   const hub = createTunnelHub({allow: [{name, tokenSha256: createHash('sha256').update(token).digest('hex')}], reqTimeoutMs});
   const server = http.createServer((req, res) => {
@@ -23,7 +23,7 @@ export async function tunnelHop(handle, {name = 'metal0', reqTimeoutMs = 30000} 
     });
   });
   server.on('upgrade', (req, socket, head) => hub.handleUpgrade(req, socket, head));
-  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  await new Promise(r => server.listen(listen, '127.0.0.1', r));
   const port = server.address().port;
   const ws = new WebSocket(`ws://127.0.0.1:${port}/v1/fleet-tunnel`, {headers: {'x-metal-name': name, 'x-metal-token': token}});
   ws.on('message', async d => {

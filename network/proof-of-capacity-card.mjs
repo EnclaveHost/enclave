@@ -35,10 +35,17 @@
 // 260 G/s whatever the card: a host advertising ten times the card's rate passed. With the products kept on the card
 // a run is the card's time (plus one hash of 1/(stride x N) of the bytes, done while the card works on), so the run
 // is as long as the advertised rate makes it and a slower card is late. What the clock holds a host to is in every
-// record (`enforcedGmacPerSec`): with the defaults, a card must deliver about 47% of the free rate it advertises
-// (1 / (slack + graceMs / targetSec)); the slack is for a card shared with tenants and the grace for the request's
-// own travel. A rate that `maxCommits` stretches do not cover for `targetSec` gets longer stretches (up to
-// CARD_LIMITS.stride products each); past that the run is shorter, and the record says what it enforced.
+// record (`enforcedGmacPerSec`): with the defaults, a card must deliver about 70% of the free rate it advertises
+// (1 / (slack + graceMs / targetSec)); the slack is for a figure that is itself a measurement of a few milliseconds,
+// and the grace for the request's own travel. The first defaults (four seconds, slack 1.5, 2.5 s of grace) asked for
+// 47%, of a figure the workers of the day understated (twenty products from idle: by a quarter on a Tesla V100, 2.6
+// times on a Radeon 780M; the worker's benchmark has since been made to state the sustained rate): a sold V100 passed
+// at 2.5 times what it stated. What an honest card needs was measured before they were cut (2026-11-17, write-up in
+// docs/design/proof-of-capacity.md): a card that advertises what its worker states finishes in 0.81 to 1.03 of the
+// run's length (the two sold Tesla cards and a Radeon 780M, both builds of the worker), and a request that crosses
+// the relay's tunnel hub and a 25 ms link twice takes 50 ms. A rate that `maxCommits` stretches do not
+// cover for `targetSec` gets longer stretches (up to CARD_LIMITS.stride products each); past that the run is shorter,
+// and the record says what it enforced.
 //
 // WHAT A PASS SAYS: that many correct field products were made in that time on whatever answers at the card's
 // endpoint, with the kernel shape a tenant's products take, and that the stretches opened are the products (exact).
@@ -62,11 +69,11 @@ import {createChallengeGate} from './proof-of-capacity-host.mjs';
 export const CARD_CHECK = 'card', CARD_CHECK_PATH = '/v1/host/card-check';
 export const CARD_DEFAULTS = Object.freeze({k: 4096, batch: 32,
   stride: 16,            // products between two kept states: the hash is 1/(stride x N) of the bytes, a stretch opened is stride x N values
-  targetSec: 4,          // the run is sized to take the advertised rate this long
+  targetSec: 6,          // the run is sized to take the advertised rate this long
   maxCommits: 2048,      // whatever the rate (a faster card is then timed over a shorter run): the kept rows are maxCommits x batch x K bytes of the card
-  slack: 1.5, graceMs: 2500, opens: 24, opensPerRequest: 4, prepareTimeoutMs: 90000, timeoutMs: 60000});
+  slack: 1.25, graceMs: 1000, opens: 24, opensPerRequest: 4, prepareTimeoutMs: 90000, timeoutMs: 60000});
 export const CARD_LIMITS = Object.freeze({k: 16384, batch: 64, stride: 64, commits: 4096, opens: 64, weightBytes: 1 << 28, traceBytes: 1 << 29, sessionMs: 180000,
-  workSec: 12});          // a host works its card for a check no longer than this at the rate it states (three times what a checker sizes a run to)
+  workSec: 12});          // a host works its card for a check no longer than this at the rate it states (twice what a checker sizes a run to)
 const HEX32 = /^0x[0-9a-f]{64}$/, QK = 32, W_MAX = 119, X_MAX = 31, CHAIN_MOD = 2 * X_MAX + 1;
 const P2 = 2147483647, S_RANGE = 1 << 20, REPS = 2;
 const need = (ok, what) => { if (!ok) throw new Error(what); };
@@ -233,7 +240,7 @@ export function shieldedCardDriver({encoding = 'q8', timeoutMs = 60000, connect 
       // every kept state is a declared output: the only regions the worker lets anyone read back
       const outputs = [{bid: abid, offset: yAt, nbytes: batch * n * 4}, ...Array.from({length: commits}, (_, c) => ({bid: abid, offset: tAt + c * state, nbytes: state}))];
       await call(CMD.GRAPH_INSTALL, Buffer.from(JSON.stringify({nodes: [node], outputs})));
-      return {device: String(hello.device || '').slice(0, 64),
+      return {device: String(hello.device || '').slice(0, 64), gmacPerSec: Number(hello.field_gmac_per_s) || 0,
         async chain(x, pad, rounds, stride) {
           need(x.length === state && pad.length === state && rounds / stride <= commits, 'a chain of the installed shape');
           const d = await call(CMD.FIELD_CHAIN, Buffer.concat([u32(0), u32(batch), u32(rounds), u32(stride), u64(abid), u64(tAt), x, pad]));
@@ -283,7 +290,7 @@ const validChallenge = c => c && typeof c === 'object' && c.version === 2 && Num
  * The checked host's side: POST CARD_CHECK_PATH. -> answer(body) -> {status, body}
  *   hostId, domain, reader, proofKeyOf, sign, recover: as createCapacityResponder
  *   cards() -> [{id, endpoint, gmacPerSec?}]: the cards this host sells now (with the rate it states, a challenge for
- *     more than CARD_LIMITS.workSec of it is refused: a checker sizes a run to four seconds of the claim, and nobody
+ *     more than CARD_LIMITS.workSec of it is refused: a checker sizes a run to six seconds of the claim, and nobody
  *     gets to hold the card for minutes); open: a driver (shieldedCardDriver())
  * One check at a time, one per checker and epoch, and a check that is not finished in CARD_LIMITS.sessionMs is dropped.
  */
