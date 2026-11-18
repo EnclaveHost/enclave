@@ -1,0 +1,8 @@
+[Unit]
+Description=Unblock Sia contract hosts blocked only for uptime that are usable again
+After=enclave-indexd.service
+Requires=enclave-indexd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/enclave-indexd/indexd-unblock-recovered.py --apply

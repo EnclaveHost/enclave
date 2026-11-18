@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly: unblock Sia contract hosts that are usable again
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1h
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target
