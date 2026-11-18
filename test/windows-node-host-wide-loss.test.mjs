@@ -66,3 +66,19 @@ test("a recovered VM for a deployment this box no longer holds is retired, and o
   assert.equal(after.some((v) => v.name === DEP), true, "the held one is left to its own restart recovery");
   assert.ok(logs.some((l) => /names a deployment this box no longer holds: retired/.test(l)), logs.join("\n"));
 });
+
+test("a recovered VM of a deployment this box holds and does not start is retired, and its lease is kept", async () => {
+  const { host, m, h, logs } = await twoServing();
+  const m2 = await (await import("./helpers/hv-fake-manager.mjs")).restartManager(m, host);   // every VM comes back RECOVERED
+  h.cfg.isolationManager = `http://127.0.0.1:${m2.port}`;
+  h.tracked.add(DEP); h.tracked.add(DEP2);
+  // DEP2 is held as an owner this box does not serve yet (a market host before its market verdict is back)
+  h.records.set(DEP2, { ...h.records.get(DEP2), status: "held", reason: `this node is in owner-only scope: ${Host.HELD_FOR_OPERATOR}` });
+  const client = (await import("./helpers/hv-fake-manager.mjs")).clientFor(m2.port);
+  await h.retireForeignRecovered(client);
+  const after = await client.list();
+  assert.equal(after.some((v) => v.name === DEP2), false, "the held deployment's recovered VM is retired");
+  assert.equal(after.some((v) => v.name === DEP), true, "a tracked, serving one is left to its own restart recovery");
+  assert.equal(h.tracked.has(DEP2), true, "the lease is still held"); assert.equal(h.records.get(DEP2).status, "held");
+  assert.ok(logs.some((l) => /holds and does not start: retired \(the lease is kept\)/.test(l)), logs.join("\n"));
+});

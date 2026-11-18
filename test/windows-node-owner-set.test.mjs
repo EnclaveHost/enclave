@@ -186,10 +186,15 @@ test("sweep: a TRANSFER to an owner this box does not serve STOPS the running pa
   assert.equal(r.tracked, false);
 });
 
-test("sweep: the owner is unchanged but no longer served (its delegation is gone) on a LIVE lease: held, the partition kept", async () => {
+test("sweep: the owner is unchanged but no longer served (its delegation is gone) on a LIVE lease: held, the lease kept", async () => {
   const r = await sweepPartition({ ranFor: OWNER_A.address, ledgerOwner: OWNER_A.address });
   assert.equal(r.rec?.status, "held", JSON.stringify(r.rec));
-  assert.equal(r.vms, 1, "a delegated owner's app was killed on a missing file");
+  assert.equal(r.tracked, true, "a delegated owner's lease was given up on a missing file");
+  // The partition in this fixture is one a RESTARTED manager recovered: it can never serve again, and while it stays the
+  // manager sells nothing new and launches no readiness witness (host.mjs retireForeignRecovered). Only that dead VM
+  // goes; nothing is stopped, released or renewed for the hold, and a returning delegation starts a fresh partition.
+  assert.equal(r.vms, 0, r.logs.join("\n"));
+  assert.ok(r.logs.some((l) => /holds and does not start: retired \(the lease is kept\)/.test(l)), r.logs.join("\n"));
 });
 
 test("sweep: ...and once that held lease LAPSES, the partition is stopped", async () => {

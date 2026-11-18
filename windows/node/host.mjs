@@ -2820,8 +2820,21 @@ export class Host {
     for (const v of await client.list()) {
       const owner = String(v.name || "").toLowerCase();
       const rec = this.records.get(owner);
-      if (v.recovered !== true || !/^0x[0-9a-f]{64}$/.test(owner) || this.tracked.has(owner)
-          || ["running", "provisioning", "held"].includes(rec?.status)) continue;
+      if (v.recovered !== true || !/^0x[0-9a-f]{64}$/.test(owner)) continue;
+      // A DEPLOYMENT THIS BOX HOLDS AND WILL NOT START (heldReason: an owner it does not serve in owner-only scope, a
+      // backend it does not run) never reaches its own restart recovery, so its recovered VM stayed: alive, never
+      // serving again, and counted by the manager, which sells nothing new and launches no readiness witness while one
+      // recovered VM is unreconciled. After a restart of node and manager together that closed a circle on a market
+      // host (nucbox-k11-4, release 2026.11.18, 2026-11-18): every lease held because the market was not open yet,
+      // the market not opening without the witness, the witness not launched for nine recovered VMs; they were
+      // removed by hand. Only the VM is retired: the lease is kept, unrenewed, exactly as the hold says.
+      if (rec?.status === "held" && String(rec.reason || "").endsWith(Host.HELD_FOR_OPERATOR)) {
+        const r = await client.remove(v.id);
+        this.log(`${owner.slice(0, 10)} isolation: the recovered VM ${v.id} (${v.vmState || "state unknown"}) belongs to a deployment `
+          + `this box holds and does not start: ${r.removed ? "retired" : r.absent ? "already gone" : "NOT retired"} (the lease is kept)`);
+        continue;
+      }
+      if (this.tracked.has(owner) || ["running", "provisioning", "held"].includes(rec?.status)) continue;
       const r = await client.remove(v.id);
       this.log(`${owner.slice(0, 10)} isolation: the recovered VM ${v.id} (${v.vmState || "state unknown"}) names a deployment `
         + `this box no longer holds: ${r.removed ? "retired" : r.absent ? "already gone" : "NOT retired"}`);
@@ -3364,11 +3377,13 @@ export class Host {
     // ensureApp(force) for it: N1's harm through the sweep instead of the route (enclave-bf).
     if (this.ownerNotServed(d))
       return `this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is `
-        + `owned by ${d?.owner}: held - not started, not renewed, not released - pending the operator's decision`;
+        + `owned by ${d?.owner}: ${Host.HELD_FOR_OPERATOR}`;
     if (this.cfg.engineRetired !== true || this.isolatedForThisBox(d)) return null;
     return "this node runs only the isolated backend (the legacy VBS-enclave backend is retired) and this deployment "
-      + "does not require it: held - not started, not renewed, not released - pending the operator's decision";
+      + `does not require it: ${Host.HELD_FOR_OPERATOR}`;
   }
+  /** How every heldReason() ends: what retireForeignRecovered reads a record's hold by. */
+  static HELD_FOR_OPERATOR = "held - not started, not renewed, not released - pending the operator's decision";
   /** ownerNotServed(d) -> true when, in owner-only scope, the deployment's ledger owner is not in ownerSet(). */
   ownerNotServed(d) {
     return this.servingScope() === "owner-only" && !this.ownerSet().has(String(d?.owner || "").toLowerCase()) && !this.servesAuditJob(d);
