@@ -60,10 +60,18 @@ a full install each time; nothing was published to the release channel.
 - A lease is not renewed while it is held, so a restart that takes longer than a lease has left lets it lapse:
   0x7ae476a3 was claimed again after the second install.
 
+## The channel (2026-11-18, about 15:00 UTC)
+
+`get.enclave.host/windows/` names 2026.11.18.1 (unsigned, the legacy pointer, as before; no host has a release
+policy). The channel's master copy is `/opt/enclave-get/windows` in the control VM, which every edge forwards
+`get.enclave.host` to; it was staged here with `scripts/publish-windows-host.sh --stage` and copied in by hand
+(release files first, never over an existing file; the 119 store files it did not have; the pointers last). The
+pointers it replaced are kept in `/opt/enclave-get/.pointers-before-2026.11.18.1`. Read back through each of the
+four edges: the pointer, the setup, the manifest and the zip's length and first 100 MB match the build. The box's
+own updater, run once after, did nothing (it is on that version).
+
 ## Left
 
-- The release channel (`get.enclave.host/windows/`) still names 2026.10.12.47. The box's updater does nothing
-  while the channel is older than what is installed.
 - The per-image SVN floor (702854589) is not in this tree; the box's agent no longer enforces SVN 22 for the
   desktop image by that rule. Its measurement is still the only desktop image the box's policy admits.
 - `ipfs.enclave.host` is the installer's default artifact gateway and does not serve.
