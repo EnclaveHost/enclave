@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {ImageLauncher} from './shield-profile.mjs';
+import {DESKTOP_DERIVATION} from './desktop-derive.mjs';
 
 // Injected stub launchers: each records the spawns it was asked to start and carries a pin that must never change.
 function stub(imageRole, {ok = true, checks = [{name: 'image-pin', ok: true}], delay = 0} = {}) {
@@ -38,6 +39,7 @@ test('every route reaches its own image; the desktop image only runs desktop map
   assert.equal(il.roleFor({name: 'null-desktop', record: {desktop: null}}), 'legacy');
   assert.equal(il.roleFor({name: 'null-desktop-gpu', record: {desktop: null, inference: {}}}), 'gpu');
   assert.equal(il.roleFor({record: {desktop: {}, inference: null}}, {bootstrap: null, custody: undefined}), 'desktop');
+  assert.equal(il.roleFor({record: {derivation: DESKTOP_DERIVATION, desktop: {}}}), 'desktop');
   assert.equal((await il.start(plain)).image, ls.legacy.pin);
   assert.equal((await il.start(inference)).image, ls.gpu.pin);
   assert.equal((await il.start(pkg, {bootstrap: {owner: 'x'}})).image, ls.shieldDirect.pin);
@@ -115,6 +117,11 @@ test('desktop mixed with inference, bootstrap or custody, or a malformed desktop
     [{record: {desktop: []}}, {}, /malformed/],
     [{record: {desktop: false, inference: {}}}, {}, /malformed/],
     [{record: {desktop: 0}}, {bootstrap: true}, /malformed/],
+    // the installed router sent every desktop-derivation mapping to the desktop image; without its record it starts nowhere
+    [{record: {derivation: DESKTOP_DERIVATION}}, {}, /desktop-derivation mapping needs record\.desktop/],
+    [{record: {derivation: DESKTOP_DERIVATION, desktop: null}}, {}, /desktop-derivation mapping needs record\.desktop/],
+    [{record: {derivation: DESKTOP_DERIVATION, inference: {model: 'm', gpuMilli: 1000}}}, {}, /desktop-derivation mapping needs record\.desktop/],
+    [{record: {derivation: DESKTOP_DERIVATION}}, {bootstrap: {owner: 'x'}}, /desktop-derivation mapping needs record\.desktop/],
   ];
   for (const withDesktop of [true, false]) {
     const ls = launchers(); if (!withDesktop) delete ls.desktop;

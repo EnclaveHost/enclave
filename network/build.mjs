@@ -19,6 +19,10 @@ await bundle('entries/privacy-agent.mjs', 'privacy-agent.mjs');
 await bundle('reconcile-apps.mjs', 'reconcile-apps.mjs');
 await bundle('windows-circuit-worker.mjs', 'windows-circuit-worker.mjs');
 await bundle('host-service-ingress.mjs', 'host-service-ingress.mjs');
+// the agent's ingress thread (ingress-thread-host.mjs looks for ./ingress-thread.mjs BESIDE the bundled agent; without the
+// file every app's ingress stays on the agent's main thread). The same bytes as scripts/network/build-ingress-thread.mjs
+// made for the NucBox on 2026-11-15 (53420fcd...). It must be copied wherever privacy-agent.mjs is installed.
+await bundle('ingress-thread.mjs', 'ingress-thread.mjs');
 // the Enclave network (docs/design/enclave-network.md): the provider daemon and the checker, one file each
 await bundle('wg-provider/main.mjs', 'wg-provider.mjs');
 await bundle('../scripts/network/wg-qualify.mjs', 'wg-qualify.mjs');

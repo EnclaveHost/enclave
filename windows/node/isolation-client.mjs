@@ -159,7 +159,9 @@ export class IsolationManagerClient {
   async list() {
     const r = await this.#req("GET", "/vms");
     if (r.status !== 200) throw IsolationManagerClient.#answerError("GET /vms", r);
-    const rows = Array.isArray(r.body) ? r.body : (r.body && r.body.vms) || [];
+    // An answer with no inventory is not an EMPTY inventory: "nothing is running" would let a caller sell the whole box
+    const rows = Array.isArray(r.body) ? r.body : Array.isArray(r.body?.vms) ? r.body.vms : null;
+    if (!rows) throw new IsolationError("protocol", "GET /vms: the answer carries no vms list");
     return rows.map((v) => this.#view(v));
   }
 

@@ -160,6 +160,10 @@ export class Manager {
     // no package, so owner-committed startup runs on a SEPARATE image with its own hash and runtime identity, never on the
     // legacy one relabelled. Equal RuntimeIDs are legal (the same wasmtime build); selection never depends on them
     // differing. images.legacy.igvmSha256 is information for /health.
+    // A stated legacy pin that is not a sha256 is refused (the installed manager's rule), never read as "no pin": the
+    // distinct-image checks below compare against it.
+    const legacyPin = images?.legacy?.igvmSha256;
+    if (legacyPin != null && (typeof legacyPin !== "string" || !/^[0-9a-f]{64}$/.test(legacyPin))) throw new Error("invalid legacy image pin");
     this.images = { legacy: /^[0-9a-f]{64}$/.test(String(images?.legacy?.igvmSha256 || "")) ? { igvmSha256: images.legacy.igvmSha256 } : null, shieldDirect: null };
     if (this.directBootstrap) {
       const sd = images?.shieldDirect || {};
@@ -593,7 +597,8 @@ export class Manager {
     if (this.cpuPoolVcpus !== null) {
       const ok = this.cpuPoolFits();
       this._preflight = { ...this._preflight, ok: this._preflight.ok === true && ok,
-        checks: [...(this._preflight.checks || []), {name:"CPU pool fits observed logical processors",ok}] };
+        checks: [...(this._preflight.checks || []), {name:"CPU pool fits observed logical processors",ok,
+          detail: `${this.cpuPoolSource} ${this.cpuPoolVcpus}; Hyper-V host LogicalProcessorCount ${this.hostLogicalProcessors ?? "unknown"}`}] };
     }
     return this._preflight;
   }

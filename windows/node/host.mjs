@@ -426,6 +426,12 @@ export class Host {
    * memory block is a manager with no pool rule (no NODE_APP_RAM_GB), whose partitions hold their policy floors.
    */
   noteManagerMemory(health, at = Date.now()) {
+    this.#noteManagerMemory(health, at);
+    // the pool one share is a fraction of (sharePoolMiB): the manager's last readable word stands while it cannot be read
+    if (this.managerMemory.readable) this.#managerSharePoolMiB = this.managerMemory.rule === "cpu-share" ? this.managerMemory.poolMiB : 0;
+  }
+  #managerSharePoolMiB = null;
+  #noteManagerMemory(health, at) {
     if (!health || typeof health !== "object") { this.managerMemory = { at, readable: false, why: "the partition manager's /health could not be read" }; return; }
     const m = health.memory;
     if (m === undefined || m === null) { this.managerMemory = { at, readable: true, rule: null }; return; }
@@ -450,18 +456,54 @@ export class Host {
     // a unit that already occupies this box, sized beside the others (consider's exclude), takes no NEW reservation:
     // an unknown view is not a reason to refuse it, and it is judged on the floors as before
     const unknown = (why) => exclude && Host.occupies(this.records.get(exclude) || {}) ? null : { freeMb: 0, unknown: why };
-    if (!m) return unknown("the partition manager's RAM has not been read yet");
-    if (!m.readable) return unknown(m.why);
-    if (now - m.at > Host.MANAGER_MEMORY_MAX_AGE_MS) return unknown("the partition manager's RAM view is stale");
+    const why = this.managerRamUnknown(now);
+    if (why) return unknown(why);
     if (m.rule === null) return null;
-    if (!m.known) return unknown(`the partition manager cannot account every partition's RAM: ${m.why}`);
     const ex = exclude ? String(exclude).toLowerCase() : null;
-    const held = new Set(m.reservations.map((r) => r.name).filter(Boolean));
+    const held = new Map();
+    for (const r of m.reservations) if (r.name) held.set(r.name, (held.get(r.name) || 0) + r.appMiB);
     const reserved = m.reservations.reduce((n, r) => n + (ex && r.name === ex ? 0 : r.appMiB), 0);
     // its CPU share of the manager's pool, at least its floor (memory-share.mjs); record cpuShare >= the dialed spawn share
     const pending = running.filter((r) => !held.has(String(r.id).toLowerCase()))
       .reduce((n, r) => n + Math.max(Number(r.memMb) || 0, Math.floor(m.poolMiB * (Number(r.cpuShare) || 0) + 1e-7)), 0);
-    return { freeMb: Math.max(0, Math.min(hostMb, m.poolMiB) - reserved - pending), managerPoolMb: m.poolMiB, reservedMb: reserved, pendingMb: pending };
+    // ...and a partition the manager holds BELOW the share this box counts for it (spawned at another share; its in-place
+    // relaunch is pending, #isolationReconcile) is counted at the larger of the two, so the room it will take is not sold meanwhile
+    const growth = running.filter((r) => held.has(String(r.id).toLowerCase()))
+      .reduce((n, r) => n + Math.max(0, chain.shareRamMiB(m.poolMiB, Number(r.cpuShare) || 0) - held.get(String(r.id).toLowerCase())), 0);
+    return { freeMb: Math.max(0, Math.min(hostMb, m.poolMiB) - reserved - pending - growth), managerPoolMb: m.poolMiB, reservedMb: reserved, pendingMb: pending + growth };
+  }
+  /** Why what the partition manager holds of its app RAM pool is unknown right now, or null when it is known (or it states no pool rule). */
+  managerRamUnknown(now = Date.now()) {
+    const m = this.managerMemory;
+    if (!m) return "the partition manager's RAM has not been read yet";
+    if (!m.readable) return m.why;
+    if (now - m.at > Host.MANAGER_MEMORY_MAX_AGE_MS) return "the partition manager's RAM view is stale";
+    if (m.rule === null) return null;
+    if (!m.known) return `the partition manager cannot account every partition's RAM: ${m.why}`;
+    return null;
+  }
+  /**
+   * ONE SHARE, BOTH POOLS. On the partition backend a share is a fraction of this box's compute AND of the manager's app
+   * RAM pool: the manager gives a partition floor(pool x share) MiB and refuses a share that gives less than the version's
+   * floor (memory-share.mjs), so 1% of the box is 1% of the CPU and 1% of NODE_APP_RAM_GB. `sharePoolMiB()` is that pool
+   * as the manager last stated it (0 for a manager with no pool rule, where RAM stays a floor and not a share; this
+   * node's own NODE_APP_RAM_GB figure until the manager has been read once), and 0 off the partition backend.
+   */
+  sharePoolMiB() {
+    if (this.appsInTee() || !this.isolation) return 0;
+    return this.#managerSharePoolMiB ?? this.#hostRamMb();
+  }
+  sharesCoupled() { return this.sharePoolMiB() > 0; }
+  /** The app RAM this box hosts with outside an enclave (NODE_APP_RAM_GB, at most the machine's RAM). */
+  #hostRamMb() {
+    const physicalMb = Math.round((Number(this.cfg.ramGb) || 0) * 1024);
+    // RAM is an independent hosting budget, not a CPU share. Invalid explicit
+    // budgets admit nothing; absence preserves the older reserved-share policy.
+    const configuredRam = this.cfg.appRamGb;
+    return configuredRam === undefined || configuredRam === null
+      ? Math.round(physicalMb * (1 - (this.cfg.reservedShare ?? 0.25)))
+      : (Number.isFinite(configuredRam) && configuredRam >= 0
+        ? Math.min(physicalMb, Math.floor(configuredRam * 1024)) : 0);
   }
 
   /** The wallet whose deployments this box will run: the on-chain declaration, else the config. */
@@ -970,9 +1012,21 @@ export class Host {
     const cpuRoom = cpu > wasCpu ? capped.cpuShareFree : open.cpuShareFree;
     const gpuRoom = (gpu > wasGpu ? capped.gpuShareFree : open.gpuShareFree) ?? 0;
     const under = (c) => (c ? ` under the owner's ${Math.round(c.offered * 100)}% hosting cap` : "");
+    // ONE SHARE, BOTH POOLS (sharePoolMiB): a growth this box cannot size because what its partition manager holds is
+    // unknown is not a refusal. It is decided on a later pass (not recorded as served), and the lease is kept.
+    const pool = this.sharePoolMiB(), ramUnknown = pool > 0 && cpu > wasCpu ? this.managerRamUnknown() : null;
+    if (ramUnknown) {
+      this.log(`resize ${id.slice(0, 10)}: node share ${Math.round(wasCpu * 100)}% -> ${Math.round(cpu * 100)}% waits: ${ramUnknown}`);
+      return;
+    }
     if (cpu > cpuRoom + 1e-9) {
       return await this.#giveUp(id, `it was resized to ${Math.round(cpu * 100)}% of a node and this box has`
         + ` ${Math.round(cpuRoom * 100)}% left${under(cpu > wasCpu && capped.cpuCap)}; handing the lease back so a box that fits can take it`);
+    }
+    // ...and the RAM the larger share is given (floor(pool x share), memory-share.mjs) must be free beside the others too
+    if (pool > 0 && cpu > wasCpu && chain.shareRamMiB(pool, cpu) > capped.ramMbFree) {
+      return await this.#giveUp(id, `it was resized to ${Math.round(cpu * 100)}% of a node, which is ${chain.shareRamMiB(pool, cpu)} MB of this box's`
+        + ` app RAM, and this box has ${capped.ramMbFree} MB left; handing the lease back so a box that fits can take it`);
     }
     if (gpu > 0 && gpu > gpuRoom + 1e-9) {
       return await this.#giveUp(id, `it was resized to ${Math.round(gpu * 100)}% of this box's card and`
@@ -986,7 +1040,8 @@ export class Host {
       return;
     }
     this.log(`resize ${id.slice(0, 10)}: node share ${Math.round(wasCpu * 100)}% -> ${Math.round(cpu * 100)}%`
-      + ` (an admission and billing figure here: an app in this enclave is interpreted, not cgroup-sliced)`);
+      + (pool > 0 ? " (this pass's isolation reconcile relaunches its partition at the new share when that fits; until then its record's allocatedShare says what it holds)"
+        : ` (an admission and billing figure here: an app in this enclave is interpreted, not cgroup-sliced)`));
   }
 
   /**
@@ -1282,6 +1337,15 @@ export class Host {
       return this.#record(id, { status: "provisioning", reason: pendingRestart.reason });
 
     const body = IsolationManagerClient.spawnBody(plan.spawn);
+    // THE SHARE THIS BOX COUNTS, not only the one dialed: the manager sizes the partition's RAM and CPU from body.cpuShare
+    // (memory-share.mjs, cpu-share.mjs) and refuses a share whose RAM is below the version's floor, and a version that
+    // needs more than the dial (its GFLOPS or RAM floor, cpuShareOf) is counted here at that larger share. Spawned at the
+    // dial, 0xc13d4b6a (dialed 1%, its version needs 2%) held 983 MiB while this box counted 1966. The pool is the one the
+    // manager stated to this pass's verdict (isolationVerdict -> noteManagerMemory), so the record is restated with it.
+    if (this.sharesCoupled()) {
+      body.cpuShare = this.cpuShareOf(id, d, v);
+      this.#record(id, { needCpuShare: this.cpuShareOf(id, { cpuMilli: 0 }, v), cpuShare: body.cpuShare });
+    }
     // What this partition holds of the card is what it is spawned with, not what the lease bought: the accounting the
     // owner's GPU cap and the tray read (shareUse).
     this.#record(id, { partitionGpuShare: Number(body.gpuShare) || 0 });
@@ -1310,8 +1374,44 @@ export class Host {
       if (!gone) return this.#record(id, { status: "provisioning", reason: `isolation: version change (${stale}); the old domain `
         + "could not be confirmed removed, so nothing new is started" });
     }
+    // A DOMAIN SIZED FOR ANOTHER SHARE (its owner resized it, up or down, or it was spawned at its dial below the share
+    // this box counts: 0xc13d4b6a, dialed 1%, its version needs 2%) is relaunched IN PLACE at its share. Never adopted as
+    // if it matched: isolation-lifecycle holds it (a held domain does not serve), and serving it unchanged gives the tenant
+    // another size than the one this box counts. Only when the new size fits beside the others (a shrink always does), and
+    // at most once per SHARE_RELAUNCH_MIN_MS; until then it is adopted at the share it HAS, keeps serving, and its record
+    // says so (allocatedShare, reason: pending, not done). #managerRam counts the larger of the two meanwhile.
+    let adoptBody = body, shareWait = null, allocatedShare = null;
+    const sized = stale || !this.sharesCoupled() ? null : await client.findByName(id).catch(() => null);
+    const mem = sized && !sized.recovered && sized.memory?.rule === "cpu-share" ? sized.memory : null;
+    if (mem && Math.abs(Number(mem.cpuShare) - Number(body.cpuShare)) > 1e-9) {
+      const pct = (x) => `${Math.round(Number(x) * 100)}%`;
+      const what = `${sized.id} was given ${mem.appMiB} MiB for a ${pct(mem.cpuShare)} share and this deployment takes ${pct(body.cpuShare)}`;
+      const grows = Number(body.cpuShare) > Number(mem.cpuShare);
+      const room = this.capacity({ exclude: id, capped: grows });
+      const need = chain.shareRamMiB(this.sharePoolMiB(), body.cpuShare);
+      const since = Date.now() - (Number(this.records.get(id)?.shareRelaunchAt) || 0);
+      // unknown is not room: a growth is not sized against a manager whose reservations this node cannot read right now
+      const unknown = grows ? this.managerRamUnknown() : null;
+      const wait = unknown ? `what the manager holds is unknown (${unknown})`
+        : grows && (Number(body.cpuShare) > room.cpuShareFree + 1e-9 || need > room.ramMbFree)
+          ? `${pct(body.cpuShare)} (${need} MiB) does not fit beside the others (${pct(room.cpuShareFree)} of this box and ${room.ramMbFree} MiB left)`
+        : since < Host.SHARE_RELAUNCH_MIN_MS ? `it was relaunched for its share ${Math.round(since / 1000)} s ago` : null;
+      if (wait) {
+        shareWait = `isolation: ${what}; not relaunched yet: ${wait}`;
+        allocatedShare = Number(mem.cpuShare);
+        if (this.records.get(id)?.reason !== shareWait) this.log(`${id.slice(0, 10)} ${shareWait}`);
+        this.#record(id, { reason: shareWait, allocatedShare });
+        adoptBody = { ...body, cpuShare: mem.cpuShare };
+      } else {
+        this.log(`${id.slice(0, 10)} isolation: ${what}; relaunching it in place at its share`);
+        this.#record(id, { shareRelaunchAt: Date.now() });
+        const gone = await this.#retireIsolated(id, `share relaunch: ${what}`);
+        if (!gone) return this.#record(id, { status: "provisioning", reason: `isolation: ${what}; the old domain could not be `
+          + "confirmed removed, so nothing new is started" });
+      }
+    }
     let r;
-    try { r = await reconcile({ client, deployment: { id, body }, ledger: null }); }
+    try { r = await reconcile({ client, deployment: { id, body: adoptBody }, ledger: null }); }
     catch (e) { return this.#record(id, { status: "failed", reason: `isolation: ${e.message}` }); }
 
     // RECOVERY AFTER A MANAGER OR HOST RESTART (enclave-87's ruling (B) and its amendment from d1's live A8). A VM the
@@ -1462,7 +1562,7 @@ export class Host {
     // 2026-10-14 03:52Z poweroff one did, so the line never fired. Only this node's own retire forgets a domain.
     this.#noteServing(id, inst, r.action);
     this.log(`${id.slice(0, 10)} isolation ${r.action}: ${inst.id} status=${inst.status} image=${inst.image || "?"}`);
-    return this.#record(id, { status: "running", reason: null, isolationHeld: null, boundaryHeld: null,
+    return this.#record(id, { status: "running", reason: shareWait, allocatedShare, isolationHeld: null, boundaryHeld: null,
                               // when this pass last saw it serving: what proveAll's checkpoint stands on
                               servingSeenAt: Date.now(),
                               isolation: { backend: "hyperv-partition-per-app", instance: inst.id,
@@ -2941,7 +3041,8 @@ export class Host {
    */
   cpuShareOf(id, d, version = null) {
     const dial = Number(d && d.cpuMilli) / 1000 || 0;
-    const need = version ? chain.effectiveCpuShare({ cpuMilli: 0 }, version, Number(this.cfg.gflopsFloorBasis ?? this.cfg.gflops) || 0)
+    // on the partition backend the version's RAM floor is a share of the manager's pool too (sharePoolMiB)
+    const need = version ? chain.effectiveCpuShare({ cpuMilli: 0 }, version, Number(this.cfg.gflopsFloorBasis ?? this.cfg.gflops) || 0, this.sharePoolMiB())
                          : Number(this.records.get(id)?.needCpuShare) || 0;
     return Math.max(dial, need);
   }
@@ -2964,7 +3065,9 @@ export class Host {
     // The owner's cap (hosting.mjs) can only lower this; at the default 1.0 it never binds and the figure is exactly
     // the one before caps existed.
     const offered = capped ? this.#offered("cpuShare") - used : Infinity;
-    return Math.max(0, Math.min(1, 1 - used - (this.cfg.reservedShare ?? 0.25), offered));   // a quarter stays for the enclave, the worker and the owner
+    const free = Math.max(0, Math.min(1, 1 - used - (this.cfg.reservedShare ?? 0.25), offered));   // a quarter stays for the enclave, the worker and the owner
+    // whole millionths, rounded down: 1 - 0.58 - 0.25 is 0.16999999999999993 in floating point, which reads as 16%
+    return Math.floor(free * 1e6 + 1e-6) / 1e6;
   }
   /**
    * The CARD pool this box has left, as a fraction of the worker's budget.
@@ -3179,14 +3282,7 @@ export class Host {
     // reported 14 GB of its enclave "used" while four apps between them held half a gigabyte.
     // Cores are sold as a share; this memory is a fixed allocation, and it reports as one.
     const enclaveMb = Math.round((Number(this.cfg.enclaveGb) || 0) * 1024);
-    const physicalMb = Math.round((Number(this.cfg.ramGb) || 0) * 1024);
-    // RAM is an independent hosting budget, not a CPU share. Invalid explicit
-    // budgets admit nothing; absence preserves the older reserved-share policy.
-    const configuredRam = this.cfg.appRamGb;
-    const hostMb = configuredRam === undefined || configuredRam === null
-      ? Math.round(physicalMb * (1 - (this.cfg.reservedShare ?? 0.25)))
-      : (Number.isFinite(configuredRam) && configuredRam >= 0
-        ? Math.min(physicalMb, Math.floor(configuredRam * 1024)) : 0);
+    const hostMb = this.#hostRamMb();
     // UNKNOWN is not ZERO. `engineHeldMb` is null until the node has asked the enclave what the
     // model, its KV cache and the pads hold (the host protocol's `mem`), and treating that as "the
     // engine holds nothing" would offer a tenant the WHOLE enclave including the part the engine
@@ -3503,6 +3599,7 @@ export class Host {
   }
   static MARKET_GRACE_MS = 15 * 60_000;    // servingScope(): the relay's owner-read grace is the same 15 min
   static STARTUP_GRACE_MS = 10 * 60_000;   // a running owner-committed partition outlasts an unanswered re-verification this long
+  static SHARE_RELAUNCH_MIN_MS = 10 * 60_000;   // at most one in-place relaunch per deployment for its share in this window
   static SCAN_HOLD_MS = 10 * 60_000;       // a refused row
   static SCAN_QUEUED_HOLD_MS = 2 * 60_000; // a queued one: its input may come back soon (the preclaim's unknown, the ledger's cap)
   static SCAN_CLAIMFAIL_HOLD_MS = 2 * 60_000; // a row whose claim tx failed twice running under the same inputs

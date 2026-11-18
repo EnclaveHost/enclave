@@ -22,7 +22,13 @@ function Die($m) { throw "build-bundle: $m" }
 # --- pins -------------------------------------------------------------------------------------------------------------
 # bundle path = (source under -Sources, sha256). Enclave Shield's host binary ships as shield-host.exe.
 $Binaries = [ordered]@{
-  "bin\shield-host.exe"     = @("vbs-like\releases\risc-service-20261002\vbslike-host.exe", "4feb0adffdd412358d3d67437e096ff5001d38d85fbbc79c9ba73f01dd5242a8")
+  # The CPU-allowance host (wmiserve --app-cpu) and, below, the guest runtime that enforces the allowance: the builds
+  # nucbox-k11-4 has run since 2026-10-23 (hand-placed there as bin\shield-host-e4eeb994.exe and
+  # guest\runtime-cpu-c1619eec.bin), which the manager in this tree needs. Source and rebuild notes are preserved in
+  # 6dcde7030 (checkpoints/decentralization-20261022/closeout-followup: wmiserve.rs, isolation/m3/monitor, REBUILD.md);
+  # the binaries here are the box's own files, pinned by hash, not rebuilt for this bundle. The 2026-10-02 host
+  # (4feb0adf) and the 2026-10-05 runtime (5fbfb947) they replace have neither.
+  "bin\shield-host.exe"     = @("vbs-like\releases\cpu-allowance-20261023\shield-host.exe", "e4eeb994292dcd71653243da1e64d23988ec8a7f45f2b3742a517dda3d46feb2")
   # public-web egress (c85e0c592, the a8f384f2 build) + -blob-service (isolation/egress-blob-cache 1dad2bb50) + a torn
   # routes file re-read (93429cf58) + how a stream ended, logged (28be56c19), with byte counts for big streams
   # (isolation/egress-torn-reread d24c508ca; go1.27.1
@@ -35,7 +41,7 @@ $Binaries = [ordered]@{
   "bin\shielded-bridge.exe" = @("vbs-like\releases\bridge-auth-45801c22\shielded-bridge.exe", "03bf48b04218ceba55d53a63b4285a26f9232aa7cc8af22150138e1412f7e11b")
   "bin\tpmattest.exe"       = @("vbs-like\hvnode\bin\tpmattest.exe",                       "ebc30d9fa54cf70043900165ce12631224075b3301653eaf8527342d18de6982")
   "bin\wasmtime.exe"        = @("vbs\apps\wasmtime-v49.0.0-x86_64-windows\wasmtime.exe",   "cbe3e2ddc1d449a029b1f581b84688b94fc7e5758cdfe24241609a92b16a5cc2")
-  "guest\runtime.bin"       = @("vbs-like\releases\public-web-20261005\runtime.bin",        "5fbfb947884367f1af2b76b4deb8a6ebaad00a5c90577ae7d8c4db95f9ddfa5d")
+  "guest\runtime.bin"       = @("vbs-like\releases\cpu-allowance-20261023\runtime.bin",     "c1619eec104bf955b4d2540635c9e3b4d340528666f60a05c526083d45997591")
   "guest\hyperv.psm1"       = @("hyperv.psm1",                                              "17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c")
   # hyperv.psm1 imports it from its own folder at load: without it no partition starts (every 2026.10.12 bundle lacked it)
   "guest\utilities.psm1"    = @("utilities.psm1",                                           "517766e996ddb021594c0ae2c7a60688d4293e2ee9459f558f2a436e6da30731")

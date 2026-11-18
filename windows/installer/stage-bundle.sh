@@ -56,7 +56,9 @@ ln -s "$(realpath "$TOP/node_modules")" "$W/node_modules"
 mkdir -p "$T/network"
 # host-service-ingress.mjs: a host's own service circuits' worker (network/host-service-transport.mjs; network-enroll names
 # it only for a box whose operator set hostServices) - test/host-service-transport.test.mjs checks this list against enroll
-for f in privacy-agent.mjs windows-circuit-worker.mjs host-service-ingress.mjs enclave-wg.exe enclave-circuit-firewall.exe; do
+# ingress-thread.mjs: the worker thread app ingress runs on (network/ingress-thread.mjs; the agent starts it from its own
+# directory and serves ingress on its main thread without it, as before 2026-11-15). Hand-placed on nucbox-k11-4 until now.
+for f in privacy-agent.mjs windows-circuit-worker.mjs host-service-ingress.mjs ingress-thread.mjs enclave-wg.exe enclave-circuit-firewall.exe; do
   cp "$W/dist/$f" "$T/network/$f"
 done
 rm -rf "$W"

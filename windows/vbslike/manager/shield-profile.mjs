@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { runtimeId } from "../../../isolation/contract/runtime.mjs";
 import { shieldedCard } from "../../node/shieldedcard.mjs";
+import { DESKTOP_DERIVATION } from "./desktop-derive.mjs";
 export const MODEL = "qwen2.5-0.5b-q8-gguf";
 export const CARD_BYTES = 12 * 2 ** 30;
 export function profile(runtime) {
@@ -82,7 +83,13 @@ const absent = (v) => v === undefined || v === null;
 function imageRoute(mapping, opts) {
   const record = mapping?.record;
   const desktop = record?.desktop;
-  if (absent(desktop)) return opts.bootstrap ? "shield-direct" : mapping?.record?.inference ? "gpu" : "legacy";
+  if (absent(desktop)) {
+    // The installed router (desktop-router.mjs) sent a desktop-DERIVATION mapping to the desktop image whatever else it
+    // carried. Here such a mapping without its desktop record is refused: it never starts on the legacy or GPU image.
+    if (record?.derivation === DESKTOP_DERIVATION)
+      throw new Error("a desktop-derivation mapping needs record.desktop: it is refused, never started on another image");
+    return opts.bootstrap ? "shield-direct" : mapping?.record?.inference ? "gpu" : "legacy";
+  }
   if (typeof desktop !== "object" || Array.isArray(desktop))
     throw new Error("a desktop mapping needs an object record.desktop: a malformed value is refused, never started on another image");
   if (!absent(record.inference)) throw new Error("a desktop mapping does not start a GPU inference domain");

@@ -40,7 +40,8 @@ const policy = (h, d) => chain.claimPolicy(d, { ownerAllow: OWNER, enclaveId: h.
 // ---- defaults ----------------------------------------------------------------------------------------------------
 test("DEFAULTS: no caps file is 1.0 on both axes, and every figure is exactly the one computed before caps existed", () => {
   // the two formulas as they stood before this change (host.mjs cpuShareFree / gpuShareFree)
-  const oldCpu = (used) => Math.max(0, Math.min(1, 1 - used - 0.25));
+  // (cpuShareFree is published rounded down to whole millionths: 0.19999999999999996 is 0.2)
+  const oldCpu = (used) => Math.floor(Math.max(0, Math.min(1, 1 - used - 0.25)) * 1e6 + 1e-6) / 1e6;
   const oldGpu = (sold) => Math.max(0, Math.min(1, 1 - sold, card.vramFreeGb / card.vramBudgetGb));
   for (const set of [[], [[0.1, 0]], [[0.25, 0.1], [0.3, 0.2]], [[0.5, 0.5], [0.4, 0]], [[0.9, 0.9]], [[0.05, 0.15], [0.1, 0.35], [0.15, 0]]]) {
     const h = box({ card: () => card });

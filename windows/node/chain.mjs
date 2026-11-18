@@ -546,12 +546,25 @@ export function cpuFallbackOfConfig(cfg) {
  * exists only relative to a box, so it is derived here from this box's capacity, never required of the record: the
  * share is what the owner dialed, or what the version needs on this box if that is more (whole percents, rounded up).
  * The ledger still bills the dialed share (the rate is set at claim from the record).
+ *
+ * `sharePoolMiB`: on a box where ONE share buys the same fraction of compute and of an app-RAM pool (the Hyper-V
+ * partition backend: memory-share.mjs gives a partition floor(pool x share) MiB and REFUSES a share that gives less than
+ * the version's floor), the version's RAM floor is a share requirement too, rounded up the same way (the site's
+ * minPctsOf does the same). 0 (absent) keeps RAM out of it.
  */
-export function effectiveCpuShare(d, version, cpuGflops) {
-  const dial = Number(d && d.cpuMilli) / 1000 || 0;
-  const need = version ? nodeFloorOf(version).cpuGflops : 0;
-  if (!(need > 0) || !(Number(cpuGflops) > 0)) return dial;
-  return Math.max(dial, Math.min(1, Math.ceil(need / Number(cpuGflops) * 100 - 1e-9) / 100));
+export function effectiveCpuShare(d, version, cpuGflops, sharePoolMiB = 0) {
+  return Math.max(Number(d && d.cpuMilli) / 1000 || 0, ...Object.values(shareNeedsOf(version, cpuGflops, sharePoolMiB)));
+}
+/** What a version needs of a box as shares, per axis: { cpu, ram } (0 where it states no need or the box has no such pool). */
+export function shareNeedsOf(version, cpuGflops, sharePoolMiB = 0) {
+  const floor = version ? nodeFloorOf(version) : null;
+  const pct = (x) => Math.min(1, Math.ceil(x * 100 - 1e-9) / 100);
+  return { cpu: floor && floor.cpuGflops > 0 && Number(cpuGflops) > 0 ? pct(floor.cpuGflops / Number(cpuGflops)) : 0,
+           ram: floor && Number(sharePoolMiB) > 0 ? pct(floor.memMb / Number(sharePoolMiB)) : 0 };
+}
+/** The app RAM one share is given on a coupled box, exactly as the partition manager computes it (memory-share.mjs). */
+export function shareRamMiB(sharePoolMiB, share) {
+  return Math.floor(Number(sharePoolMiB) * Number(share) + 1e-7);
 }
 export function nodeFloorOf(v) {
   const fb = cpuFallbackOfConfig(v && v.config);
@@ -802,8 +815,14 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   // Capacity, in the numbers the refusal can be checked against. A lease this box cannot fit is
   // worse than one it declines: the tenant's funding is tied up against an app that thrashes.
   if (capacity) {
-    const dial = Number(d.cpuMilli) / 1000, want = effectiveCpuShare(d, version, capacity.cpuGflops);
-    const derived = want > dial + 1e-9 ? ` (its version needs ${nodeFloorOf(version).cpuGflops} GFLOPS, ${Math.round(want * 100)}% of this box)` : "";
+    // ONE SHARE, BOTH POOLS: where the partition manager sizes a partition's RAM from its share (ramMbPerShare, its pool),
+    // the version's RAM floor is part of the share it takes here, as its GFLOPS floor is
+    const pool = Number(capacity.ramMbPerShare) || 0;
+    const dial = Number(d.cpuMilli) / 1000, want = effectiveCpuShare(d, version, capacity.cpuGflops, pool);
+    const needs = shareNeedsOf(version, capacity.cpuGflops, pool);
+    const why = want > dial + 1e-9 ? [...(needs.cpu > dial + 1e-9 ? [`${nodeFloorOf(version).cpuGflops} GFLOPS`] : []),
+                                       ...(needs.ram > dial + 1e-9 ? [`${nodeFloorOf(version).memMb} MB of RAM`] : [])] : [];
+    const derived = why.length ? ` (its version needs ${why.join(" and ")}, ${Math.round(want * 100)}% of this box)` : "";
     if (capacity.slotsFree != null && capacity.slotsFree <= 0)
       return `this box is running its ${capacity.slots} app slots already`;
     // The box owner's hosting cap (windows/node/hosting.mjs), named when it is what limits: the box is not full, its
@@ -819,10 +838,11 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
       const floor = nodeFloorOf(version);
       if (floor.memMb > capacity.ramMbFree)
         return `the version needs ${floor.memMb} MB of node RAM${floor.fromFallback ? " on cores (the publisher's cpuFallback)" : ""} and this box has ${capacity.ramMbFree} MB left`;
-      // ...and a partition reserves its dialed CPU share of the manager's pool, never less than that floor (memory-share.mjs)
-      const part = capacity.ramMbPerShare > 0 ? Math.floor(capacity.ramMbPerShare * dial + 1e-7) : 0;
+      // ...and a partition reserves the share it takes here of the manager's pool (memory-share.mjs), never only that
+      // floor: the share is the dial, or what the version needs of this box if that is more (host.mjs spawns it at that)
+      const part = pool > 0 ? shareRamMiB(pool, want) : 0;
       if (part > floor.memMb && part > capacity.ramMbFree)
-        return `its partition reserves ${part} MB of app RAM (${Math.round(dial * 100)}% of this box's ${capacity.ramMbPerShare} MB pool) and this box has ${capacity.ramMbFree} MB left`;
+        return `its partition reserves ${part} MB of app RAM (${Math.round(want * 100)}% of this box's ${pool} MB pool)${derived} and this box has ${capacity.ramMbFree} MB left`;
       // compute is not refused here: `want` is already the share the version needs on this box (effectiveCpuShare)
     }
   }

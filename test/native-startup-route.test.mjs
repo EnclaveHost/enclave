@@ -28,3 +28,29 @@ test('native startup circuit accepts only a pinned 503 and preserves readiness',
  status=200;assert.equal((await probeNativeGuest(options)).ready,true);
  await assert.rejects(probeGuest({...options,startupRoute:true,pinnedSpkiSha256:null}),/current attested key/);
 });
+
+// The agent's own wiring (network/privacy-agent.mjs): what the NucBox's installed agent carried as an overlay since 2026-10-26.
+test('the privacy agent probes a desktop expectation natively and forwards its starting guest',async()=>{
+ const {guestProbeFor,nativeAppForward}=await import('../network/privacy-agent.mjs');
+ const {PassThrough}=await import('node:stream');
+ assert.equal(guestProbeFor({requiresDesktop:true}),probeNativeGuest);
+ for(const expected of [undefined,null,{},{requiresDesktop:false},{requiresDesktop:'true'}])assert.equal(guestProbeFor(expected),probeGuest,'only an explicit desktop expectation is probed natively');
+ // no starting transport (Linux, pVM, a Windows host without the Shield manager): the forwarder is the one it was
+ const normal=Object.assign(async()=>{},{plan:async()=>({dataAddr:'127.0.0.1:1',route:{}})});
+ assert.equal(nativeAppForward({starting:null,normal,expected:()=>null,proof:()=>null,authorize:()=>true}),normal);
+ const id='0x'+'ab'.repeat(32),want={requiresDesktop:true,requiresConfigSocketServer:true,requiresSecretsV1:true,appSha256:'cd'.repeat(32),runtimeId:'ef'.repeat(32)};
+ let proof={verified:true,ready:false,deploymentId:id,appSha256:want.appSha256,runtimeId:want.runtimeId,spkiSha256:'12'.repeat(32),validUntil:Date.now()+60000},admitted=true,opened=0,normals=0;
+ const guest=new PassThrough();
+ const forward=nativeAppForward({starting:async()=>{opened++;return guest;},normal:Object.assign(async()=>{normals++;},{plan:async()=>'planned'}),
+   expected:x=>x===id?want:{appSha256:'00'.repeat(32)},proof:()=>proof,authorize:()=>admitted});
+ // another app: the normal forwarder and its plan, untouched
+ await forward(new PassThrough(),'0x'+'cd'.repeat(32));assert.deepEqual([opened,normals],[0,1]);
+ assert.equal(await forward.plan('0x'+'cd'.repeat(32)),'planned');
+ // the desktop app while it starts: its starting guest, on the main thread (no plan)
+ const socket=new PassThrough();await forward(socket,id);assert.deepEqual([opened,normals],[1,1]);
+ assert.equal(await forward.plan(id),null);socket.destroy();guest.destroy();
+ // ready: the normal forwarder again; no longer admitted: refused before anything is opened
+ proof={...proof,ready:true};await forward(new PassThrough(),id);assert.deepEqual([opened,normals],[1,2]);assert.equal(await forward.plan(id),'planned');
+ admitted=false;await assert.rejects(forward(new PassThrough(),id),/current admitted proof/);await assert.rejects(forward.plan(id),/current admitted proof/);
+ assert.deepEqual([opened,normals],[1,2]);
+});

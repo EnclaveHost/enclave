@@ -8,6 +8,7 @@ import {DESKTOP_DERIVATION,DESKTOP_PORTS} from './desktop-derive.mjs';
 import {runtimeId} from '../../../isolation/contract/runtime.mjs';
 import {BOOT_STATEMENTS} from '../verify/boot-statements.mjs';
 import {IsolationManagerClient} from '../../node/isolation-client.mjs';
+import {HyperVPartitionBackend} from './backend.mjs';
 const H=c=>c.repeat(64);
 const component=Buffer.concat([COMPONENT_PREAMBLE,Buffer.from([0,1,0])]);
 const runtime={name:'wasmtime',version:'native-test',execution:'jit',targetIsa:'x86_64',hostIsa:'x86_64',cpuFeatures:'baseline',wx:'enforced',cache:'none'};
@@ -144,4 +145,13 @@ test('explicit installed native policy reserves all 32 GiB before the 24 GiB app
  assert.equal(a.physicalMemoryMiB,32768);assert.equal(a.memory.appMiB,24576);
  assert.equal(h.manager.physicalRamAllocated(),32768);
  await h.manager.remove(a.id);
+});
+test('installed rules kept: a malformed legacy pin is refused, and the CPU pool check says what it compared',async()=>{
+ for(const bad of ['', 'A'.repeat(64), 'a'.repeat(63), 7, {}])
+  assert.throws(()=>new Manager({images:{legacy:{igvmSha256:bad}}}),/invalid legacy image pin/);
+ for(const images of [null,{},{legacy:{}},{legacy:{igvmSha256:null}},{legacy:{igvmSha256:H('a')}}])assert.doesNotThrow(()=>new Manager({images}));
+ const m=new Manager({ramPoolMiB:4096,cpuPoolVcpus:16,cpuPoolSource:'NODE_VCPUS',
+  backend:new HyperVPartitionBackend({launcher:{preflight:async()=>({ok:true,checks:[],hostLogicalProcessors:8})}})});
+ const p=await m.probe(),check=p.checks.find(c=>c.name==='CPU pool fits observed logical processors');
+ assert.equal(p.ok,false);assert.equal(check.ok,false);assert.equal(check.detail,'NODE_VCPUS 16; Hyper-V host LogicalProcessorCount 8');
 });

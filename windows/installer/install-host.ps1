@@ -651,6 +651,9 @@ if (-not $Owner) { $Owner = "$env:USERDOMAIN\$env:USERNAME" }
 @echo off
 rem Enclave Shield: the per-app Hyper-V isolation manager. Written by install-host.ps1; re-run setup to change it.
 set VMMGR_PORT=8091
+rem the guest enforces each app's CPU allowance itself (the bundle's shield-host and runtime.bin are the 2026-10-23 builds that
+rem carry it: build-bundle.ps1); nucbox-k11-4 has run with this set by hand since then
+set ENCLAVE_GUEST_CPU_ALLOWANCE=1
 set ENCLAVE_GUEST_IGVM=$PF\guest\runtime.bin
 set ENCLAVE_GUEST_IGVM_SHA256=$(& $pin 'guest/runtime.bin')
 set ENCLAVE_BOOT_FORM=linux-direct

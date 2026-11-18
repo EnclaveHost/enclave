@@ -75,6 +75,14 @@
    "secretsV1": true,
    "configSocketServer": true,
    "protectedPorts": true
+  },
+  {
+   "measurement": "62ac7aab7700ea41ace82549751ee8797a8e087502bf04ad96c0003727a6b535",
+   "runtimeId": "297b6c2c0aee68c38ed612972afd11b12865e21ee39c01f4336e8721b3ef02f8",
+   "configBundleV5": true,
+   "secretsV1": true,
+   "configSocketServer": true,
+   "protectedPorts": true
   }
  ],
  "cpu": {

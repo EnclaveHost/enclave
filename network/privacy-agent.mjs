@@ -39,6 +39,7 @@ import {DurableState} from './durable-state.mjs';
 import {localAppForwarder} from './local-app-transport.mjs';
 import {pvmAppPort,openPvmApp,pvmForwarder} from './pvm-app-transport.mjs';
 import {probeGuest} from './guest-probe.mjs';
+import {probeNativeGuest,nativeStartupForwarder} from './native-startup-overlay.mjs';
 import {createProbeScheduler} from './probe-scheduler.mjs';
 import {GuestdIngress} from './guestd-ingress.mjs';
 import {SnpVmIngress,validSnpVmExpectation,seedSnpVmCertChain} from './snp-vm-app.mjs';
@@ -202,6 +203,21 @@ export function hostServicesPreflight({block,workerModule,runner,endpoint,exists
   return {config};
 }
 
+// NATIVE DESKTOP STARTUP (native-startup-overlay.mjs; docs/operations/native-desktop-startup.md, "Installed-agent startup
+// bridge"). A native desktop guest starts before its owner's sealed secrets arrive, and they arrive through its own route:
+// until then it answers readiness with 503 and the partition manager's regular splice refuses it. The NucBox's installed
+// agent has carried both halves as a separate overlay file since 2026-10-26; here they are the agent's own.
+//   guestProbeFor(expected): the probe for an app. An explicit desktop expectation gets probeNativeGuest: its route probe
+//     keeps the app's name in the TLS hello (circuit ingress shares the provider's 443) and takes 503 as "verified, not
+//     ready" only on the pinned attested key with the configured-secret expectation. Every other app: probeGuest, unchanged.
+//   nativeAppForward({starting,normal,...}): the app forwarder. Only on a host with the local Shield manager's starting
+//     transport (`starting`, Windows) is `normal` wrapped: a desktop app whose current admitted proof says not ready is
+//     forwarded, TLS only, to its starting guest and rechecked while it lasts; ready guests and every other app go to
+//     `normal` after the same checks. Its plan() keeps the ingress thread (ingress-thread-host.mjs) for them.
+export const guestProbeFor=expected=>expected?.requiresDesktop===true?probeNativeGuest:probeGuest;
+export function nativeAppForward({starting,normal,expected,proof,authorize}){
+  return starting?nativeStartupForwarder({expected,proof,authorize,open:starting,normal}):normal;
+}
 // A whole-VM app's connections go to its VM; every other app's go where they always did.
 const wholeVmForward=(snpVm,forward)=>snpVm?(socket,id)=>(snpVm.handles(id)?snpVm.forward:forward)(socket,id):forward;
 export async function runPrivacy(configFile){
@@ -378,7 +394,9 @@ export async function runPrivacy(configFile){
     leaseReader,providerReader,directory:cfg.directory,log,fetch:networkFetch,
     authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),
     // owner-name routing pins the key of the CURRENT attested local proof (enclave-network-host.mjs direct.ownerNames)
-    attestedKey:id=>!agent?.closed&&agent?.admission.allows(id)?agent.admission.proofs.get(id)?.spkiSha256||null:null,forward:wholeVmForward(snpVm,pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream))});
+    attestedKey:id=>!agent?.closed&&agent?.admission.allows(id)?agent.admission.proofs.get(id)?.spkiSha256||null:null,
+    forward:wholeVmForward(snpVm,nativeAppForward({starting,expected:id=>apps.find(a=>a.deploymentId===id)?.expected,proof:id=>agent?.admission.proofs.get(id),
+      authorize:id=>!agent?.closed&&!!agent?.admission.allows(id),normal:pvm?pvmForwarder(pvm.appPort):guestd?guestd.forward:localAppForwarder(cfg.upstream)}))});
   networkHost=network;
   // a stop that arrived while the host was being created, or a step below that fails, must not leave its listeners open
   if(stopping)throw new StartupCancelled();
@@ -441,7 +459,7 @@ export async function runPrivacy(configFile){
     // guest report); the local proof itself always asks for a fresh report.
     probe:async(id,expected,circuit)=>scheduleProbe(id,!!circuit,async()=>{
       if(circuit&&!agent?.admission.allows(id))throw new Error('no current local guest proof');
-      return probeGuest({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
+      return guestProbeFor(expected)({deploymentId:id,hostname:apps.find(a=>a.deploymentId===id).names[0],expected,
       ...(circuit&&agent?.admission.allows(id)?{pinnedSpkiSha256:agent.admission.proofs.get(id).spkiSha256}:{}),
       ...(!circuit&&pvm?{pvm}:!circuit&&windows?{shield,hostSession:await hostProof.get()}:!circuit&&snpVm?.handles(id)?{snpVm:{minTcb:linux.minTcb,vcek:linux.vcek}}:!circuit?{linux:{...linux,measurement:expected.measurement,release:expected.release},verifySnp}:{}),
       ...(circuit?routeProbeTransport(circuit,apps.find(a=>a.deploymentId===id)?.startupEgress===true):apps.find(a=>a.deploymentId===id)?.startupEgress===true?{openApp:starting,startupEgress:true}:snpVm?.handles(id)?{openApp:id=>snpVm.open(id)}:guestd?{openApp:id=>guestd.open(id)}:pvm?{openApp:()=>openPvmApp(pvm.appPort)}:{localUpstream:cfg.upstream})});
