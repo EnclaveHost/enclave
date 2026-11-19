@@ -4821,6 +4821,25 @@ function snpVmSlice(plan, cpuMilli, node = nodeSpec()) {
 function snpVmDueShare(rec) {
   try { return snpVmSlice(rec._snpVm, rec._shares && rec._shares.cpuMilli).cpuShare; } catch { return 0; }
 }
+// An owner's setShares on a whole-VM app, in place. The VM's size is its version's, so a share change moves only what the
+// node books for it (and what the ledger bills), never the guest: nothing is stopped and the lease is never handed back
+// (a stop costs a chain node its sync, and a release can meet the gas reserve's claim cooldown). Synchronous, so the
+// share it frees counts toward the one it takes.
+function snpVmResize(rec, d) {
+  let slice; try { slice = snpVmSlice(rec._snpVm, d.cpuMilli); } catch (e) { return { ok: false, why: e.message }; }
+  const had = rec._gpu;
+  if (had) releaseGpu(had);
+  const next = allocCpu(slice.cpuShare);
+  if (!next) {                                              // a larger dial than the node has left: it keeps what it held
+    rec._gpu = had ? allocCpu(had.share) || had : null;
+    return { ok: false, why: `no free CPU share for ${round3(slice.cpuShare)} here; the VM keeps running on the ${round3(had ? had.share : 0)} it holds` };
+  }
+  rec._gpu = next;
+  rec.resources = { gpuShare: 0, cpuShare: slice.cpuShare };
+  rec._shares = { gpuMilli: Number(d.gpuMilli), cpuMilli: Number(d.cpuMilli) };
+  rec.rate = Number(d.rate) / 1e6;                          // the resize recalculated it on-chain
+  return { ok: true, cpuShare: slice.cpuShare };
+}
 async function snpVmConsider(d, g, opt, { resume = false, hinted = false } = {}) {
   if (opt.measurementsFrom !== d.appRef) return "snpVm.measurementsFrom must name this deployment's own catalog version";
   let plan; try { plan = snpVmPlanOf(g, d.appRef); } catch (e) { return "snpVm: " + e.message; }
@@ -11163,6 +11182,20 @@ async function renewLeases() {
 async function switchTenantVersion(rec, d) {
   const to = d.appRef;
   const resize = shareResizeVerdict(rec.status, rec._shares, d.gpuMilli, d.cpuMilli) === "resize";
+  // a whole-VM app's share change alone is its own path: the VM keeps running (snpVmResize). With a version change it
+  // takes the ordinary path below, which relaunches.
+  if (rec._snpVm && resize && to === (rec.image && rec.image.reference)) {
+    const was = rec._shares && rec._shares.cpuMilli, r = snpVmResize(rec, d);
+    if (r.ok) {
+      delete rec.versionChange;
+      console.log(`[claim] ${rec.id} owner changed shares: cpuMilli ${was ?? "?"} -> ${Number(d.cpuMilli)}; a whole VM, booked at cpuShare ${r.cpuShare} in place, the VM keeps running`);
+    } else if (rec.versionChange?.error !== r.why) {
+      console.warn(`[claim] ${rec.id} share change deferred: ${r.why}`);
+      rec.versionChange = { to, error: r.why };
+    }
+    saveStateSoon();
+    return;
+  }
   const evict = async (why) => {
     console.warn(`[claim] ${rec.id} resized shares cannot be served here: ${why}; releasing so a fitting enclave claims it`);
     await tearDown(rec, "expired", "share resize: " + why);   // CLAIM_TERMINAL: any enclave may re-adopt at the new size
@@ -11246,7 +11279,11 @@ async function switchTenantVersion(rec, d) {
     // refunded and a box with room (or a fresh capacity window here) claims it.
     const slice = gpuShare > 0 ? normalizeGpuReq(gpuShare, cpuShare) : normalizeCpuReq(cpuShare);
     if (rec._gpu) { releaseGpu(rec._gpu); rec._gpu = null; }
-    const next = slice.cpu ? allocCpu(slice.cpuShare) : allocGpu(slice.vramGb, slice.computeShare, slice.cpuShare);
+    // heldReservation: the instance stopped above held its VRAM a moment ago and a shielded card's proven free figure
+    // lags the stop, so the new slice is judged against the share ledger its own release just credited. Judged against
+    // the device, a resize can find "no free capacity" for the tenant's own slice and release the lease (the likely cause
+    // of 2026-10-16, when a shrink of the card's only tenant did exactly that; not reproduced).
+    const next = slice.cpu ? allocCpu(slice.cpuShare) : allocGpu(slice.vramGb, slice.computeShare, slice.cpuShare, { heldReservation: true });
     if (!next) return evict(`no free capacity for gpuShare ${round3(slice.gpuShare || 0)} / cpuShare ${round3(slice.cpuShare)} here right now`);
     rec._gpu = next;
     rec.resources = slice.cpu

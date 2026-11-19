@@ -106,6 +106,44 @@ test("the claim gate refuses a new whole VM the node's share ledger has no room 
   assert.match(await tooBig.ctx.snpVmConsider(row(), gate({ min: { memMb: 131072 } }), opt), /snpVm: the VM needs 8 vCPUs and 131072 MiB/);
 });
 
+test("an owner's share change on a whole VM is booked in place: nothing stopped, nothing released", () => {
+  // the node's CPU share ledger as supervisor.js keeps it
+  const pool = { shareFree: 0 };
+  const s = sandbox({ round3: (x) => Math.round(x * 1000) / 1000,
+    allocCpu: (share) => { if (pool.shareFree < share - 1e-9) return null; pool.shareFree -= share; return { cpu: true, share }; },
+    releaseGpu: (h) => { pool.shareFree = Math.min(1, pool.shareFree + h.share); } });
+  const rec = { id: DEP, _snpVm: { vcpus: 8, memMiB: 49152 }, _gpu: { cpu: true, share: 1 }, resources: { gpuShare: 0, cpuShare: 1 },
+                _shares: { gpuMilli: 0, cpuMilli: 1000 }, rate: 0, status: "running" };
+  // 100% -> 50%: half the node comes back
+  assert.deepEqual({ ...s.ctx.snpVmResize(rec, { cpuMilli: 500, gpuMilli: 0, rate: 0n }) }, { ok: true, cpuShare: 0.5 });
+  assert.deepEqual([rec._gpu.share, rec.resources.cpuShare, rec._shares.cpuMilli, pool.shareFree], [0.5, 0.5, 500, 0.5]);
+  // a dial below what the VM takes books what it takes, and records the dial so the audit does not ask again
+  assert.equal(s.ctx.snpVmResize(rec, { cpuMilli: 100, gpuMilli: 0, rate: 0n }).cpuShare, 0.5);
+  assert.deepEqual([rec._shares.cpuMilli, pool.shareFree], [100, 0.5]);
+  // a grow the node has no room for: the VM keeps the share it held, the record keeps its old dial (asked again later)
+  pool.shareFree = 0.2;                                        // another tenant took 30%
+  const r = s.ctx.snpVmResize(rec, { cpuMilli: 900, gpuMilli: 0, rate: 0n });
+  assert.equal(r.ok, false); assert.match(r.why, /no free CPU share for 0.9 here; the VM keeps running on the 0.5 it holds/);
+  assert.deepEqual([rec._gpu.share, rec.resources.cpuShare, rec._shares.cpuMilli, Math.round(pool.shareFree * 1000) / 1000], [0.5, 0.5, 100, 0.2]);
+  // ...and one it has room for
+  assert.equal(s.ctx.snpVmResize(rec, { cpuMilli: 700, gpuMilli: 0, rate: 0n }).cpuShare, 0.7);
+  assert.ok(Math.abs(pool.shareFree) < 1e-9);
+  // a pool not read yet moves nothing
+  const early = sandbox({ nodeSpec: () => ({ vcpus: 4, ramGb: 64, pool: false }) });
+  const held = { id: DEP, _snpVm: rec._snpVm, _gpu: { cpu: true, share: 1 }, _shares: { gpuMilli: 0, cpuMilli: 1000 } };
+  assert.match(early.ctx.snpVmResize(held, { cpuMilli: 500, gpuMilli: 0, rate: 0n }).why, /pool is not read yet/);
+  assert.deepEqual([held._gpu.share, held._shares.cpuMilli], [1, 1000]);
+});
+
+test("the resize hooks: a whole VM's share change returns before any stop, and a resized slice credits its own release", () => {
+  const sw = between(SRC, "async function switchTenantVersion(rec, d) {", "\n}\n");
+  const own = sw.indexOf("if (rec._snpVm && resize && to === (rec.image && rec.image.reference)) {");
+  assert.ok(own > 0 && own < sw.indexOf("const evict = async"), "decided before eviction exists");
+  assert.ok(own < sw.indexOf("stopContainer(rec)") && own < sw.indexOf("gateAppReference("), "and before the stop and the catalog gate");
+  assert.match(sw.slice(own, sw.indexOf("const evict = async")), /snpVmResize\(rec, d\)[\s\S]*saveStateSoon\(\);\n    return;\n  \}/);
+  assert.match(sw, /allocGpu\(slice\.vramGb, slice\.computeShare, slice\.cpuShare, \{ heldReservation: true \}\);/);
+});
+
 test("/availability never states more CPU share than the box's own ledger has on the isolation tier", () => {
   const fn = between(SRC, "function advertisedCpuFree(", "\n}\n") + "\n}";
   const run = (backend, shareFree, managerFree) => vm.runInNewContext(fn + "; advertisedCpuFree(m)", { ISOLATION_BACKEND: backend, cpuPool: { shareFree }, m: managerFree, Math, Number });
@@ -159,6 +197,7 @@ test("the patch applies to metal0's deployed supervisor generation as well", { s
   execFileSync(process.execPath, ["--check", tmp]);
   const out = fs.readFileSync(tmp, "utf8");
   assert.match(out, /async function snpVmConsider\(/);
-  for (const hook of ["function snpVmSlice(", "function advertisedCpuFree(", "advertisedCpuFree(c.cpuShareFree", "const due = snpVmDueShare(r);"])
+  for (const hook of ["function snpVmSlice(", "function advertisedCpuFree(", "advertisedCpuFree(c.cpuShareFree", "const due = snpVmDueShare(r);",
+                      "function snpVmResize(", "const was = rec._shares && rec._shares.cpuMilli, r = snpVmResize(rec, d);", "{ heldReservation: true });"])
     assert.equal(out.split(hook).length, 2, `${hook} once in the patched generation`);
 });
