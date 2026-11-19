@@ -1,6 +1,7 @@
-# Resizing a whole-VM app's share in place (prepared 2026-11-19; not on metal0)
+# metal0 control image 3dd10e9: a whole-VM app's share is resized in place
 
-Status: **source and tests only.** metal0 runs 2c9e322 (`../control-image-wholevm-share/`), which does not have this.
+Status: **active on metal0 since 2026-11-19 06:50:45Z**; see "The run". The resize itself has not happened: the
+owner's `setShares` is staged unsigned.
 
 ## Why
 
@@ -24,15 +25,37 @@ cooldown (2026-11-14: 40 minutes away).
 
 `supervisor-delta.py` applies the same text to the supervisor of 2c9e322 (checked: applies, `node --check` clean).
 
-## Rolling it out, and the resize
+## The image
 
-1. Build the image as `../control-image-wholevm-share/README.md` describes, from `~/.cache/metal0-gen/repo` (the
-   running generation) plus this delta, with the running image as the base; compare the two images entry by entry
-   and measure.
-2. Apply it with that directory's script adapted to the new image (allowlist, restart of `enclave-metal.service`,
-   rollback): the RPC VM is adopted in place, as on the last three restarts.
-3. The owner signs `setShares(0x5ff56a4d…454f, 0, 500)`. Within one audit pass the supervisor logs
-   `owner changed shares: cpuMilli 1000 -> 500; a whole VM, booked at cpuShare 0.5 in place, the VM keeps running`
-   and metal0 advertises up to 50% CPU again, capped by the host's free memory.
+`/home/steven/enclave-prod/dist-snpvm-3dd10e9`
 
-Signing before step 2 stops the VM.
+| | 2c9e322 (before) | 3dd10e9 |
+|---|---|---|
+| initramfs sha256 | b695826538961e4d8c6558515f800c2c773aa10a1d4458bd1da82be1d36b2956 | f408f6d13c24dc1edecaea2a7a5b1808f15110d173a539a5d544788a6e3520b0 |
+| launch measurement | bf4e7c7571b57d5f92db4c85a2e98db6d7c71ea532464596cb21555965ad0b25b4ae2fffb2055051c1e239209b8f7a73 | 2dd2450afd724c0f95df1c48e40cea08077bfc7ce607b254991b35f1964221b294b7cf0bc842bcbb43530ffd8aadb1b1 |
+
+Built in `~/.cache/metal0-gen/repo` (the running generation, commit 3dd10e9 = 2c9e322 plus the delta) with the
+running image as the base. Compared entry by entry (29,065 each): `/app/supervisor.js` (baf63e28…97a3 to
+77b40c9b…114a) and the image's own manifest; nothing added or removed; kernel and command line the same files. The
+measurement command reproduces 2c9e322's accepted value and gives the new one.
+
+## The run (2026-11-19, UTC)
+
+`control-image.sh apply`:
+
+- 06:50:33 operator key 9.31e-4 ETH, lease in hand 15 minutes, app answering 200; the relay's allowlist got the
+  measurement (45 listed, previous file kept as `linux-leasegas-measurements.env.before-snpvm-3dd10e9`), relay
+  restarted.
+- 06:50:45 `enclave-metal.service` restarted on the image (config kept as `config.json.before-snpvm-3dd10e9`);
+  06:51:05 accepted on `2dd2450a…`, admitted, registered.
+- the supervisor adopted VM `svc5c9c7e782de8357` (not restarted): `adopted: app=enclave-rpc:1.4.1 … cpuShare=1`.
+- 07:02 the first renewal on the image: lease until 07:32:04; the app answers 200.
+
+## The resize
+
+Staged unsigned in `~/enclave-prod/enclave-rpc-shares-50/` (`trezor-send.sh`): `setShares(0x5ff56a4d…454f, 0, 500)`,
+simulated as the owner (rate stays 0, the lease window is kept). Within one audit pass the supervisor should log
+`owner changed shares: cpuMilli 1000 -> 500; a whole VM, booked at cpuShare 0.5 in place, the VM keeps running`, and
+metal0 advertises up to 50% CPU again, capped by the host's free memory.
+
+Rollback of the image: `control-image.sh rollback`.
