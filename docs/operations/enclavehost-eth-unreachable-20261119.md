@@ -35,15 +35,21 @@ with a fresh kubo 0.42 node: the root block arrived in a second, `index.html` ne
   The component (`bafybeideqwmd32owzmsy2xutg6ck33rrnjvgjmepvdvzwjhomkkv67hkeu`) is in the storage adapter, where
   the relay reads it before it releases the deployment's secrets.
 
+## It loads again (2026-11-19 05:45 UTC)
+
+The owner signed the three transactions (blocks 59381017, 59381053, 59381088) and the node relaunched the deployment
+once, on 1.0.6 with `announceAllBlocks: true`, at 05:37. The new partition signed nothing: its first publish at
+start failed before its network was ready, and the publisher tries again only after `republishSecs` (four hours).
+It was asked to publish through its own `/publish` route with the deploy key, as the site deploy script does. It
+then walked the tree (about a minute), advertised 708 blocks and announced to cid.contact, which listed
+`ipfs.enclave.host` for the `index.html` block within seconds. `https://enclavehost.eth.limo/` answered 200 in two
+seconds, with four other pages and a script.
+
 ## What is not done
 
-- **1.0.6 is not running and `announceAllBlocks` is still false.** The catalog version, the deployment's reference
-  and its configuration are the owner's transactions, staged unsigned in `~/enclave-prod/ipns-publisher-v106/`
-  (`trezor-send.sh`; all three simulate as the owner; the configuration differs from the one on the ledger in that
-  one flag). Until they are signed, a node that already holds the root still finds no provider for the rest, and
-  eth.limo still answered 504 after the blocks were added.
-- **Whether eth.limo then loads the name is not shown.** It follows from how a kubo node behaved here; it can only
-  be checked after the new advertisement is in the index.
+- **A restarted publisher publishes nothing for four hours.** The record it had published stays valid for a week
+  and the index keeps the last advertisement, so the name keeps loading; a new site root or a changed flag waits
+  for the next round unless `/publish` is called. The first publish should be retried soon after a failure.
 - **Nothing fills the block store on a site release.** The step is a tool, not part of the rollout the edges run.
   With every block advertised, a root whose blocks are missing fails the publisher's walk (its status page says
   which block), and that root is then not advertised at all.
