@@ -49,15 +49,31 @@ GET of the scheduler's state object ended it with the message above.
   only nine reachable shards failed with an error instead of ending the app. The fix had been written against
   the unreleased 0.2 line on 2026-10-27 and never reached production.
 
+## 0.1.10 went live on 2026-11-19, with a 13-minute outage of its own
+
+The owner signed both transactions (catalog version 0.1.10 at index 9, block 59348196; the deployment's
+reference, block 59348237). The last 0.1.9 partition had by then run from 18:02 to 03:47 UTC without an abort,
+which is what the unblocked hosts bought.
+
+The node replaced the partition at 03:47 and the new one got no secrets: the relay answers a Shield secret
+release only after it has fetched the catalog component itself and checked it against its CID, and it reads from
+the four edge replicas and the storage adapter, not from the box's cache. The component was in the box's cache
+only (the adapter stores through sia-s3, which could not be trusted to stay up at the time), so the relay logged
+`catalog component could not be CID-verified`, the release answered 503, and the partition ended after 300 s
+without becoming ready. Staging the component only where the node reads was the mistake.
+
+The component was added to each edge's retained replica (`/opt/enclave-retained/cc96aad`: the two files, a
+manifest entry, a gateway restart that re-hashes the whole set, about two to four minutes an edge, one edge at a
+time). With the first edge done the next partition got its secrets at 04:00:09, a certificate at 04:01, and
+answered `ready` as 0.1.10 at 04:03. Read through the live app, the six objects that aborted 0.1.9 or stood for
+its clients came back whole, and `cron` and `depot` answer 200 again. The component was then uploaded through
+the public upload gateway and reads back from the adapter with the same digest.
+
+**For the next sia-s3 release:** the component must be on the edge replicas (or the adapter) before the
+deployment's reference is signed. The adapter cannot be the only copy of the app it depends on.
+
 ## What is not done
 
-- **0.1.10 is not running.** Publishing a catalog version and pointing the deployment at it are the owner's
-  transactions. They are staged, unsigned, in `~/enclave-prod/sia-s3-v0110/` (`trezor-send.sh`, simulated as the
-  owner: both succeed). Until they are signed, 0.1.9 still aborts on any read that touches a slab with an
-  unlisted host, and 26 contract hosts are still unlisted.
-- The 0.1.10 wasm (`bafybeidanqzzyod4b7t3acl7qky7sq46qdbdztbajzmuxmngmu2q7tldle`) is served to the node by the
-  box's local artifact cache only (its size limit was raised from 1 MiB to 8 MiB for it). It has to go to the
-  shared store through the upload gateway once sia-s3 itself is steady, since that gateway stores through sia-s3.
 - **The indexer cannot form or renew contracts**: its wallet holds 122 SC, of which 14 SC are free, and a
   contract needs about 55 SC. Funding it is the owner's.
 - 20 contract hosts are blocked because their prices or collateral are outside the indexer's fixed limits
