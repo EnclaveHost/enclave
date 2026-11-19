@@ -1,5 +1,5 @@
 // supervisor.js snpVm support (metal/snpvm-supervisor-patch.py): a whole-VM SEV-SNP app (Enclave RPC) is claimed through
-// the ordinary tryClaim/adopt path with a zero CPU slice and no wasm prefetch, and its launch, liveness and stop go to the
+// the ordinary tryClaim/adopt path with the CPU share its VM takes of the node and no wasm prefetch, and its launch, liveness and stop go to the
 // host's snp-vm manager (rpc/snp/vm-manager.mjs), never to guestd and never into guestd's /vms listing.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -22,6 +22,9 @@ function sandbox(over = {}) {
     console: { log() {}, warn() {} }, lc: (v) => String(v || "").toLowerCase(), SPAWN_TIMEOUT_MS: 1000,
     parseFirewall: ({ ports }) => ports, process: { env: {} }, ISOLATION_BACKEND: "snp-guest-per-app", URL,
     tryClaim: async (...a) => { calls.tryClaim.push(a); return "claimed"; },
+    // metal0's pool: 24 vCPUs, 96 GiB; the share grain and the claim gate's free share as supervisor.js has them
+    nodeSpec: () => ({ vcpus: 24, ramGb: 96 }), claimFreeCpu: () => 1,
+    normalizeCpuReq: (share) => { const pct = Math.min(100, Math.max(1, Math.round(share * 100))); return { cpu: true, gpuShare: 0, cpuShare: pct / 100, share: pct / 100, pct }; },
     ...over,
   });
   vm.runInContext((between(SRC, "// SNPVM_URL:", "!!body && !!body.snpVm));") + "!!body && !!body.snpVm));").replace(/^const /gm, "var ").replace(/^let /gm, "var ").replace(/import\.meta\.url/g, "\"file:///x/supervisor.js\""), ctx);
@@ -65,9 +68,47 @@ test("claim gate: own version only, a manager that answers, a binding for this d
   assert.equal(d.id, DEP);
   assert.ok(!/^ipfs:\/\//.test(g.wasmRef), "no wasm prefetch for a whole-VM app");
   assert.equal(g._snpVm.vcpus, 8);
-  assert.deepEqual({ ...slice }, { cpu: true, cpuShare: 0, gpuShare: 0 });
+  // 65536 MiB of a 96 GiB pool is 67% (8 of 24 vCPUs is less); the row dialed nothing more
+  assert.deepEqual({ ...slice }, { cpu: true, gpuShare: 0, cpuShare: 0.67, share: 0.67, pct: 67 });
   assert.deepEqual([...fw], ["tcp:8443"]);
   assert.equal(flags.hinted, true);
+});
+
+test("a whole VM holds a CPU share: what its owner dialed, or what it needs of this node if that is more", async () => {
+  const { ctx } = sandbox();
+  const plan = { vcpus: 8, memMiB: 49152 };                     // Enclave RPC 1.4.1
+  assert.equal(ctx.snpVmSlice(plan, 1000).cpuShare, 1, "the dialed 100% is held");
+  assert.equal(ctx.snpVmSlice(plan, 10).cpuShare, 0.5, "48 GiB of 96: a 1% dial is lifted to what the VM takes");
+  assert.equal(ctx.snpVmSlice(plan, 0).cpuShare, 0.5);
+  assert.equal(ctx.snpVmSlice({ vcpus: 20, memMiB: 4096 }, 0).cpuShare, 0.84, "vCPUs decide when they are the larger part, rounded up");
+  assert.throws(() => ctx.snpVmSlice({ vcpus: 8, memMiB: 131072 }, 1000), /more than this host's pool/);
+  assert.throws(() => ctx.snpVmSlice(plan, 1000, { vcpus: 0, ramGb: 0 }), /no vCPU and RAM pool/);
+  assert.equal(ctx.snpVmDueShare({ _snpVm: plan, _shares: { cpuMilli: 1000 } }), 1);
+  assert.equal(ctx.snpVmDueShare({ _snpVm: { vcpus: 8, memMiB: 131072 }, _shares: { cpuMilli: 1000 } }), 0, "unsizable: nothing taken on a guess");
+});
+
+test("the claim gate refuses a new whole VM the node's share ledger has no room for; a resume is never given up", async () => {
+  const full = sandbox({ claimFreeCpu: () => 0.4 });
+  assert.match(await full.ctx.snpVmConsider(row({ cpuMilli: 10 }), gate({ min: { memMb: 49152 } }), opt), /no free CPU capacity here right now for this whole VM/);
+  assert.equal(full.calls.tryClaim.length, 0);
+  assert.equal(await full.ctx.snpVmConsider(row({ cpuMilli: 10 }), gate({ min: { memMb: 49152 } }), opt, { resume: true }), "claimed");
+  const [, , , slice, flags] = full.calls.tryClaim[0];
+  assert.equal(slice.cpuShare, 0.4, "it takes what is free; the reconciler raises it to its due share");
+  assert.equal(flags.resume, true);
+  const roomy = sandbox({ claimFreeCpu: () => 0.5 });
+  assert.equal(await roomy.ctx.snpVmConsider(row({ cpuMilli: 10 }), gate({ min: { memMb: 49152 } }), opt), "claimed");
+  assert.equal(roomy.calls.tryClaim[0][3].cpuShare, 0.5);
+  const tooBig = sandbox();
+  assert.match(await tooBig.ctx.snpVmConsider(row(), gate({ min: { memMb: 131072 } }), opt), /snpVm: the VM needs 8 vCPUs and 131072 MiB/);
+});
+
+test("/availability never states more CPU share than the box's own ledger has on the isolation tier", () => {
+  const fn = between(SRC, "function advertisedCpuFree(", "\n}\n") + "\n}";
+  const run = (backend, shareFree, managerFree) => vm.runInNewContext(fn + "; advertisedCpuFree(m)", { ISOLATION_BACKEND: backend, cpuPool: { shareFree }, m: managerFree, Math, Number });
+  assert.equal(run("snp-guest-per-app", 0, 0.2), 0, "a whole VM holding 100% leaves nothing, whatever the manager's room is");
+  assert.equal(run("snp-guest-per-app", 0.5, 0.2), 0.2, "the manager's live room still caps it");
+  assert.equal(run("snp-guest-per-app", 0.5, 0.9), 0.5);
+  assert.equal(run("", 0, 0.7), 0.7, "a box without the tier states its manager's figure, as before");
 });
 
 test("launch: 201 is a new VM, 409 with an sv id is this record's VM to adopt, anything else fails the provision", async () => {
@@ -112,5 +153,8 @@ test("the patch applies to metal0's deployed supervisor generation as well", { s
   fs.copyFileSync(DEPLOYED, tmp);
   execFileSync("python3", ["-I", path.join(ROOT, "metal/snpvm-supervisor-patch.py"), tmp]);
   execFileSync(process.execPath, ["--check", tmp]);
-  assert.match(fs.readFileSync(tmp, "utf8"), /async function snpVmConsider\(/);
+  const out = fs.readFileSync(tmp, "utf8");
+  assert.match(out, /async function snpVmConsider\(/);
+  for (const hook of ["function snpVmSlice(", "function advertisedCpuFree(", "advertisedCpuFree(c.cpuShareFree", "const due = snpVmDueShare(r);"])
+    assert.equal(out.split(hook).length, 2, `${hook} once in the patched generation`);
 });

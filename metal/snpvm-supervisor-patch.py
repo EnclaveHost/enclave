@@ -5,7 +5,7 @@ python3 -I metal/snpvm-supervisor-patch.py SUPERVISOR_JS
 A deployment whose options envelope carries {"snpVm":{"app":…,"measurementsFrom":"catalog://<app>/<index>"}} and
 whose catalog version is runtime "sev-snp-vm" (Enclave RPC: its own measured kernel, initrd and dm-verity root, and
 persistent chain disks) is claimed and renewed through the supervisor's ordinary path (considerClaim -> tryClaim ->
-adopt -> provisionTenant), with a zero CPU slice, no wasm prefetch, and its launch, liveness and stop sent to the host's
+adopt -> provisionTenant), with the CPU share its VM takes of the node (snpVmSlice), no wasm prefetch, and its launch, liveness and stop sent to the host's
 snp-vm manager (rpc/snp/vm-manager.mjs, SNPVM_URL, guestd-control/1 with guestd's pairing key) instead of guestd. The
 manager reports "running" only after verifying the guest's measurement against the version's allowlist and its HOST_DATA
 against the deployment. Every other deployment takes exactly the path it took before.
@@ -89,6 +89,20 @@ function snpVmPlanOf(g, appRef) {
            image: { rootHash: String(im.rootHash || "").toLowerCase(), ovmfSha256: String(im.ovmfSha256 || "").toLowerCase(),
                     cmdlineSha256: String(im.cmdlineSha256 || "").toLowerCase() } };
 }
+// A whole VM runs on the host's own cores and RAM, the same ones the node's pool sells, so it holds a CPU share like any
+// other deployment: what its owner dialed, or what the VM needs of this node if that is more. (Until 2026-11-19 it was
+// claimed with a zero slice: a deployment holding 100% of a node on the ledger sat beside capacity the node advertised.)
+function snpVmSlice(plan, cpuMilli, node = nodeSpec()) {
+  const need = Math.max(plan.memMiB / (node.ramGb * 1024), plan.vcpus / node.vcpus);
+  if (!Number.isFinite(need) || !(need > 0)) throw new Error("this host states no vCPU and RAM pool to size the VM against");
+  if (need > 1 + 1e-9) throw new Error(`the VM needs ${plan.vcpus} vCPUs and ${plan.memMiB} MiB, more than this host's pool`);
+  const dialed = Number(cpuMilli) / 1000;
+  return normalizeCpuReq(Math.max(dialed > 0 ? dialed : 0, Math.ceil(need * 100 - 1e-9) / 100));
+}
+// The share a held whole VM is due, for the pool reconciler; 0 when it cannot be sized (nothing is taken on a guess).
+function snpVmDueShare(rec) {
+  try { return snpVmSlice(rec._snpVm, rec._shares && rec._shares.cpuMilli).cpuShare; } catch { return 0; }
+}
 async function snpVmConsider(d, g, opt, { resume = false, hinted = false } = {}) {
   if (opt.measurementsFrom !== d.appRef) return "snpVm.measurementsFrom must name this deployment's own catalog version";
   let plan; try { plan = snpVmPlanOf(g, d.appRef); } catch (e) { return "snpVm: " + e.message; }
@@ -97,8 +111,13 @@ async function snpVmConsider(d, g, opt, { resume = false, hinted = false } = {})
   if (!h || h.backend !== "snp-vm") return "this host has no whole-VM SEV-SNP manager (snp-vm) answering";
   if (!(h.bindings || []).map(lc).includes(lc(d.id))) return "this host has no snp-vm binding (image, chain disks) for this deployment";
   const firewall = parseFirewall({ ports: g.ports ? String(g.ports).split(",") : [] });
-  return await tryClaim(d, { ...g, wasmRef: "snpvm:" + d.appRef, _snpVm: plan }, firewall,
-                        { cpu: true, cpuShare: 0, gpuShare: 0 }, { hinted, resume });
+  let slice; try { slice = snpVmSlice(plan, d.cpuMilli); } catch (e) { return "snpVm: " + e.message; }
+  const room = claimFreeCpu();
+  if (!resume && slice.cpuShare > room + 1e-9) return "no free CPU capacity here right now for this whole VM";
+  // a resume holds its lease and its VM already: it is never given up for the pool's sake. It takes what is free now and
+  // the pool reconciler raises it to its due share (snpVmDueShare), which leaves the node advertising nothing meanwhile.
+  if (resume && slice.cpuShare > room) slice = { ...slice, cpuShare: room, share: room };
+  return await tryClaim(d, { ...g, wasmRef: "snpvm:" + d.appRef, _snpVm: plan }, firewall, slice, { hinted, resume });
 }
 async function snpVmSpawn(deploymentId, plan) {
   const r = await snpVmReq("POST", "/vms", { name: lc(deploymentId), snpVm: plan }, SPAWN_TIMEOUT_MS);
@@ -114,6 +133,43 @@ async function snpVmSpawn(deploymentId, plan) {
 }
 
 async function spawnContainer({ deploymentId,'''),
+    # 9. a whole VM holds a CPU share: the pool reconciler raises one claimed before it was booked to the share it is due
+    ('''    if (h.cpu) { held.cpu += h.share; continue; }
+''',
+     '''    if (h.cpu && r._snpVm) {                                // a whole VM claimed before it was booked takes the share it is due
+      const due = snpVmDueShare(r);
+      if (due > h.share + 1e-9) {
+        raised.push(`whole VM ${String(r.id).slice(0, 10)} share ${round3(h.share)}->${round3(due)}`);
+        h.share = due; if (r.resources) r.resources.cpuShare = due; saveStateSoon();
+      }
+    }
+    if (h.cpu) { held.cpu += h.share; continue; }
+'''),
+    ('''  const held = { cpu: 0, cards: gpuCards.map(() => ({ vram: 0, compute: 0 })) };
+''',
+     '''  const held = { cpu: 0, cards: gpuCards.map(() => ({ vram: 0, compute: 0 })) }, raised = [];
+'''),
+    ('''  const fixed = [];
+  const apply = (obj, key, want, label, fmt) => {''',
+     '''  const fixed = raised;
+  const apply = (obj, key, want, label, fmt) => {'''),
+    # 10. /availability never states more CPU share than the box's own ledger still has (the claim gate's figure)
+    ('''    const cpuFree = PROVISION_BACKEND === "vm" ? (c.cpuShareFree ?? c.maxShare ?? maxFreeCpu()) : maxFreeCpu();''',
+     '''    const cpuFree = PROVISION_BACKEND === "vm" ? advertisedCpuFree(c.cpuShareFree ?? c.maxShare ?? maxFreeCpu()) : maxFreeCpu();'''),
+    ('''function claimFreeCpu() {
+  return ISOLATION_BACKEND ? Math.max(0, Math.min(1, cpuPool.shareFree)) : maxFreeCpu();
+}
+''',
+     '''function claimFreeCpu() {
+  return ISOLATION_BACKEND ? Math.max(0, Math.min(1, cpuPool.shareFree)) : maxFreeCpu();
+}
+// What /availability states on the per-app isolation tier: never more than this box's own share ledger still has. The
+// manager counts only the guests it holds; a whole VM, and a share dialed above a guest's size, are in the ledger alone.
+// The claim gate refuses against that ledger (claimFreeCpu), and a box must not advertise what its gate refuses.
+function advertisedCpuFree(managerFree) {
+  return ISOLATION_BACKEND ? Math.max(0, Math.min(Number(managerFree), cpuPool.shareFree)) : managerFree;
+}
+'''),
 ]
 
 

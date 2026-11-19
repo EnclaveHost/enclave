@@ -171,3 +171,21 @@ test("a terminal record whose instance is NOT confirmed stopped (_stopPending) s
   assert.equal(r.cpuShareFree, 0.97);
   assert.deepEqual(r.fixedAgain, []);
 });
+
+// A whole-VM app (Enclave RPC) was claimed with a zero CPU slice until 2026-11-19, so a state written before then
+// restores a live record that holds nothing: the node advertised free CPU beside a deployment holding 100% of it.
+test("a whole VM restored holding no share takes the share it is due; one that cannot be sized takes nothing", async () => {
+  const vmRec = (id, cpuMilli, memMiB, share = 0) => ({ id, status: "running", _snpVm: { vcpus: 8, memMiB },
+    _shares: { gpuMilli: 0, cpuMilli }, resources: { gpuShare: 0, cpuShare: share }, _gpu: { cpu: true, share } });
+  const r = await reconcile({ cpuShareFree: 1, cards: [], records: [vmRec("0x5ff56a4d00", 1000, 49152)] });
+  assert.equal(r.cpuShareFree, 0, "the dialed 100% is held");
+  assert.equal(r.fixed.length, 2); assert.match(r.fixed[0], /whole VM 0x5ff56a4d share 0->1/);
+  assert.deepEqual(r.fixedAgain, []);
+  // undersized dial: lifted to what the VM takes of the default node (NODE_RAM_GB), beside an ordinary 10% tenant
+  const mixed = await reconcile({ cpuShareFree: 0.9, cards: [], records: [
+    vmRec("0xaaaaaaaa00", 10, 1024), { id: "b", status: "running", _gpu: { cpu: true, share: 0.1 } }] });
+  assert.ok(mixed.cpuShareFree < 0.9 && mixed.cpuShareFree > 0, JSON.stringify(mixed));
+  // a share already at or above its due is left alone
+  const held = await reconcile({ cpuShareFree: 0, cards: [], records: [vmRec("0xbbbbbbbb00", 1000, 49152, 1)] });
+  assert.deepEqual([held.fixed, held.cpuShareFree], [[], 0]);
+});
