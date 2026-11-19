@@ -45,15 +45,17 @@ then walked the tree (about a minute), advertised 708 blocks and announced to ci
 `ipfs.enclave.host` for the `index.html` block within seconds. `https://enclavehost.eth.limo/` answered 200 in two
 seconds, with four other pages and a script.
 
+## The restart silence is fixed (1.0.7, 2026-11-19 05:57 UTC)
+
+`ipns-publisher` 1.0.7 (enclave-apps main cb05afd3c) tries a round that signed nothing again after 30 s, doubling to
+at most 15 minutes, and starts a failed block walk again on the same backoff. The owner signed its two transactions
+(blocks 59385808, 59385850). The relaunched partition was not touched: it signed its record 3.5 minutes after its
+start (the rounds before that failed, as the first one did on 1.0.6), walked the tree, and had all 708 blocks
+advertised and announced a minute later. eth.limo answered 200 before, during and after.
+
 ## What is not done
 
-- **A restarted publisher publishes nothing for four hours, until 1.0.7 runs.** The fix is `ipns-publisher` 1.0.7
-  (enclave-apps main cb05afd3c): a round that signs nothing is tried again after 30 s, doubling to at most 15
-  minutes, and a failed block walk starts again on the same backoff. Run locally with the value source down at
-  start and brought up 40 s later, it failed twice and then signed. The component
-  (`bafybeici6m6kye4zyl2iarxvc5l5bgp4xup35lua7747oqxeea3zyiubyu`) is in the storage adapter; the catalog version and
-  the deployment's reference are staged unsigned in `~/enclave-prod/ipns-publisher-v107/` (both simulate as the
-  owner). Signing them relaunches the publisher once; the name keeps loading meanwhile.
+
 - **Nothing fills the block store on a site release.** The step is a tool, not part of the rollout the edges run.
   With every block advertised, a root whose blocks are missing fails the publisher's walk (its status page says
   which block), and that root is then not advertised at all.
