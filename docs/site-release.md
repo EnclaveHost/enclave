@@ -60,6 +60,11 @@ Every step after build needs the CID explicitly: `--approve <CID>`.
 A release dir holds exactly `site/`, `site.car`, `site-root.block`, `site-root.txt`, `release.json`, `headers.caddy` and
 `installers/`. Every file outside `site/` is derived from `site/` alone.
 
+A gateway that IPFS nodes fetch from block by block also needs each block of the tree by its own CID.
+`node scripts/site-release/blocks.mjs <site.car> <root-cid> <blocks-dir>` writes them from the verified CAR, one file per
+CID. A gateway with only the root block, the CAR and the files by path serves the root and nothing under it
+(`docs/operations/enclavehost-eth-unreachable-20261119.md`).
+
 ## Targets
 
 A targets file is operator-owned. Unknown keys are refused, so no secret or host can ride in unnoticed.
