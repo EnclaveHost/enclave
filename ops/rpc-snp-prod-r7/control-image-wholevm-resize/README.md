@@ -53,9 +53,13 @@ measurement command reproduces 2c9e322's accepted value and gives the new one.
 
 ## The resize
 
-Staged unsigned in `~/enclave-prod/enclave-rpc-shares-50/` (`trezor-send.sh`): `setShares(0x5ff56a4d…454f, 0, 500)`,
-simulated as the owner (rate stays 0, the lease window is kept). Within one audit pass the supervisor should log
-`owner changed shares: cpuMilli 1000 -> 500; a whole VM, booked at cpuShare 0.5 in place, the VM keeps running`, and
-metal0 advertises up to 50% CPU again, capped by the host's free memory.
+The owner signed `setShares(0x5ff56a4d…454f, 0, 500)` (`~/enclave-prod/enclave-rpc-shares-50/trezor-send.sh`), block
+59711167, 2026-11-19 23:56:49 UTC. Eleven seconds later the supervisor logged
+`owner changed shares: cpuMilli 1000 -> 500; a whole VM, booked at cpuShare 0.5 in place, the VM keeps running`.
+The VM's process is the one started 40 hours before (no stop, no release, no new claim) and the app answers 200.
+This was the first in-place resize on the live box.
+
+metal0's `/availability` after it: `cpuShareFree 0.21`, `usedCpuShare 0.79`, 5 vCPUs and 20.2 GB free. The share
+ledger has 50% free; the advertised figure is the smaller of that and what the host's free memory allows.
 
 Rollback of the image: `control-image.sh rollback`.
