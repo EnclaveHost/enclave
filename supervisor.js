@@ -4809,6 +4809,8 @@ function snpVmPlanOf(g, appRef) {
 // other deployment: what its owner dialed, or what the VM needs of this node if that is more. (Until 2026-11-19 it was
 // claimed with a zero slice: a deployment holding 100% of a node on the ledger sat beside capacity the node advertised.)
 function snpVmSlice(plan, cpuMilli, node = nodeSpec()) {
+  // on the per-app tier the node IS the manager's pool; until that pool is heard the figures are only the boot defaults
+  if (ISOLATION_BACKEND && node.pool === false) throw new Error("this host's pool is not read yet");
   const need = Math.max(plan.memMiB / (node.ramGb * 1024), plan.vcpus / node.vcpus);
   if (!Number.isFinite(need) || !(need > 0)) throw new Error("this host states no vCPU and RAM pool to size the VM against");
   if (need > 1 + 1e-9) throw new Error(`the VM needs ${plan.vcpus} vCPUs and ${plan.memMiB} MiB, more than this host's pool`);

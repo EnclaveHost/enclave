@@ -181,7 +181,7 @@ test("a whole VM restored holding no share takes the share it is due; one that c
   assert.equal(r.cpuShareFree, 0, "the dialed 100% is held");
   assert.equal(r.fixed.length, 2); assert.match(r.fixed[0], /whole VM 0x5ff56a4d share 0->1/);
   assert.deepEqual(r.fixedAgain, []);
-  // undersized dial: lifted to what the VM takes of the default node (NODE_RAM_GB), beside an ordinary 10% tenant
+  // undersized dial: lifted to what the VM takes of the node (the boot figures here: no isolation tier), beside an ordinary 10% tenant
   const mixed = await reconcile({ cpuShareFree: 0.9, cards: [], records: [
     vmRec("0xaaaaaaaa00", 10, 1024), { id: "b", status: "running", _gpu: { cpu: true, share: 0.1 } }] });
   assert.ok(mixed.cpuShareFree < 0.9 && mixed.cpuShareFree > 0, JSON.stringify(mixed));

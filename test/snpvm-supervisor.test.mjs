@@ -83,6 +83,10 @@ test("a whole VM holds a CPU share: what its owner dialed, or what it needs of t
   assert.equal(ctx.snpVmSlice({ vcpus: 20, memMiB: 4096 }, 0).cpuShare, 0.84, "vCPUs decide when they are the larger part, rounded up");
   assert.throws(() => ctx.snpVmSlice({ vcpus: 8, memMiB: 131072 }, 1000), /more than this host's pool/);
   assert.throws(() => ctx.snpVmSlice(plan, 1000, { vcpus: 0, ramGb: 0 }), /no vCPU and RAM pool/);
+  // before the manager's pool is heard the node figures are boot defaults: nothing is sized, claimed or booked on them
+  assert.throws(() => ctx.snpVmSlice(plan, 500, { vcpus: 4, ramGb: 64, pool: false }), /pool is not read yet/);
+  assert.equal(sandbox({ nodeSpec: () => ({ vcpus: 4, ramGb: 64, pool: false }) }).ctx.snpVmDueShare({ _snpVm: plan, _shares: { cpuMilli: 500 } }), 0);
+  assert.equal(sandbox({ ISOLATION_BACKEND: "" }).ctx.snpVmSlice(plan, 500, { vcpus: 24, ramGb: 96, pool: false }).cpuShare, 0.5, "a box without the tier has only those figures");
   assert.equal(ctx.snpVmDueShare({ _snpVm: plan, _shares: { cpuMilli: 1000 } }), 1);
   assert.equal(ctx.snpVmDueShare({ _snpVm: { vcpus: 8, memMiB: 131072 }, _shares: { cpuMilli: 1000 } }), 0, "unsizable: nothing taken on a guess");
 });
