@@ -16,7 +16,9 @@ export function parseBindings(text) {
     seen.add(key); return b;
   });
 }
-export async function startConnector(text, dial) {
+// host: the loopback address the local ports bind (default 127.0.0.1; a GameStream client may need its own, e.g. 127.0.0.2).
+export async function startConnector(text, dial, { host = '127.0.0.1', log = console.log } = {}) {
+  if (!/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) throw new Error('forwarded ports bind only to a 127.x loopback address');
   const listeners = [], connections = new Set(), cancelPeers = new Set();
   let stopped = false;
   const stop = () => {
@@ -45,7 +47,7 @@ export async function startConnector(text, dial) {
           } catch (e) { console.error(`tcp:${b.remote}: ${e.message}`); close(); }
         });
         listeners.push(server);
-        await new Promise((resolve, reject) => { server.once('error', reject); server.listen(b.local, '127.0.0.1', resolve); });
+        await new Promise((resolve, reject) => { server.once('error', reject); server.listen(b.local, host, resolve); });
       } else {
         const socket = dgram.createSocket('udp4'), peers = new Map();
         listeners.push(socket);
@@ -89,9 +91,9 @@ export async function startConnector(text, dial) {
           if (state.stream) { if (state.stream.writableLength + frame.length <= MAX_QUEUE) state.stream.write(frame); }
           else if (state.bytes + frame.length <= MAX_QUEUE) { state.pending.push(frame); state.bytes += frame.length; }
         });
-        await new Promise((resolve, reject) => { socket.once('error', reject); socket.bind(b.local, '127.0.0.1', resolve); });
+        await new Promise((resolve, reject) => { socket.once('error', reject); socket.bind(b.local, host, resolve); });
       }
-      console.log(`FORWARD ${b.protocol} 127.0.0.1:${b.local} -> guest:${b.remote} (attested TLS)`);
+      log(`FORWARD ${b.protocol} ${host}:${b.local} -> guest:${b.remote} (attested TLS)`);
     }
   } catch (e) { stop(); throw e; }
   return stop;

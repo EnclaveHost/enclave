@@ -1519,6 +1519,66 @@ async function cmdAttest(rest) {
   exit(attestExit(result.status));
 }
 
+// `enclave connect`: a local, attested origin for one guest (cli/connect.mjs). The browser, curl, ssh or Moonlight
+// talk to 127.0.0.1; every byte to the guest goes over TLS whose key a fresh AMD report vouched for. Expectations
+// are the caller's (--expect, --app-sha, …, or a --policy file an app ships), never read from the guest itself.
+async function cmdConnect(rest) {
+  const f = flags(rest, { bool: ["--no-http", "--no-kds", "--unbound"],
+    val: ["--policy", "--origin", "--servername", "--app-sha", "--runtime", "--vcek", "--amd-chain", "--host-data", "--listen", "--port", "--port-host",
+          "--auth-env", "--auth-file", "--basic-file", "--state"] });
+  const usage = "usage: enclave connect <id>|--origin https://host[:port] --expect MEASUREMENT[,…] [--app-sha HEX] [--policy FILE] [--port tcp:22,udp:47998] [--listen [127.0.0.1:]PORT]";
+  if (!f._[0] && !f.origin && !f.policy) throw new Error(usage);
+  // a policy file: the same fields as the flags, paths relative to the file; any flag wins over it
+  let pol = {}, polDir = process.cwd();
+  if (f.policy) { pol = JSON.parse(fs.readFileSync(path.resolve(f.policy), "utf8")); polDir = path.dirname(path.resolve(f.policy)); }
+  const file = (p) => (p ? fs.readFileSync(path.resolve(polDir, p)) : null);
+  const json = (v) => (v == null ? undefined : typeof v === "object" ? v : JSON.parse(String(v).startsWith("@") ? fs.readFileSync(String(v).slice(1), "utf8") : v));
+  let id = null;
+  if (f._[0] || pol.deploymentId) id = await resolveId(f._[0] || pol.deploymentId, loadKey({ required: false }));
+  if (id && !isB32(id)) throw new Error("connect binds the report to an on-chain deployment: give its bytes32 id (a legacy dep_… id has none)");
+  const origin = new URL(f.origin || pol.origin || (id && /(^|\/\/)api\.(enclave|nan)\.host/i.test(API_BASE) ? appUrl(id) : "") || "https://invalid.");
+  if (origin.hostname === "invalid.") throw new Error("this API base has no per-deployment origin: pass --origin https://host[:port]");
+  if (origin.protocol !== "https:" || (origin.pathname !== "/" && origin.pathname !== "")) throw new Error("--origin is an https origin with no path");
+  const measurements = String(opt.expect || [].concat(pol.measurements || pol.measurement || []).join(",")).split(",").map((m) => m.trim().toLowerCase()).filter(Boolean);
+  const amdChain = {};
+  for (const [product, p] of Object.entries(pol.amdChain || {})) amdChain[product] = file(p).toString("utf8");
+  if (f["amd-chain"]) { const [product, p] = f["amd-chain"].split("="); if (!product || !p) throw new Error("--amd-chain takes Product=cert_chain.pem"); amdChain[product] = fs.readFileSync(p, "utf8"); }
+  const hostData = String(f["host-data"] || id || pol.hostData || "").toLowerCase() || null;
+  const verify = await (await import("./connect.mjs")).guestVerifier({
+    hostData, unbound: !!(f.unbound || pol.unbound) && !hostData, measurements,
+    appSha: (f["app-sha"] || pol.appSha || "").toLowerCase() || null,
+    runtime: f.runtime ? JSON.parse(fs.readFileSync(f.runtime, "utf8")) : typeof pol.runtime === "string" ? JSON.parse(file(pol.runtime)) : pol.runtime,
+    minTcb: json(opt.minTcb ?? pol.minTcb),
+    vcek: f.vcek ? fs.readFileSync(f.vcek) : pol.vcek ? file(pol.vcek) : null,
+    amdChain, kds: f["no-kds"] || pol.kds === false ? false : undefined,
+  });
+  // the credential the guest expects, from the environment or a file (never argv, which other local users can read)
+  let authorization = null;
+  if (f["auth-env"]) { authorization = env[f["auth-env"]]; if (!authorization) throw new Error(`$${f["auth-env"]} is empty`); }
+  else if (f["auth-file"]) authorization = fs.readFileSync(f["auth-file"], "utf8").trim();
+  else if (f["basic-file"]) {
+    const at = f["basic-file"].indexOf(":");
+    if (at < 1) throw new Error("--basic-file takes USER:FILE");
+    authorization = "Basic " + Buffer.from(f["basic-file"].slice(0, at) + ":" + fs.readFileSync(f["basic-file"].slice(at + 1), "utf8").trim()).toString("base64");
+  }
+  const lm = /^(?:(127\.\d{1,3}\.\d{1,3}\.\d{1,3}):)?(\d{1,5})$/.exec(f.listen || pol.listen || "0");
+  if (!lm || +lm[2] > 65535) throw new Error("--listen takes [127.x.y.z:]PORT");
+  const { startConnect } = await import("./connect.mjs");
+  const log = (s) => stderr.write(s + "\n");
+  const c = await startConnect({
+    host: origin.hostname.replace(/^\[|\]$/g, ""), port: Number(origin.port || 443), servername: f.servername || pol.servername || origin.hostname,
+    verify, listen: { host: lm[1] || "127.0.0.1", port: +lm[2] }, serveHttp: !f["no-http"], ports: f.port || pol.ports || null,
+    portHost: f["port-host"] || pol.portHost || "127.0.0.1", authorization, stateFile: f.state ? path.resolve(f.state) : null, log });
+  const a = c.attestation();
+  if (opt.json) jout({ url: c.url, remote: c.remote, deployment: id, measurement: a.verdict.measurement || null, format: a.verdict.format || null,
+    spkiSha256: crypto.createHash("sha256").update(a.pin).digest("hex") });
+  else kv([["deployment", id], ["remote", c.remote], ["verdict", "PASS: fresh AMD SEV-SNP report, expected measurement, key pinned"], ["local", c.url], ["ports", f.port || pol.ports]]);
+  if (!opt.json) say("Ctrl-C to stop.");
+  await new Promise((resolve) => { process.once("SIGINT", resolve); process.once("SIGTERM", resolve); });
+  c.stop();
+  exit(0);
+}
+
 
 async function cmdStop(rest) {
   // with a session: deploy.setActive(false) on a deployment the vault holds, or (delegated) the owner's wallet holds
@@ -4613,6 +4673,14 @@ ${HISTORY_PUBLIC_OPTIONS.map(o=>`                               ${o.url} (${o.op
   logs <id> [-f] [--tail N]  the app's stdout/stderr (-f polls)
   fund <id> --usdc 5|--eth 0.002   top up runtime by the second
   attest [<id>]              fetch attestation + verify it LOCALLY (no key needed); nonzero exit on FAIL
+  connect <id> --expect M    a local attested origin for the app: verify a fresh SNP report, pin
+                             the guest's TLS key, then serve http://127.0.0.1:PORT (HTTP + WebSocket)
+    --port tcp:22,udp:N=M    also forward guest ports through its attested tunnel (--port-host 127.0.0.2)
+    --app-sha HEX            the AppID a guest-domain report must name (whole-VM apps need only --expect)
+    --policy FILE            the expectations as JSON (an app can ship one); flags win over it
+    --auth-env VAR | --auth-file F | --basic-file USER:F   credential added to every request
+    --origin https://h:p --host-data 0x…|--unbound   a guest that is not a platform deployment
+    --listen [127.x:]PORT  --state FILE  --no-http  --vcek F  --amd-chain P=F  --no-kds  --min-tcb JSON|@F
   restart <id>               stop + relaunch the app in place (same version,
                              endpoint and balance; app state is ephemeral) - the
                              fix for a wedged instance, no wallet tx needed
@@ -5893,7 +5961,7 @@ async function sessionInspect(rest) {
 const COMMANDS = {
   key: cmdKey, login: cmdLogin, logout: cmdLogout,
   whoami: cmdWhoami, deploy: cmdDeploy, ls: cmdLs, list: cmdLs,
-  status: cmdStatus, logs: cmdLogs, fund: cmdFund, attest: cmdAttest,
+  status: cmdStatus, logs: cmdLogs, fund: cmdFund, attest: cmdAttest, connect: cmdConnect,
   restart: cmdRestart, stop: cmdStop, suspend: cmdStop, resume: cmdResume, move: cmdMove,
   upgrade: cmdUpgrade, "set-version": cmdUpgrade,
   resize: (rest) => cmdUpgrade(rest, { resize: true }),
