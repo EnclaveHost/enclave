@@ -17,10 +17,12 @@ const { build } = await import("esbuild").catch(() => {
 // outside cli/ - from HERE: the bundle then carries ONE viem, the CLI's pinned
 // copy, and a checkout whose only node_modules is cli/'s (the hosted installer's
 // `npm ci` in cli/) still builds, where sdk/ alone would find no viem at all.
+// The same holds for the other packages shared modules outside cli/ import (custody/, network/): resolve them from
+// cli/'s locked node_modules, or a hosted build (cli/ npm ci only) cannot find them at all.
 const cliViem = {
   name: "cli-viem",
   setup(b) {
-    b.onResolve({ filter: /^viem(\/.*)?$/ }, (args) => {
+    b.onResolve({ filter: /^(viem|ws|@noble\/(hashes|ciphers|curves))(\/.*)?$/ }, (args) => {
       if (args.pluginData?.cliViem || args.resolveDir === here || args.resolveDir.startsWith(here + path.sep)) return undefined;
       return b.resolve(args.path, { kind: args.kind, resolveDir: here, pluginData: { cliViem: true } });
     });
