@@ -338,6 +338,9 @@ async function cmdTopUp(file, { port, amount }) {
         catch (e) {
           // a relay that did not answer may still have sent it: "unknown" until the session's balance says otherwise
           await store.putJournal({ ...entry, status: e.code === "relay_unreachable" ? "unknown" : "refused", code: e.code ?? null, at: Number(nowS()) });
+          // signing again is safe: every signature over this page's authorization carries the same USDC nonce (the TopUp
+          // digest), so at most one of them can ever move the USDC, and the relay answers a repeat of a sent one read-only
+          done = false;
           throw e;
         }
         await store.putJournal({ ...entry, status: r.pending ? "pending" : "submitted", txHashes: r.txHash ? [lower(r.txHash)] : [], at: Number(nowS()) });
@@ -346,6 +349,7 @@ async function cmdTopUp(file, { port, amount }) {
         setTimeout(() => server.close(), 1000);
         return;
       }
+      if (req.method === "POST" && req.url === "/signed") return send(409, { error: "this top-up is being submitted or was submitted; see the terminal" });
       send(404, { error: "not found" });
     } catch (e) { send(400, { error: String(e.message).slice(0, 300) }); }
   });
