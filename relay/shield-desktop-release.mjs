@@ -119,9 +119,9 @@ export function desktopRecordFor(args) {
     "cpuMilli", "gpuMilli", "config"], "desktop record request");
   const release = validateDesktopRelease(a.release);
   if (a.cid !== release.controllerCid) throw new Error("desktop CID is not the approved controller");
-  // CPU and GPU shares are purchase checks; only gpuMilli is carried by the record.
+  // CPU and GPU shares are purchase checks; only gpuMilli is carried by the record, exactly as purchased.
   integer(a.cpuMilli, release.minimumCpuMilli, 1000, "CPU milli");
-  integer(a.gpuMilli, 500, 1000, "GPU milli");
+  integer(a.gpuMilli, 1, 1000, "GPU milli");
   integer(a.memMiB, 8192, 65536, "memory MiB");
   requirePorts(typeof a.ports === "string" ? a.ports : data(a.ports, "desktop ports"));
   const configBase64 = Buffer.from(desktopConfigText(a.config), "utf8").toString("base64");

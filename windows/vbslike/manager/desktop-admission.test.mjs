@@ -184,7 +184,7 @@ test("firewall, when present, is exactly the record's ports in order", () => {
 
 test("a malformed record or body is refused with a reason, never thrown", () => {
   const edits = [(r) => { delete r.secretDeployment; }, (r) => { r.derivation = "enclave-catalog-bundle/7"; },
-    (r) => { r.ports = r.ports.slice(1); }, (r) => { r.extra = 1; }, (r) => { r.desktop.gpuMilli = 499; },
+    (r) => { r.ports = r.ports.slice(1); }, (r) => { r.extra = 1; }, (r) => { r.desktop.gpuMilli = 0; },
     (r) => { r.secretDeployment = "0x" + "0".repeat(64); }];
   for (const edit of edits) {
     const r = structuredClone(RECORD);

@@ -8,6 +8,8 @@ import { NATIVE_24G_MEMORY_PROFILE } from './desktop-memory.mjs';
 
 const hash = s => typeof s === 'string' && /^[0-9a-f]{64}$/.test(s);
 const id = s => typeof s === 'string' && /^0x[0-9a-f]{64}$/.test(s);
+// a purchased share: a whole number of thousandths of the node or card, never zero
+const share = x => typeof x === 'number' && x > 0 && x <= 1 && Math.abs(x * 1000 - Math.round(x * 1000)) < 1e-6;
 export function nativeInstanceFromBytes(bytes, expectedHash, { port, dataPort, prefix } = {}) {
   if (!Buffer.isBuffer(bytes) || !bytes.length || bytes.length > 65536 || !hash(expectedHash)
       || createHash('sha256').update(bytes).digest('hex') !== expectedHash)
@@ -28,7 +30,7 @@ export function nativeInstanceFromBytes(bytes, expectedHash, { port, dataPort, p
           || d?.derivation !== DESKTOP_DERIVATION || d?.catalog?.app !== pins.catalogApp
           || d?.catalog?.version !== pins.catalogVersion || d?.cid !== pins.cid || d?.runtimeId !== pins.runtimeId
           || d?.desktop?.profileSha256 !== pins.profileSha256 || d?.secretDeployment !== pins.deployment
-          || body?.cpuShare !== .25 || body?.gpuShare !== .5 || d?.desktop?.gpuMilli !== 500)
+          || !share(body?.cpuShare) || !share(body?.gpuShare) || d?.desktop?.gpuMilli !== Math.round(body.gpuShare * 1000))
         throw Object.assign(new Error('request differs from pinned native deployment'), { status: 400 });
     } });
 }

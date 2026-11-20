@@ -58,7 +58,7 @@ test('native expectation requires independent approval, sealed identity, resourc
     d => { d.fetchVerified = async () => ({ ok: false }); }]) {
     const d = deps(); mutate(d); await assert.rejects(expectedShieldApp(row, d));
   }
-  for (const patch of [{ cpuMilli: 249 }, { gpuMilli: 0 }, { gpuMilli: 499 }, { isPublic: false },
+  for (const patch of [{ cpuMilli: 249 }, { gpuMilli: 0 }, { gpuMilli: 1001 }, { isPublic: false },
     { configCid: JSON.stringify({ waf: { enabled: true } }) }, { id: '0x' + '00'.repeat(32) }])
     await assert.rejects(expectedShieldApp({ ...row, ...patch }, deps()));
 });

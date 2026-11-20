@@ -36,7 +36,7 @@ const options={timeout:5000};
 test('strict frame parsing and binding geometry',()=>{
  assert.equal(parseDesktopWorkerLine(Buffer.from(claim())).op,'claim');
  assert.equal(parseDesktopWorkerLine(Buffer.from(`native-worker-v1 open ${'a'.repeat(64)}\n`)).op,'open');
- for(const s of [claim()+'\n',claim()+'x',claim().replace(' claim ','\tclaim '),claim({boot:'0'.repeat(32)}),claim({appID:'A'.repeat(64)}),claim({claim:'0'.repeat(64)}),claim({profileSHA:'0'.repeat(64)}),claim({gpuMilli:499}),claim({gpuMilli:1001}),claim({gpuMilli:'0500'}),'x'.repeat(513),`native-worker-v1 open ${'0'.repeat(64)}\n`,`native-worker-v1 open ${'a'.repeat(64)}\n\n`])assert.throws(()=>parseDesktopWorkerLine(Buffer.from(s)));
+ for(const s of [claim()+'\n',claim()+'x',claim().replace(' claim ','\tclaim '),claim({boot:'0'.repeat(32)}),claim({appID:'A'.repeat(64)}),claim({claim:'0'.repeat(64)}),claim({profileSHA:'0'.repeat(64)}),claim({gpuMilli:0}),claim({gpuMilli:1001}),claim({gpuMilli:'0500'}),'x'.repeat(513),`native-worker-v1 open ${'0'.repeat(64)}\n`,`native-worker-v1 open ${'a'.repeat(64)}\n\n`])assert.throws(()=>parseDesktopWorkerLine(Buffer.from(s)));
 });
 
 test('authenticated claim, exact allocation and one-time use',options,async t=>{

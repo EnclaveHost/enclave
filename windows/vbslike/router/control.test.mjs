@@ -74,7 +74,7 @@ test('legacy GET/custody remains on original manager with exact bytes even if na
  await f.manager.handle('POST','/vms/hv1234/custody-auth',bytes,headers);const call=f.calls.at(-1);assert.equal(call.role,'legacy');assert.equal(call.body,bytes);assert.equal(call.headers,headers);
 });
 test('forged native namespace and deployment cannot be sent to legacy backend',async t=>{
- const f=fixture(t);for(const patch of [{id:nd,derive:{derivation:'enclave-catalog-bundle/7'}},{name:'0x'+'9'.repeat(64)},{cpuShare:.5},{gpuShare:1}])await assert.rejects(f.manager.spawn({...f.body,...patch}));assert.equal(f.calls.some(x=>x.method==='POST'),false);
+ const f=fixture(t);for(const patch of [{id:nd,derive:{derivation:'enclave-catalog-bundle/7'}},{name:'0x'+'9'.repeat(64)},{cpuShare:0},{gpuShare:1}])await assert.rejects(f.manager.spawn({...f.body,...patch}));assert.equal(f.calls.some(x=>x.method==='POST'),false);
 });
 for(const mode of ['missing','truncated','bad digest','group-readable','symlink','missing parent'])test('journal '+mode+' refuses reads and launches',async t=>{
  const f=fixture(t),file=f.journal.file;

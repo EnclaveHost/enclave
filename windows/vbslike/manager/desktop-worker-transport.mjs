@@ -15,14 +15,14 @@ const HEX = /^[0-9a-f]{64}$/;
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const nonzero = s => typeof s === 'string' && s.length === 64 && HEX.test(s) && !/^0+$/.test(s);
 function expectation(x) {
-  if (!x || !nonzero(x.appID) || !nonzero(x.profileSHA) || !Number.isInteger(x.gpuMilli) || x.gpuMilli < 500 || x.gpuMilli > 1000)
+  if (!x || !nonzero(x.appID) || !nonzero(x.profileSHA) || !Number.isInteger(x.gpuMilli) || x.gpuMilli < 1 || x.gpuMilli > 1000)
     throw new Error('native worker needs a verified app/profile/allocation binding');
   return Object.freeze({ appID: x.appID, profileSHA: x.profileSHA, gpuMilli: x.gpuMilli });
 }
 export function parseDesktopWorkerLine(raw) {
   if (!Buffer.isBuffer(raw) || raw.length > MAX_LINE) throw new Error('invalid native worker frame');
   const s = raw.toString('latin1');
-  let m = /^native-worker-v1 claim ([0-9a-f]{32}) ([0-9a-f]{64}) ([0-9a-f]{64}) ([0-9a-f]{64}) ([5-9][0-9]{2}|1000)\n$/.exec(s);
+  let m = /^native-worker-v1 claim ([0-9a-f]{32}) ([0-9a-f]{64}) ([0-9a-f]{64}) ([0-9a-f]{64}) ([1-9][0-9]{0,2}|1000)\n$/.exec(s);
   if (m && m[0] === s && m.slice(1, 5).every(v => !/^0+$/.test(v)))
     return { op: 'claim', boot: m[1], claim: m[2], appID: m[3], profileSHA: m[4], gpuMilli: Number(m[5]) };
   m = /^native-worker-v1 open ([0-9a-f]{64})\n$/.exec(s);

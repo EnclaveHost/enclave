@@ -44,7 +44,7 @@ export function validateDesktopRecord(r) {
   keys(r.desktop, ["profile", "profileSha256", "gpuMilli"], "desktop profile");
   if (r.desktop.profile !== DESKTOP_PROFILE || !nonzero(r.desktop.profileSha256))
     throw new Error("invalid measured desktop profile");
-  integer(r.desktop.gpuMilli, 500, 1000, "GPU milli");
+  integer(r.desktop.gpuMilli, 1, 1000, "GPU milli");
   if (typeof r.configBase64 !== "string" || !r.configBase64.length || r.configBase64.length > Math.ceil(MAX_CONFIG_BYTES / 3) * 4)
     throw new Error("invalid desktop public configuration length");
   const bytes = Buffer.from(r.configBase64, "base64");

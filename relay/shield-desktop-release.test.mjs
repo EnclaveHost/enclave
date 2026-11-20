@@ -140,7 +140,7 @@ test("configuration arrays cannot hide sparse elements behind named properties",
 test("CPU and GPU shares and memory are bounded at record construction", () => {
   for (const [over, ok] of [[{ cpuMilli: 249 }, false], [{ cpuMilli: 250 }, true], [{ cpuMilli: 1000 }, true],
     [{ cpuMilli: 1001 }, false], [{ cpuMilli: 500.5 }, false], [{ cpuMilli: "500" }, false],
-    [{ gpuMilli: 499 }, false], [{ gpuMilli: 500 }, true], [{ gpuMilli: 1000 }, true], [{ gpuMilli: 1001 }, false],
+    [{ gpuMilli: 0 }, false], [{ gpuMilli: 1 }, true], [{ gpuMilli: 100 }, true], [{ gpuMilli: 500 }, true], [{ gpuMilli: 1000 }, true], [{ gpuMilli: 1001 }, false],
     [{ gpuMilli: 750.5 }, false], [{ memMiB: 8191 }, false], [{ memMiB: 8192 }, true], [{ memMiB: 65536 }, true],
     [{ memMiB: 65537 }, false], [{ memMiB: 16384.5 }, false],
     [{ release: rawRelease({ minimumCpuMilli: 1000 }), cpuMilli: 999 }, false],

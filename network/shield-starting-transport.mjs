@@ -18,7 +18,7 @@ export function startingShieldTransport(base, expected, {fetchImpl=fetch, connec
   if(want.requiresDesktop===true) {
    const d=want.desktop;
    if(!d||!['recordSha256','controllerSha256','igvmSha256','profileSha256'].every(k=>/^[0-9a-f]{64}$/.test(d[k]||''))||
-      d.profile!=='kvm-box-masked-v1'||!Number.isSafeInteger(d.gpuMilli)||d.gpuMilli<500||d.gpuMilli>1000||v.derivation!=='enclave-catalog-bundle/8'||v.imageRole!=='desktop'||v.recordSha256!==d.recordSha256||
+      d.profile!=='kvm-box-masked-v1'||!Number.isSafeInteger(d.gpuMilli)||d.gpuMilli<1||d.gpuMilli>1000||v.derivation!=='enclave-catalog-bundle/8'||v.imageRole!=='desktop'||v.recordSha256!==d.recordSha256||
       v.componentSha256!==d.controllerSha256||v.image!==d.igvmSha256||v.igvmSha256!==d.igvmSha256||
       ['profile','profileSha256','gpuMilli'].some(k=>v.desktop?.[k]!==d[k]))throw Error('native startup release identity differs');
   } else if(v.derivation==='enclave-catalog-bundle/8'||v.imageRole==='desktop'||v.desktop!=null)throw Error('native startup requires explicit desktop expectation');

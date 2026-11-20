@@ -23,13 +23,15 @@ test('native instance preserves exact installed version zero pins and scope',()=
 test('native gate rejects each deployment, content and resource substitution before delegation',()=>{
   const instance=make(pins);let calls=0;
   const manager={health:()=>({canStart:true}),spawn:()=>++calls};bindNativeInstance(manager,instance);
-  for(const mutate of [b=>b.name='other',b=>b.id='hv'+'a'.repeat(32),b=>b.cpuShare=.5,b=>b.gpuShare=.25,
+  for(const mutate of [b=>b.name='other',b=>b.id='hv'+'a'.repeat(32),b=>b.cpuShare=0,b=>b.cpuShare=1.5,b=>b.gpuShare=.25,
     b=>b.derive.derivation='other',b=>b.derive.catalog.app='0x'+H('f'),b=>b.derive.catalog.version=1,
     b=>b.derive.cid='other',b=>b.derive.runtimeId=H('f'),b=>b.derive.secretDeployment='0x'+H('f'),
     b=>b.derive.desktop.profileSha256=H('f'),b=>b.derive.desktop.gpuMilli=1000]) {
     const b=body();mutate(b);assert.throws(()=>manager.spawn(b),{status:400});
   }
   assert.equal(calls,0);assert.equal(manager.spawn(body()),1);
+  // the shares are the purchase's: any share is admitted when the record carries the same GPU share
+  const small=body();small.cpuShare=.17;small.gpuShare=.1;small.derive.desktop.gpuMilli=100;assert.equal(manager.spawn(small),2);
   assert.deepEqual(manager.health().vmScope,{prefix:options.prefix,marker:instance.marker});
 });
 test('missing pins, hash mismatch, invalid UTF8 and wrong instance placement refuse',()=>{

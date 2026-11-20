@@ -22,6 +22,8 @@ const V8 = 'enclave-catalog-bundle/8';
 const LIVE = new Set(['starting', 'running']);
 const hash = x => createHash('sha256').update(JSON.stringify(x)).digest('hex');
 const error = (message, status=503) => Object.assign(new Error(message), {status});
+// a purchased share: a whole number of thousandths of the node or card, never zero
+const share = x => typeof x === 'number' && x > 0 && x <= 1 && Math.abs(x*1000-Math.round(x*1000)) < 1e-6;
 const natural = (x, label) => {if (!Number.isSafeInteger(x) || x < 0) throw error(`unknown ${label}`); return x;};
 export function routePath(raw, enrolled=false) {
   if(typeof raw!=='string'||!raw.startsWith('/')||raw.startsWith('//')||raw.length>2048)throw error('unknown manager route',404);
@@ -205,7 +207,7 @@ export class CompositeManager {
   checkNative(body) {
     const p=this.pins,d=body.derive;
     if (body.name!==p.deployment || body.id || d?.catalog?.app!==p.catalogApp || d?.catalog?.version!==p.catalogVersion || d?.cid!==p.cid || d?.runtimeId!==p.runtimeId || d?.desktop?.profileSha256!==p.profileSha256 || d?.secretDeployment!==p.deployment) throw error('native request differs from configured deployment',400);
-    if (body.cpuShare!==0.25 || body.gpuShare!==0.5 || d.desktop.gpuMilli!==500) throw error('native resource allocation differs from configured deployment',400);
+    if (!share(body.cpuShare) || !share(body.gpuShare) || d.desktop.gpuMilli!==Math.round(body.gpuShare*1000)) throw error('native resource allocation differs from configured deployment',400);
   }
   checkBootstrap(body,h) {
     const d=body.derive;

@@ -77,7 +77,7 @@ func (b Binding) validate() error {
 		return fmt.Errorf("%w: AppID", ErrInvalidBinding)
 	case !isHex(b.ProfileSHA, 64):
 		return fmt.Errorf("%w: ProfileSHA", ErrInvalidBinding)
-	case b.GPUMilli < 500 || b.GPUMilli > 1000:
+	case b.GPUMilli < 1 || b.GPUMilli > 1000:
 		return fmt.Errorf("%w: GPUMilli", ErrInvalidBinding)
 	}
 	return nil

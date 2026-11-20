@@ -76,7 +76,7 @@ test("native planning refuses unavailable manager capabilities and unknown input
 });
 
 test("native purchase refuses invalid resources, extra ports and public configuration", () => {
-  for (const change of [x => { x.deployment.cpuMilli = 249; }, x => { x.deployment.gpuMilli = 499; },
+  for (const change of [x => { x.deployment.cpuMilli = 249; }, x => { x.deployment.gpuMilli = 0; },
     x => { x.version.memMb = 8191; }, x => { x.version.memMb = 16384.5; },
     x => { x.version.ports += ",tcp:22"; }, x => { x.appConfig.egress = "all"; },
     x => { x.appConfig.volumes = ["model"]; }, x => { x.deployment.gpuMilli = null; }]) {
