@@ -10,7 +10,9 @@
 //   - this module pays at most ONE refill per pass, never while any execution of the session is unresolved, and
 //     reconciles unresolved ones read-only first (an unknown outcome is never resent: gas-execution.mjs rule 4).
 // Nothing here signs as the owner. Opening the session (the grant + USDC deposit) is the owner's wallet action.
-import { buildGrantV2, MAX_GRANT_APPS, parseHex32, parseUint, ZERO_HASH } from "../funding/funding-codec.mjs";
+import { hashTypedData } from "viem";
+import { buildGrantV2, domainOf, MAX_GRANT_APPS, parseHex32, parseUint, TYPES_V2, ZERO_HASH } from "../funding/funding-codec.mjs";
+import { depositTypedData } from "../funding/funding-client.mjs";
 import { fail, lower } from "../funding/util.mjs";
 import * as X from "../funding/gas-execution.mjs";
 
@@ -72,6 +74,26 @@ export function buildRefillGrant(cfg, { now, sessionKey, appIds, grantNonce, sig
   const built = buildGrantV2(cfg, { domainVersion: "2", now: n, grant });
   if (built.actionsMask !== 1n << 10n || !built.gasFundGranted) fail("gas_grant_shape", "a refill grant is exactly gas.fund");
   return built;
+}
+
+/**
+ * More USDC for the refill session that is already open: FundingSessionVault.topUpWithAuthorization, ONE owner signature.
+ * The owner signs a USDC ReceiveWithAuthorization (owner -> vault, `amount6`) whose nonce is the vault-domain TopUp digest
+ * (sessionId, amount, opNonce, signBefore), so the authorization can only credit this session with this amount. The vault
+ * recomputes that digest from the call's arguments; nothing here signs. Typed data, digest and the relay's
+ * /funding/owner body (args.sig filled in by the caller once the wallet signed) only.
+ */
+export function buildRefillTopUp(cfg, { usdcDomain, sessionId, amount6, opNonce, signBefore }) {
+  const amount = parseUint(amount6, 128, "amount6");
+  if (amount === 0n || amount > REFILL_LIMITS.budget6) fail("refill_term_range", `a top-up must be 1..${REFILL_LIMITS.budget6} (USDC 6dp), got ${amount}`);
+  const topUp = { domain: domainOf(cfg), types: { TopUp: TYPES_V2.TopUp }, primaryType: "TopUp",
+    message: { sessionId: parseHex32(lower(sessionId), "sessionId", { nonZero: true }), amount,
+      opNonce: parseHex32(lower(opNonce), "opNonce", { nonZero: true }), signBefore: parseUint(signBefore, 64, "signBefore") } };
+  const digest = hashTypedData(topUp);
+  const authorization = depositTypedData(usdcDomain, { from: cfg.owner, to: cfg.vault, value: amount, nonce: digest, validBefore: topUp.message.signBefore });
+  const body = (sig) => ({ owner: cfg.owner, vault: cfg.vault, op: "topUpWithAuthorization", args: { sessionId: topUp.message.sessionId,
+    amount: amount.toString(), opNonce: topUp.message.opNonce, validAfter: "0", validBefore: topUp.message.signBefore.toString(), sig } });
+  return Object.freeze({ topUp, digest, authorization, body });
 }
 
 /**

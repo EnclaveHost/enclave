@@ -7,20 +7,22 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { webcrypto } from "node:crypto";
+import { concat, encodeAbiParameters, keccak256, recoverTypedDataAddress, toHex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { fundingConfig, predictVault } from "../sdk/funding/funding-codec.mjs";
 import { gasRecordId, newGasRecord, signerFor } from "../sdk/funding/v2-store.mjs";
 import { FileV2Store } from "../sdk/funding-node/node-store.mjs";
-import { buildRefillGrant, refillNeed, refillOnce, refillTerms, REFILL_LIMITS } from "../sdk/funding-node/refill.mjs";
+import { buildRefillGrant, buildRefillTopUp, refillNeed, refillOnce, refillTerms, REFILL_LIMITS } from "../sdk/funding-node/refill.mjs";
 import { EXEC_SCHEMA } from "../sdk/funding/gas-execution.mjs";
-import { failoverRpc } from "../cli/gas-refill.mjs";
+import { failoverRpc, usdc6 } from "../cli/gas-refill.mjs";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "refill-"));
 const A = (n) => `0x${n.toString(16).padStart(40, "0")}`;
 const H = (n) => `0x${n.toString(16).padStart(64, "0")}`;
 const RENEW = 1_386_930_418_318n, CLAIM = 2_288_400_237_629n;      // live quotes at 0.006 gwei, 2026-11-11
 
-function cfg() {
-  const factory = A(0xf1), implementation = A(0xf2), owner = A(0x0b2d);
+function cfg(owner = A(0x0b2d)) {
+  const factory = A(0xf1), implementation = A(0xf2);
   return fundingConfig({ chainId: 8453, factory, implementation, vault: predictVault(factory, implementation, owner), owner,
     gasAdapter: A(0xf3), legacyFactory: A(0xf4), legacyVault: A(0xf5), adapterMaxEthOut: 1_000_000_000_000_000n, adapterFeeTiers: [100, 500, 3000] });
 }
@@ -181,4 +183,55 @@ test("failoverRpc: a provider with no answer is skipped, a chain error is not re
   calls.length = 0;
   await assert.rejects(rpc2("eth_call"), /execution reverted/);
   assert.deepEqual(calls, ["c"]);
+});
+
+// FundingSessionVault.topUpWithAuthorization recomputes the TopUp digest from its arguments and passes it to USDC as the
+// ReceiveWithAuthorization nonce; the digest here is rebuilt the way the vault builds it (DOMAIN_TYPEHASH, NAME_HASH,
+// VERSION_HASH, TOPUP_TYPEHASH, 0x1901), not with the typed-data helper under test.
+const USDC_DOMAIN = Object.freeze({ name: "USD Coin", version: "2", chainId: 8453, verifyingContract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" });
+const k = (s) => keccak256(toHex(s));
+function vaultTopUpDigest(vault, sid, amount, opNonce, signBefore) {
+  const domain = keccak256(encodeAbiParameters([{ type: "bytes32" }, { type: "bytes32" }, { type: "bytes32" }, { type: "uint256" }, { type: "address" }],
+    [k("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"), k("Enclave Sessions"), k("2"), 8453n, vault]));
+  const struct = keccak256(encodeAbiParameters([{ type: "bytes32" }, { type: "bytes32" }, { type: "uint256" }, { type: "bytes32" }, { type: "uint64" }],
+    [k("TopUp(bytes32 sessionId,uint256 amount,bytes32 opNonce,uint64 signBefore)"), sid, amount, opNonce, signBefore]));
+  return keccak256(concat(["0x1901", domain, struct]));
+}
+
+test("buildRefillTopUp: the USDC authorization's nonce is the vault's TopUp digest; the relay body is exactly its shape", async () => {
+  const c = cfg();
+  const t = buildRefillTopUp(c, { usdcDomain: USDC_DOMAIN, sessionId: H(0x5e55), amount6: "10000000", opNonce: H(0x77), signBefore: 1_794_400_900n });
+  assert.equal(t.digest, vaultTopUpDigest(c.vault, H(0x5e55), 10_000_000n, H(0x77), 1_794_400_900n));
+  const a = t.authorization;
+  assert.equal(a.primaryType, "ReceiveWithAuthorization");
+  assert.deepEqual(a.domain, USDC_DOMAIN);
+  assert.deepEqual(a.message, { from: c.owner, to: c.vault, value: 10_000_000n, validAfter: 0n, validBefore: 1_794_400_900n, nonce: t.digest });
+  // the relay's ownerArgs("topUpWithAuthorization"): exactly these args, no top-level sig
+  const b = t.body("0xsig");
+  assert.deepEqual(Object.keys(b).sort(), ["args", "op", "owner", "vault"]);
+  assert.deepEqual(b, { owner: c.owner, vault: c.vault, op: "topUpWithAuthorization",
+    args: { sessionId: H(0x5e55), amount: "10000000", opNonce: H(0x77), validAfter: "0", validBefore: "1794400900", sig: "0xsig" } });
+  // a wallet signature over the authorization recovers to its signer (what the page's /signed check relies on)
+  const owner = privateKeyToAccount(H(0x0b2d));
+  const o = cfg(owner.address);
+  const t2 = buildRefillTopUp(o, { usdcDomain: USDC_DOMAIN, sessionId: H(0x5e55), amount6: 1n, opNonce: H(0x77), signBefore: 1_794_400_900n });
+  const sig = await owner.signTypedData(t2.authorization);
+  assert.equal(await recoverTypedDataAddress({ ...t2.authorization, signature: sig }), owner.address);
+  assert.notEqual(t2.digest, t.digest);                            // the amount is part of the digest, so of the nonce
+});
+
+test("buildRefillTopUp: refuses a zero or over-ceiling amount and a missing session or nonce", () => {
+  const c = cfg(), base = { usdcDomain: USDC_DOMAIN, sessionId: H(1), amount6: 1n, opNonce: H(2), signBefore: 1_794_400_900n };
+  assert.throws(() => buildRefillTopUp(c, { ...base, amount6: 0n }), /top-up must be/);
+  assert.throws(() => buildRefillTopUp(c, { ...base, amount6: REFILL_LIMITS.budget6 + 1n }), /top-up must be/);
+  assert.equal(buildRefillTopUp(c, { ...base, amount6: REFILL_LIMITS.budget6 }).authorization.message.value, REFILL_LIMITS.budget6);
+  assert.throws(() => buildRefillTopUp(c, { ...base, sessionId: H(0) }));
+  assert.throws(() => buildRefillTopUp(c, { ...base, opNonce: H(0) }));
+});
+
+test("usdc6: decimal USDC to 6dp units, nothing looser", () => {
+  assert.equal(usdc6("10"), 10_000_000n);
+  assert.equal(usdc6("2.5"), 2_500_000n);
+  assert.equal(usdc6(" 0.000001 "), 1n);
+  for (const bad of ["", "-1", "1e3", "1.0000001", "0x10", "1,5", true, undefined]) assert.throws(() => usdc6(bad), /--amount must be/);
 });

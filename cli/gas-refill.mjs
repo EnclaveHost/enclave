@@ -5,6 +5,9 @@
 //                                                          wallet for the grant and the USDC deposit (two signatures)
 //   node cli/gas-refill.mjs run    CONFIG [--once]         every interval: reconcile, read reserves, refill at most one app
 //   node cli/gas-refill.mjs status CONFIG                  the session, unresolved refills and every app's runway
+//   node cli/gas-refill.mjs topup  CONFIG --amount USDC [--port 42291]
+//                                                          more USDC for the session that is open: a local page asks the
+//                                                          owner's wallet for one USDC authorization, the relay submits it
 //
 // CONFIG (JSON): { "owner": "0x…", "deployments": ["0x…", …], "store": "/path/0700/dir",
 //   "relayBase": "https://api.enclave.host", "rpcs": ["https://mainnet.base.org", …], "book": "0x…", "reserve": "0x…",
@@ -16,13 +19,13 @@ import http from "node:http";
 import fs from "node:fs";
 import { webcrypto } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { createPublicClient, fallback, http as viemHttp, recoverTypedDataAddress } from "viem";
+import { createPublicClient, fallback, http as viemHttp, parseAbi, recoverTypedDataAddress } from "viem";
 import { base } from "viem/chains";
 import { freshRecoveryScope, jsonRpc, relayClient, submitGasOpen, usdcDomain, depositTypedData, grantBody, verifyRuntime }
   from "../sdk/funding/funding-client.mjs";
 import { newGasRecord } from "../sdk/funding/v2-store.mjs";
 import { FileV2Store } from "../sdk/funding-node/node-store.mjs";
-import { buildRefillGrant, refillNeed, refillOnce, refillTerms } from "../sdk/funding-node/refill.mjs";
+import { buildRefillGrant, buildRefillTopUp, refillNeed, refillOnce, refillTerms } from "../sdk/funding-node/refill.mjs";
 import { executionBlockers } from "../sdk/funding/gas-execution.mjs";
 import { randomHex32, sameAddr, lower } from "../sdk/funding/util.mjs";
 import { quote as leaseQuote, RESERVE_ABI } from "../client/lease-executor-client.mjs";
@@ -164,8 +167,7 @@ async function cmdStatus(file) {
 
 // ----- open: one local page, two owner signatures, then the relay's /funding/open and the on-chain proof -----
 
-const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Automatic gas refill</title><style>
+const STYLE = `<style>
 :root{--bg:#f7f7f5;--fg:#1c1c1a;--muted:#6b6b66;--line:#dcdcd6;--act:#1d4ed8;--warn:#9a3412;--ok:#1f7a3f}
 @media (prefers-color-scheme:dark){:root{--bg:#141413;--fg:#ecece8;--muted:#a3a39c;--line:#33332f;--act:#93b4ff;--warn:#fdba74;--ok:#4ade80}}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}main{max-width:760px;margin:0 auto;padding:24px 16px 64px}
@@ -173,7 +175,10 @@ h1{font-size:22px;margin:0 0 4px}.lead{color:var(--muted)}table{border-collapse:
 td{border-top:1px solid var(--line);padding:4px 6px;vertical-align:top;word-break:break-all}td:first-child{color:var(--muted);width:38%;word-break:normal}
 button{font:inherit;padding:8px 14px;border-radius:6px;border:1px solid var(--act);background:var(--act);color:#fff;cursor:pointer;margin-right:8px}
 button:disabled{opacity:.45;cursor:not-allowed}#msg{margin-top:12px}.err{color:var(--warn)}.ok{color:var(--ok)}code{font:12px ui-monospace,monospace}
-</style></head><body><main><h1>Turn on automatic gas refill</h1>
+</style>`;
+
+const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Automatic gas refill</title>${STYLE}</head><body><main><h1>Turn on automatic gas refill</h1>
 <p class="lead">Two signatures from your owner wallet on Base: the grant below, then a USDC deposit of the budget into your session vault. After that, the refiller tops up these apps' gas from that USDC on its own, within these limits. You can end the session from the Dashboard at any time; unspent USDC returns to you.</p>
 <table id="terms"></table><button id="go">Connect and sign</button><div id="msg"></div></main>
 <script type="module">
@@ -251,11 +256,108 @@ async function cmdOpen(file, { port }) {
   setTimeout(() => { if (!done) { out({ action: "open_expired", why: "the signing window passed unused; nothing was sent" }); server.close(); } }, 905_000);
 }
 
+// ----- topup: more USDC for the open session, one owner signature, then the relay's /funding/owner -----
+// A session's budget is only its opening balance: the vault spends whatever balance it holds, within the grant's per-period
+// and per-op caps, so an empty session that is still live needs USDC, not a new grant.
+
+const TOPUP_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gas refill top-up</title>${STYLE}</head><body><main><h1>Add USDC to automatic gas refill</h1>
+<p class="lead">One signature from your owner wallet on Base: a USDC transfer of the amount below into your refill session. It can credit only this session with only this amount, and only until the time shown. The refiller keeps the same limits as before. You can end the session from the Dashboard at any time; unspent USDC returns to you.</p>
+<table id="terms"></table><button id="go">Connect and sign</button><div id="msg"></div></main>
+<script type="module">
+const $=(i)=>document.getElementById(i),esc=(s)=>String(s).replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const r=await (await fetch("/review")).json();
+$("terms").innerHTML=Object.entries(r.show).map(([k,v])=>"<tr><td>"+esc(k)+"</td><td><code>"+esc(v)+"</code></td></tr>").join("");
+$("go").onclick=async()=>{const m=$("msg");$("go").disabled=true;m.className="";try{
+ const p=window.ethereum;if(!p)throw new Error("no browser wallet");
+ const [a]=await p.request({method:"eth_requestAccounts"});if(a.toLowerCase()!==r.owner.toLowerCase())throw new Error("connect the owner "+r.owner+", not "+a);
+ if(parseInt(await p.request({method:"eth_chainId"}),16)!==8453)await p.request({method:"wallet_switchEthereumChain",params:[{chainId:"0x2105"}]});
+ m.textContent="Confirm the USDC transfer on the Trezor…";const authSig=await p.request({method:"eth_signTypedData_v4",params:[a,r.authTyped]});
+ m.textContent="Submitting…";const s=await (await fetch("/signed",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({authSig})})).json();
+ if(s.error)throw new Error(s.error);m.className="ok";m.textContent=s.pending?"Sent ("+s.txHash+"); waiting for Base. The refiller uses it once it is on chain.":"Added on chain: "+s.txHash+". You can close this page.";
+}catch(e){m.className="err";m.textContent=(e&&e.code===4001)?"Rejected in the wallet. Nothing was sent.":"Not done: "+(e.message||e);$("go").disabled=false;}};
+</script></body></html>`;
+
+const VAULT_ABI = parseAbi(["function isLive(bytes32 sid) view returns (bool)", "function maxVault6() view returns (uint256)"]);
+const ERC20_ABI = parseAbi(["function balanceOf(address) view returns (uint256)"]);
+
+/** "10", "2.5", "0.000001" USDC -> 6dp units. Anything else (signs, exponents, more than 6 decimals) is refused. */
+export function usdc6(text) {
+  const m = /^(\d{1,9})(?:\.(\d{1,6}))?$/.exec(String(text ?? "").trim());
+  if (!m) throw new Error(`--amount must be a USDC amount such as 10 or 2.5, got ${text === true ? "nothing" : text}`);
+  return BigInt(m[1]) * 1_000_000n + BigInt((m[2] ?? "").padEnd(6, "0"));
+}
+
+async function cmdTopUp(file, { port, amount }) {
+  const c = loadConfig(file);
+  const ctx = await context(c);
+  const { runtime, store, relay, rpc, client } = ctx;
+  const amount6 = usdc6(amount);
+  const record = await openRecord(store, c.owner);
+  if (!record) throw new Error("no refill session is open in this store; run open for a new one");
+  const vault = runtime.cfg.vault, usdc = runtime.pins.usdc;
+  const [live, cap, held, wallet] = await Promise.all([
+    client.readContract({ address: vault, abi: VAULT_ABI, functionName: "isLive", args: [record.sid] }),
+    client.readContract({ address: vault, abi: VAULT_ABI, functionName: "maxVault6" }),
+    client.readContract({ address: usdc, abi: ERC20_ABI, functionName: "balanceOf", args: [vault] }),
+    client.readContract({ address: usdc, abi: ERC20_ABI, functionName: "balanceOf", args: [runtime.cfg.owner] })]);
+  if (!live) throw new Error(`session ${record.sid} is no longer live on chain (ended, expired or revoked); run open for a new one`);
+  if (held + amount6 > cap) throw new Error(`the vault would hold ${held + amount6} USDC units, above its cap of ${cap}`);
+  if (wallet < amount6) throw new Error(`the owner's wallet holds ${wallet} USDC units, less than ${amount6}`);
+  const view = await relay("GET", `/funding/session/${vault}/${record.sid}`).catch(() => null);
+  const now = nowS();
+  const t = buildRefillTopUp(runtime.cfg, { usdcDomain: await usdcDomain(rpc, usdc), sessionId: record.sid, amount6,
+    opNonce: randomHex32(webcrypto), signBefore: now + 900n });
+  const signBefore = t.topUp.message.signBefore;
+  const usd = (v) => `${(Number(v) / 1e6).toFixed(6).replace(/\.?0+$/, "")} USDC`;
+  const show = { "Session vault": vault, "Session": record.sid, "Add to the session": usd(amount6),
+    ...(view?.state?.balance6 !== undefined ? { "Session holds now": usd(view.state.balance6) } : {}),
+    "From wallet": `${runtime.cfg.owner} (holds ${usd(wallet)})`, "Sign before": new Date(Number(signBefore) * 1000).toISOString(),
+    "Top-up digest": t.digest };
+  const entry = { id: `gas-owner:${t.topUp.message.opNonce}`, kind: "gas-owner", op: "topUpWithAuthorization", sessionId: record.sid,
+    amount: amount6.toString(), digest: t.digest };
+  let done = false;
+  const server = http.createServer(async (req, res) => {
+    const send = (code, body, type = "application/json") => { res.writeHead(code, { "content-type": type, "cache-control": "no-store" });
+      res.end(type === "application/json" ? JSON.stringify(body) : body); };
+    try {
+      if (req.method === "GET" && req.url === "/") return send(200, TOPUP_PAGE, "text/html; charset=utf-8");
+      if (req.method === "GET" && req.url === "/review") return send(200, { owner: runtime.cfg.owner, show, authTyped: typedJson(t.authorization) });
+      if (req.method === "POST" && req.url === "/signed" && !done) {
+        let body = ""; for await (const ch of req) { body += ch; if (body.length > 4096) throw new Error("too large"); }
+        const { authSig } = JSON.parse(body);
+        const td = t.authorization;
+        if (!/^0x[0-9a-fA-F]{130}$/.test(String(authSig))) throw new Error("not a 65-byte signature (contract wallets are not supported)");
+        const who = await recoverTypedDataAddress({ domain: td.domain, types: td.types, primaryType: td.primaryType, message: td.message, signature: authSig });
+        if (!sameAddr(who, runtime.cfg.owner)) throw new Error("the signature does not recover to the owner");
+        if (nowS() > signBefore) throw new Error("the 15-minute signing window passed; run topup again");
+        done = true;
+        await store.putJournal({ ...entry, status: "submitting", at: Number(nowS()) });
+        let r;
+        try { r = await relay("POST", "/funding/owner", t.body(authSig)); }
+        catch (e) {
+          // a relay that did not answer may still have sent it: "unknown" until the session's balance says otherwise
+          await store.putJournal({ ...entry, status: e.code === "relay_unreachable" ? "unknown" : "refused", code: e.code ?? null, at: Number(nowS()) });
+          throw e;
+        }
+        await store.putJournal({ ...entry, status: r.pending ? "pending" : "submitted", txHashes: r.txHash ? [lower(r.txHash)] : [], at: Number(nowS()) });
+        out({ action: "topped_up", amount6, ...r });
+        send(200, r);
+        setTimeout(() => server.close(), 1000);
+        return;
+      }
+      send(404, { error: "not found" });
+    } catch (e) { send(400, { error: String(e.message).slice(0, 300) }); }
+  });
+  server.listen(Number(port), "127.0.0.1", () => out({ action: "topup_page", url: `http://127.0.0.1:${port}/`, amount6, signBefore }));
+  setTimeout(() => { if (!done) { out({ action: "topup_expired", why: "the signing window passed unused; nothing was sent" }); server.close(); } }, 905_000);
+}
+
 if (process.argv[1] && fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [cmd, file, ...rest] = process.argv.slice(2);
   const flag = (n, d) => { const i = rest.indexOf(n); return i < 0 ? d : (rest[i + 1] ?? true); };
   const run = { open: () => cmdOpen(file, { port: flag("--port", "42291") }), run: () => cmdRun(file, { once: rest.includes("--once") }),
-    status: () => cmdStatus(file) }[cmd];
-  if (!run || !file) { console.error("usage: node cli/gas-refill.mjs open|run|status CONFIG [--port N] [--once]"); process.exit(2); }
+    status: () => cmdStatus(file), topup: () => cmdTopUp(file, { port: flag("--port", "42291"), amount: flag("--amount") }) }[cmd];
+  if (!run || !file) { console.error("usage: node cli/gas-refill.mjs open|run|status|topup CONFIG [--port N] [--once] [--amount USDC]"); process.exit(2); }
   run().catch((e) => { out({ action: "error", code: e.code ?? null, why: e.message }); process.exit(1); });
 }
