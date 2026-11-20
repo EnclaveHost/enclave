@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createHash, X509Certificate } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { startConnect, guestVerifier } from '../cli/connect.mjs';
+import { startConnect, guestVerifier, shieldVerifier, composeVerifier, SHIELD_FORMAT } from '../cli/connect.mjs';
 
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 async function keypair(dir, name) {
@@ -164,4 +164,32 @@ test('guestVerifier refuses incomplete expectations up front', async () => {
   assert.match((await v({ format: 'other' }, Buffer.alloc(1), Buffer.alloc(32))).reason, /AppID/);
   const vm = await guestVerifier({ unbound: true, measurements: ['ab'.repeat(48)] });
   assert.match((await vm({ format: 'sev-snp-vm-v1' }, Buffer.alloc(1), Buffer.alloc(32))).reason, /named deployment/);
+});
+
+test('composeVerifier: a Shield guest is refused unless --shield was asked for, and each format goes to its own verifier', async () => {
+  const calls = [];
+  const snp = async (doc) => { calls.push(['snp', doc.format]); return { ok: true }; };
+  const shield = async (doc) => { calls.push(['shield', doc.format]); return { ok: true, limited: true }; };
+  const refusesShield = composeVerifier({ snp });
+  const r = await refusesShield({ format: SHIELD_FORMAT }, Buffer.alloc(1), Buffer.alloc(32));
+  assert.equal(r.ok, false); assert.match(r.reason, /--shield/);
+  const refusesSnp = composeVerifier({ shield });
+  const s = await refusesSnp({ format: 'sev-snp-vm-v1' }, Buffer.alloc(1), Buffer.alloc(32));
+  assert.equal(s.ok, false); assert.match(s.reason, /--expect/);
+  const both = composeVerifier({ snp, shield });
+  assert.equal((await both({ format: SHIELD_FORMAT }, Buffer.alloc(1), Buffer.alloc(32))).limited, true);
+  await both({ format: 'sev-snp-guest-domain-v1' }, Buffer.alloc(1), Buffer.alloc(32));
+  assert.deepEqual(calls, [['shield', SHIELD_FORMAT], ['snp', 'sev-snp-guest-domain-v1']], 'the refusals above called neither verifier');
+});
+
+test('shieldVerifier needs a host name and a full deployment id, and a host that does not verify opens nothing', async () => {
+  const id = '0x' + 'f9'.repeat(32);
+  assert.throws(() => shieldVerifier({ deployment: id }), /host name/);
+  assert.throws(() => shieldVerifier({ name: 'nucbox-k11-4', deployment: '0xf9bb979a' }), /deployment id/);
+  // the relay answers nothing usable for the host session: refused before any expectation is read or document judged
+  const seen = [];
+  const fetchImpl = async (url) => { seen.push(String(url)); return new Response(JSON.stringify({ error: 'nope' }), { status: 500, headers: { 'content-type': 'application/json' } }); };
+  const v = shieldVerifier({ apiBase: 'https://api.invalid', name: 'nucbox-k11-4', deployment: id, fetchImpl });
+  await assert.rejects(v({ format: SHIELD_FORMAT }, Buffer.alloc(1), Buffer.alloc(32)), /attestation refused: Shield host nucbox-k11-4/);
+  assert.ok(seen.length > 0 && seen.every((u) => !u.includes('/apps/')), 'no app attestation is requested before the host verified');
 });

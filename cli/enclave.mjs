@@ -1523,8 +1523,8 @@ async function cmdAttest(rest) {
 // talk to 127.0.0.1; every byte to the guest goes over TLS whose key a fresh AMD report vouched for. Expectations
 // are the caller's (--expect, --app-sha, …, or a --policy file an app ships), never read from the guest itself.
 async function cmdConnect(rest) {
-  const f = flags(rest, { bool: ["--no-http", "--no-kds", "--unbound"],
-    val: ["--policy", "--origin", "--servername", "--app-sha", "--runtime", "--vcek", "--amd-chain", "--host-data", "--listen", "--port", "--port-host",
+  const f = flags(rest, { bool: ["--no-http", "--no-kds", "--unbound", "--shield"],
+    val: ["--policy", "--origin", "--shield-host", "--servername", "--app-sha", "--runtime", "--vcek", "--amd-chain", "--host-data", "--listen", "--port", "--port-host",
           "--auth-env", "--auth-file", "--basic-file", "--state"] });
   const usage = "usage: enclave connect <id>|--origin https://host[:port] --expect MEASUREMENT[,…] [--app-sha HEX] [--policy FILE] [--port tcp:22,udp:47998] [--listen [127.0.0.1:]PORT]";
   if (!f._[0] && !f.origin && !f.policy) throw new Error(usage);
@@ -1544,14 +1544,24 @@ async function cmdConnect(rest) {
   for (const [product, p] of Object.entries(pol.amdChain || {})) amdChain[product] = file(p).toString("utf8");
   if (f["amd-chain"]) { const [product, p] = f["amd-chain"].split("="); if (!product || !p) throw new Error("--amd-chain takes Product=cert_chain.pem"); amdChain[product] = fs.readFileSync(p, "utf8"); }
   const hostData = String(f["host-data"] || id || pol.hostData || "").toLowerCase() || null;
-  const verify = await (await import("./connect.mjs")).guestVerifier({
+  const C = await import("./connect.mjs");
+  // --shield: also accept an Enclave Shield (Hyper-V) guest, verified through its host's TPM session (limited, never a pass)
+  let shield = null;
+  if (f.shield || pol.shield) {
+    if (!id) throw new Error("--shield verifies a platform deployment: give its id");
+    const shieldHost = f["shield-host"] || pol.shieldHost || (await api("GET", `/v1/deployments/${id}`)).enclave;
+    shield = C.shieldVerifier({ apiBase: API_BASE, name: shieldHost, deployment: id.toLowerCase(), log: (s) => stderr.write(s + "\n") });
+  }
+  if (!measurements.length && !shield) throw new Error("connect needs the expected launch measurement (--expect), or --shield for an Enclave Shield guest");
+  const snp = measurements.length ? await C.guestVerifier({
     hostData, unbound: !!(f.unbound || pol.unbound) && !hostData, measurements,
     appSha: (f["app-sha"] || pol.appSha || "").toLowerCase() || null,
     runtime: f.runtime ? JSON.parse(fs.readFileSync(f.runtime, "utf8")) : typeof pol.runtime === "string" ? JSON.parse(file(pol.runtime)) : pol.runtime,
     minTcb: json(opt.minTcb ?? pol.minTcb),
     vcek: f.vcek ? fs.readFileSync(f.vcek) : pol.vcek ? file(pol.vcek) : null,
     amdChain, kds: f["no-kds"] || pol.kds === false ? false : undefined,
-  });
+  }) : null;
+  const verify = C.composeVerifier({ snp, shield });
   // the credential the guest expects, from the environment or a file (never argv, which other local users can read)
   let authorization = null;
   if (f["auth-env"]) { authorization = env[f["auth-env"]]; if (!authorization) throw new Error(`$${f["auth-env"]} is empty`); }
@@ -1563,16 +1573,19 @@ async function cmdConnect(rest) {
   }
   const lm = /^(?:(127\.\d{1,3}\.\d{1,3}\.\d{1,3}):)?(\d{1,5})$/.exec(f.listen || pol.listen || "0");
   if (!lm || +lm[2] > 65535) throw new Error("--listen takes [127.x.y.z:]PORT");
-  const { startConnect } = await import("./connect.mjs");
+  const { startConnect } = C;
   const log = (s) => stderr.write(s + "\n");
   const c = await startConnect({
     host: origin.hostname.replace(/^\[|\]$/g, ""), port: Number(origin.port || 443), servername: f.servername || pol.servername || origin.hostname,
     verify, listen: { host: lm[1] || "127.0.0.1", port: +lm[2] }, serveHttp: !f["no-http"], ports: f.port || pol.ports || null,
     portHost: f["port-host"] || pol.portHost || "127.0.0.1", authorization, stateFile: f.state ? path.resolve(f.state) : null, log });
   const a = c.attestation();
-  if (opt.json) jout({ url: c.url, remote: c.remote, deployment: id, measurement: a.verdict.measurement || null, format: a.verdict.format || null,
+  if (opt.json) jout({ url: c.url, remote: c.remote, deployment: id, measurement: a.verdict.measurement || null, format: a.verdict.format || null, limited: !!a.verdict.limited,
     spkiSha256: crypto.createHash("sha256").update(a.pin).digest("hex") });
-  else kv([["deployment", id], ["remote", c.remote], ["verdict", "PASS: fresh AMD SEV-SNP report, expected measurement, key pinned"], ["local", c.url], ["ports", f.port || pol.ports]]);
+  else kv([["deployment", id], ["remote", c.remote],
+    ["verdict", a.verdict.limited ? `LIMITED (accepted with --shield): ${a.verdict.format}, host TPM session + image verified, key pinned; not verified: ${a.verdict.omissions.join(", ")}`
+      : "PASS: fresh AMD SEV-SNP report, expected measurement, key pinned"],
+    ["local", c.url], ["ports", f.port || pol.ports ? `${f["port-host"] || pol.portHost || "127.0.0.1"} ${f.port || pol.ports}` : null]]);
   if (!opt.json) say("Ctrl-C to stop.");
   await new Promise((resolve) => { process.once("SIGINT", resolve); process.once("SIGTERM", resolve); });
   c.stop();
@@ -4680,6 +4693,8 @@ ${HISTORY_PUBLIC_OPTIONS.map(o=>`                               ${o.url} (${o.op
     --policy FILE            the expectations as JSON (an app can ship one); flags win over it
     --auth-env VAR | --auth-file F | --basic-file USER:F   credential added to every request
     --origin https://h:p --host-data 0x…|--unbound   a guest that is not a platform deployment
+    --shield [--shield-host N]   accept an Enclave Shield (Hyper-V) guest: host TPM session + image,
+                             LIMITED (the host is not excluded); expectations stated by the relay
     --listen [127.x:]PORT  --state FILE  --no-http  --vcek F  --amd-chain P=F  --no-kds  --min-tcb JSON|@F
   restart <id>               stop + relaunch the app in place (same version,
                              endpoint and balance; app state is ephemeral) - the

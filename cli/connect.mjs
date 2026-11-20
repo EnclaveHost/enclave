@@ -225,3 +225,62 @@ export async function guestVerifier({ hostData = null, unbound = false, measurem
     return { ok: v.gateOpen === true && v.verdict === 'attested', format: doc?.format || 'sev-snp-guest-domain', measurement: v.measurement, reason: v.reasons?.at(-1), verdict: v.verdict };
   };
 }
+
+// An Enclave Shield guest (a VBS-isolated Hyper-V partition on a Windows host). Its evidence chains to the HOST, not to
+// a CPU vendor, and the host is not excluded: a pass proves the host's measured boot (a genuine TPM, over our nonce) and
+// the partition's image, signed under the VSM identity key from that same verified boot, never confidentiality from the
+// host. So it is opt-in (--shield) and reported as limited. The app and image expectations are the relay's statement
+// (derived from the deployment's catalog entry), the same trust verifier/web/shield-app.mjs places in them.
+export const SHIELD_FORMAT = 'hyperv-partition-domain/v1';
+const HEX64 = /^[0-9a-f]{64}$/;
+export function shieldVerifier({ apiBase = 'https://api.enclave.host', name, deployment, fetchImpl = globalThis.fetch, log = () => {}, hostTtlMs = 10 * 60 * 1000 } = {}) {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(name || '')) throw new Error('a Shield guest needs its host name (--shield-host)');
+  if (!/^0x[0-9a-f]{64}$/.test(deployment || '')) throw new Error('a Shield guest needs its deployment id');
+  const deps = { fetchImpl, randomBytes: (n) => globalThis.crypto.getRandomValues(new Uint8Array(n)), now: () => new Date() };
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let host = null, exp = null;
+  async function hostSession() {
+    if (host && Date.now() - host.at < hostTtlMs) return host;
+    const { verifyShieldHostSessionWith } = await import('../verifier/web/shield-host.mjs');
+    const r = await verifyShieldHostSessionWith(deps, { apiBase, name });
+    if (r.verdict.status !== 'limited' || !r.session) throw new Error(`attestation refused: Shield host ${name}: ${r.verdict.summary}`);
+    log(`Shield host ${name}: TPM session verified over our nonce (limited: ${r.verdict.omissions.join(', ')})`);
+    return (host = { ...r.session, omissions: r.verdict.omissions, at: Date.now() });
+  }
+  // guest reports are rate-limited on the host: a busy answer is waited out a bounded number of times
+  async function expectations() {
+    if (exp) return exp;
+    const { SHIELD_APP_PATH } = await import('../verifier/web/shield-app.mjs');
+    for (let i = 0; ; i++) {
+      const nonce = Buffer.from(deps.randomBytes(32)).toString('hex');
+      const r = await fetchImpl(`${apiBase}${SHIELD_APP_PATH(name, deployment, nonce)}`, { headers: { accept: 'application/json' }, redirect: 'error' });
+      const a = await r.json().catch(() => null);
+      if (r.status === 503 && a?.error === 'busy' && i < 4) { const s = Math.min(Number(a.retryAfter) || 20, 60); log(`Shield expectations: host busy, retrying in ${s}s`); await sleep(s * 1000); continue; }
+      if (r.status !== 200 || !a) throw new Error(`attestation refused: Shield expectations: HTTP ${r.status} ${a?.message || a?.error || ''}`.trim());
+      if (a.mode !== 'hv-node' || String(a.deployment).toLowerCase() !== deployment) throw new Error('attestation refused: the relay answered for another host or deployment');
+      const { expected: e, policy: p } = a;
+      if (!HEX64.test(e?.appSha256 || '') || !HEX64.test(e?.runtimeId || '') || !Array.isArray(p?.measurements) || !p.measurements.length || !p.measurements.every((m) => HEX64.test(m)))
+        throw new Error('attestation refused: the relay stated no usable app expectation or image list');
+      // a per-image floor (newer relays) is enforced, conservatively, as the floor for every admitted image
+      const pins = Array.isArray(p.imageIdentities) ? p.imageIdentities.map(({ measurement, identity }) => ({ measurement, identity })) : undefined;
+      const floor = Math.max(Number.isSafeInteger(p.minimumGuestSvn) ? p.minimumGuestSvn : 0, ...(p.imageIdentities || []).map((x) => (Number.isSafeInteger(x.minimumGuestSvn) ? x.minimumGuestSvn : 0)));
+      return (exp = { appSha256: e.appSha256, runtimeId: e.runtimeId, policy: { allowedMeasurements: p.measurements, minimumGuestSvn: floor, imageIdentities: pins, platforms: p.platforms } });
+    }
+  }
+  return async (doc, spki, nonce) => {
+    const h = await hostSession(), e = await expectations();
+    const { verifyShieldAppEvidenceWeb } = await import('../verifier/web/shield-app.mjs');
+    const v = await verifyShieldAppEvidenceWeb({ doc, handshakeSpki: spki, nonce, expectedAppSha256: e.appSha256, expectedRuntimeId: e.runtimeId, idks: h.idks, boot: h.boot }, e.policy);
+    return { ok: v.ok === true, format: SHIELD_FORMAT, measurement: v.measurement, reason: v.reason, limited: true,
+      omissions: [...h.omissions, 'app-expectation-relay-derived', 'image-list-operator-stated'] };
+  };
+}
+
+// One verifier per evidence format; a format nobody asked to accept is refused with what would accept it.
+export function composeVerifier({ snp = null, shield = null }) {
+  return async (doc, spki, nonce) => {
+    if (doc?.format === SHIELD_FORMAT) return shield ? shield(doc, spki, nonce)
+      : { ok: false, format: SHIELD_FORMAT, reason: 'this is an Enclave Shield (Hyper-V) guest: host-attested, the host is not excluded; pass --shield to accept that' };
+    return snp ? snp(doc, spki, nonce) : { ok: false, format: doc?.format, reason: 'an SEV-SNP guest needs its expected launch measurement (--expect)' };
+  };
+}
