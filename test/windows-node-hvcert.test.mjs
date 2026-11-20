@@ -379,9 +379,9 @@ async function nativeCertificateFixture() {
   const box = await managerFor(f);
   const record = structuredClone(desktopVectors.ok[0].record);record.runtimeId=PIN;record.secretDeployment=DEP;
   const mapping = deriveDesktop({record,component:Buffer.from(desktopVectors.component_hex,'hex')});
-  const release = {schema:'enclave-desktop-release/1',controllerCid:record.cid,controllerSha256:mapping.componentSha256,
+  const release = {schema:'enclave-desktop-release/2',controllerCid:record.cid,controllerSha256:mapping.componentSha256,
     runtimeId:PIN,profileSha256:record.desktop.profileSha256,igvmSha256:IMAGE,launchMeasurement:'67'.repeat(32),
-    minimumCpuMilli:250,policy:{cpuPercent:record.policy.cpuPercent,vcpus:record.policy.vcpus}};
+ policy:{cpuPercent:record.policy.cpuPercent,vcpus:record.policy.vcpus}};
   const held=box.m.domains.get(box.instance);
   Object.assign(held,{derivation:record.derivation,name:DEP,appId:mapping.appId,cid:record.cid,
     recordSha256:mapping.recordSha256,componentSha256:mapping.componentSha256,runtimeId:PIN,

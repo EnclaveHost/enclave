@@ -12,9 +12,9 @@ const { IsolationManagerClient }=await import('../windows/node/isolation-client.
 const { DESKTOP_DERIVATION, DESKTOP_PORTS }=await import('../relay/shield-desktop-derive.mjs');
 after(()=>rpc.close());
 const v=JSON.parse(fs.readFileSync(new URL('../isolation/contract/catalog/desktop_vectors.json',import.meta.url))).ok.find(x=>x.name==='baseline');
-const release={schema:'enclave-desktop-release/1',controllerCid:v.record.cid,
+const release={schema:'enclave-desktop-release/2',controllerCid:v.record.cid,
  controllerSha256:v.mapping.componentSha256,runtimeId:v.record.runtimeId,profileSha256:v.record.desktop.profileSha256,
- igvmSha256:'55'.repeat(32),launchMeasurement:'66'.repeat(32),minimumCpuMilli:250,policy:{cpuPercent:800,vcpus:8}};
+ igvmSha256:'55'.repeat(32),launchMeasurement:'66'.repeat(32),policy:{cpuPercent:800,vcpus:8}};
 const manager=()=>({backend:'hyperv-partition-per-app',canStart:true,catalog:{derivations:[DESKTOP_DERIVATION]},
  desktop:{ready:true,...structuredClone(release)},supports:{desktop:true,config:true,configCid:true,secrets:true,ports:true}});
 function host(t,enabled=true) {

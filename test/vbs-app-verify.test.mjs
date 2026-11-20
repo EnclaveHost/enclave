@@ -88,9 +88,9 @@ test('startup command proof requires the exact image to admit every required fea
 test('native desktop policy verifies the signed report against one independently pinned release',options,()=>{
  const f={...fixture(),requiresDesktop:true,requiresConfigBundleV5:true,requiresSecretsV1:true,requiresConfigSocketServer:true};
  const p=shieldPolicy(f);
- p.desktop={schema:'enclave-desktop-release/1',controllerCid:'Qm'+'a'.repeat(44),controllerSha256:'11'.repeat(32),
+ p.desktop={schema:'enclave-desktop-release/2',controllerCid:'Qm'+'a'.repeat(44),controllerSha256:'11'.repeat(32),
   runtimeId:f.expectedRuntimeId,igvmSha256:'22'.repeat(32),profileSha256:'33'.repeat(32),launchMeasurement:image,
-  minimumCpuMilli:250,policy:{cpuPercent:800,vcpus:8}};
+ policy:{cpuPercent:800,vcpus:8}};
  Object.assign(p.images[0],{nativeDesktop:true,identity:{...identity},igvmSha256:p.desktop.igvmSha256,profileSha256:p.desktop.profileSha256,
   controllerSha256:p.desktop.controllerSha256,configBundleV5:true,secretsV1:true,configSocketServer:true,protectedPorts:true});
  const accepted=verifyShieldAppPolicy(f,p);
@@ -154,9 +154,9 @@ test('native startup TLS probe preserves desktop admission and the guest SVN flo
   res.end(JSON.stringify(fresh.doc));
  });t.after(()=>server.close());
  const base=fixture(),policy=shieldPolicy(base);
- policy.desktop={schema:'enclave-desktop-release/1',controllerCid:'Qm'+'a'.repeat(44),controllerSha256:'11'.repeat(32),
+ policy.desktop={schema:'enclave-desktop-release/2',controllerCid:'Qm'+'a'.repeat(44),controllerSha256:'11'.repeat(32),
   runtimeId:base.expectedRuntimeId,igvmSha256:'22'.repeat(32),profileSha256:'33'.repeat(32),launchMeasurement:image,
-  minimumCpuMilli:250,policy:{cpuPercent:800,vcpus:8}};
+ policy:{cpuPercent:800,vcpus:8}};
  Object.assign(policy.images[0],{nativeDesktop:true,identity:{...identity},igvmSha256:policy.desktop.igvmSha256,profileSha256:policy.desktop.profileSha256,
   controllerSha256:policy.desktop.controllerSha256,configBundleV5:true,secretsV1:true,configSocketServer:true,protectedPorts:true});
  const expected={appSha256:app,runtimeId:base.expectedRuntimeId,requiresDesktop:true,requiresConfigBundleV5:true,

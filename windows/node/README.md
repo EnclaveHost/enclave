@@ -7,7 +7,7 @@ The pieces a Windows 11 machine runs to join the fleet as a `windows-vbs-node` (
 ## Native desktop release selection
 
 The native V8 desktop planner requires independent operator release pins.
-`ENCLAVE_DESKTOP_RELEASE_FILE` names a local `enclave-desktop-release/1` JSON
+`ENCLAVE_DESKTOP_RELEASE_FILE` names a local `enclave-desktop-release/2` JSON
 file, and `ENCLAVE_DESKTOP_RELEASE_SHA256` pins its exact raw bytes. Both must
 be configured together. With neither set, native release selection stays off.
 A configured file that cannot be read or validated causes construction of the

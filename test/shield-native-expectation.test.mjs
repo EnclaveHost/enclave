@@ -12,10 +12,10 @@ const vectors = JSON.parse(readFileSync(new URL('../isolation/contract/catalog/d
 const base = vectors.ok.find(v => v.name === 'baseline');
 const component = Buffer.from(vectors.component_hex, 'hex');
 const config = { egress: 'public-web', codec: 'h264', _media: { poster: 'store-only' } };
-const release = { schema: 'enclave-desktop-release/1', controllerCid: base.record.cid,
+const release = { schema: 'enclave-desktop-release/2', controllerCid: base.record.cid,
   controllerSha256: base.mapping.componentSha256, runtimeId: base.record.runtimeId,
   igvmSha256: '55'.repeat(32), profileSha256: base.record.desktop.profileSha256,
-  launchMeasurement: '66'.repeat(32), minimumCpuMilli: 250, policy: { cpuPercent: 800, vcpus: 8 } };
+  launchMeasurement: '66'.repeat(32),policy: { cpuPercent: 800, vcpus: 8 } };
 const version = { cid: release.controllerCid, memMb: 16384, ports: ['http:8000', ...base.record.ports].join(','), approval: 1, yanked: false };
 const row = { id: base.record.secretDeployment, appRef: `catalog://${base.record.catalog.app}/1`,
   cpuMilli: 500, gpuMilli: 750, isPublic: true, configCid: JSON.stringify({ isolation: { require: BACKEND } }) };
@@ -58,7 +58,7 @@ test('native expectation requires independent approval, sealed identity, resourc
     d => { d.fetchVerified = async () => ({ ok: false }); }]) {
     const d = deps(); mutate(d); await assert.rejects(expectedShieldApp(row, d));
   }
-  for (const patch of [{ cpuMilli: 249 }, { gpuMilli: 0 }, { gpuMilli: 1001 }, { isPublic: false },
+  for (const patch of [{ cpuMilli: 0 }, { gpuMilli: 0 }, { gpuMilli: 1001 }, { isPublic: false },
     { configCid: JSON.stringify({ waf: { enabled: true } }) }, { id: '0x' + '00'.repeat(32) }])
     await assert.rejects(expectedShieldApp({ ...row, ...patch }, deps()));
 });

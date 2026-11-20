@@ -6,9 +6,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { desktopReleaseFromEnv, MAX_DESKTOP_RELEASE_BYTES } from './desktop-release.mjs';
 const v = JSON.parse(fs.readFileSync(new URL('../../isolation/contract/catalog/desktop_vectors.json', import.meta.url))).ok.find(x=>x.name==='baseline');
-const release = () => ({schema:'enclave-desktop-release/1',controllerCid:v.record.cid,
+const release = () => ({schema:'enclave-desktop-release/2',controllerCid:v.record.cid,
  controllerSha256:v.mapping.componentSha256,runtimeId:v.record.runtimeId,profileSha256:v.record.desktop.profileSha256,
- igvmSha256:'55'.repeat(32),launchMeasurement:'66'.repeat(32),minimumCpuMilli:250,policy:{cpuPercent:800,vcpus:8}});
+ igvmSha256:'55'.repeat(32),launchMeasurement:'66'.repeat(32),policy:{cpuPercent:800,vcpus:8}});
 function fixture(t, bytes=Buffer.from(JSON.stringify(release()))) {
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'desktop-release-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
  const file=path.join(dir,'release.json');fs.writeFileSync(file,bytes);

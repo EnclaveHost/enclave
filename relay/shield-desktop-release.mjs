@@ -6,9 +6,9 @@ import { appConfigText, sha256Hex } from "./shield-derive.mjs";
 import { DESKTOP_DERIVATION, DESKTOP_PROFILE, DESKTOP_PORTS,
   validateDesktopRecord, deriveDesktop } from "./shield-desktop-derive.mjs";
 
-export const DESKTOP_RELEASE_SCHEMA = "enclave-desktop-release/1";
+export const DESKTOP_RELEASE_SCHEMA = "enclave-desktop-release/2";
 const RELEASE_FIELDS = ["schema", "controllerCid", "controllerSha256", "runtimeId", "igvmSha256",
-  "profileSha256", "launchMeasurement", "minimumCpuMilli", "policy"];
+  "profileSha256", "launchMeasurement", "policy"];
 const HASH_FIELDS = ["controllerSha256", "runtimeId", "igvmSha256", "profileSha256", "launchMeasurement"];
 const HASH = /^[0-9a-f]{64}$/;
 // Same expression as shield-desktop-derive.mjs (and derive.go cidRE): a bare CID, never a URL.
@@ -75,7 +75,6 @@ export function validateDesktopRelease(raw) {
   if (!isCid(r.controllerCid)) throw new Error("invalid desktop controller CID");
   for (const k of HASH_FIELDS)
     if (!nonzero(r[k])) throw new Error(`desktop release ${k} must be nonzero lowercase 64-hex`);
-  integer(r.minimumCpuMilli, 1, 1000, "minimum CPU milli");
   const p = fields(r.policy, ["cpuPercent", "vcpus"], "desktop release policy");
   integer(p.cpuPercent, 400, 1600, "CPU percent");
   integer(p.vcpus, 4, 16, "vCPUs");
@@ -83,7 +82,6 @@ export function validateDesktopRelease(raw) {
   return Object.freeze({ schema: r.schema, controllerCid: r.controllerCid,
     controllerSha256: r.controllerSha256, runtimeId: r.runtimeId, igvmSha256: r.igvmSha256,
     profileSha256: r.profileSha256, launchMeasurement: r.launchMeasurement,
-    minimumCpuMilli: r.minimumCpuMilli,
     policy: Object.freeze({ cpuPercent: p.cpuPercent, vcpus: p.vcpus }) });
 }
 
@@ -120,7 +118,7 @@ export function desktopRecordFor(args) {
   const release = validateDesktopRelease(a.release);
   if (a.cid !== release.controllerCid) throw new Error("desktop CID is not the approved controller");
   // CPU and GPU shares are purchase checks; only gpuMilli is carried by the record, exactly as purchased.
-  integer(a.cpuMilli, release.minimumCpuMilli, 1000, "CPU milli");
+  integer(a.cpuMilli, 1, 1000, "CPU milli");
   integer(a.gpuMilli, 1, 1000, "GPU milli");
   integer(a.memMiB, 8192, 65536, "memory MiB");
   requirePorts(typeof a.ports === "string" ? a.ports : data(a.ports, "desktop ports"));

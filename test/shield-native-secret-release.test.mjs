@@ -21,15 +21,14 @@ const SECRETS = { API_TOKEN: `test-only-${randomBytes(12).toString('hex')}` };
 const MODEL = 'qwen2.5-0.5b-q8-gguf';
 
 const desktop = {
-  schema: 'enclave-desktop-release/1',
+  schema: 'enclave-desktop-release/2',
   controllerCid: pinned.record.cid,
   controllerSha256: pinned.componentSha256,
   runtimeId: pinned.record.runtimeId,
   igvmSha256: '5a'.repeat(32),
   profileSha256: pinned.record.desktop.profileSha256,
   launchMeasurement: '6b'.repeat(32),
-  minimumCpuMilli: 250,
-  policy: { cpuPercent: pinned.record.policy.cpuPercent, vcpus: pinned.record.policy.vcpus },
+ policy: { cpuPercent: pinned.record.policy.cpuPercent, vcpus: pinned.record.policy.vcpus },
 };
 const cpuProfile = { runtimeId: 'ab'.repeat(32), secretsV1: true, configBundleV5: true, configSocketServer: true };
 const nativePolicy = { ...ADMIT, desktop };   // no cpu profile: native-only acceptance

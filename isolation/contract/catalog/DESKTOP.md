@@ -198,10 +198,11 @@ qualification. The app remains a draft and the existing compute menus remain.
 ## Independently approved desktop release
 
 The shared `relay/shield-desktop-release.mjs` validates an explicit public
-`enclave-desktop-release/1` record. Its exact fields are `schema`,
+`enclave-desktop-release/2` record. Its exact fields are `schema`,
 `controllerCid`, `controllerSha256`, `runtimeId`, `igvmSha256`,
-`profileSha256`, `launchMeasurement`, `minimumCpuMilli`, and
-`policy: {cpuPercent, vcpus}`. Hashes are nonzero lowercase SHA-256 values;
+`profileSha256`, `launchMeasurement`, and `policy: {cpuPercent, vcpus}`. It
+names no CPU floor: the purchased CPU share is any 1 to 1000 milli, while the
+guest's CPU allocation stays the release's `policy`. Hashes are nonzero lowercase SHA-256 values;
 the IGVM file hash and VBS launch measurement are distinct pins. This record
 does not authorize a host or attest hardware.
 

@@ -9,10 +9,10 @@ import { deriveApprovedDesktop } from "../../../relay/shield-desktop-release.mjs
 
 const vectors = JSON.parse(readFileSync(new URL("../../../isolation/contract/catalog/desktop_vectors.json", import.meta.url)));
 const v = vectors.ok.find(x => x.name === "baseline");
-const release = { schema: "enclave-desktop-release/1", controllerCid: v.record.cid,
+const release = { schema: "enclave-desktop-release/2", controllerCid: v.record.cid,
   controllerSha256: v.mapping.componentSha256, runtimeId: v.record.runtimeId,
   profileSha256: v.record.desktop.profileSha256, igvmSha256: "55".repeat(32),
-  launchMeasurement: "66".repeat(32), minimumCpuMilli: 250, policy: { cpuPercent: 800, vcpus: 8 } };
+  launchMeasurement: "66".repeat(32),policy: { cpuPercent: 800, vcpus: 8 } };
 const input = () => ({ deploymentId: v.record.secretDeployment,
   deployment: { cpuMilli: 500n, gpuMilli: 750n, isPublic: true, appPort: 8000 },
   version: { appId: v.record.catalog.app, index: 1, cid: v.record.cid, memMb: 16384,
@@ -76,7 +76,7 @@ test("native planning refuses unavailable manager capabilities and unknown input
 });
 
 test("native purchase refuses invalid resources, extra ports and public configuration", () => {
-  for (const change of [x => { x.deployment.cpuMilli = 249; }, x => { x.deployment.gpuMilli = 0; },
+  for (const change of [x => { x.deployment.cpuMilli = 0; }, x => { x.deployment.gpuMilli = 0; },
     x => { x.version.memMb = 8191; }, x => { x.version.memMb = 16384.5; },
     x => { x.version.ports += ",tcp:22"; }, x => { x.appConfig.egress = "all"; },
     x => { x.appConfig.volumes = ["model"]; }, x => { x.deployment.gpuMilli = null; }]) {

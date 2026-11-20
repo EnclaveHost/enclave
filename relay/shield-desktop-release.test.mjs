@@ -22,7 +22,7 @@ const RECORD_FIELDS = ["catalog", "cid", "configBase64", "derivation", "desktop"
 
 const rawRelease = (over = {}) => ({ schema: DESKTOP_RELEASE_SCHEMA, controllerCid: CID0,
   controllerSha256: sha256Hex(component), runtimeId: RUNTIME, igvmSha256: "55".repeat(32),
-  profileSha256: PROFILE, launchMeasurement: "66".repeat(32), minimumCpuMilli: 250,
+  profileSha256: PROFILE, launchMeasurement: "66".repeat(32),
   policy: { cpuPercent: 800, vcpus: 8 }, ...over });
 const request = (over = {}) => ({ release: rawRelease(), app: APP, version: 1, cid: CID0, memMiB: 16384,
   ports: PORTS.join(","), deploymentId: DEPLOYMENT, cpuMilli: 500, gpuMilli: 750,
@@ -59,7 +59,7 @@ test("release refuses inexact schema, fields and non-data inputs", () => {
   const protoKey = JSON.parse(JSON.stringify(rawRelease()).replace(/^\{/, '{"__proto__":{},'));
   class Release { constructor() { Object.assign(this, rawRelease()); } }
   for (const bad of [null, [], "release", 1, missing, rawRelease({ extra: 1 }),
-    rawRelease({ schema: "enclave-desktop-release/2" }), rawRelease({ schema: "Enclave-desktop-release/1" }),
+    rawRelease({ schema: "enclave-desktop-release/1" }), rawRelease({ schema: "Enclave-desktop-release/2" }),
     rawRelease({ policy: { cpuPercent: 800, vcpus: 8, memMiB: 16384 } }), rawRelease({ policy: { cpuPercent: 800 } }),
     rawRelease({ policy: [800, 8] }), getter, symbol, hidden, protoKey, new Release(),
     Object.assign(Object.create({ inherited: 1 }), rawRelease())])
@@ -83,9 +83,8 @@ test("release bounds policy and minimum CPU share", () => {
     assert.throws(() => validateDesktopRelease(withPolicy(policy)), Error);
   for (const policy of [{ cpuPercent: 400, vcpus: 4 }, { cpuPercent: 1600, vcpus: 16 }, { cpuPercent: 400, vcpus: 16 }])
     assert.deepEqual(validateDesktopRelease(withPolicy(policy)).policy, policy);
-  for (const bad of [0, 1001, 1.5, NaN, Infinity, "250", -0])
-    assert.throws(() => validateDesktopRelease(rawRelease({ minimumCpuMilli: bad })), Error);
-  for (const ok of [1, 1000]) assert.equal(validateDesktopRelease(rawRelease({ minimumCpuMilli: ok })).minimumCpuMilli, ok);
+  // a release names no CPU floor: the retired /1 field is an unknown field now
+  assert.throws(() => validateDesktopRelease(rawRelease({ minimumCpuMilli: 250 })), Error);
 });
 
 test("ports must be exactly HTTP 8000 plus the Moonlight set", () => {
@@ -138,13 +137,11 @@ test("configuration arrays cannot hide sparse elements behind named properties",
 });
 
 test("CPU and GPU shares and memory are bounded at record construction", () => {
-  for (const [over, ok] of [[{ cpuMilli: 249 }, false], [{ cpuMilli: 250 }, true], [{ cpuMilli: 1000 }, true],
+  for (const [over, ok] of [[{ cpuMilli: 0 }, false], [{ cpuMilli: 1 }, true], [{ cpuMilli: 170 }, true], [{ cpuMilli: 1000 }, true],
     [{ cpuMilli: 1001 }, false], [{ cpuMilli: 500.5 }, false], [{ cpuMilli: "500" }, false],
     [{ gpuMilli: 0 }, false], [{ gpuMilli: 1 }, true], [{ gpuMilli: 100 }, true], [{ gpuMilli: 500 }, true], [{ gpuMilli: 1000 }, true], [{ gpuMilli: 1001 }, false],
     [{ gpuMilli: 750.5 }, false], [{ memMiB: 8191 }, false], [{ memMiB: 8192 }, true], [{ memMiB: 65536 }, true],
-    [{ memMiB: 65537 }, false], [{ memMiB: 16384.5 }, false],
-    [{ release: rawRelease({ minimumCpuMilli: 1000 }), cpuMilli: 999 }, false],
-    [{ release: rawRelease({ minimumCpuMilli: 1000 }), cpuMilli: 1000 }, true]]) {
+    [{ memMiB: 65537 }, false], [{ memMiB: 16384.5 }, false]]) {
     if (ok) assert.equal(validateDesktopRecord(desktopRecordFor(request(over))), undefined);
     else assert.throws(() => desktopRecordFor(request(over)), Error);
   }
@@ -188,7 +185,7 @@ test("approved derivation checks release pins and component hash", () => {
 test("node planner and relay share one helper and derive the same identity", () => {
   assert.deepEqual(Object.keys(helper).sort(),
     ["DESKTOP_RELEASE_SCHEMA", "deriveApprovedDesktop", "desktopRecordFor", "validateDesktopRelease"]);
-  assert.equal(DESKTOP_RELEASE_SCHEMA, "enclave-desktop-release/1");
+  assert.equal(DESKTOP_RELEASE_SCHEMA, "enclave-desktop-release/2");
   // Node planner: build the record from a purchase and derive locally.
   const rec = desktopRecordFor(request());
   validateDesktopRecord(rec);
