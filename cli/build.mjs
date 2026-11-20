@@ -22,13 +22,13 @@ const { build } = await import("esbuild").catch(() => {
 const cliViem = {
   name: "cli-viem",
   setup(b) {
-    b.onResolve({ filter: /^(viem|ws|@noble\/(hashes|ciphers|curves))(\/.*)?$/ }, (args) => {
+    b.onResolve({ filter: /^(viem|ws|@noble\/(hashes|ciphers|curves)|@freedomofpress\/[a-z-]+)(\/.*)?$/ }, (args) => {
       if (args.pluginData?.cliViem || args.resolveDir === here || args.resolveDir.startsWith(here + path.sep)) return undefined;
       return b.resolve(args.path, { kind: args.kind, resolveDir: here, pluginData: { cliViem: true } });
     });
   },
 };
-await build({
+const result = await build({
   entryPoints: [path.join(here, "enclave.mjs")],
   bundle: true,
   platform: "node",
@@ -43,6 +43,13 @@ await build({
   banner: { js: 'import { createRequire as __cr } from "node:module"; const require = __cr(import.meta.url); process.argv[1] = "";' },
   outfile: out,
   logLevel: "warning",
+  metafile: true,
 });
+// A hosted install runs `npm ci` in cli/ only. A package this checkout found in the repo root's node_modules builds here
+// and fails for every user, so refuse it now: name the package, and add it to cli/package.json (and the plugin above).
+const rootModules = path.relative(process.cwd(), path.join(here, "..", "node_modules")) + path.sep;
+const stray = [...new Set(Object.keys(result.metafile.inputs).filter((p) => path.normalize(p).startsWith(rootModules))
+  .map((p) => { const seg = path.normalize(p).slice(rootModules.length).split(path.sep); return seg.slice(0, seg[0].startsWith("@") ? 2 : 1).join("/"); }))];
+if (stray.length) { fs.rmSync(out, { force: true }); console.error(`error: bundled from the repo root's node_modules, which a hosted install does not have: ${stray.join(", ")}`); process.exit(1); }
 if (process.platform !== "win32") fs.chmodSync(out, 0o755);
 console.log(`bundled ${out} (${Math.round(fs.statSync(out).size / 1024)} KB)`);
