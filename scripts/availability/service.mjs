@@ -45,7 +45,10 @@ const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 const B = (v) => BigInt(v);
 const lc = (s) => String(s || "").toLowerCase();
-const read = createPublicClient({ chain: base, transport: http(cfg.rpcRead, { timeout: 30_000, retryCount: 2 }) });       // archive + logs
+// archive + logs. A round is a few hundred reads in a row and a public archive endpoint answers "rate limit exceeded"
+// part-way through: with two quick retries about half of all rounds failed (251 of them in nine hours on 2026-11-20).
+// The delay doubles from half a second, about half a minute in all before a read gives up.
+const read = createPublicClient({ chain: base, transport: http(cfg.rpcRead, { timeout: 30_000, retryCount: 6, retryDelay: 500 }) });
 const send = createPublicClient({ chain: base, transport: http(cfg.rpcSend, { timeout: 30_000, retryCount: 2 }) });
 const keyEnv = (name) => { const k = process.env[name]; if (!k) throw new Error(`${name} is not set`); return privateKeyToAccount(k.startsWith("0x") ? k : "0x" + k); };
 const executor = keyEnv(cfg.executorKeyEnv), witnessKey = keyEnv(cfg.witnessKeyEnv);
