@@ -78,7 +78,7 @@ func TestControllerAndManifestBound(t *testing.T) {
 		t.Fatal("wrong profile accepted")
 	}
 	m.Desktop.ProfileSha256 = id
-	m.Desktop.GPUMilli = 499
+	m.Desktop.GPUMilli = 0
 	if p.CheckBundle(m, artifact) == nil {
 		t.Fatal("wrong worker share accepted")
 	}

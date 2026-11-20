@@ -35,7 +35,7 @@ func (m Manifest) ValidateDesktop() error {
 	if d == nil {
 		return nil
 	}
-	if d.Profile != DesktopProfile || !NonzeroHash(d.ProfileSha256) || d.GPUMilli < 500 || d.GPUMilli > 1000 {
+	if d.Profile != DesktopProfile || !NonzeroHash(d.ProfileSha256) || d.GPUMilli < 1 || d.GPUMilli > 1000 {
 		return errors.New("invalid masked desktop profile")
 	}
 	if m.World != WorldCLI || m.HTTP != 8000 || m.Label != "" || m.Inference != nil || !slices.Equal(m.Ports, DesktopPorts()) {

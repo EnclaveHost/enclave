@@ -226,7 +226,7 @@ func activeCount(l *Lease) int {
 }
 
 func TestValidateBoundaries(t *testing.T) {
-	for _, g := range []int{500, 1000} {
+	for _, g := range []int{1, 500, 1000} {
 		b := testBinding
 		b.GPUMilli = g
 		if err := b.validate(); err != nil {
@@ -254,7 +254,6 @@ func TestInvalidBindingRejectedBeforeDial(t *testing.T) {
 		"profile newline": mut(func(b *Binding) { b.ProfileSHA = b.ProfileSHA[:63] + "\n" }),
 		"profile upper":   mut(func(b *Binding) { b.ProfileSHA = strings.ToUpper(b.ProfileSHA) }),
 		"gpu zero":        mut(func(b *Binding) { b.GPUMilli = 0 }),
-		"gpu low":         mut(func(b *Binding) { b.GPUMilli = 499 }),
 		"gpu high":        mut(func(b *Binding) { b.GPUMilli = 1001 }),
 	}
 	for name, b := range cases {

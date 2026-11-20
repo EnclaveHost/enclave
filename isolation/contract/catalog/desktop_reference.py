@@ -288,7 +288,7 @@ def validate_record(record):
         _refuse(f'desktop.profile must be {PROFILE}')
     _pattern(desktop['profileSha256'], _HEX64, 'desktop.profileSha256')
     _nonzero_hex(desktop['profileSha256'], 'desktop.profileSha256')
-    _integer(desktop['gpuMilli'], 500, 1000, 'desktop.gpuMilli')
+    _integer(desktop['gpuMilli'], 1, 1000, 'desktop.gpuMilli')
 
 
 def validate_component(component):
@@ -463,7 +463,7 @@ def _positive_cases():
         ('baseline', _identity, None),
         ('policy-and-gpu-minimum-bounds', _chain(
             _set('policy', {'cpuPercent': 400, 'memMiB': 8192, 'vcpus': 4}),
-            _set('desktop.gpuMilli', 500)), IDENTITY),
+            _set('desktop.gpuMilli', 1)), IDENTITY),
         ('policy-and-gpu-maximum-bounds', _chain(
             _set('policy', {'cpuPercent': 1600, 'memMiB': 65536, 'vcpus': 16}),
             _set('desktop.gpuMilli', 1000)), IDENTITY),
@@ -750,7 +750,7 @@ def _negative_cases():
     ]:
         add(f'desktop-profile-sha256-{name}', _set('desktop.profileSha256', value))
     for name, value in [
-        ('below-minimum', 499), ('above-maximum', 1001), ('zero', 0),
+        ('above-maximum', 1001), ('zero', 0),
         ('bool', True), ('fraction', 750.5), ('string', '750'), ('null', None),
     ]:
         add(f'desktop-gpu-milli-{name}', _set('desktop.gpuMilli', value))

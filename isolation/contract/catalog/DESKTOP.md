@@ -33,8 +33,8 @@ caller-selected security mode exists in this contract.
 | `configBase64` | Canonical padded base64 of 1–32768 bytes of UTF-8 JSON object text, without NUL bytes |
 | `desktop` | Exactly `profile`, `profileSha256`, `gpuMilli` |
 
-`desktop.profile` is `kvm-box-masked-v1`; `gpuMilli` is an integer from 500 to
-1000. `profileSha256` is a nonzero lowercase SHA-256 of the **pre-image input
+`desktop.profile` is `kvm-box-masked-v1`; `gpuMilli` is the purchased
+GPU share, an integer from 1 to 1000; the contract sets no floor of its own. `profileSha256` is a nonzero lowercase SHA-256 of the **pre-image input
 descriptor**, which must commit the kernel, companion root filesystem/SDK,
 controller component, model and public-weight policy, and measured launch
 inputs. It cannot be the final image hash: embedding that would be circular.

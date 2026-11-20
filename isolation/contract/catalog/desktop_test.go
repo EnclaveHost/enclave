@@ -52,7 +52,7 @@ func TestDesktopManifestCannotBypassRecordValidation(t *testing.T) {
 		{"zero profile hash", func(m map[string]any) {
 			m["desktop"].(map[string]any)["profileSha256"] = string(bytes.Repeat([]byte("0"), 64))
 		}},
-		{"undersized GPU share", func(m map[string]any) { m["desktop"].(map[string]any)["gpuMilli"] = 499 }},
+		{"no GPU share", func(m map[string]any) { m["desktop"].(map[string]any)["gpuMilli"] = 0 }},
 		{"device passthrough", func(m map[string]any) { m["desktop"].(map[string]any)["device"] = "/dev/dri/renderD128" }},
 		{"missing config", func(m map[string]any) { delete(m, "configBase64") }},
 		{"missing owner binding", func(m map[string]any) { delete(m, "secretDeployment") }},
