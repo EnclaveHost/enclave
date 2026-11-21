@@ -14,7 +14,7 @@ set -euo pipefail
 
 STATUS=${1:?signing page status URL}; CVM=${2:?control VM ssh command}
 ID=0x5ff56a4d600191f13ac43e1c600965673555f229472846a9da201785d396454f
-NEW=catalog://0x0f628585d36c4272ae23c55b4f9ec6d5805f25e26d4744474710e46e4edbb537/5
+NEW=catalog://0x0f628585d36c4272ae23c55b4f9ec6d5805f25e26d4744474710e46e4edbb537/7
 APP=https://5ff56a4d.app.enclave.host
 ROUTE=$HOME/.local/state/enclave-snpvm/$ID.route.json
 GUEST=enclave-rpc-snp-guest.service
