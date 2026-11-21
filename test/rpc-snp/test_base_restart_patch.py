@@ -19,7 +19,9 @@ import l1_identity_patch as L  # noqa: E402
 # The seed's chain_service.py: with build_image.py's beacon sed and l1_identity_patch.py it is byte-identical
 # to the one images r10 and the first r11 build shipped (sha256 7292c7c9...).
 SEED = ROOT/'ops/rpc-backend-bootstrap/2026-10-25/chain_service.py'
-ORIGIN = {'l1Block': 26262339, 'blobSlot': 15501577, 'toBlock': 26292338, 'snapshot': {'block': 48000000}}
+SAFE = {'number': 26265939, 'hash': '0x34558718e8e5544565f565d471d248d33c417a6482eb859fc6d187ce298970ef'}
+ORIGIN = {'l1Block': 26262339, 'blobSlot': 15501577, 'toBlock': 26292338, 'snapshot': {'block': 48000000},
+          'safeL1Origin': SAFE}
 SERVED = {'l1Block': 26262339, 'blobSlot': 15501577, 'toBlock': 26292338, 'snapshotBlock': 48000000}
 
 
@@ -32,14 +34,18 @@ def shipped(tmp):
 
 
 class Http:
-    def __init__(self, receipts, blobs):
-        self.receipts, self.blobs = receipts, blobs
+    def __init__(self, receipts, blobs, block, slot=None):
+        self.receipts, self.blobs, self.block, self.slot, self.asked = receipts, blobs, block, slot, []
 
     def urlopen(self, req, timeout):
-        return io.BytesIO(json.dumps(self.receipts).encode())
+        call = json.loads(req[1])
+        self.asked.append((call['method'], call['params']))
+        return io.BytesIO(json.dumps(self.block if call['method'] == 'eth_getBlockByNumber' else self.receipts).encode())
 
     def beacon(self, path):
         if path.startswith('/eth/v2/beacon/blocks/'):
+            if self.slot:
+                raise self.slot()
             return {'message': {'body': {'blob_kzg_commitments': ['0x01', '0x02']}}}
         if callable(self.blobs):
             raise self.blobs()   # a fresh error each time: its body is a stream read once
@@ -52,6 +58,7 @@ def http_error(code, body):
 
 PRESENT = {'jsonrpc': '2.0', 'id': 1, 'result': [{'status': '0x1'}]}
 PRUNED = {'jsonrpc': '2.0', 'id': 1, 'error': {'code': 4444, 'message': 'pruned history unavailable'}}
+CANON = {'jsonrpc': '2.0', 'id': 1, 'result': {'hash': SAFE['hash'].upper().replace('0X', '0x'), 'number': hex(SAFE['number'])}}
 BLOBS = ['0xaa', '0xbb']
 LH_PRUNED = http_error(400, b'{"code":400,"message":"BAD_REQUEST: Insufficient data columns to reconstruct blobs"}')
 
@@ -68,9 +75,9 @@ class PatchTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def check(self, receipts, blobs):
+    def check(self, receipts, blobs, block=CANON, slot=None):
         """Run the patched base_origin_data with the guest's helpers replaced by fakes."""
-        http = Http(receipts, blobs)
+        http = self.http = Http(receipts, blobs, block, slot)
         tree = ast.parse(self.src)
         keep = [n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name == 'base_origin_data')
                 or (isinstance(n, ast.Assign) and getattr(n.targets[0], 'id', '') == 'ORIGIN_SERVED')]
@@ -89,6 +96,9 @@ class PatchTests(unittest.TestCase):
         compile(self.src, 'chain_service.py', 'exec')
         self.assertIn('        base_origin_data(origin, datadir)\n', self.src)
         self.assertNotIn("'Base origin blobs absent'", self.src)
+        # the canonical check moved into the helper with the rest: nothing at the call site asks L1 for the origin
+        self.assertNotIn("canon = rpc(18645", self.src)
+        self.assertEqual(self.src.count('not canonical on this L1'), 1)
         with self.assertRaises(SystemExit):
             P.patch(str(self.path))
 
@@ -109,6 +119,42 @@ class PatchTests(unittest.TestCase):
             self.check(PRUNED, BLOBS)
         self.check(PRESENT, BLOBS)
         self.assertEqual(self.check(PRUNED, LH_PRUNED), 'resumed')
+
+    def test_pruned_safe_origin_block_resumes_only_with_this_activation_recorded(self):
+        # production, 2026-11-20: reth's earliest block (26300000) passed the snapshot's safe L1 origin
+        with self.assertRaisesRegex(AssertionError, 'receipts or blobs absent'):
+            self.check(PRUNED, LH_PRUNED, PRUNED)
+        with self.assertRaisesRegex(AssertionError, 'receipts or blobs absent'):
+            self.check(PRESENT, BLOBS, PRUNED)   # nothing is recorded while the block cannot be checked
+        self.assertFalse((self.datadir/'enclave-origin-served.json').exists())
+        self.check(PRESENT, BLOBS)
+        self.assertEqual(self.http.asked, [('eth_getBlockByNumber', [hex(SAFE['number']), False]),
+                                           ('eth_getBlockReceipts', [hex(ORIGIN['l1Block'])])])
+        self.assertEqual(self.check(PRUNED, LH_PRUNED, PRUNED), 'resumed')
+        self.assertEqual(self.check(PRESENT, BLOBS, PRUNED), 'resumed')
+
+    def test_an_origin_slot_whose_payload_is_pruned_resumes_only_with_this_activation_recorded(self):
+        # Lighthouse on the production guest, 2026-11-21, for the origin's slot
+        gone = http_error(500, b'{"code":500,"message":"UNHANDLED_ERROR: ExecutionLayerErrorPayloadReconstruction(0x592e, '
+                               b'EngineError(Api { error: ServerMessage { code: -32603, message: \\"Server error\\" } }))"}')
+        with self.assertRaisesRegex(AssertionError, 'receipts or blobs absent'):
+            self.check(PRUNED, LH_PRUNED, PRUNED, gone)
+        self.check(PRESENT, BLOBS)
+        self.assertEqual(self.check(PRUNED, LH_PRUNED, PRUNED, gone), 'resumed')
+        self.assertEqual(self.check(PRESENT, BLOBS, CANON, gone), 'resumed')
+        with self.assertRaises(urllib.error.HTTPError):
+            self.check(PRUNED, LH_PRUNED, PRUNED, http_error(500, b'{"code":500,"message":"UNHANDLED_ERROR: other"}'))
+        with self.assertRaises(urllib.error.HTTPError):
+            self.check(PRUNED, LH_PRUNED, PRUNED, http_error(404, b''))
+
+    def test_a_safe_origin_that_is_not_canonical_refuses_whatever_is_recorded(self):
+        self.check(PRESENT, BLOBS)
+        other = {'jsonrpc': '2.0', 'id': 1, 'result': {'hash': '0x' + '11' * 32}}
+        for block in (other, {'jsonrpc': '2.0', 'id': 1, 'result': None}):
+            with self.assertRaisesRegex(AssertionError, 'not canonical on this L1'):
+                self.check(PRESENT, BLOBS, block)
+        with self.assertRaisesRegex(AssertionError, 'local RPC failed'):
+            self.check(PRESENT, BLOBS, {'jsonrpc': '2.0', 'id': 1, 'error': {'code': -32000, 'message': 'x'}})
 
     def test_a_record_of_another_activation_or_unreadable_does_not_resume(self):
         rec = self.datadir/'enclave-origin-served.json'
