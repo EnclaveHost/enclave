@@ -216,6 +216,13 @@ export class Host {
     /// sent transaction, and a node restarted inside that lag used to send the same one again (d1's live node, 00:55:04
     /// and 00:55:33 at 013deb51). ensurePriced does not resend the same price while it is fresh.
     this.priceSent = st.priceSent && typeof st.priceSent === "object" ? st.priceSent : null;
+    /// The end of the last market window this box was given, as the PREVIOUS process recorded it (never later than now):
+    /// servingScope()'s grace counts from it too. A new process has no window until its attach and its readiness witness
+    /// are verified again, some minutes after it starts, and until then every buyer's lease this box held was "an owner
+    /// this box does not serve": its recovered VM retired with the lease kept, nothing renewed, and the app down until the
+    /// lease lapsed and was claimed again (0x38f368d6 on k11-4 at every node restart, 2026-11-13 to 11-20).
+    this.marketSeenRestored = Math.min(Number(st.marketSeenUntil) || 0, Date.now());
+    this.marketSeenSaved = this.marketSeenRestored;
     // THE PER-APP ISOLATION BACKEND, off unless a manager is configured. One place decides, so no
     // other code path can half-enable it: the deployed build has no such config and is unaffected.
     this.cfg.isolationManager   = this.cfg.isolationManager   || process.env.ENCLAVE_ISOLATION_MANAGER || "";
@@ -364,9 +371,17 @@ export class Host {
   #saveTracked() {
     try {
       fs.writeFileSync(this.statePath, JSON.stringify({ tracked: [...this.tracked],
-        blocked: Object.fromEntries(this.blocked), ...(this.priceSent ? { priceSent: this.priceSent } : {}) }, null, 1));
+        blocked: Object.fromEntries(this.blocked), ...(this.priceSent ? { priceSent: this.priceSent } : {}),
+        ...(this.#marketSeen() ? { marketSeenUntil: this.#marketSeen() } : {}) }, null, 1));
+      this.marketSeenSaved = this.#marketSeen();
     } catch {}
   }
+  /** The latest market-window end this box has seen: this process's (relay or verifiers), else the one restored at start. */
+  #marketSeen() {
+    return Math.max(Number(this.shieldMarketSeenUntil || 0), Number(this.verifierMarket?.seenUntil || 0), Number(this.marketSeenRestored || 0));
+  }
+  /** Record a window that moved the seen end by a minute or more (windows are refreshed far more often than that matters). */
+  #marketSeenKeep() { if (this.#marketSeen() - Number(this.marketSeenSaved || 0) >= 60_000) this.#saveTracked(); }
 
   async init() {
     await this.walletChannelStart({ heartbeat: true });
@@ -3670,6 +3685,7 @@ export class Host {
     const u = Math.min(Number(until) || 0, Date.now() + 300_000);
     const seen = Math.max(Number(this.verifierMarket?.seenUntil || 0), u);
     this.verifierMarket = { tier: "hv-node", until: u, seenUntil: seen, keyIds: [...keyIds].slice(0, 8), at: Date.now() };
+    this.#marketSeenKeep();
   }
   /**
    * Which scope this box claims in. The market is only open when an app runs inside the enclave
@@ -3682,6 +3698,7 @@ export class Host {
   openShieldMarket(until) {
     this.shieldMarketUntil = Number(until) || 0;
     if (this.shieldMarketUntil > Date.now()) this.shieldMarketSeenUntil = Math.max(Number(this.shieldMarketSeenUntil || 0), this.shieldMarketUntil);
+    this.#marketSeenKeep();
   }
   /**
    * The scope this box SERVES what it already runs in: scope(), or "market" for MARKET_GRACE_MS past the relay's last
@@ -3689,11 +3706,15 @@ export class Host {
    * grace, every buyer's app here was held (unrenewed, its certificate and route refused) until the next window. NEW
    * claims still need a live window (scope(): scanLedger), and the relay still routes each app only on its own fresh
    * evidence (relay/shield-marketplace.mjs servesUntil): the grace keeps nothing reachable the relay has not verified.
+   * The grace also counts from the window the PREVIOUS process recorded (host-state.json marketSeenUntil), so a node
+   * restart is the same short lapse and not a hold of every buyer's lease until the new process is verified again.
    */
   servingScope() {
     if (this.scope() === "market") return "market";
     const base = this.cfg.claimScope === "market" && this.cfg.engineRetired === true && this.isolationBackend === "hyperv-partition-per-app";
     if (base && this.verifierMarket?.tier === "hv-node" && Number(this.verifierMarket.seenUntil || 0) + Host.MARKET_GRACE_MS > Date.now()) return "market";
+    // ...and the same grace past the window the previous process recorded, so a node restart does not hold what it ran
+    if (base && Number(this.marketSeenRestored || 0) + Host.MARKET_GRACE_MS > Date.now()) return "market";
     return base
       && this.relayTier === "hv-node" && Number(this.shieldMarketSeenUntil || 0) + Host.MARKET_GRACE_MS > Date.now() ? "market" : "owner-only";
   }

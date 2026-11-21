@@ -452,6 +452,27 @@ test('a lapsed market window keeps serving what this box runs for MARKET_GRACE_M
  h.relayTier='';assert.equal(h.servingScope(),'owner-only','no hv-node verdict');
 });
 
+test('a node restart keeps the market grace: the window the previous process recorded still serves what this box runs', () => {
+ const cfg={engineRetired:true,isolationManager:'http://127.0.0.1:8091',claimScope:'market'};
+ const dir=tmp(), state=path.join(dir,'host-state.json');
+ const a=box({...cfg,dir});a.relayTier='hv-node';
+ a.openShieldMarket(Date.now()+60000);
+ assert.ok(JSON.parse(fs.readFileSync(state,'utf8')).marketSeenUntil>Date.now(),'the window is recorded when it opens');
+ const b=box({...cfg,dir});   // the next process: no attach, no window of its own yet
+ assert.equal(b.scope(),'owner-only','a new claim still needs a live window');
+ assert.equal(b.servingScope(),'market','what it held is served through the restart');
+ assert.equal(b.ownerNotServed(newDep()),false,'a buyer lease is not held, so its recovered VM is replaced and the lease renewed');
+ assert.ok(b.marketSeenRestored<=Date.now(),'a recorded end in the future counts from now, no later');
+ b.marketSeenRestored=Date.now()-Host.MARKET_GRACE_MS-1;
+ assert.equal(b.servingScope(),'owner-only','past the grace: held as before');
+ fs.writeFileSync(state,JSON.stringify({tracked:[],blocked:{},marketSeenUntil:Date.now()-Host.MARKET_GRACE_MS-1}));
+ assert.equal(box({...cfg,dir}).servingScope(),'owner-only','a long outage restores nothing');
+ fs.writeFileSync(state,JSON.stringify({tracked:[],blocked:{},marketSeenUntil:Date.now()}));
+ for(const [k,v] of [['claimScope','owner-only'],['engineRetired',false]])
+  assert.equal(box({...cfg,dir,[k]:v}).servingScope(),'owner-only',k);
+ assert.equal(box({dir:tmp(),...cfg}).servingScope(),'owner-only','never opened: nothing to restore');
+});
+
 
 test("explicit app RAM budget is independent of CPU reserve, bounded by physical RAM and fail closed", () => {
   const h = box({ ramGb: 112, appRamGb: 64, reservedShare: 0.25 });
