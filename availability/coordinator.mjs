@@ -21,7 +21,10 @@ export async function runRound({store,chain,workload,loadObservation,policy,sche
  const pending=jobs.filter(j=>!terminal.has(j.state));
  const slots=scheduling.maxConcurrent-pending.length;
  if(policy.enabled!==true||slots<=0)return {created:[],pending:pending.length,errors};
- const observation=await loadObservation();
+ const observed=await loadObservation();
+ // A verification is priced against every host it may be given to: the qualified supply and the hosts that are only
+ // up for another audit after a failed one. The observation itself keeps the two apart.
+ const observation={...observed,qualifiedSupplyUnits:observed.qualifiedSupplyUnits+(observed.reauditSupplyUnits??0n)};
  const control=await store.get(CONTROL);
  const previous=control?.price?Object.fromEntries(Object.entries(control.price).map(([k,v])=>[k,k==='classId'?v:BigInt(v)])):null;
  if(previous&&observation.atSec<=previous.atSec)return {created:[],pending:pending.length,errors,reason:'observation already consumed'};

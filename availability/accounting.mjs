@@ -27,7 +27,7 @@ export function observeMarket({classId, nowSec, windowSec, capacities, services,
     if (prior?.conflict) continue;
     if (!prior || c.issuedSec>prior.issuedSec) groups.set(c.hardwareId,c);
   }
-  let qualifiedSupplyUnits=0n;
+  let qualifiedSupplyUnits=0n, reauditSupplyUnits=0n;
   for(const c of groups.values()) {
     if(c.conflict) continue;
     // Certificate has to cover the ENTIRE observation window. New supply
@@ -35,6 +35,13 @@ export function observeMarket({classId, nowSec, windowSec, capacities, services,
     // retroactive claim that this capacity was available all hour.
     if(c.issuedSec>start) continue;
     if(active.has(c.hostId)) throw new Error('ambiguous host capacity');
+    // A host whose most recent paid audit failed (the witness's auditFailedSec) is listed so that it can be audited
+    // again, and is no qualified supply until an audit passes. Its units are stated apart: a verification of such a
+    // host has to be priced against something when it is the only host there is (coordinator.mjs).
+    if(c.auditFailedSec!==undefined) {
+      if(typeof c.auditFailedSec!=='string'||!/^\d{1,30}$/.test(c.auditFailedSec)) throw new Error('invalid failed-audit time');
+      active.set(c.hostId,{...c,reaudit:true}); reauditSupplyUnits+=c.units*windowSec; continue;
+    }
     active.set(c.hostId,c); qualifiedSupplyUnits+=c.units*windowSec;
   }
   const demandByOwner=new Map(), seen=new Set(), intervals=new Map();
@@ -73,6 +80,6 @@ export function observeMarket({classId, nowSec, windowSec, capacities, services,
   }
   queuedDemandUnits=min(queuedDemandUnits,maxQueuedUnits);
   return {classId,atSec:nowSec,windowSec,paidDemandUnits:paidDemandUnits+queuedDemandUnits,
-    qualifiedSupplyUnits,completedDemandUnits:paidDemandUnits,queuedDemandUnits,
+    qualifiedSupplyUnits,reauditSupplyUnits,completedDemandUnits:paidDemandUnits,queuedDemandUnits,
     hosts:[...active.values()]};
 }

@@ -47,13 +47,26 @@ test("witness: qualification is continuous - issuedSec stays at the first pass, 
   assert.notEqual((await r.w.round([r.host])).receipts[0].payload.issuedSec, first, "a gap starts a new run");
 });
 
-test("witness: no receipt for an inactive registry entry, a refused quote, bad capacity, or a failed last audit", async () => {
+test("witness: no receipt for an inactive registry entry, a refused quote or bad capacity", async () => {
   for (const [opts, why] of [[{ active: false }, /not active/], [{ quoteOk: false }, /attestation/], [{ units: 0 }, /out of bounds/],
-                             [{ spare: 600 }, /out of bounds/], [{ audit: { passed: false } }, /audit failed/]]) {
+                             [{ spare: 600 }, /out of bounds/]]) {
     const r = rig(opts);
     const { receipts, refused } = await r.w.round([r.host]);
     assert.equal(receipts.length, 0); assert.match(refused[0].reason, why);
   }
+});
+
+test("witness: a host whose last paid audit failed gets a receipt that says so, and none of a passed audit's fields", async () => {
+  const r = rig({ audit: { passed: false, atSec: "777", job: "0x" + "ab".repeat(32) } });
+  const { receipts, refused } = await r.w.round([r.host]);
+  assert.equal(refused.length, 0);
+  const p = receipts[0].payload;
+  assert.equal(p.auditFailedSec, "777"); assert.equal(p.auditFailedJob, "0x" + "ab".repeat(32));
+  assert.equal(p.lastAuditSec, undefined); assert.equal(p.lastAuditJob, undefined);
+  const ok = rig({ audit: { passed: true, atSec: "778", job: "0x" + "cd".repeat(32) } });
+  const q = (await ok.w.round([ok.host])).receipts[0].payload;
+  assert.equal(q.lastAuditSec, "778"); assert.equal(q.auditFailedSec, undefined);
+  assert.equal((await rig({}).w.round([rig({}).host])).receipts[0].payload.auditFailedSec, undefined);
 });
 
 test("witness: a host adapter's own verify hook gets attest()'s whole answer and replaces the SNP verifier; its chipId is the hardware id basis", async () => {

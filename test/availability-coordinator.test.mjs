@@ -16,3 +16,23 @@ test('persisted epochs prevent repeated assignments, ambiguous jobs retain reser
   r=await runRound(args);assert.equal(r.created.length,0);assert.match(r.reason,/consumed/);
  }finally{await store.close();await fs.rm(dir,{recursive:true});}
 });
+test('a host that is only up for another audit is offered one after its cooldown, and not before',async()=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'capacity-reaudit-'));const store=await openStore(dir);
+ try{
+  const chain={policy:async()=>({bps:100,expires:5000,available6:1000n,jobCap6:100000n}),validate:async()=>{},createOrRecover:async j=>({id:j.id}),fundOrRecover:async()=>{},lease:async()=>null,stopAndReconcile:async()=>true};
+  // the only host there is: no qualified supply, its units stated as re-audit supply (accounting.mjs)
+  const only=at=>({...observation,atSec:at,qualifiedSupplyUnits:0n,reauditSupplyUnits:10000n,hosts:[{...host(1),reaudit:true,expiresSec:9000n}]});
+  const args={store,chain,policy,scheduling:{durationSec:10n,allocationUnits:10n,maxConcurrent:1,cooldownSec:100n}};
+  let r=await runRound({...args,nowSec:1000n,loadObservation:async()=>only(1000n)});
+  assert.equal(r.created.length,1,'priced against the host it is given to');
+  await store.transition(r.created[0],'offered',{state:'failed',failure:'the guest did not answer over TLS within its lease'});
+  r=await runRound({...args,nowSec:1050n,loadObservation:async()=>only(1050n)});
+  assert.equal(r.created.length,0);assert.deepEqual(r.skipped.map(s=>s.reason),['cooldown']);
+  r=await runRound({...args,nowSec:1101n,loadObservation:async()=>only(1101n)});
+  assert.equal(r.created.length,1,'asked again once the cooldown is over');
+  // with nothing at all to price against, as before
+  const none=await fs.mkdtemp(path.join(os.tmpdir(),'capacity-none-'));const s2=await openStore(none);
+  try{r=await runRound({...args,store:s2,nowSec:1000n,loadObservation:async()=>({...observation,qualifiedSupplyUnits:0n,hosts:[]})});
+   assert.match(r.reason,/no qualified spare capacity/);}finally{await s2.close();await fs.rm(none,{recursive:true});}
+ }finally{await store.close();await fs.rm(dir,{recursive:true});}
+});

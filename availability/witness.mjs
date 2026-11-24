@@ -50,7 +50,10 @@ export function createWitness({ signer, chainId, contract, classId = "cpu", read
     const units = BigInt(Math.floor(Number(a.nodeGflops || 0))), spareUnits = BigInt(Math.max(0, Math.floor(Number(a.cpuGflopsFree || 0))));
     if (units <= 0n || units > maxUnits || spareUnits > units) return { hostId, ok: false, reason: `capacity out of bounds (${units} units, ${spareUnits} spare)` };
     const audit = await lastAudit(hardwareId);
-    if (audit && audit.passed === false) return { hostId, ok: false, reason: "its most recent paid audit failed" };
+    // A host whose most recent paid audit failed still gets a receipt, and the receipt says so (auditFailedSec): it is
+    // offered another audit after its cooldown and counts as no qualified supply until one passes (accounting.mjs).
+    // Refusing the receipt instead left a repaired host with no way back: no receipt, so no audit, ever.
+    const failed = audit && audit.passed === false;
     // continuous qualification per hardware id
     const prev = state.get(hardwareId);
     const since = prev && prev.hostId === hostId && t - BigInt(prev.lastSec) <= BigInt(receiptTtlSec) ? BigInt(prev.sinceSec) : t;
@@ -59,15 +62,21 @@ export function createWitness({ signer, chainId, contract, classId = "cpu", read
     const payload = { kind: "capacity", trustMode: "operator-bootstrap", classId, hostId, operator: lc(reg.operator), payoutWallet: lc(reg.payoutWallet),
                       hardwareId, measurement: v.measurement, evidence: String(q.evidence || "quote"), units: String(units), spareUnits: String(spareUnits), spareAtSec: String(t),
                       minimumRate6: String(minimumRate6), issuedSec: String(since), expiresSec: String(t + BigInt(receiptTtlSec)),
-                      ...(audit && audit.passed ? { lastAuditSec: String(audit.atSec), lastAuditJob: audit.job } : {}) };
+                      ...(audit && audit.passed ? { lastAuditSec: String(audit.atSec), lastAuditJob: audit.job } : {}),
+                      ...(failed ? { auditFailedSec: String(audit.atSec), auditFailedJob: audit.job } : {}) };
     const signature = await signer.signTypedData(receiptData(payload, { chainId, contract }));
-    return { hostId, ok: true, envelope: { payload, signatures: [signature] } };
+    return { hostId, ok: true, reaudit: failed, envelope: { payload, signatures: [signature] } };
   }
   return {
     async round(hosts) {
       const receipts = [], refused = [];
       for (const h of hosts) {
-        try { const r = await examine(h); if (r.ok) receipts.push(r.envelope); else { refused.push({ hostId: r.hostId, reason: r.reason }); } }
+        try {
+          const r = await examine(h);
+          if (!r.ok) { refused.push({ hostId: r.hostId, reason: r.reason }); continue; }
+          receipts.push(r.envelope);
+          if (r.reaudit) log(`[witness] ${r.hostId}: its most recent paid audit failed; the receipt says so and qualifies it for another audit only`);
+        }
         catch (e) { refused.push({ endpoint: h.endpoint, reason: String(e.message).slice(0, 200) }); }
       }
       for (const r of refused) log(`[witness] no receipt for ${r.hostId || r.endpoint}: ${r.reason}`);

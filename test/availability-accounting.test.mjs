@@ -33,3 +33,15 @@ test('queue weight is backed by money, deduplicated and capped',()=>{
 test('dominant owner cannot unilaterally fill measured demand',()=>{
  assert.equal(observeMarket({...a,maxDemandPerOwnerUnits:100n}).paidDemandUnits,100n);
 });
+test('a host whose last audit failed is listed for another audit and is no qualified supply',()=>{
+ const failed={...c,hostId:'h2',hardwareId:'physical2',auditFailedSec:'900'};
+ const o=observeMarket({...a,capacities:[c,failed]});
+ assert.equal(o.qualifiedSupplyUnits,10000n);assert.equal(o.reauditSupplyUnits,10000n);
+ assert.deepEqual(o.hosts.map(h=>[h.hostId,h.reaudit===true]),[['h',false],['h2',true]]);
+ const alone=observeMarket({...a,capacities:[failed]});
+ assert.equal(alone.qualifiedSupplyUnits,0n);assert.equal(alone.reauditSupplyUnits,10000n);assert.equal(alone.hosts.length,1);
+ // the same rules as any receipt: one that does not cover the window is not listed, a malformed mark is refused
+ assert.equal(observeMarket({...a,capacities:[{...failed,issuedSec:950n}]}).hosts.length,0);
+ assert.throws(()=>observeMarket({...a,capacities:[{...failed,auditFailedSec:900n}]}),/failed-audit time/);
+ assert.equal(observeMarket(a).reauditSupplyUnits,0n);
+});
