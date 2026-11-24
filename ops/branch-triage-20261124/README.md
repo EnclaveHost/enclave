@@ -126,8 +126,7 @@ no source. What it takes instead:
 
 ## Second look at two control-image branches (2026-11-24, the RPC/metal0 session)
 
-- `codex/native-control-integration-20261025`, commit `702854589` (per-image desktop SVN floor): **landed in source,
-  main 8d1013a76; not deployed.** The owner asked for it ("Yes, land it"). Its relay change
+- `codex/native-control-integration-20261025`, commit `702854589` (per-image desktop SVN floor): **on main (8d1013a76) and the same code runs in the relay.** The owner asked for it ("Yes, land it"). Its relay change
   (`relay/vbs-image-identity.mjs`, `relay/vbs-vm-report-core.mjs` and their tests) applied to main cleanly; without a
   `minimumGuestSvn` on a pin nothing changes, with one the floor for that image only rises. Both files are inputs of
   generated bundles, so the commit regenerates `verifier/web/dist`, `metal/guest/platform-api.bundle.mjs` and
@@ -135,8 +134,12 @@ no source. What it takes instead:
   the root, in `relay/` and in `network/`, then `node relay/build-network.mjs`, as CI's bundle job does). Built that
   way main's web verifier bundle reproduced byte for byte before the change; the two guest bundles were already stale
   by eight source files changed since 2026-11-12 and are current again (`test/mcp-hosted-control.test.mjs` passes
-  again). Still to do, both waiting for the KVM Box SVN 25 switch to finish: a relay deployment, and a floor on the
-  desktop image's pin (25 after that switch, not 22). Until then nothing enforces it. It is not part of a metal0
+  again). **It already runs:** read in the relay's VM on
+  2026-11-24 08:42 UTC, after the KVM Box SVN 25 switch, `/opt/nan-relay/vbs-image-identity.mjs` and
+  `vbs-vm-report-core.mjs` are byte for byte main's (sha256 a3041272…, ff270337…), the relay was last started at
+  08:20:40, and the native desktop entry of the live policy carries `minimumGuestSvn: 25`. The branch's change had
+  been installed there by hand and never reached main; the port reconciles the source with what runs. No relay
+  deployment was made for it, and the pins were left alone. It is not part of a metal0
   control image: metal0's image is the per-app supervisor image and does not carry the platform API bundle.
 - the same branch, `77ef9dd6d` (measured control API qualification): superseded. It is a regeneration of the platform
   bundle as of 2026-10-25 and a qualification note; the bundle has been regenerated on main since (2026-10-30,
