@@ -10513,6 +10513,44 @@ if (leaseGasActive()) {
           + "; this key's ETH is never used for claim/renew/release"); }
   catch (e) { console.warn(`[lease-gas] app-funded leases are configured but cannot be loaded now (${e.message}); every claim/renew/release refuses until they can`); }
 }
+// ---- a capacity audit's job is claimed on this host's own gas ---------------------------------------------------------
+// The one lease the app does not pay for: a job the availability contract funded from the audit budget (fundJob marks
+// it; the policy's executor, payer authorization, job cap and daily cap are enforced there). It has no lease-gas
+// reserve and it pays this host for the audit, so its claim, renew and release are this key's own transactions.
+// Granted only on the contract's own answer for THIS ledger; unreadable, another ledger, or over the day's bound: not
+// granted, and the sponsored path then refuses in words as it does for any app without a reserve.
+const CAPACITY_AUDIT_CONTRACT = (process.env.CAPACITY_AUDIT_CONTRACT ?? "0x87c7266543ff5839b2c20226BD9B3cd511A23641").trim();
+const CAPACITY_AUDIT_HOST_PAID_PER_DAY = Math.max(0, Number(process.env.CAPACITY_AUDIT_HOST_PAID_PER_DAY ?? 4) || 0);
+const AUDIT_FUNDER_ABI = [
+  { type: "function", name: "fundedJob", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "bool" }] },
+  { type: "function", name: "ledger", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+];
+const _hostPaidLeases = new Map();   // deployment id -> when granted (ms)
+const _notAuditJob = new Map();      // deployment id -> when last answered "no" (ms); asked again after ten minutes
+const hostPaidLease = (id) => _hostPaidLeases.has(String(id || "").toLowerCase());
+async function auditLeaseOnHostGas(id, { read = (functionName, args) => chainClient.readContract({ address: getAddress(CAPACITY_AUDIT_CONTRACT), abi: AUDIT_FUNDER_ABI, functionName, args }),
+  ledger = DEPLOYMENTS_ADDRESS, active = leaseGasActive(), now = Date.now() } = {}) {
+  const key = String(id || "").toLowerCase();
+  if (!active || !CAPACITY_AUDIT_CONTRACT || !/^0x[0-9a-f]{64}$/.test(key)) return false;
+  if (_hostPaidLeases.has(key)) return true;
+  if (now - (_notAuditJob.get(key) ?? -Infinity) < 600_000) return false;
+  try {
+    if (String(await read("ledger", [])).toLowerCase() !== String(ledger).toLowerCase()) throw new Error("the audit contract pays on another ledger");
+    if ((await read("fundedJob", [key])) !== true) { _notAuditJob.set(key, now); return false; }
+  } catch (e) {
+    console.warn(`[lease-gas] ${key} is not taken for an audit job: ${e.shortMessage || e.message}`);
+    return false;
+  }
+  for (const [k, at] of _hostPaidLeases) if (now - at > 86_400_000 && !deployments.has(k)) _hostPaidLeases.delete(k);
+  const today = [..._hostPaidLeases.values()].filter((at) => now - at < 86_400_000).length;
+  if (today >= CAPACITY_AUDIT_HOST_PAID_PER_DAY) {
+    console.warn(`[lease-gas] audit job ${key}: ${today} audit lease(s) already paid by this host in 24 h (bound ${CAPACITY_AUDIT_HOST_PAID_PER_DAY}); not this one`);
+    return false;
+  }
+  _hostPaidLeases.set(key, now);
+  console.log(`[lease-gas] ${key} is a capacity audit's job (funded by ${CAPACITY_AUDIT_CONTRACT}): its lease is paid by this host`);
+  return true;
+}
 function leaseGasError(fn, id, e) {
   const code = e && e.code;
   const msg = `app-funded ${fn} of ${id} not sent: ${(e && e.message) || e}${code === "OverRateCap" ? " (over rate cap)" : ""}; this host's ETH is never used instead`;
@@ -10525,7 +10563,7 @@ function leaseGasError(fn, id, e) {
 // opts.gate: () => null, or why the caller no longer permits this send (walletSendGate); asked when the operator queue
 // reaches it, before anything is signed or relayed -> rejects {superseded: true}
 function sendLeaseTx(functionName, args, { gate = null } = {}) {
-  if (!leaseGasActive()) return sendClaimTx(functionName, args, { gate });
+  if (!leaseGasActive() || hostPaidLease(args[0])) return sendClaimTx(functionName, args, { gate });
   const job = async () => {
     const stale = gate?.();
     if (stale) throw Object.assign(new Error(`app-funded ${functionName} not sent: ${stale}`), { superseded: true });
@@ -10817,6 +10855,7 @@ async function beginRelease(id, why, { holdoffMs = 0, retry = true, isBusy = nul
       + `(runner ${lc(row.d.runner)}, operator ${lc(row.d.runnerOperator)}); nothing was stopped.` };
   }
   Object.assign(it, lease, { decidedAt: row.block });
+  if (await auditLeaseOnHostGas(id)) it.hostPaid = true;   // persisted with the intent: a restart sends it the same way
   saveStateNow();
   return { intent: it };
 }
@@ -10920,7 +10959,7 @@ async function resolveSponsoredReleaseTx(it, tx) {
 // Sign locally, persist {hash, nonce}, then broadcast, inside the one operator queue (sendOperatorTx): the next operator
 // transaction still waits for this one's receipt (bounded), and its nonce comes after this one's.
 function signAndSendRelease(it) {
-  if (leaseGasActive()) return sponsoredRelease(it);   // never this key's ETH once app-funded leases are configured
+  if (leaseGasActive() && !it.hostPaid) return sponsoredRelease(it);   // never this key's ETH once app-funded leases are configured
   const signed = _txChain.then(async () => {
     await chainActionGate("release", true);              // nothing is signed on a stale verifier or an unbound backend
     const { account, wallet } = claimSigner();
@@ -11097,7 +11136,8 @@ async function renewLeases() {
       if (rec._leaseUntil * 1000 - Date.now() > RENEW_MARGIN_SEC * 1000) continue;
     }
     const lapsed = rec._leaseUntil * 1000 <= Date.now();
-    if (leaseGasActive() && !lapsed && !(await leaseGasRenewDue(rec))) continue;   // a sponsored renew waits for the app's window
+    const hostPaid = await auditLeaseOnHostGas(rec.id);   // an audit job renews on the ordinary margin, on this key's gas
+    if (leaseGasActive() && !hostPaid && !lapsed && !(await leaseGasRenewDue(rec))) continue;   // a sponsored renew waits for the app's window
     if (rec.status !== "running" || rec._renewing) continue;   // re-checked after that await
     const permit = leasePermit(rec);   // bound NOW, before the ledger read and the wallet decision (walletSendGate)
     rec._renewing = true;
@@ -11543,6 +11583,7 @@ async function auditClaims(ledgerById) {
       // helps nobody and burns the user's lease.
       if (opMine && !leaseLive && rec.status === "running") {
         try {
+          await auditLeaseOnHostGas(rec.id);
           const sent = sendLeaseTx("claim", [rec.id, _enclaveId], { gate: walletSendGate(w) });
           await sent;
           const rcpt = await sent.receipt;
@@ -12505,6 +12546,7 @@ async function tryClaim(d, g, firewall, slice, { hinted = false, resume = false 
   // answering "claiming" while nothing ever happened. Say it out loud.
   if (!open) { console.log(`[claim] ${d.id} no longer open to us (claimableBy=false); skipping`); return; }
   if (releaseHold(d.id)) return releaseHold(d.id);
+  await auditLeaseOnHostGas(d.id);
   let rcpt;
   try {
     const sent = sendLeaseTx("claim", [d.id, _enclaveId], { gate: walletSendGate(wallet) });

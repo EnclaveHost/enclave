@@ -23,7 +23,7 @@ function fixture() {
     stopContainer:async r=>{r._expiryEpoch=(r._expiryEpoch||0)+1;state.stops++;},releaseGpu(){},
     tearDown:async r=>{r._expiryEpoch=(r._expiryEpoch||0)+1;state.stops++;r.status='expired';},
     _reach:{tripped:false},RENEW_MARGIN_SEC:300,_stateCorrupt:false,HOST_POLICY_GATE:{serviceRefusal:()=>null},
-    _releaseIntents:new Map(),leaseGasActive:()=>false,readLedgerContract:async()=>row({configCid:''}),placementRefusal:()=>null,
+    _releaseIntents:new Map(),leaseGasActive:()=>false,auditLeaseOnHostGas:async()=>false,hostPaidLease:()=>false,readLedgerContract:async()=>row({configCid:''}),placementRefusal:()=>null,
     leasePermit:()=>({}),hostWalletDecision:async()=>({}),hostWalletRefusal:async()=>null,walletSendGate:()=>()=>null,
     sendClaimTx:()=>{state.sends++;throw Error('502 relay timeout');},sendLeaseTx:()=>{state.sends++;throw Error('502 relay timeout');},
   });

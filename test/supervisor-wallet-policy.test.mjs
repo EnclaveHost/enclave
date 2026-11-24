@@ -23,7 +23,7 @@ function fixture(){
    placementRefusal:()=>null,readLedgerContract:async()=>({appRef:ref}),
    stopContainer:async()=>{state.events.push('stop');},proveAndRelease:async()=>{state.events.push('release');},saveStateSoon:()=>{},
    sendLeaseTx:()=>{throw Error('denied work must not renew');},_yankBusy:false,
-   HOST_POLICY_GATE:{serviceRefusal:()=>null},_stateCorrupt:null,leaseGasActive:()=>false,TERMINAL_STATUSES:new Set(['expired','failed','terminated','stopping']),
+   HOST_POLICY_GATE:{serviceRefusal:()=>null},_stateCorrupt:null,leaseGasActive:()=>false,auditLeaseOnHostGas:async()=>false,hostPaidLease:()=>false,TERMINAL_STATUSES:new Set(['expired','failed','terminated','stopping']),
    lc:v=>String(v||'').toLowerCase(),releaseGpu:()=>{},releaseLease:async()=>{state.events.push('release');},
    cutDeploymentStreams:()=>0,listBackendInstances:async()=>[],
  });

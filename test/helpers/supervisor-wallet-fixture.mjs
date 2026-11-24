@@ -57,7 +57,7 @@ export function fixture({hostId=host}={}){
    // sendOperatorTx's explicit fee/gas reads (5db2be3f port): fixed answers, the write is still the recorded writeContract
    estimateFeesPerGas:async()=>({maxFeePerGas:7_000_000n,maxPriorityFeePerGas:1_000_000n}),estimateContractGas:async()=>50_000n},
   _reach:{tripped:false},RENEW_MARGIN_SEC:900,tenantProvisions:new Map(),_releaseIntents:new Map(),
-  HOST_POLICY_GATE:{enabled:false,serviceRefusal:()=>null,status:()=>({})},_stateCorrupt:null,chainActionGate:async()=>{},leaseGasActive:()=>false,leaseGasRenewDue:async()=>true,
+  HOST_POLICY_GATE:{enabled:false,serviceRefusal:()=>null,status:()=>({})},_stateCorrupt:null,chainActionGate:async()=>{},leaseGasActive:()=>false,auditLeaseOnHostGas:async()=>false,hostPaidLease:()=>false,leaseGasRenewDue:async()=>true,
   TERMINAL_STATUSES:new Set(['expired','failed','terminated','stopping']),lc:v=>String(v||'').toLowerCase(),
   placementRefusal:()=>null,readLedgerContract:async()=>row(),
 reconcileInstancesSoon:()=>{},egress:{closeDeployment:id=>{s.egressClosed.push(id);return 0;}},
