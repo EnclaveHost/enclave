@@ -1,7 +1,6 @@
 # metal0 control image 708ee9f: a capacity audit's job is claimed on the host's own gas
 
-Status: **active on metal0 since 2026-11-24 07:15:37Z**; see "The run". No audit job has been claimed on it yet: the
-audit service asks a host once in 24 hours and metal0's next turn is about 10:00 UTC on the 24th.
+Status: **active on metal0 since 2026-11-24 07:15:37Z**; see "The run" and "The first audit job".
 
 ## Why
 
@@ -58,5 +57,19 @@ with `CVM_IP` set to the address the Hyper-V host reports:
 
 The capacity audit's own list of host measurements (`~/enclave-prod/capacity-audit/config.json`) has `62897c24…`
 since 06:13 and its witness issues receipts for metal0 on the new image.
+
+## The first audit job (2026-11-24, UTC)
+
+- 09:47:55 the audit service created a job (0.0099 USDC reserved); 09:49:03 the host acceptor accepted it.
+- metal0: `[lease-gas] 0x3a5a64ad… is a capacity audit's job (funded by 0x87c72665…3641): its lease is paid by this
+  host`, then the claim landed (`adopted: app=capacity-work:1.0.0 … lease until 09:56:38`). The claim was this
+  key's own transaction. A renewal was refused by the ledger (`unfunded`: the job is funded for its 450 seconds only).
+- the job's guest was refused by guestd four times for a reason of the host's own, a stale VCEK
+  (`docs/operations/metal0-perapp-vcek-stale-20261124.md`); the supervisor gave the lease back, released at block
+  61618605 by a transaction of this key.
+- the audit recorded the job as failed (`the guest did not answer over TLS within its lease`).
+
+So the change does what it was made for, claim and release on the host's gas, and the audit then failed for a fault
+it exists to find. Operator key: 9.256e-4 ETH after the rollout's registration, not read again after the job.
 
 Rollback of the image: `control-image.sh rollback`.
