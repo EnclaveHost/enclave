@@ -32,11 +32,26 @@ work.
   The script is now in the repository: `scripts/host/refresh-vcek.sh` (installed at
   `~/enclave-prod/collateral/metal0/refresh-vcek.sh`).
 
-## What is not verified, and what is left
+## Verified the same day
 
-- No per-app guest has been launched on metal0 since the change, so the fix is not seen working. The evidence for it
-  is that it is the same chip and the same reported TCB whose quote the relay accepts with this file.
-- The audit will not ask metal0 again by itself: its witness gives no capacity receipt to a host whose most recent
-  paid audit failed (`availability/witness.mjs`), and without a receipt no audit is created. How a host that failed
-  and was repaired gets audited again is not decided.
+- The chip's current report (metal0's own attestation document) checked with the judge's own parse and signature
+  check: valid under the installed VCEK, invalid under the September one ("VCEK microcode SPL 117 does not match the
+  report's reported TCB 123").
+- A host that failed an audit is audited again after its cooldown (main 22ca2f46b, installed 10:30 UTC). With the
+  cooldown lowered for the evening, three more audit jobs ran on metal0, each claimed and released on its own gas:
+  - 20:40 UTC: the guest attested and got its certificate (`guest attested`), the first per-app guest accepted on
+    metal0 since the 18th. The job was then booked as failed with `reference execution failed`: the auditor's own
+    reference binary was gone, its worktree having been moved on 2026-10-24.
+  - 20:53 UTC: after one claim that was given back (`the relay's release list could not be read for this
+    deployment`, retried five minutes later), the guest attested, the work ran and matched the reference in 10.1 s:
+    **complete, verified**. The witness's receipt for metal0 names it as the last passed audit.
+  - 21:05 UTC: one more job, created by the old process in its last round before the restart that restored the
+    24-hour cooldown. Not waited for.
+- The auditor: the reference binary has a copy beside the service (`~/enclave-prod/capacity-audit/bin/reference`, the
+  2026-09-30 build of `capacity-work`, whose source is unchanged on enclave-apps main); the service refuses to start
+  without it; a reference that cannot run is the auditor's fault and no longer counts against the host.
+
+## What is left
+
 - guestd's VCEK path is a default into a lab cache directory, not a setting of the unit.
+- 0x38f368d6, the app whose guests were refused on 2026-11-20, was not looked at again.

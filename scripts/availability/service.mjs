@@ -75,9 +75,11 @@ const witnessState = (() => {
   let m = {}; try { m = JSON.parse(fs.readFileSync(f, "utf8")); } catch {}
   return { get: (k) => m[k] || null, set: (k, v) => { m[k] = v; fs.writeFileSync(f + ".tmp", JSON.stringify(m)); fs.renameSync(f + ".tmp", f); } };
 })();
+// (the reference: the auditor computes the expected result itself before it asks the host; when its own binary cannot run,
+// the host was never asked: 2026-11-24, the binary's directory had been moved and a served job was booked as the host's failure)
 // (Shield: our relay route gave no host session (busy, absent, timed out), our own derivation of the app failed, our pinned
 // policy is missing, or the session aged past verified-http's 30 s before the capture)
-const VERIFIER_SIDE = /\/v1\/expected-guest\?id=|^no prediction for the job's guest|^no installed release states runtime|^no admitted predicted image|^Shield host session unavailable|^Shield expectation unavailable|^Shield app policy|^current authenticated host session required/;
+const VERIFIER_SIDE = /\/v1\/expected-guest\?id=|^no prediction for the job's guest|^no installed release states runtime|^no admitted predicted image|^Shield host session unavailable|^Shield expectation unavailable|^Shield app policy|^current authenticated host session required|^reference execution failed$|^invalid reference result$/;
 const witness = createWitness({
   signer: witnessKey, chainId: 8453, contract: cfg.fees, classId: cfg.classId, readRegistry, minTcb: cfg.minTcb,
   allowedMeasurements: cfg.hostMeasurements, state: witnessState, receiptTtlSec: cfg.receiptTtlSec,
@@ -214,6 +216,8 @@ const shieldExpect = shieldOn ? (() => {
     // the host session LAST: verified-http wants it within 30 s of the capture
     hostSession: (job) => shieldChecker.session(shieldBoxName(cfg.hosts.find((h) => lc(keccak256(toBytes(h.endpoint))) === lc(job.offer.hostId)))) });
 })() : null;
+// without its reference the auditor can judge no host: refuse to start instead of failing every paid job
+fs.accessSync(cfg.referenceBinary, fs.constants.X_OK);
 const cpuWorkload = createCpuWorkload({ referenceBinary: cfg.referenceBinary, rounds: cfg.workload.rounds, memoryMiB: cfg.workload.memoryMiB, passes: cfg.workload.passes, timeoutMs: cfg.workload.timeoutMs,
   requestVerified: verifiedAppRequest({ collateral, loadExpectations: async (job) => {
     if (hostKind.get(lc(job.offer.hostId)) === "shield") return shieldExpect(job);
