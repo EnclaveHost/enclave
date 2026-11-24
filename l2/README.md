@@ -1,5 +1,7 @@
 # l2/: Enclave L2 tooling (testnet)
 
+**Parked 2026-11-24: see `PARKED.md` for the chain state and how to resume.**
+
 An OP Stack L2 that settles on Ethereum and carries only Enclave's own
 traffic. The design is in `ops/enclave-l2-20261103/DESIGN.md`, and the evidence
 from the Sepolia devnet sits beside it. **Nothing here touches production.**

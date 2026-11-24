@@ -1,0 +1,42 @@
+{
+  "kind": "devnet state at parking",
+  "stoppedAt": "2026-11-24T07:41Z",
+  "respectedGameType": 9,
+  "anchorRoot": "0xc641aa2e12c0fa924cfdc7ecc1288bfafd5ab62f33859d7567cdbf1f8630ff47",
+  "anchorL2SequenceNumber": 1795070266,
+  "gameCount": 356,
+  "lastGame": {
+    "index": 355,
+    "type": 9,
+    "address": "0x6C0C784B44bf2B7fbf1d7066211F13F9EB7cD944",
+    "created": "2026-11-24T07:23Z",
+    "status": "IN_PROGRESS",
+    "proposerBondWei": "1000000000000000"
+  },
+  "pendingForcedDeposit": {
+    "l1Tx": "0x1d3dfbfa59bd2ca24d4512c163c4855d3847d20a62456705ebee33bb16870032",
+    "l1Block": 12201140,
+    "call": "runner clearPayoutWallet(0xff8a292bd089d2824fc7bff12dece05958f079780b9390e3c845dbabd5499dc1) on EnclaveRegistry 0xE774ABfDDCB146A741f8fa9DD6Cf6c2d072dDcFc",
+    "status": "on L1, not yet derived on L2 when stopped"
+  },
+  "nodes": {
+    "sequencer": {
+      "unsafe": 638154,
+      "safe": 636809,
+      "l1Derived": 12178146
+    },
+    "replica": {
+      "safe": 678173,
+      "l1Derived": 12183067
+    },
+    "l1Head": 12201214
+  },
+  "sepoliaBalancesEth": {
+    "deployer": "0.020700997699229311",
+    "admin": "0.009999999929724356",
+    "batcher": "0.006160103108161696",
+    "proposer": "0.007456396401887058",
+    "challenger": "0.004186044915401068",
+    "runner": "0.001999999995975830"
+  }
+}
