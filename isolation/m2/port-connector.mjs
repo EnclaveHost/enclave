@@ -17,7 +17,12 @@ export function parseBindings(text) {
   });
 }
 // host: the loopback address the local ports bind (default 127.0.0.1; a GameStream client may need its own, e.g. 127.0.0.2).
-export async function startConnector(text, dial, { host = '127.0.0.1', log = console.log } = {}) {
+// renewSilentMs: a UDP association the guest has not answered within this long (while the client keeps sending) is
+//   dropped and opened again on the next datagram. A GameStream client pings its UDP ports before the server opens
+//   them; an association made then never recovers, and Sunshine ends the session when its audio ping never arrives.
+// supersedeMs: a new client of a UDP port ends that port's associations whose client has been quiet this long (a
+//   restarted stream comes from new client ports, and the old associations would hold the guest's tunnel slots).
+export async function startConnector(text, dial, { host = '127.0.0.1', log = console.log, renewSilentMs = 0, supersedeMs = 0 } = {}) {
   if (!/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) throw new Error('forwarded ports bind only to a 127.x loopback address');
   const listeners = [], connections = new Set(), cancelPeers = new Set();
   let stopped = false;
@@ -58,20 +63,24 @@ export async function startConnector(text, dial, { host = '127.0.0.1', log = con
           let state = peers.get(key);
           if (!state) {
             if (peers.size >= 32 || connections.size >= 128) return;
-            state = { pending: [], bytes: 0, stream: null, dead: false, input: Buffer.alloc(0) };
+            if (supersedeMs) for (const [k, o] of peers) if (Date.now() - o.fromClient > supersedeMs) o.close();
+            state = { pending: [], bytes: 0, stream: null, dead: false, input: Buffer.alloc(0), answered: false, fromClient: Date.now(), close: null };
             peers.set(key, state);
             const close = () => {
               if (state.dead) return;
               state.dead = true; peers.delete(key); clearTimeout(state.timer); cancelPeers.delete(close);
               if (state.stream) { connections.delete(state.stream); state.stream.destroy(); }
             };
+            state.close = close;
             cancelPeers.add(close);
             state.timer = setTimeout(close, 180000); state.timer.unref();
             dial(b.protocol, b.remote).then(stream => {
               if (state.dead) { stream.destroy(); return; }
               state.stream = stream; connections.add(stream);
               stream.setTimeout(180000, close); stream.on('close', close); stream.on('error', close);
+              if (renewSilentMs) setTimeout(() => { if (!state.answered && !state.dead) { log(`udp:${b.remote}: no answer from the guest in ${renewSilentMs} ms; reopening`); close(); } }, renewSilentMs).unref();
               stream.on('data', chunk => {
+                state.answered = true;
                 state.input = Buffer.concat([state.input, chunk]);
                 while (state.input.length >= 2) {
                   const size = state.input.readUInt16BE();
@@ -85,7 +94,7 @@ export async function startConnector(text, dial, { host = '127.0.0.1', log = con
               state.pending = []; state.bytes = 0;
             }).catch(e => { console.error(`udp:${b.remote}: ${e.message}`); close(); });
           }
-          state.timer.refresh();
+          state.timer.refresh(); state.fromClient = Date.now();
           const frame = Buffer.allocUnsafe(packet.length + 2); frame.writeUInt16BE(packet.length); packet.copy(frame, 2);
           // UDP overload drops datagrams; it must not grow a video-frame backlog.
           if (state.stream) { if (state.stream.writableLength + frame.length <= MAX_QUEUE) state.stream.write(frame); }

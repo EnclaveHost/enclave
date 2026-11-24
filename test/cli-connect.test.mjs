@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import https from 'node:https';
 import http from 'node:http';
 import net from 'node:net';
+import dgram from 'node:dgram';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -39,9 +40,16 @@ async function fakeGuest(t, k) {
     req.on('end', () => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ...seen.last, body })); });
   });
   server.current = k;
+  seen.udp = 0;
   server.on('upgrade', (req, socket, head) => {
     seen.app++;
     const tunnel = req.url.startsWith('/.well-known/enclave-tunnel/');
+    // the first UDP association goes unanswered, as one made before Sunshine opened its port does
+    if (req.url.includes('/udp/') && seen.udp++ === 0) {
+      socket.write('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: enclave-port/1\r\n\r\n');
+      socket.resume();
+      return;
+    }
     socket.write(`HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: ${tunnel ? 'enclave-port/1' : req.headers.upgrade}\r\n\r\n`);
     if (head.length) socket.write(head);
     socket.pipe(socket);
@@ -192,4 +200,20 @@ test('shieldVerifier needs a host name and a full deployment id, and a host that
   const v = shieldVerifier({ apiBase: 'https://api.invalid', name: 'nucbox-k11-4', deployment: id, fetchImpl });
   await assert.rejects(v({ format: SHIELD_FORMAT }, Buffer.alloc(1), Buffer.alloc(32)), /attestation refused: Shield host nucbox-k11-4/);
   assert.ok(seen.length > 0 && seen.every((u) => !u.includes('/apps/')), 'no app attestation is requested before the host verified');
+});
+
+test('a UDP association the guest never answers is reopened, and the next one carries the stream', async (t) => {
+  const { a } = await setup(t), g = await fakeGuest(t, a);
+  const free = await new Promise((r) => { const s = dgram.createSocket('udp4'); s.bind(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
+  const lines = [];
+  const c = await startConnect({ host: '127.0.0.1', port: g.port, servername: 'app.test', verify: trusting(new Set([sha(a.spki)])), serveHttp: false,
+    ports: `udp:48000=${free}`, log: (l) => lines.push(l) });
+  t.after(c.stop);
+  const client = dgram.createSocket('udp4'); t.after(() => client.close());
+  const answered = new Promise((resolve) => client.once('message', (m) => resolve(m.toString())));
+  // a GameStream client pings twice a second until it hears back
+  const ping = setInterval(() => client.send('PING', free, '127.0.0.1'), 300); t.after(() => clearInterval(ping));
+  assert.equal(await answered, 'PING');
+  assert.ok(lines.some((l) => /udp:48000: no answer from the guest in 2000 ms; reopening/.test(l)), lines.join('\n'));
+  assert.equal(g.seen.udp, 2, 'one silent association, then one that answered');
 });

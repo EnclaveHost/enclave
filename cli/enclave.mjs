@@ -1523,7 +1523,7 @@ async function cmdAttest(rest) {
 // talk to 127.0.0.1; every byte to the guest goes over TLS whose key a fresh AMD report vouched for. Expectations
 // are the caller's (--expect, --app-sha, …, or a --policy file an app ships), never read from the guest itself.
 async function cmdConnect(rest) {
-  const f = flags(rest, { bool: ["--no-http", "--no-kds", "--unbound", "--shield"],
+  const f = flags(rest, { bool: ["--no-http", "--no-kds", "--unbound", "--shield", "--gamestream"],
     val: ["--policy", "--origin", "--shield-host", "--servername", "--app-sha", "--runtime", "--vcek", "--amd-chain", "--host-data", "--listen", "--port", "--port-host",
           "--auth-env", "--auth-file", "--basic-file", "--state"] });
   const usage = "usage: enclave connect <id>|--origin https://host[:port] --expect MEASUREMENT[,…] [--app-sha HEX] [--policy FILE] [--port tcp:22,udp:47998] [--listen [127.0.0.1:]PORT]";
@@ -1577,7 +1577,7 @@ async function cmdConnect(rest) {
   const log = (s) => stderr.write(s + "\n");
   const c = await startConnect({
     host: origin.hostname.replace(/^\[|\]$/g, ""), port: Number(origin.port || 443), servername: f.servername || pol.servername || origin.hostname,
-    verify, listen: { host: lm[1] || "127.0.0.1", port: +lm[2] }, serveHttp: !f["no-http"], ports: f.port || pol.ports || null,
+    verify, listen: { host: lm[1] || "127.0.0.1", port: +lm[2] }, serveHttp: !f["no-http"], ports: f.port || pol.ports || null, gamestream: !!(f.gamestream || pol.gamestream),
     portHost: f["port-host"] || pol.portHost || "127.0.0.1", authorization, stateFile: f.state ? path.resolve(f.state) : null, log });
   const a = c.attestation();
   if (opt.json) jout({ url: c.url, remote: c.remote, deployment: id, measurement: a.verdict.measurement || null, format: a.verdict.format || null, limited: !!a.verdict.limited,
@@ -4689,6 +4689,7 @@ ${HISTORY_PUBLIC_OPTIONS.map(o=>`                               ${o.url} (${o.op
   connect <id> --expect M    a local attested origin for the app: verify a fresh SNP report, pin
                              the guest's TLS key, then serve http://127.0.0.1:PORT (HTTP + WebSocket)
     --port tcp:22,udp:N=M    also forward guest ports through its attested tunnel (--port-host 127.0.0.2)
+    --gamestream             Moonlight: Sunshine's six ports on --port-host, UDP as flows (add that PC)
     --app-sha HEX            the AppID a guest-domain report must name (whole-VM apps need only --expect)
     --policy FILE            the expectations as JSON (an app can ship one); flags win over it
     --auth-env VAR | --auth-file F | --basic-file USER:F   credential added to every request

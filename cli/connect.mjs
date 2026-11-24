@@ -21,18 +21,20 @@ import { startConnector, parseBindings } from '../isolation/m2/port-connector.mj
 
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 const MAX_DOC = 2 * 1024 * 1024;
+const GUEST_BUSY = /attestation busy; retry|too many concurrent report requests/, GUEST_BUSY_RETRIES = 5;   // network/guest-probe.mjs
 const DROP_UP = ['proxy-authorization', 'proxy-connection', 'forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-real-ip'];
 const DROP_DOWN = ['strict-transport-security', 'alt-svc'];
 export class PinMismatch extends Error {}
 
 // verify(doc, spki, nonce) -> { ok, reason?, measurement?, format? }. Throws only on a usage error.
 export async function startConnect({ host, port = 443, servername = host, verify, listen = { host: '127.0.0.1', port: 0 },
-  serveHttp = true, ports = null, portHost = '127.0.0.1', authorization = null, stateFile = null, log = () => {}, connect = tls.connect } = {}) {
+  serveHttp = true, ports = null, gamestream = false, portHost = '127.0.0.1', authorization = null, stateFile = null, log = () => {}, connect = tls.connect,
+  debug = !!process.env.ENCLAVE_CONNECT_DEBUG } = {}) {
   if (typeof verify !== 'function') throw new Error('connect needs a verifier');
   if (!host || !Number.isInteger(port) || port < 1 || port > 65535) throw new Error('connect needs a guest host and port');
   if (!/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(listen.host)) throw new Error('the local origin binds only to a 127.x loopback address');
   if (ports) parseBindings(ports);
-  if (!serveHttp && !ports) throw new Error('nothing to serve: --no-http needs --port');
+  if (!serveHttp && !ports && !gamestream) throw new Error('nothing to serve: --no-http needs --port or --gamestream');
   const sni = isIP(servername) ? undefined : servername;
   const remoteOrigin = `https://${servername}${port === 443 ? '' : ':' + port}`;
 
@@ -63,7 +65,10 @@ export async function startConnect({ host, port = 443, servername = host, verify
         res.on('data', (b) => { size += b.length; if (size > MAX_DOC) res.destroy(new Error('oversized attestation document')); else chunks.push(b); });
         res.once('error', reject);
         res.once('end', () => {
-          if (res.statusCode !== 200) return reject(new Error(`attestation endpoint answered HTTP ${res.statusCode}`));
+          if (res.statusCode !== 200) {
+            const text = Buffer.concat(chunks).toString('utf8', 0, 300).trim();
+            return reject(Object.assign(new Error(`attestation endpoint answered HTTP ${res.statusCode}${text ? `: ${text}` : ''}`), { busy: GUEST_BUSY.test(text) }));
+          }
           try { resolve(JSON.parse(Buffer.concat(chunks))); } catch { reject(new Error('attestation document is not JSON')); }
         });
       });
@@ -76,7 +81,13 @@ export async function startConnect({ host, port = 443, servername = host, verify
   function attest() {
     if (flight) return flight;
     flight = (async () => {
-      const { doc, spki, nonce } = await fetchEvidence();
+      // a guest's hardware report is a shared, rate-limited resource: a busy answer is waited out, a bounded number of times
+      let evidence;
+      for (let i = 0; ; i++) {
+        try { evidence = await fetchEvidence(); break; }
+        catch (e) { if (!e.busy || i >= GUEST_BUSY_RETRIES) throw e; log(`guest attestation busy; retrying in ${3 * (i + 1)}s`); await new Promise((r) => setTimeout(r, 3000 * (i + 1))); }
+      }
+      const { doc, spki, nonce } = evidence;
       const verdict = await verify(doc, spki, nonce);
       if (!verdict?.ok) throw new Error(`attestation refused: ${verdict?.reason || 'no reason given'}`);
       const moved = current && !current.pin.equals(spki);
@@ -158,6 +169,26 @@ export async function startConnect({ host, port = 443, servername = host, verify
   }
 
   // A raw port: one pinned connection per local TCP connection or UDP peer, upgraded to the front's tunnel.
+  // ENCLAVE_CONNECT_DEBUG=1: one line per tunnel when it opens and when it closes (lifetime, bytes each way, why)
+  let tunnels = 0;
+  const traceTunnel = (socket, what) => {
+    const n = ++tunnels, t0 = Date.now(); let up = 0, down = 0, why = 'closed';
+    const write = socket.write.bind(socket);
+    socket.write = (chunk, ...rest) => { up += chunk.length; return write(chunk, ...rest); };
+    socket.on('data', (b) => { down += b.length; });
+    socket.once('end', () => { why = 'guest ended it'; });
+    socket.once('timeout', () => { why = 'idle timeout'; });
+    socket.once('error', (e) => { why = `error: ${e.message}`; });
+    log(`tunnel #${n} ${what} open`);
+    // a long-lived tunnel (a UDP association) also reports its traffic once a second while it moves or stalls
+    let last = [0, 0], quiet = 0;
+    const tick = setInterval(() => {
+      const d = [up - last[0], down - last[1]]; last = [up, down];
+      if (d[0] || d[1]) { quiet = 0; log(`tunnel #${n} ${what} +${d[0]} B up, +${d[1]} B down`); }
+      else if (++quiet === 2) log(`tunnel #${n} ${what} silent (no bytes either way for 2s)`);
+    }, 1000); tick.unref();
+    socket.once('close', () => { clearInterval(tick); log(`tunnel #${n} ${what} ${why} after ${((Date.now() - t0) / 1000).toFixed(1)}s, up ${up} B, down ${down} B`); });
+  };
   const tunnel = (protocol, remotePort) => new Promise((resolve, reject) => {
     const req = https.request({ host, port, method: 'GET', agent: upgradeAgent, path: `/.well-known/enclave-tunnel/${protocol}/${remotePort}`,
       headers: { host: servername, connection: 'Upgrade', upgrade: 'enclave-port/1', ...(authorization ? { authorization } : {}) } });
@@ -166,6 +197,7 @@ export async function startConnect({ host, port = 443, servername = host, verify
       if (res.statusCode !== 101 || String(res.headers.upgrade).toLowerCase() !== 'enclave-port/1') { socket.destroy(); return reject(new Error('invalid tunnel upgrade')); }
       req.setTimeout(0); socket.setTimeout(0);
       if (head.length) socket.unshift(head);
+      if (debug) traceTunnel(socket, `${protocol}:${remotePort}`);
       resolve(socket);
     });
     req.once('response', (res) => { res.resume(); reject(new Error(`tunnel ${protocol}:${remotePort} refused: HTTP ${res.statusCode}`)); });
@@ -173,8 +205,22 @@ export async function startConnect({ host, port = 443, servername = host, verify
     req.end();
   });
   if (ports) {
-    try { stopPorts = await startConnector(ports, tunnel, { host: portHost, log }); }
+    try { stopPorts = await startConnector(ports, tunnel, { host: portHost, log, renewSilentMs: 2000, supersedeMs: 5000 }); }
     catch (e) { server?.close(); throw e; }
+  }
+  // Moonlight: the GameStream gateway an Enclave edge runs (network/wg-provider/gamestream.mjs), so UDP rides as a flow
+  // of lanes (late datagrams dropped, stalled lanes bypassed) and a restarted stream supersedes its old associations,
+  // instead of one plain tunnel per port. Every tunnel it opens is one of ours: attested, on the pinned key.
+  let gs = null;
+  if (gamestream) {
+    try {
+      const { createGameStream } = await import('../network/wg-provider/gamestream.mjs');
+      gs = await createGameStream({ route: (n) => (n === servername ? 'pinned' : null), host: portHost, log, renewSilentMs: 2000,
+        connect: async () => { const s = await pinned(); s.setNoDelay(true); return s; },
+        // one app: a client that names nothing (Moonlight given an address) is this app's
+        ask: async () => ({ name: servername, age: 0 }) });
+      log(`gamestream: Moonlight PC ${portHost} (TCP ${gs.ports.https}, ${gs.ports.http}, ${gs.ports.rtsp}; UDP ${gs.ports.udp.join(', ')} as flows)`);
+    } catch (e) { stopPorts?.(); server?.close(); throw e; }
   }
 
   function writeState() {
@@ -189,7 +235,7 @@ export async function startConnect({ host, port = 443, servername = host, verify
   writeState();
 
   const stop = () => {
-    stopPorts?.(); agent.destroy(); upgradeAgent.destroy();
+    stopPorts?.(); gs?.close(); agent.destroy(); upgradeAgent.destroy();
     if (server) { server.close(); server.closeAllConnections?.(); }
   };
   return { url: localOrigin || null, remote: remoteOrigin, stop, attestation: () => current, reattest: attest };

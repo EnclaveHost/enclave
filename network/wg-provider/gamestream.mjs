@@ -73,7 +73,7 @@ function deframer(onFrame,onError){
 }
 
 export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PORTS,connect=tlsConnect,count=()=>{},log=()=>{},now=Date.now,
-  bindingMs=10*60000,udpIdleMs=90000,supersedeMs=5000,maxFlows=4096,maxPerClient=64,maxBindings=16384,ask=null,askAgainMs=5000,askMissMs=1000,maxAsking=64,
+  bindingMs=10*60000,udpIdleMs=90000,supersedeMs=5000,renewSilentMs=0,maxFlows=4096,maxPerClient=64,maxBindings=16384,ask=null,askAgainMs=5000,askMissMs=1000,maxAsking=64,
   // connections per UDP port's flow, in the order of ports.udp (video, control, audio); null: plain tunnels only
   flowLanes=[16,4,4],
   // how long a datagram waits here for the ones before it: what the front says a second copy takes plus a margin, and
@@ -191,7 +191,7 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
     for(const o of [...assoc.values()])if(o.client===r.address&&o.name===b.name&&now()-o.fromClient>supersedeMs)o.end();
     if(!admit(r.address))return;
     const release=hold(r.address,b),id=want?randomId():null;
-    const toClient=payload=>{a.at=now();a.lag?.note(payload);count(to,0,payload.length);sock.send(payload,r.port,r.address,()=>{});};
+    const toClient=payload=>{a.at=now();a.answered=true;a.lag?.note(payload);count(to,0,payload.length);sock.send(payload,r.port,r.address,()=>{});};
     // how far behind the video and the audio leave this box (the control port's datagrams are not RTP)
     a={up:null,flow:null,queue:[],at:now(),since:now(),client:r.address,fromClient:now(),to,heardAt:0,silence:0,gaps:[],lag:i===0?rtpLag({by:'none',now}):i===2?rtpLag({by:'sequence',now}):null,name:b.name,port,
      end(){
@@ -222,6 +222,10 @@ export async function createGameStream({route,host='0.0.0.0',ports=GAMESTREAM_PO
      },
     };
     assoc.set(key,a);
+    // renewSilentMs (opt-in): an association the app has not answered this soon is ended, and the client's next datagram
+    // opens a new one. A Moonlight pings a UDP port before Sunshine opens it when the RTSP handshake is slow (a far path):
+    // an association made then never recovers, and Sunshine ends the stream when the audio ping never arrives.
+    if(renewSilentMs){const t=setTimeout(()=>{if(a.queue&&!a.answered){log(`gamestream ${b.name} udp/${port}: no answer in ${renewSilentMs} ms; the next datagram opens a new association`);a.end();}},renewSilentMs);t.unref?.();}
     // the longest time no lane brought anything (while the stream ran): a hold of the whole path, not of one connection
     const heard=()=>{const t=now();if(a.heardAt){const g=t-a.heardAt;if(g>a.silence)a.silence=g;if(g>=silenceMs&&a.gaps.length<6)a.gaps.push(`${Math.round(g)} ms to ${new Date(t).toISOString().slice(11,23)}`);}a.heardAt=t;};
     const lane=t=>{
