@@ -38,8 +38,8 @@ Three things the survey shows are **not** there yet and that this design depends
 3. **A finished general GPU.** Decided 2026-11-24: an instance needs full CUDA support through
    Shield. The mechanism exists and is further along than the rest of this list: the Shield
    Compute compiler in `kvm-box/shield-compute` gives the guest a logical GPU with CUDA/HIP and
-   OpenCL frontends, and a Mesa OpenGL/Vulkan driver is in progress on the
-   `kvm-box/shield-opencl-perf` branch. Its own acceptance ledger is still open. Section 5.4.
+   OpenCL frontends, and a Mesa OpenGL/Vulkan driver is in progress in `kvm-box/shield-graphics`
+   (both on enclave-apps `main` since `0d63827`, 2026-11-24). Its own acceptance ledger is still open. Section 5.4.
 
 ## 3. Model
 
@@ -175,18 +175,18 @@ has a Verify tab that runs the check in the browser.
 | Category | Console service | Built from | State today |
 |---|---|---|---|
 | Compute | **Instances** | `sev-snp-vm` path, guestd, vm-manager | Works for one hand-bound app |
-| Compute | **Desktops** | kvm-box, `enclave connect --gamestream` | 0.9.x published; release gates open; untracked in enclave-apps |
+| Compute | **Desktops** | kvm-box, `enclave connect --gamestream` | 0.9.x published; release gates open; on enclave-apps `main` since 2026-11-24 |
 | Compute | **Images** | `EnclaveAppCatalog` | Catalog exists; image families do not |
-| Compute | **Shield GPU** (logical GPU: CUDA, OpenCL, OpenGL/Vulkan) | `shielded/`, `ggml-shielded`, `kvm-box/shield-compute`, `shield-graphics` (branch) | Runs in the kvm-box desktop VM; untracked or on a side branch; acceptance ledger open |
+| Compute | **Shield GPU** (logical GPU: CUDA, OpenCL, OpenGL/Vulkan) | `shielded/`, `ggml-shielded`, `kvm-box/shield-compute`, `kvm-box/shield-graphics` | Runs in the kvm-box desktop VM; lives inside one app; acceptance ledger open |
 | Storage | **Volumes** and snapshots | `isolation/m2/encvol`, custody | File-level volumes exist; block volumes do not |
-| Storage | **Object Storage** (S3 on Sia) | sia-s3 | 0.1.10 on a side branch; small PUTs are slow |
+| Storage | **Object Storage** (S3 on Sia) | sia-s3 | 0.1.10 on local branch `sia-s3/fix-shard-topology`, not on `main`; small PUTs are slow |
 | Storage | **IPFS** (pinning, gateway, IPNS names) | s3-ipfs-adapter, ipns-publisher | Both mature; adapter runs `ipfs.enclave.host` |
 | Networking | **DNS** (resolver, hosted zones, ENS) | enclavedns | 0.1.3 |
 | Networking | **Domains and Certificates** | in-guest ACME, `relay/certs.js`, `domains.js` | Live |
 | Networking | **Network** (routes, BYO WireGuard, IPv6, WAF) | `network/` | Live |
 | Web3 | **RPC** (Ethereum, Base) | `rpc/` | Not production-ready by its own README |
 | Developer | **Depot** (git) | depot | 0.1.3, the most mature storage app |
-| Developer | **Scheduler** | cron | 0.1.3 on a side branch |
+| Developer | **Scheduler** | cron | 0.1.3 on branch `fix/cron-cas-retry-20261014`, not on `main` |
 | Developer | **MCP Gateway** | api-mcp-adapter | Stateless, tested |
 | Developer | **Notes** | jot | 0.3.2 |
 | AI | **Inference** | eyesoff-ai on Shield GPU | Live (eyesoff.ai) |
@@ -307,7 +307,7 @@ and does not change its rules.
 | Graph compiler and channel | `shield-compute/compiler.py`, `channel.py` | Unit and fault-injection tests |
 | OpenCL logical device | `shield-compute/opencl` (patched PoCL, SVM frontend) | Host integration modes and selected Khronos SVM tests; llama.cpp and sd.cpp run through it with a Q8 contract |
 | **CUDA/HIP frontend** | `shield-compute/hip` (chipStar v1.2.1, LLVM 18) | Ordinary CUDA source compiles with `cucc` and runs in the SNP desktop guest; the integer GEMM family is recognised structurally and offloaded masked with verified exchanges; six upstream CUDA/HIP programs pass on the CPU path; ten fault and lifecycle modes pass |
-| OpenGL/Vulkan driver | `shield-graphics` on `kvm-box/shield-opencl-perf` | Affine integer transforms extracted from real shaders and offloaded; Firefox WebGL and Moonlight work with rendering local; selected Vulkan and GL CTS groups on the CPU path |
+| OpenGL/Vulkan driver | `kvm-box/shield-graphics` | Affine integer transforms extracted from real shaders and offloaded; Firefox WebGL and Moonlight work with rendering local; selected Vulkan and GL CTS groups on the CPU path |
 | Monitoring and accounting | `shield-compute/monitor` | Verified exchange and MAC counters per job |
 
 **What "full CUDA" still needs.** These are stated by the component's own READMEs and
@@ -340,8 +340,8 @@ name, which the HIP README itself warns proves nothing.
 **What the platform has to do.**
 
 - Promote Shield Compute out of the kvm-box app into a maintained package (`shield/compute`,
-  `shield/graphics`) beside `shielded/`, with its pinned sources and ledger. Today the code is
-  untracked in one repo and on an unmerged branch in another; that is the first risk to remove.
+  `shield/graphics`) beside `shielded/`, with its pinned sources and ledger. Today the
+  platform's GPU lives inside one app's directory in the other repository.
 - Ship the logical GPU in every image family: the toolchain (`cucc`, OpenCL ICD, Mesa ICD), the
   protected local service, and the policy for public operands, all inside the measured image.
 - Add the channel to the `/vms` driver contract: a byte channel from the guest service to the
@@ -440,13 +440,13 @@ trust the measured service with their data, and the signed budget caps the damag
 | Runtimes the host knows | Wasm manager, app guest, whole VM, retired GPU worker | VM only |
 | Host agents | `supervisor.js`, `windows/node/host.mjs` | One node agent |
 | Launchers | wasm_manager, guestd, vm-manager, wmi-launcher | One driver per backend behind `/vms` |
-| GPU | `shielded/`, `wasm/ggml-shielded`, `kvm-box/shield-compute` (untracked), `shield-graphics` (side branch) | One `shield/` package: core, compute, graphics |
+| GPU | `shielded/`, `wasm/ggml-shielded`, `kvm-box/shield-compute`, `kvm-box/shield-graphics` | One `shield/` package: core, compute, graphics |
 | In-guest fronts | `m2/front`, `metal/guest/agent.mjs`, kvm-box controller | One guest agent |
 | Verifiers | `verifier/` plus `relay/{snp,vbs,hvnode,pvm,shield,avf}-*` | One library, used by node, control, CLI and console |
 | Catalogs | Baked-in and on-chain | On-chain, as the image registry |
 | UI | Marketing site with an app store and a deployments monolith | Console with per-service modules |
 | Service code | `httpd.rs` identical in 15 apps, SigV4 client written 5 times, SSO ported 4 times, tenancy per app | One `enclave-service` crate with tenancy and metering |
-| Repositories | enclave and enclave-apps, with three services living only on side branches | One repository; services in `services/` with the crate |
+| Repositories | enclave and enclave-apps, with two services (sia-s3, cron) living only on side branches | One repository; services in `services/` with the crate |
 | `ops/` | 43,764 tracked files, 971 MB of dated evidence and frozen source copies | An evidence archive outside the source tree |
 
 Removed outright: `mps-daemon/`, the retired serving half of `worker/` (its confidential-card
@@ -458,8 +458,9 @@ probes, TUNA remnants, one-off root scripts. Each removal preserves source and p
 
 Each step ends in something that runs. Nothing here is activated in production by merging.
 
-0. **Consolidation lands.** sia-s3, cron and kvm-box reach `main`, then enclave-apps is merged
-   into this repository as `services/` with history kept. This is the stated precondition.
+0. **Consolidation lands.** kvm-box reached enclave-apps `main` on 2026-11-24; sia-s3 and cron
+   have not. Once they do, enclave-apps is merged into this repository as `services/` with
+   history kept. This is the stated precondition.
 1. **Instance primitive on SNP.** Generalise vm-manager (content-addressed images, slot
    allocation, measurement table per vCPU count). Build the base image with the guest agent and
    startup package. `enclave vm create | ls | connect | stop`. Proof: a base instance on metal0
