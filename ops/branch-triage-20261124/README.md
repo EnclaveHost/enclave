@@ -123,3 +123,25 @@ no source. What it takes instead:
   (`never-in-main`, `removed-on-main`, `differs-main-newer`, `differs-branch-newer`).
 - `triage.py`, `classify.py`, `ledger.py`: what produced it (`REPO=<checkout>`; they write beside themselves, so run
   a copy).
+
+## Second look at two control-image branches (2026-11-24, the RPC/metal0 session)
+
+- `codex/native-control-integration-20261025`, commit `702854589` (per-image desktop SVN floor): **still wanted, not
+  landed.** Its relay change (`relay/vbs-image-identity.mjs`, `relay/vbs-vm-report-core.mjs` and their tests) applies
+  to main cleanly and its 20 tests pass there; without a `minimumGuestSvn` on a pin nothing changes, with one the
+  floor for that image only rises. What stops it is the generated code: both files are inputs of
+  `metal/guest/platform-api.bundle.mjs` (its manifest pins every input) and of `verifier/web/dist`, so landing the
+  source alone leaves two committed bundles stale. A rebuild in the worktree this was tried in differs from the
+  committed bundle in 223,000 lines (another dependency tree), and a clean worktree of main cannot build it at all
+  until `relay/network-runtime.bundle.mjs`, itself a build product that is not committed, exists. It needs the
+  relay's own build chain, and then a relay deployment and a pin that carries the floor before it enforces anything.
+  It is not part of a metal0 control image: metal0's image is the per-app supervisor image and does not carry the
+  platform API bundle.
+- the same branch, `77ef9dd6d` (measured control API qualification): superseded. It is a regeneration of the platform
+  bundle as of 2026-10-25 and a qualification note; the bundle has been regenerated on main since (2026-10-30,
+  2026-11-12). Its four small source edits were not compared one by one.
+- `origin/build/lease-reaper-artifact-20261028`: not ported. `qualification/` is the one-time harness that carried a
+  private prerelease into a container and checked one candidate image built from a snapshot of production (transport,
+  unpack, verify, cleanup), with its input pins. What that work concluded is on main in
+  `ops/lease-reaper-reconcile-20261028/` (evidence, the supervisor patch, the rollout plan). The branch stays on
+  origin as the provenance of that candidate. Whether the reaper itself runs anywhere was not checked here.
