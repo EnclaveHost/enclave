@@ -9,13 +9,15 @@
 #      PROPOSAL_INTERVAL (default 1h), SEQ_L1_CONFS (default 4),
 #      PROPOSER_GAME_TYPE (5 until the anchor is real, then 9),
 #      TXMGR_MIN_TIP_GWEI (default 0.001; op-batcher/op-proposer default to 1 gwei,
-#      which is 20x a 0.05 gwei base fee and would dominate the posting bill).
+#      which is 20x a 0.05 gwei base fee and would dominate the posting bill),
+#      BATCHER_DA_TYPE (default auto: on 11-14/15 Sepolia blob gas hit ~0.9 gwei and
+#      blob-only posting spent 0.0094 ETH in a day; auto falls back to calldata).
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 : "${WORK:?}" "${KEYS:?}" "${DEVNET:?}" "${SEQ_L1_RPC:?}" "${SEQ_L1_BEACON:?}" "${REPLICA_L1_RPC:?}" "${REPLICA_L1_BEACON:?}"
 case "$DEVNET" in "$(cd "$here/../.." && pwd)"*) echo "up: DEVNET must be outside the repo" >&2; exit 1;; esac
 umask 077
-mkdir -p "$DEVNET"/{cfg,prestates,challenger,seq/reth,seq/node,replica/reth,replica/node}
+mkdir -p "$DEVNET"/{cfg,prestates,challenger,runtrace,seq/reth,seq/node,replica/reth,replica/node}
 cp "$WORK/rollup.json" "$WORK/genesis.json" "$DEVNET/cfg/"
 chain=$(jq -r .l2_chain_id "$WORK/rollup.json")
 # op-challenger's static dependency set for a cluster of one
@@ -39,10 +41,11 @@ BATCHER_MAX_CHANNEL_DURATION=${BATCHER_MAX_CHANNEL_DURATION:-25}
 PROPOSAL_INTERVAL=${PROPOSAL_INTERVAL:-1h}
 PROPOSER_GAME_TYPE=${PROPOSER_GAME_TYPE:-5}
 TXMGR_MIN_TIP_GWEI=${TXMGR_MIN_TIP_GWEI:-0.001}
+BATCHER_DA_TYPE=${BATCHER_DA_TYPE:-auto}
 DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy "$WORK/chain-addresses.json")
 EOF
 chmod 600 "$DEVNET"/*.env
 # containers run as root or as an image user; make data dirs writable for either
-chmod -R a+rwX "$DEVNET"/seq "$DEVNET"/replica "$DEVNET"/challenger
+chmod -R a+rwX "$DEVNET"/seq "$DEVNET"/replica "$DEVNET"/challenger "$DEVNET"/runtrace 2>/dev/null || true  # files a container wrote stay root-owned
 chmod a+r "$DEVNET"/seq/jwt.hex "$DEVNET"/replica/jwt.hex "$DEVNET"/cfg/* "$DEVNET"/prestates/*
 docker compose --env-file "$DEVNET/.env" -f "$here/compose.yml" up -d "$@"

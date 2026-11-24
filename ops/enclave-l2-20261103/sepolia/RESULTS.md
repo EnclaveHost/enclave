@@ -172,3 +172,42 @@ bootstrap.
   wait for the first type-5 game to finalize (after 2026-11-13).
 - Forced inclusion with the sequencer withholding (the 12 h window).
 - A 24 h `run-trace` and a 24 h cost series at the recommended intervals.
+
+## 2026-11-24: game 9 respected
+
+The devnet was stopped on 2026-11-22 05:00Z at Steven's request, to free
+~14 GB on warden-host for a benchmark. The sequencer's op-reth held ~10 GB of
+that. Before then two things had gone wrong:
+
+- **The batcher ran dry on 2026-11-15.** It posted at ~1.5e10 wei per post
+  until 11-14. Then Sepolia's blob base fee spiked to ~0.9 gwei per blob gas
+  (block 12134536: blob gas price 899,760,534 wei), and 462 posts spent 0.0094 ETH,
+  ~1.2e-4 ETH each. It made no post after nonce 3314. So from 11-15 the safe
+  chain is what derivation forces once the 12 h window lapses: deposit-only
+  blocks. This is the congested-blob case DESIGN.md §4 priced at 1 gwei
+  ($0.30/blob), measured. The devnet now runs `--data-availability-type=auto`
+  (calldata when cheaper), and that is the recommended production setting.
+- **The challenger ran dry after 42 transactions.** It bid op's 1 gwei default
+  tip while it closed type-5 games. It now runs with a 0.001 gwei tip and
+  `--selective-claim-resolution`.
+
+Type-5 games resolve the moment they are created; 355 exist. The challenger
+had moved the anchor to game 41 (11-07). On 11-24 the deployer moved it, as
+anyone may, to the newest finalized game: index 321, L2 timestamp 1795070266
+(`anchor-move.json`, 109,959 gas). The replica independently computes the same
+super root at that timestamp (`anchor-check.json`). A re-run of
+`deploy-l1.sh` then found a real anchor and made **SUPER_CANNON_KONA (9) the
+respected game** (`respected.json`: guardian `setRespectedGameType(9)`, 58,683
+gas; `proofs.json`). The proposer now proposes type-9 games. Its first, at L1
+block 12201137, cost 0.001 ETH bond.
+
+A type-9 counter costs more than any role wallet holds: 0.080 ETH at depth 0,
+0.0876 at depth 1, 1.2 ETH at the split depth (`getRequiredBond`). The
+invalid-proposal half of release gate 1 needs ~0.15 Sepolia ETH in the
+challenger.
+
+The restarted stack has a memory cap on every service (`l2/devnet/compose.yml`,
+~13.5 GB worst case, a few hundred MB idle). publicnode had pruned the
+receipts the stalled nodes needed, so the sequencer side now reads L1 from
+Tenderly and the replica side from 0xrpc.io (beacons unchanged), still two
+separate providers.

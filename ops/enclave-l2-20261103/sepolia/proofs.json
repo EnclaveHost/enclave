@@ -1,10 +1,10 @@
 {
   "l1ProxyAdminOwnerSafe": "0xb9FB98c855a053A1cD3576eabCda1D74f1D5fD3D",
-  "anchorRoot": "0xdead000000000000000000000000000000000000000000000000000000000000 0 ",
+  "anchorRoot": "0xc641aa2e12c0fa924cfdc7ecc1288bfafd5ab62f33859d7567cdbf1f8630ff47 1795070266 [1.795e9] ",
   "proxyAdminOwnerOnChain": "0xb9FB98c855a053A1cD3576eabCda1D74f1D5fD3D",
   "anchorStateRegistry": "0xeaf5d8c722629f878edd447b4ddd7246ea269ceb",
   "disputeGameFactory": "0x6d3afe7c0c75a908bd048ff1db6b6ed2aad1d471",
-  "respectedGameType": 5,
+  "respectedGameType": 9,
   "superPermissionedImpl": "0x5C3eb47cB0174aea522a2a9Ae79487139A53D691",
   "superCannonKonaImpl": "0x19AF533Cc2A2A55786DCB8672aA5717e64213208",
   "superCannonKonaInitBondWei": "1000000000000000",

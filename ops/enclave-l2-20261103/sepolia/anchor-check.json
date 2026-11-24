@@ -1,0 +1,10 @@
+{
+  "kind": "anchor check",
+  "anchorGame": "0xccc09A54817aFb27fE11b63190993905789707aa",
+  "anchorGameIndex": 321,
+  "l2SequenceNumber": 1795070266,
+  "onChainRoot": "0xc641aa2e12c0fa924cfdc7ecc1288bfafd5ab62f33859d7567cdbf1f8630ff47",
+  "replicaSuperrootAtTimestamp": "0xc641aa2e12c0fa924cfdc7ecc1288bfafd5ab62f33859d7567cdbf1f8630ff47",
+  "match": true,
+  "checkedAt": "2026-11-24T07:31Z"
+}

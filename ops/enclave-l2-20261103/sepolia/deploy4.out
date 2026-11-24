@@ -1,0 +1,16 @@
+deployer 0x5f2957Af397902cF53141314dB12Bd7D3cbfdb5b balance 32700997703914711 wei at start
+{"hash":"0x4faf5abe9d885fbd78c1101a0f9bb9330e30fdb46a7a35ae1876d5eaea48cc30","chainId":11155111,"from":"0x7039e6C7d95ba957a5ae1b57CdAbB0762c3991A2","to":"0xeaf5d8c722629f878edd447b4ddd7246ea269ceb","status":"success","gasUsed":"58683","effectiveGasPrice":"18","blockNumber":"12201114"}
+== stage respected done
+{
+  "l1ProxyAdminOwnerSafe": "0xb9FB98c855a053A1cD3576eabCda1D74f1D5fD3D",
+  "anchorRoot": "0xc641aa2e12c0fa924cfdc7ecc1288bfafd5ab62f33859d7567cdbf1f8630ff47 1795070266 [1.795e9] ",
+  "proxyAdminOwnerOnChain": "0xb9FB98c855a053A1cD3576eabCda1D74f1D5fD3D",
+  "anchorStateRegistry": "0xeaf5d8c722629f878edd447b4ddd7246ea269ceb",
+  "disputeGameFactory": "0x6d3afe7c0c75a908bd048ff1db6b6ed2aad1d471",
+  "respectedGameType": 9,
+  "superPermissionedImpl": "0x5C3eb47cB0174aea522a2a9Ae79487139A53D691",
+  "superCannonKonaImpl": "0x19AF533Cc2A2A55786DCB8672aA5717e64213208",
+  "superCannonKonaInitBondWei": "1000000000000000",
+  "superCannonKonaAbsolutePrestate": "0x03bb8afa5abb8758bda046d243c0e99630446e3015ac1ad4c88310d4ff5f4988"
+}
+deployer balance 32700997703914711 wei at end

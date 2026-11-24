@@ -9,6 +9,11 @@
 # The challenger plays games against the replica's view, not the sequencer's.
 #
 # All RPC ports bind to 127.0.0.1. op-node's admin API is unauthenticated.
+#
+# Memory caps: the devnet ran uncapped on a production host from 11-05 to 11-22
+# and grew to ~14 GB (the sequencer's op-reth alone ~10 GB), so it was stopped
+# to make room. Every service now has a mem_limit, and the run-trace profile is
+# opt-in.
 name: enclave-l2-devnet
 
 x-reth: &reth
@@ -20,6 +25,7 @@ x-node: &node
 
 services:
   seq-reth:
+    mem_limit: ${SEQ_RETH_MEM:-3g}
     <<: *reth
     volumes: ["${DEVNET}/cfg:/cfg:ro", "${DEVNET}/seq/reth:/data", "${DEVNET}/seq/jwt.hex:/jwt.hex:ro"]
     ports: ["127.0.0.1:9545:8545"]
@@ -29,6 +35,7 @@ services:
       --rollup.disable-tx-pool-gossip, --builder.deadline=2, --builder.interval=100ms, --disable-discovery]
 
   seq-node:
+    mem_limit: 1g
     <<: *node
     depends_on: [seq-reth]
     env_file: ["${DEVNET}/secrets-sequencer.env"]   # OP_NODE_P2P_SEQUENCER_KEY
@@ -41,18 +48,20 @@ services:
       --rpc.addr=0.0.0.0, --rpc.port=8547, --rpc.enable-admin, --log.level=info]
 
   batcher:
+    mem_limit: 512m
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:v1.18.0@sha256:cd80d0c77ff5ae770437119724a2227522497d8cf60a9c5746dc681d933a9719
     restart: unless-stopped
     depends_on: [seq-node]
     env_file: ["${DEVNET}/secrets-batcher.env"]      # OP_BATCHER_PRIVATE_KEY
     command: [op-batcher, "--l1-eth-rpc=${SEQ_L1_RPC}", --l2-eth-rpc=http://seq-reth:8545, --rollup-rpc=http://seq-node:8547,
-      --data-availability-type=blobs, --batch-type=1, --compression-algo=brotli-10,
+      "--data-availability-type=${BATCHER_DA_TYPE}", --batch-type=1, --compression-algo=brotli-10,
       "--max-channel-duration=${BATCHER_MAX_CHANNEL_DURATION}", --sub-safety-margin=10, --poll-interval=12s,
       --num-confirmations=1, --safe-abort-nonce-too-low-count=3, --resubmission-timeout=60s,
       "--txmgr.min-tip-cap=${TXMGR_MIN_TIP_GWEI}",
       --rpc.addr=0.0.0.0, --rpc.port=8548, --log.level=info]
 
   proposer:
+    mem_limit: 512m
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:v1.17.0@sha256:ef260f246aea7e93b9b70b458a77e3c41ca62b67d907029764d4fa1982c4044b
     restart: unless-stopped
     depends_on: [seq-node]
@@ -62,6 +71,7 @@ services:
       --poll-interval=30s, --num-confirmations=1, "--txmgr.min-tip-cap=${TXMGR_MIN_TIP_GWEI}", --rpc.addr=0.0.0.0, --rpc.port=8560, --log.level=info]
 
   replica-reth:
+    mem_limit: ${REPLICA_RETH_MEM:-2g}
     <<: *reth
     volumes: ["${DEVNET}/cfg:/cfg:ro", "${DEVNET}/replica/reth:/data", "${DEVNET}/replica/jwt.hex:/jwt.hex:ro"]
     ports: ["127.0.0.1:9645:8545"]
@@ -71,6 +81,7 @@ services:
       --rollup.disable-tx-pool-gossip, --disable-discovery, --max-outbound-peers=0, --max-inbound-peers=0]
 
   replica-node:
+    mem_limit: 1g
     <<: *node
     depends_on: [replica-reth]
     volumes: ["${DEVNET}/cfg:/cfg:ro", "${DEVNET}/replica/jwt.hex:/jwt.hex:ro", "${DEVNET}/replica/node:/data"]
@@ -81,6 +92,7 @@ services:
       --rpc.addr=0.0.0.0, --rpc.port=8547, --log.level=info]
 
   challenger:
+    mem_limit: ${CHALLENGER_MEM:-3g}
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.11.0@sha256:c9d4d81ba4956faa2896345ee0d9be0f3782b63a38da22618f36e86b85cbe40a
     restart: unless-stopped
     depends_on: [replica-node]
@@ -92,4 +104,23 @@ services:
       --prestates-url=file:///prestates, --rollup-config=/cfg/rollup.json,
       --l2-genesis=/cfg/genesis.json, --depset-config=/cfg/depset.json,
       --cannon-bin=/usr/local/bin/cannon, --cannon-kona-server=/usr/local/bin/kona-host,
-      --datadir=/data, --num-confirmations=1, --log.level=info]
+      --datadir=/data, --num-confirmations=1, --selective-claim-resolution,
+      "--txmgr.min-tip-cap=${TXMGR_MIN_TIP_GWEI}", --log.level=info]
+
+  # Opt-in (`up.sh runtrace` after the main stack is up): op-challenger run-trace executes this
+  # chain's kona prestate in cannon against live super roots from the replica
+  # and logs "Successfully verified output root" per run (release gate 2).
+  runtrace:
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.11.0@sha256:c9d4d81ba4956faa2896345ee0d9be0f3782b63a38da22618f36e86b85cbe40a
+    profiles: [runtrace]
+    restart: unless-stopped
+    mem_limit: ${RUNTRACE_MEM:-3g}
+    depends_on: [replica-node]
+    volumes: ["${DEVNET}/cfg:/cfg:ro", "${DEVNET}/prestates:/prestates:ro", "${DEVNET}/runtrace:/data"]
+    command: [op-challenger, run-trace, "--run=super-cannon-kona/enclave", "--l1-eth-rpc=${REPLICA_L1_RPC}", "--l1-beacon=${REPLICA_L1_BEACON}",
+      --l2-eth-rpc=http://replica-reth:8545, --superroot-rpc=http://replica-node:8547,
+      "--game-factory-address=${DISPUTE_GAME_FACTORY}", --game-types=super-cannon-kona,
+      --prestates-url=file:///prestates, --rollup-config=/cfg/rollup.json,
+      --l2-genesis=/cfg/genesis.json, --depset-config=/cfg/depset.json,
+      --cannon-bin=/usr/local/bin/cannon, --cannon-kona-server=/usr/local/bin/kona-host,
+      --datadir=/data, --log.level=info]
