@@ -376,3 +376,12 @@ test("BUNDLED (esbuild, node:crypto aliased to the throwing shim, Buffer from th
   assert.equal((await one(fixture(), { ...P(), allowedMeasurements: ["ef".repeat(32)] })).checks["app-measurement"], false);
   fs.rmSync(path.dirname(out), { recursive: true, force: true });
 });
+
+test('relay/browser parity for a desktop-only SVN floor without raising legacy policy', options, async () => {
+  const policy={...P(),imageIdentities:[{measurement:IMAGE,identity:IDENTITY,minimumGuestSvn:13}]};
+  const below=await same(fixture({report:{svn:12}}),policy);
+  assert.equal(below.n.ok,false);failsAt(below.w,'app-svn');
+  assert.equal(below.w.app.checks['app-signature'],true);
+  assert.equal((await same(fixture({report:{svn:13}}),policy)).n.ok,true);
+  assert.equal((await same(fixture({report:{svn:0}}),P())).n.ok,true);
+});

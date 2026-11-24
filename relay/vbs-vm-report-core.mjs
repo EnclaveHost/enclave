@@ -71,11 +71,15 @@ export function vbsVmReportWith({ sha256, equal = ctEqual }) {
     if (reason !== null) return done();
     step('vtl', () => requireThat(p.enabledVtl === 5 && p.guestVtl === 2 && p.policy === 0,
       'unsupported VTL configuration or debug-enabled report'));
-    step('svn', () => requireThat(p.guestSvn >= minimumGuestSvn, 'guest SVN below policy'));
+    // The per-image floor belongs to the same measurement AND authority. A
+    // native image can require SVN 13 without raising the floor for old apps.
+    const matches = pin => pin.measurement === p.measurement && pin.identity.signer === p.identity.signer &&
+      pin.identity.productId === p.identity.productId && pin.identity.moduleId === p.identity.moduleId;
+    const identityCandidates = imageIdentities?.filter(matches) || [];
+    const imageFloor = identityCandidates.length ? Math.min(...identityCandidates.map(pin => pin.minimumGuestSvn ?? 0)) : 0;
+    step('svn', () => requireThat(p.guestSvn >= Math.max(minimumGuestSvn, imageFloor), 'guest SVN below policy'));
     step('measurement', () => requireThat(allowedMeasurements.includes(p.measurement), 'image measurement is not pinned'));
-    if (imageIdentities !== undefined) step('image-identity', () => requireThat(imageIdentities.some(pin =>
-      pin.measurement === p.measurement && pin.identity.signer === p.identity.signer &&
-      pin.identity.productId === p.identity.productId && pin.identity.moduleId === p.identity.moduleId),
+    if (imageIdentities !== undefined) step('image-identity', () => requireThat(imageIdentities.some(matches),
       'image signer/product/module identity is not pinned'));
     step('user-data', () => requireThat(equal(p.userData, expectedUserData), 'guest binding differs from verifier request'));
     let signed = false, why = null;

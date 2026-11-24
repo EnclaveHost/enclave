@@ -95,3 +95,19 @@ test('identity policy is optional only for legacy callers and otherwise fails cl
     assert.equal(denied.ok, false); assert.equal(denied.checks.inputs, false);
   }
 });
+
+test('per-image SVN floors preserve legacy apps and cannot be borrowed from another authority', () => {
+  const report = n => signedIdentity({}, r => r.writeUInt32LE(n, 228));
+  const pin = { measurement, identity, minimumGuestSvn: 13 };
+  const policy = { imageIdentities: [pin] };
+  assert.equal(check(report(13), policy).ok, true);
+  const old = check(report(12), policy);
+  assert.equal(old.ok, false); assert.equal(old.checks.svn, false); assert.equal(old.checks.signature, true);
+  assert.equal(check(report(13), { ...policy, minimumGuestSvn: 14 }).ok, false, 'global floor still applies');
+  for (const other of [{ ...pin, measurement: 'b2'.repeat(32), minimumGuestSvn: 0 },
+    { ...pin, identity: { ...identity, signer: '92'.repeat(32) }, minimumGuestSvn: 0 }])
+    assert.equal(check(report(12), { imageIdentities: [pin, other] }).checks.svn, false);
+  assert.equal(check(report(0), { imageIdentities: [{ measurement, identity }] }).ok, true, 'legacy identity pin remains compatible');
+  for (const minimumGuestSvn of [-1, 0x100000000, 1.5, '13', null, undefined, NaN])
+    assert.equal(check(report(13), { imageIdentities: [{ ...pin, minimumGuestSvn }] }).checks.inputs, false);
+});

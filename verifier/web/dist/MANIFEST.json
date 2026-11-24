@@ -1,8 +1,8 @@
 {
  "artifact": {
   "file": "enclave-verifier-web.js",
-  "bytes": 283819,
-  "sha256": "e861049a41fcc42f6b3449c9878b269e9a2137a47c82b7550037a77b6db0e8c8"
+  "bytes": 284060,
+  "sha256": "4cb5edd1bd3babec27b1d4f6f91e4d38fa90695285873968ab0d26e9be3947e1"
  },
  "build": {
   "tool": "esbuild",
@@ -398,8 +398,8 @@
   },
   {
    "path": "relay/vbs-image-identity.mjs",
-   "bytes": 1637,
-   "sha256": "5ffd3ba2eb21f312dd0a21bd0a6277ae290e8bd42b9ec05c53436d3a3bd36090"
+   "bytes": 1901,
+   "sha256": "a3041272978fb9176852e53e38cfcebfe817578fa644d1ba41b77bf5f43b65de"
   },
   {
    "path": "relay/vbs-tcglog-core.mjs",
@@ -413,8 +413,8 @@
   },
   {
    "path": "relay/vbs-vm-report-core.mjs",
-   "bytes": 6676,
-   "sha256": "e2d6301bc59b4c4e59f85a50a27c2d88264fad6587b322d1d82ef19359ecbfc7"
+   "bytes": 7072,
+   "sha256": "ff270337660751dd1e9a2294a702707475ebde77387f6179ab7bc6f649b20a7c"
   },
   {
    "path": "verifier/der.mjs",

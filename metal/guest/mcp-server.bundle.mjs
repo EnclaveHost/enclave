@@ -82293,7 +82293,7 @@ function validateNetworkPolicy(p) {
   if (usesNetwork !== "enclaveNetwork" in p) throw new Error(usesNetwork ? "Enclave network settings required" : "unused Enclave network settings");
   if (usesNetwork) {
     const n = p.enclaveNetwork;
-    if (!keys(n, ["routes", "guard", "maxPricePerGiB6", "budget6"]) || ![1, 2].includes(n.routes) || n.guard !== true || !amount(n.maxPricePerGiB6) || !amount(n.budget6) || n.maxPricePerGiB6 > 0 !== n.budget6 > 0) throw new Error("invalid Enclave network settings");
+    if (!keys(n, ["routes", "guard", "maxPricePerGiB6", "budget6"]) || ![1, 2].includes(n.routes) || typeof n.guard !== "boolean" || !amount(n.maxPricePerGiB6) || !amount(n.budget6) || n.maxPricePerGiB6 > 0 !== n.budget6 > 0) throw new Error("invalid Enclave network settings");
   }
   if (p.mode === "byo-wireguard" !== "byo" in p) throw new Error("BYO settings belong to byo-wireguard only");
   if (p.mode === "byo-wireguard" && (!keys(p.byo, ["configDigest", "ingress"]) || !hex64.test(p.byo.configDigest) || !["none", "enclave-network"].includes(p.byo.ingress))) throw new Error("invalid BYO settings");
@@ -84287,6 +84287,20 @@ var init_net_guard2 = __esm({
 
 // network/provider-directory.mjs
 import { createHash as createHash5 } from "node:crypto";
+async function recoverSigner(message2, signature) {
+  if (typeof message2 !== "string" || typeof signature !== "string") return (await recoverMessageAddress({ message: message2, signature })).toLowerCase();
+  const key2 = signature + "\n" + message2, hit = signers.get(key2);
+  if (hit) {
+    signers.delete(key2);
+    signers.set(key2, hit);
+    return hit;
+  }
+  const signer = (await recoverMessageAddress({ message: message2, signature })).toLowerCase();
+  signers.set(key2, signer);
+  if (signers.size > SIGNERS_MAX) signers.delete(signers.keys().next().value);
+  await new Promise((r) => setImmediate(r));
+  return signer;
+}
 function providerIdFor(operator, address4) {
   return createHash5("sha256").update(`${String(operator).toLowerCase()}|${address4}`).digest("hex").slice(0, 32);
 }
@@ -84304,7 +84318,7 @@ function validateProviderRecord(r, now = Date.now()) {
 async function verifyProviderRecord(env, { now = Date.now(), hostOperator } = {}) {
   const r = validateProviderRecord(env?.record, now);
   if (r.expiresAt <= now) throw new Error("provider record expired");
-  const signer = (await recoverMessageAddress({ message: providerRecordMessage(r), signature: env.signature })).toLowerCase();
+  const signer = await recoverSigner(providerRecordMessage(r), env.signature);
   if (signer !== r.operator) throw new Error("provider record is not signed by its operator");
   if (r.hostId) {
     if (!hostOperator) throw new Error("community provider needs a registry check");
@@ -84323,7 +84337,7 @@ async function verifyQualifications(envs, record, { checkers, now = Date.now() }
     let q3, signer;
     try {
       q3 = validateQualification(env?.qualification);
-      signer = (await recoverMessageAddress({ message: qualificationMessage2(q3), signature: env.signature })).toLowerCase();
+      signer = await recoverSigner(qualificationMessage2(q3), env.signature);
     } catch {
       continue;
     }
@@ -84355,7 +84369,7 @@ async function eligibleProviders(entries, { checkers, now = Date.now(), hostOper
   }
   return out;
 }
-var ROLES, CHECKS, QUALIFICATION_MAX_MS, RECORD_MAX_MS, ipv4, wgKey, address2, app2, exact, port, providerRecordMessage, qualificationMessage2, SECURITY_CHECKS, SECURITY;
+var ROLES, CHECKS, QUALIFICATION_MAX_MS, RECORD_MAX_MS, ipv4, wgKey, address2, app2, exact, port, signers, SIGNERS_MAX, providerRecordMessage, qualificationMessage2, SECURITY_CHECKS, SECURITY;
 var init_provider_directory = __esm({
   "network/provider-directory.mjs"() {
     init_esm3();
@@ -84370,6 +84384,8 @@ var init_provider_directory = __esm({
     app2 = /^0x[0-9a-f]{64}$/;
     exact = (o, k3) => o && typeof o === "object" && !Array.isArray(o) && Object.keys(o).sort().join(",") === [...k3].sort().join(",");
     port = (p) => Number.isSafeInteger(p) && p > 0 && p < 65536;
+    signers = /* @__PURE__ */ new Map();
+    SIGNERS_MAX = 4096;
     providerRecordMessage = (r) => `enclave-network:provider:v1
 ${canonical(r)}`;
     qualificationMessage2 = (q3) => `enclave-network-qualification:v1
@@ -84418,7 +84434,6 @@ async function boundedJSON(response, maxBytes = 4 * 1024 * 1024) {
 var DirectoryClient;
 var init_directory_client = __esm({
   "network/directory-client.mjs"() {
-    init_esm3();
     init_provider_directory();
     init_network_policy();
     init_route_record();
@@ -84490,7 +84505,7 @@ var init_directory_client = __esm({
             try {
               const q3 = validateQualification(env.qualification);
               if (q3.expiresAt <= now || q3.issuedAt > now + 6e4 || !["providerId", "operator", "address", "wgExitKey", "wgGuardKey"].every((k3) => q3[k3] === r[k3])) continue;
-              const signer = (await recoverMessageAddress({ message: qualificationMessage2(q3), signature: env.signature })).toLowerCase();
+              const signer = await recoverSigner(qualificationMessage2(q3), env.signature);
               const old = byChecker.get(signer);
               if (!old || q3.issuedAt > old.qualification.issuedAt || q3.issuedAt === old.qualification.issuedAt && (env.onchain?.expires || 0) > (old.onchain?.expires || 0)) byChecker.set(signer, env);
             } catch {
@@ -136923,11 +136938,15 @@ function validImageIdentity(p) {
   return fields2(p, ["signer", "productId", "moduleId"]) && typeof p.signer === "string" && p.signer.length === 64 && HEX2.test(p.signer) && p.signer !== "0".repeat(64) && u325(p.productId) && u325(p.moduleId);
 }
 function validImageIdentities(pins) {
-  return Array.isArray(pins) && pins.length > 0 && pins.length <= 256 && Array.from(pins).every((p) => fields2(p, ["measurement", "identity"]) && typeof p.measurement === "string" && p.measurement.length === 64 && HEX2.test(p.measurement) && validImageIdentity(p.identity));
+  return Array.isArray(pins) && pins.length > 0 && pins.length <= 256 && Array.from(pins).every((p) => fields2(p, p && Object.hasOwn(p, "minimumGuestSvn") ? ["measurement", "identity", "minimumGuestSvn"] : ["measurement", "identity"]) && (!Object.hasOwn(p, "minimumGuestSvn") || u325(p.minimumGuestSvn)) && typeof p.measurement === "string" && p.measurement.length === 64 && HEX2.test(p.measurement) && validImageIdentity(p.identity));
 }
 function imageIdentityPins(images) {
   if (!images.some((p) => p.identity !== void 0 || p.nativeDesktop === true)) return void 0;
-  const pins = images.map((p) => ({ measurement: p.measurement, identity: p.identity }));
+  const pins = images.map((p) => ({
+    measurement: p.measurement,
+    identity: p.identity,
+    ...Object.hasOwn(p, "minimumGuestSvn") ? { minimumGuestSvn: p.minimumGuestSvn } : {}
+  }));
   if (!validImageIdentities(pins)) throw new Error("explicit image signer/product/module pins are required for every candidate");
   return pins;
 }
@@ -137029,10 +137048,13 @@ function vbsVmReportWith({ sha256: sha25612, equal: equal3 = ctEqual }) {
       p.enabledVtl === 5 && p.guestVtl === 2 && p.policy === 0,
       "unsupported VTL configuration or debug-enabled report"
     ));
-    step2("svn", () => requireThat(p.guestSvn >= minimumGuestSvn, "guest SVN below policy"));
+    const matches = (pin) => pin.measurement === p.measurement && pin.identity.signer === p.identity.signer && pin.identity.productId === p.identity.productId && pin.identity.moduleId === p.identity.moduleId;
+    const identityCandidates = imageIdentities?.filter(matches) || [];
+    const imageFloor = identityCandidates.length ? Math.min(...identityCandidates.map((pin) => pin.minimumGuestSvn ?? 0)) : 0;
+    step2("svn", () => requireThat(p.guestSvn >= Math.max(minimumGuestSvn, imageFloor), "guest SVN below policy"));
     step2("measurement", () => requireThat(allowedMeasurements.includes(p.measurement), "image measurement is not pinned"));
     if (imageIdentities !== void 0) step2("image-identity", () => requireThat(
-      imageIdentities.some((pin) => pin.measurement === p.measurement && pin.identity.signer === p.identity.signer && pin.identity.productId === p.identity.productId && pin.identity.moduleId === p.identity.moduleId),
+      imageIdentities.some(matches),
       "image signer/product/module identity is not pinned"
     ));
     step2("user-data", () => requireThat(equal3(p.userData, expectedUserData), "guest binding differs from verifier request"));
@@ -137251,7 +137273,6 @@ function validateDesktopRelease(raw) {
   if (!isCid(r.controllerCid)) throw new Error("invalid desktop controller CID");
   for (const k3 of HASH_FIELDS)
     if (!nonzero2(r[k3])) throw new Error(`desktop release ${k3} must be nonzero lowercase 64-hex`);
-  integer(r.minimumCpuMilli, 1, 1e3, "minimum CPU milli");
   const p = fields3(r.policy, ["cpuPercent", "vcpus"], "desktop release policy");
   integer(p.cpuPercent, 400, 1600, "CPU percent");
   integer(p.vcpus, 4, 16, "vCPUs");
@@ -137264,7 +137285,6 @@ function validateDesktopRelease(raw) {
     igvmSha256: r.igvmSha256,
     profileSha256: r.profileSha256,
     launchMeasurement: r.launchMeasurement,
-    minimumCpuMilli: r.minimumCpuMilli,
     policy: Object.freeze({ cpuPercent: p.cpuPercent, vcpus: p.vcpus })
   });
 }
@@ -137273,7 +137293,7 @@ var init_shield_desktop_release = __esm({
   "relay/shield-desktop-release.mjs"() {
     init_shield_derive();
     init_shield_desktop_derive();
-    DESKTOP_RELEASE_SCHEMA = "enclave-desktop-release/1";
+    DESKTOP_RELEASE_SCHEMA = "enclave-desktop-release/2";
     RELEASE_FIELDS = [
       "schema",
       "controllerCid",
@@ -137282,7 +137302,6 @@ var init_shield_desktop_release = __esm({
       "igvmSha256",
       "profileSha256",
       "launchMeasurement",
-      "minimumCpuMilli",
       "policy"
     ];
     HASH_FIELDS = ["controllerSha256", "runtimeId", "igvmSha256", "profileSha256", "launchMeasurement"];
