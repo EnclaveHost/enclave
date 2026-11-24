@@ -266,3 +266,91 @@ test("certificate: a relay refusal is recorded and backed off; an image with no 
   const id = (await plain.handle({ method: "POST", path: "/vms", body: JSON.stringify({ name: DEP, snpVm: plan() }) })).body.id;
   assert.equal((await plain.get(id)).certificate, undefined);
 });
+
+// ---- the instance pool: deployments the operator bound nothing to ------------------------------------------------
+const ROOT_HASH = "3d".repeat(32), DEP2 = "0x" + "a1".repeat(32), DEP3 = "0x" + "b2".repeat(32);
+function poolFixture(over = {}) {
+  const { dir, cfg } = fixture();
+  const images = path.join(dir, "images");
+  fs.mkdirSync(path.join(images, ROOT_HASH), { recursive: true });
+  fs.writeFileSync(path.join(images, ROOT_HASH, "IMAGE.json"), JSON.stringify({ rootHash: ROOT_HASH, cmdline: CMDLINE }));
+  fs.mkdirSync(path.join(images, "not-an-image"));
+  cfg.pool = { images, run: path.join(dir, "pool-run"), slots: 2, portBase: 19000, maxVcpus: 8, maxMemMiB: 65536, ...over };
+  return { dir, cfg };
+}
+const pooled = (h, cfg) => new SnpVmManager(cfg, { exec: h.exec, attest: async () => true, diskUsers: () => [], launcher: "/opt/launch.py", ovmf: cfg.bindings[DEP].ovmf });
+const post = (m, name, p = plan()) => m.handle({ method: "POST", path: "/vms", body: JSON.stringify({ name, snpVm: p }) });
+
+test("pool config: bounded slots and ports, absolute paths, no overlap with an operator's binding", () => {
+  const { cfg } = poolFixture();
+  assert.equal(validateConfig(cfg).pool.slots, 2);
+  for (const [over, why] of [[{ slots: 0 }, /slots/], [{ slots: 65 }, /slots/], [{ portBase: 65535 }, /portBase/], [{ images: "images" }, /absolute/],
+    [{ maxVcpus: 0 }, /maxVcpus/], [{ maxMemMiB: 512 }, /maxMemMiB/], [{ unitPrefix: "a b" }, /unitPrefix/], [{ extra: 1 }, /unknown pool field/],
+    [{ portBase: 18443 }, /inside the pool's range/], [{ unitPrefix: "enclave-rpc-snp" }, /pool's namespace/]])
+    assert.throws(() => validateConfig({ ...cfg, pool: { ...cfg.pool, ...over } }), why, JSON.stringify(over));
+});
+
+test("pool: an unbound deployment takes a slot, boots the held image stateless on the slot's port, and health says what is left", async () => {
+  const { cfg } = poolFixture();
+  const h = fakeHost(), m = pooled(h, cfg);
+  assert.deepEqual(m.health().pool, { slots: 2, free: 2, maxVcpus: 8, maxMemMiB: 65536, images: [ROOT_HASH], allocated: [] });
+  const r = await post(m, DEP2);
+  assert.equal(r.status, 201);
+  const run = h.calls.find((c) => c[0] === "systemd-run");
+  assert.ok(run.includes("--unit=enclave-vm-" + DEP2.slice(2, 18)));
+  const launch = JSON.parse(fs.readFileSync(run.at(-1), "utf8"));
+  assert.deepEqual([launch.image, launch.run, launch.cpus, launch.memoryMiB, launch.disks, launch.hostfwd, launch.hostData],
+    [path.join(cfg.pool.images, ROOT_HASH), path.join(cfg.pool.run, DEP2), 8, 65536, [], [[19000, 8443]], DEP2.slice(2)]);
+  assert.deepEqual([m.health().pool.free, m.health().pool.allocated], [1, [DEP2]]);
+  assert.equal((await m.handle({ method: "GET", path: `/vms/${r.body.id}` })).body.status, "running");
+  // the operator's own binding is untouched by the pool and takes no slot
+  assert.equal((await post(m, DEP)).status, 201);
+  assert.equal(m.health().pool.free, 1);
+  // the second slot gets the next port; a third deployment finds the pool full and nothing is started for it
+  assert.equal((await post(m, DEP3)).status, 201);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(cfg.stateDir, DEP3 + ".launch.json"), "utf8")).hostfwd, [[19001, 8443]]);
+  const full = await post(m, "0x" + "c3".repeat(32));
+  assert.deepEqual([full.status, full.body.error], [503, "no free instance slot on this host"]);
+  assert.equal(h.calls.filter((c) => c[0] === "systemd-run").length, 3);
+  // deleting an instance frees its slot (and only a pooled one holds a slot)
+  assert.equal((await m.handle({ method: "DELETE", path: `/vms/${r.body.id}` })).status, 200);
+  assert.deepEqual([m.health().pool.free, m.health().pool.allocated], [1, [DEP3]]);
+  assert.ok(!fs.existsSync(path.join(cfg.stateDir, DEP2 + ".slot.json")));
+  assert.equal((await post(m, "0x" + "c3".repeat(32))).status, 201);
+});
+
+test("pool: an image this host does not hold, a size the pool does not take, or a failed launch leaves no slot taken", async () => {
+  const { cfg } = poolFixture();
+  const h = fakeHost(), m = pooled(h, cfg);
+  const other = await post(m, DEP2, plan({ image: { ...plan().image, rootHash: "ee".repeat(32) } }));
+  assert.equal(other.status, 409); assert.match(other.body.error, /does not hold image/);
+  const big = await post(m, DEP2, plan({ vcpus: 16 }));
+  assert.equal(big.status, 409); assert.match(big.body.error, /at most 8 vCPUs/);
+  const wrongFw = await post(m, DEP2, plan({ image: { ...plan().image, ovmfSha256: "ee".repeat(32) } }));
+  assert.equal(wrongFw.status, 409); assert.match(wrongFw.body.error, /OVMF/);
+  const failing = pooled({ ...h, exec: async (cmd, a) => cmd === "systemd-run" ? { code: 1, stdout: "", stderr: "boom" } : h.exec(cmd, a) }, cfg);
+  assert.equal((await post(failing, DEP2)).status, 500);
+  for (const x of [m, failing]) assert.deepEqual([x.health().pool.free, x.health().pool.allocated], [2, []]);
+  assert.ok(!fs.existsSync(path.join(cfg.stateDir, DEP2 + ".slot.json")));
+  // without a pool an unbound deployment is refused exactly as before
+  assert.equal((await post(new SnpVmManager({ ...cfg, pool: undefined }, { exec: h.exec, diskUsers: () => [] }), DEP2)).status, 403);
+});
+
+test("pool: after a manager restart a running pooled VM keeps its slot and port; a slot whose VM is gone is free again", async () => {
+  const { cfg } = poolFixture();
+  const h = fakeHost(), m = pooled(h, cfg);
+  const a = await post(m, DEP2), b = await post(m, DEP3);
+  assert.deepEqual([a.status, b.status], [201, 201]);
+  h.active.delete("enclave-vm-" + DEP2.slice(2, 18) + ".service");   // DEP2's VM ended while no manager was watching
+  fs.writeFileSync(path.join(cfg.stateDir, "0x" + "d4".repeat(32) + ".slot.json"), "{not json");
+  const m2 = pooled(h, cfg);
+  await m2.recover();
+  assert.deepEqual([m2.health().pool.free, m2.health().pool.allocated], [1, [DEP3]]);
+  assert.deepEqual(fs.readdirSync(cfg.stateDir).filter((f) => f.endsWith(".slot.json")), [DEP3 + ".slot.json"]);
+  assert.equal(m2.binding(DEP3).attestOrigin, "https://127.0.0.1:19001");
+  const again = await post(m2, DEP3);
+  assert.deepEqual([again.status, again.body.id], [409, b.body.id]);   // the supervisor adopts it by name, as for a bound VM
+  assert.equal((await m2.handle({ method: "GET", path: `/vms/${b.body.id}` })).body.status, "running");
+  assert.equal((await post(m2, DEP2)).status, 201);                    // and DEP2 can be launched again, in the freed slot
+  assert.equal(m2.binding(DEP2).attestOrigin, "https://127.0.0.1:19000");
+});

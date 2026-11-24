@@ -74,6 +74,21 @@ test("claim gate: own version only, a manager that answers, a binding for this d
   assert.equal(flags.hinted, true);
 });
 
+test("claim gate: an unbound deployment is taken by the manager's instance pool when it holds the image, the size fits and a slot is free", async () => {
+  const root = RELEASE.config.image.rootHash.toLowerCase();
+  const pool = (over = {}) => ({ slots: 2, free: 1, maxVcpus: 8, maxMemMiB: 65536, images: [root], allocated: [], ...over });
+  const withPool = (p) => sandbox({ snpVmReq: async () => ({ status: 200, body: { backend: "snp-vm", bindings: [], ...(p ? { pool: p } : {}) } }) });
+  assert.equal(await withPool(pool()).ctx.snpVmConsider(row(), gate(), opt), "claimed");
+  assert.match(await withPool(pool({ images: [] })).ctx.snpVmConsider(row(), gate(), opt), /does not hold this version's image/);
+  assert.match(await withPool(pool({ maxVcpus: 4 })).ctx.snpVmConsider(row(), gate(), opt), /larger than this host's instance pool/);
+  assert.match(await withPool(pool({ maxMemMiB: 32768 })).ctx.snpVmConsider(row(), gate(), opt), /larger than this host's instance pool/);
+  assert.match(await withPool(pool({ free: 0 })).ctx.snpVmConsider(row(), gate(), opt), /no free instance slot/);
+  // a deployment that already holds a slot, and a resume, are not refused for a full pool
+  assert.equal(await withPool(pool({ free: 0, allocated: [DEP.toUpperCase().replace("0X", "0x")] })).ctx.snpVmConsider(row(), gate(), opt), "claimed");
+  assert.equal(await withPool(pool({ free: 0 })).ctx.snpVmConsider(row(), gate(), opt, { resume: true }), "claimed");
+  assert.match(await withPool(null).ctx.snpVmConsider(row(), gate(), opt), /no snp-vm binding/);
+});
+
 test("a whole VM holds a CPU share: what its owner dialed, or what it needs of this node if that is more", async () => {
   const { ctx } = sandbox();
   const plan = { vcpus: 8, memMiB: 49152 };                     // Enclave RPC 1.4.1

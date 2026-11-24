@@ -4840,13 +4840,24 @@ function snpVmResize(rec, d) {
   rec.rate = Number(d.rate) / 1e6;                          // the resize recalculated it on-chain
   return { ok: true, cpuShare: slice.cpuShare };
 }
+// A deployment the operator bound nothing to can still run in the manager's instance pool: a stateless whole VM in a
+// free slot, from an image the host already holds, within the pool's size. null: the pool takes it. A deployment that
+// holds a slot already (a resume, or a launch being retried) is never refused for the sake of the others.
+function snpVmPoolRefusal(pool, id, plan, resume = false) {
+  if (!pool || typeof pool !== "object") return "this host has no snp-vm binding (image, chain disks) for this deployment";
+  if ((pool.allocated || []).map(lc).includes(lc(id))) return null;
+  if (!(pool.images || []).map(lc).includes(plan.image.rootHash)) return "this host does not hold this version's image for its instance pool";
+  if (plan.vcpus > Number(pool.maxVcpus) || plan.memMiB > Number(pool.maxMemMiB)) return "this whole VM is larger than this host's instance pool takes";
+  if (!resume && !(Number(pool.free) >= 1)) return "no free instance slot here right now";
+  return null;
+}
 async function snpVmConsider(d, g, opt, { resume = false, hinted = false } = {}) {
   if (opt.measurementsFrom !== d.appRef) return "snpVm.measurementsFrom must name this deployment's own catalog version";
   let plan; try { plan = snpVmPlanOf(g, d.appRef); } catch (e) { return "snpVm: " + e.message; }
   let h = null;
   try { const r = await snpVmReq("GET", "/health", null, 5000); h = r.status === 200 ? r.body : null; } catch { h = null; }
   if (!h || h.backend !== "snp-vm") return "this host has no whole-VM SEV-SNP manager (snp-vm) answering";
-  if (!(h.bindings || []).map(lc).includes(lc(d.id))) return "this host has no snp-vm binding (image, chain disks) for this deployment";
+  if (!(h.bindings || []).map(lc).includes(lc(d.id))) { const why = snpVmPoolRefusal(h.pool, d.id, plan, resume); if (why) return why; }
   const firewall = parseFirewall({ ports: g.ports ? String(g.ports).split(",") : [] });
   let slice; try { slice = snpVmSlice(plan, d.cpuMilli); } catch (e) { return "snpVm: " + e.message; }
   const room = claimFreeCpu();

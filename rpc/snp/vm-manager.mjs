@@ -10,7 +10,10 @@
 //
 // What the host operator decides, in CONFIG.bindings[<deployment id>]: which image directory, run directory, chain
 // disks and host port forward that deployment gets. A deployment with no binding is refused; a binding is exclusive
-// (its disks belong to that deployment alone). What the chain decides, and the request carries from the catalog
+// (its disks belong to that deployment alone). A host may also offer CONFIG.pool: a number of instance slots for
+// deployments it has no binding for. A pooled instance is stateless (no disks), boots the image this host holds under
+// pool.images/<the version's root hash>, at the vCPU count the version's measurement is for, and answers on the slot's
+// own loopback port; its slot is taken at launch and given back when the instance is deleted. What the chain decides, and the request carries from the catalog
 // version: the measurement allowlist, the image's root hash, OVMF and cmdline hashes, vCPUs and memory. The image on
 // disk must match all of them before anything starts.
 //
@@ -42,6 +45,7 @@ export const OVMF_DEFAULT = "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.
 export const ATTEST_EVERY_MS = 5 * 60_000;
 export const APP_ZONE = "app.enclave.host";
 const CERT_RETRY_MIN_MS = 60_000, CERT_RETRY_MAX_MS = 60 * 60_000;
+export const POOL_UNIT_PREFIX = "enclave-vm", POOL_FRONT_PORT = 8443;
 
 export const idFor = (name) => "sv" + sha256(String(name).toLowerCase()).slice(0, 16);
 const fail = (status, message, extra = {}) => Object.assign(new Error(message), { status, ...extra });
@@ -92,6 +96,24 @@ export function validateConfig(c) {
   }
   const disks = Object.values(c.bindings || {}).flatMap((b) => b.disks.map((d) => path.resolve(d.path)));
   if (new Set(disks).size !== disks.length) throw new Error("a disk is bound to more than one deployment");
+  if (c.pool !== undefined) {
+    const p = c.pool, int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+    if (!p || typeof p !== "object" || Array.isArray(p)) throw new Error("pool must be an object");
+    const extra = Object.keys(p).filter((k) => !["images", "run", "slots", "portBase", "frontPort", "maxVcpus", "maxMemMiB", "unitPrefix"].includes(k));
+    if (extra.length) throw new Error(`unknown pool field ${extra[0]}`);
+    for (const k of ["images", "run"]) if (typeof p[k] !== "string" || !path.isAbsolute(p[k])) throw new Error(`pool.${k} must be an absolute path`);
+    if (!int(p.slots, 1, 64)) throw new Error("pool.slots must be 1..64");
+    if (!int(p.portBase, 1024, 65535 - p.slots + 1)) throw new Error("pool.portBase must leave room for every slot below 65536");
+    if (p.frontPort !== undefined && !int(p.frontPort, 1, 65535)) throw new Error("pool.frontPort must be a port");
+    if (!int(p.maxVcpus, 1, 64)) throw new Error("pool.maxVcpus must be 1..64");
+    if (!int(p.maxMemMiB, 1024, 1 << 20)) throw new Error("pool.maxMemMiB must be 1024..1048576");
+    if (p.unitPrefix !== undefined && !/^[A-Za-z0-9@._-]+$/.test(String(p.unitPrefix))) throw new Error("pool.unitPrefix is not safe");
+    const prefix = p.unitPrefix || POOL_UNIT_PREFIX;
+    for (const [name, b] of Object.entries(c.bindings || {})) {
+      if (b.hostfwd.some(([h]) => h >= p.portBase && h < p.portBase + p.slots)) throw new Error(`binding ${name} forwards a port inside the pool's range`);
+      if (b.unit.startsWith(prefix + "-")) throw new Error(`binding ${name}: unit name is inside the pool's namespace`);
+    }
+  }
   if (c.certs !== undefined) {
     const k = c.certs;
     if (!k || typeof k !== "object") throw new Error("certs must be an object");
@@ -136,14 +158,71 @@ export class SnpVmManager {
     // the certificate service's own request parser and signed text (relay/certs.js), so this cannot drift from what it accepts
     this.csr = csr || (() => import("../../relay/certs.js").then((m) => ({ parse: m.parseCsr, message: m.issueMessage })));
     this.stateDir = cfg.stateDir || path.join(HERE, "state");
+    this.slots = new Map();   // pooled deployment id -> { slot, rootHash, cpus }
   }
 
-  binding(name) { return this.cfg.bindings?.[String(name).toLowerCase()] || null; }
+  /** The operator's binding for a deployment, or the one its pool slot gives it. null: this host does not run it. */
+  binding(name) {
+    name = String(name).toLowerCase();
+    return this.cfg.bindings?.[name] || this.poolBinding(name);
+  }
+
+  poolBinding(name) {
+    const a = this.slots.get(name), p = this.cfg.pool;
+    if (!a || !p) return null;
+    const port = p.portBase + a.slot;
+    return { pooled: true, image: path.join(p.images, a.rootHash), run: path.join(p.run, name), unit: `${p.unitPrefix || POOL_UNIT_PREFIX}-${name.slice(2, 18)}`,
+             cpus: a.cpus, attestOrigin: `https://127.0.0.1:${port}`, hostfwd: [[port, p.frontPort || POOL_FRONT_PORT]], disks: [] };
+  }
+
+  slotFile(name) { return path.join(this.stateDir, name + ".slot.json"); }
+
+  /** The root hashes of the images this host holds for its pool. */
+  poolImages() {
+    let names = []; try { names = fs.readdirSync(this.cfg.pool.images); } catch { return []; }
+    return names.filter((n) => HEX(64).test(n) && fs.existsSync(path.join(this.cfg.pool.images, n, "IMAGE.json"))).sort();
+  }
+
+  /** Take (or re-point) this deployment's pool slot for a plan. Refuses what the pool cannot hold; starts nothing. */
+  allocate(name, plan) {
+    const p = this.cfg.pool;
+    if (plan.vcpus > p.maxVcpus || plan.memMiB > p.maxMemMiB) throw fail(409, `this host's instance pool takes at most ${p.maxVcpus} vCPUs and ${p.maxMemMiB} MiB`);
+    if (!fs.existsSync(path.join(p.images, plan.image.rootHash, "IMAGE.json"))) throw fail(409, `this host does not hold image ${plan.image.rootHash.slice(0, 12)}…`);
+    let slot = this.slots.get(name)?.slot;
+    if (slot === undefined) {
+      const taken = new Set([...this.slots.values()].map((a) => a.slot));
+      slot = [...Array(p.slots).keys()].find((i) => !taken.has(i));
+      if (slot === undefined) throw fail(503, "no free instance slot on this host");
+    }
+    const a = { slot, rootHash: plan.image.rootHash, cpus: plan.vcpus };
+    fs.mkdirSync(this.stateDir, { recursive: true, mode: 0o700 });
+    fs.mkdirSync(p.run, { recursive: true, mode: 0o700 });
+    this.writeFile(this.slotFile(name), JSON.stringify(a) + "\n", { mode: 0o600 });
+    this.slots.set(name, a);
+    return this.poolBinding(name);
+  }
+
+  release(name) { if (this.slots.delete(name)) fs.rmSync(this.slotFile(name), { force: true }); }
   async unitActive(unit) { return (await this.exec("systemctl", ["--user", "is-active", "--quiet", unit + ".service"])).code === 0; }
 
   /** After a restart of this manager: a bound unit that is running is that deployment's instance (plan from disk). */
   async recover() {
-    for (const [name, b] of Object.entries(this.cfg.bindings || {})) {
+    const pooled = [];
+    if (this.cfg.pool) {
+      let files = []; try { files = fs.readdirSync(this.stateDir); } catch {}
+      for (const f of files) {
+        const m = f.match(/^(0x[0-9a-f]{64})\.slot\.json$/);
+        if (!m || this.cfg.bindings?.[m[1]]) continue;
+        let a = null; try { a = JSON.parse(this.readFile(path.join(this.stateDir, f), "utf8")); } catch {}
+        const ok = a && Number.isInteger(a.slot) && a.slot >= 0 && a.slot < this.cfg.pool.slots && HEX(64).test(String(a.rootHash)) && Number.isInteger(a.cpus)
+          && ![...this.slots.values()].some((x) => x.slot === a.slot);
+        if (ok) this.slots.set(m[1], { slot: a.slot, rootHash: a.rootHash, cpus: a.cpus });
+        // a pooled instance keeps nothing on this host: a slot whose VM is gone (or whose record is unusable) is free again
+        if (!ok || !(await this.unitActive(this.poolBinding(m[1]).unit))) { this.slots.delete(m[1]); fs.rmSync(path.join(this.stateDir, f), { force: true }); }
+        else pooled.push([m[1], this.poolBinding(m[1])]);
+      }
+    }
+    for (const [name, b] of [...Object.entries(this.cfg.bindings || {}), ...pooled]) {
       if (!(await this.unitActive(b.unit))) continue;
       let plan = null; try { plan = JSON.parse(this.readFile(path.join(this.stateDir, name + ".plan.json"), "utf8")); } catch {}
       this.instances.set(idFor(name), { id: idFor(name), name, unit: b.unit, plan, status: "starting", startedAt: this.now(), recovered: true });
@@ -151,8 +230,11 @@ export class SnpVmManager {
   }
 
   health() {
+    const p = this.cfg.pool;
     return { backend: "snp-vm", proto: "guestd-control/1", bindings: Object.keys(this.cfg.bindings || {}),
-             supports: { snpVm: true, ports: false, secrets: false }, instances: this.instances.size };
+             supports: { snpVm: true, ports: false, secrets: false }, instances: this.instances.size,
+             ...(p ? { pool: { slots: p.slots, free: p.slots - this.slots.size, maxVcpus: p.maxVcpus, maxMemMiB: p.maxMemMiB,
+                               images: this.poolImages(), allocated: [...this.slots.keys()] } } : {}) };
   }
 
   async refresh(inst) {
@@ -238,29 +320,39 @@ export class SnpVmManager {
   async spawn(body) {
     const name = String(body?.name || "").toLowerCase();
     if (!ID32.test(name)) throw fail(400, "name must be the deployment id");
-    const b = this.binding(name);
-    if (!b) throw fail(403, `no snp-vm binding for ${name} on this host`);
+    let b = this.binding(name);
+    if (!b && !this.cfg.pool) throw fail(403, `no snp-vm binding for ${name} on this host`);
     const plan = parsePlan(body.snpVm);
     const id = idFor(name);
-    if (await this.unitActive(b.unit)) {
+    if (b && await this.unitActive(b.unit)) {
       const cur = this.instances.get(id);
       if (cur && !cur.plan) { cur.plan = plan; this.persistPlan(name, plan); }   // a recovered VM, re-launched from the same record
       // adoptable only as the version it was launched as: a record for another version must stop this VM first
       if (cur?.plan && sha256(JSON.stringify(cur.plan)) !== sha256(JSON.stringify(plan))) throw fail(409, `${name} runs here as ${cur.plan.appRef}; stop it before launching another version`);
       throw fail(409, `${name} already runs here`, { id });
     }
-    const launch = launchConfigFor(name, b, plan, { readFile: this.readFile, ovmf: this.ovmf });
-    const busy = this.diskUsers(b.disks.map((d) => path.resolve(d.path)));
-    if (busy.length) throw fail(409, `the bound disks are open in another process (${busy.join(", ")}); nothing was started`);
-    fs.mkdirSync(this.stateDir, { recursive: true, mode: 0o700 });
-    const cfgPath = path.join(this.stateDir, name + ".launch.json");
-    this.writeFile(cfgPath, JSON.stringify(launch, null, 2) + "\n", { mode: 0o600 });
-    this.persistPlan(name, plan);
-    this.dropRoute(name);   // a new VM has a new key: no route until it serves its own certificate
-    await this.exec("systemctl", ["--user", "reset-failed", b.unit + ".service"]);
-    const r = await this.exec("systemd-run", ["--user", "--unit=" + b.unit, "--collect", "-p", "KillMode=mixed", "-p", "TimeoutStopSec=7min",
-      "-p", "Description=Enclave SNP VM app " + name.slice(0, 10), "/usr/bin/python3", "-I", this.launcher, cfgPath]);
-    if (r.code !== 0) throw fail(500, `systemd-run failed: ${r.stderr.trim().slice(0, 300)}`);
+    // no VM of this deployment runs here. A pooled one takes its slot now (or re-points the one a stopped VM still holds
+    // at this plan's image and size); a launch that then fails gives a newly taken slot back.
+    const held = this.slots.has(name);
+    if (!b || b.pooled) b = this.allocate(name, plan);
+    let cfgPath;
+    try {
+      const launch = launchConfigFor(name, b, plan, { readFile: this.readFile, ovmf: this.ovmf });
+      const busy = this.diskUsers(b.disks.map((d) => path.resolve(d.path)));
+      if (busy.length) throw fail(409, `the bound disks are open in another process (${busy.join(", ")}); nothing was started`);
+      fs.mkdirSync(this.stateDir, { recursive: true, mode: 0o700 });
+      cfgPath = path.join(this.stateDir, name + ".launch.json");
+      this.writeFile(cfgPath, JSON.stringify(launch, null, 2) + "\n", { mode: 0o600 });
+      this.persistPlan(name, plan);
+      this.dropRoute(name);   // a new VM has a new key: no route until it serves its own certificate
+      await this.exec("systemctl", ["--user", "reset-failed", b.unit + ".service"]);
+      const r = await this.exec("systemd-run", ["--user", "--unit=" + b.unit, "--collect", "-p", "KillMode=mixed", "-p", "TimeoutStopSec=7min",
+        "-p", "Description=Enclave SNP VM app " + name.slice(0, 10), "/usr/bin/python3", "-I", this.launcher, cfgPath]);
+      if (r.code !== 0) throw fail(500, `systemd-run failed: ${r.stderr.trim().slice(0, 300)}`);
+    } catch (e) {
+      if (b.pooled && !held) this.release(name);
+      throw e;
+    }
     const inst = { id, name, unit: b.unit, plan, status: "starting", startedAt: this.now() };
     this.instances.set(id, inst);
     return { ...this.view(inst), recordSha256: sha256(JSON.stringify(plan)) };
@@ -281,6 +373,7 @@ export class SnpVmManager {
     if (r.code !== 0 && (await this.unitActive(i.unit))) throw fail(500, `stopping ${i.unit} failed: ${r.stderr.trim().slice(0, 200)}`, { id });
     this.instances.delete(id);
     this.dropRoute(i.name);
+    this.release(i.name);   // a pooled instance's slot is free again; an operator's binding holds none
     return { absent: false };
   }
 
