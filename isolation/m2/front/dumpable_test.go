@@ -163,6 +163,51 @@ func TestTracedThread(t *testing.T) {
 	if tid, tr, _, err := tracedThread(mk(map[string]string{"10": clean, "11": clean, "12": "TracerPid:\t99\n"})); err != nil || tid != 12 || tr != 99 {
 		t.Fatalf("thread 12 traced by 99: %d %d %v", tid, tr, err)
 	}
+	// a traced clone that appears AFTER a whole, clean round is still found: one whole round is not enough, the next
+	// listing must name the same threads (enclave-bf's mutant of 298924ae: settling on the first whole round survived).
+	// Thread 10's status is a FIFO whose writer serves exactly ONE open, round 1's read (round 1 has listed [10] by then):
+	// before writing, it adds a traced thread 12 and renames a REGULAR clean file over 10's status (round 1's reader keeps
+	// the FIFO inode), so round 2 reads a plain file and no second FIFO pairing can race. enclave-bf's deterministic
+	// version of a2b10c04e's loop, which re-opened the FIFO and could read an empty status or hang.
+	dir := mk(map[string]string{"10": ""})
+	fifo := filepath.Join(dir, "10", "status")
+	if err := syscall.Mkfifo(fifo, 0o644); err != nil {
+		t.Skipf("mkfifo: %v", err)
+	}
+	writer := make(chan error, 1)
+	go func() {
+		f, err := os.OpenFile(fifo, os.O_WRONLY, 0) // returns once round 1 opens thread 10's status
+		if err != nil {
+			writer <- err
+			return
+		}
+		defer f.Close()
+		err = os.MkdirAll(filepath.Join(dir, "12"), 0o755)
+		if err == nil {
+			err = os.WriteFile(filepath.Join(dir, "12", "status"), []byte("TracerPid:\t77\n"), 0o644)
+		}
+		if err == nil {
+			tmp := filepath.Join(dir, "10", ".status")
+			if err = os.WriteFile(tmp, []byte(clean), 0o644); err == nil {
+				err = os.Rename(tmp, fifo)
+			}
+		}
+		if err == nil {
+			_, err = f.Write([]byte(clean))
+		}
+		writer <- err
+	}()
+	tid, tr, _, err := tracedThread(dir)
+	// if the scan never opened the FIFO, release the writer (a no-op once it has run: the path is a regular file then)
+	if r, e := os.OpenFile(fifo, os.O_RDONLY|syscall.O_NONBLOCK, 0); e == nil {
+		r.Close()
+	}
+	if werr := <-writer; werr != nil {
+		t.Fatalf("writer: %v", werr)
+	}
+	if err != nil || tid != 12 || tr != 77 {
+		t.Fatalf("a traced thread started after the first whole round: %d %d %v", tid, tr, err)
+	}
 	for name, threads := range map[string]map[string]string{
 		"no TracerPid":         {"10": clean, "11": "Name:\tx\n"},
 		"no thread":            {},
