@@ -56,7 +56,7 @@ import {bootstrapIntent,preparePackage,verifyPackage,fetchPackage,readBoundedRes
 import {CHECKPOINT_PATH,MAX_CHECKPOINT_BYTES,parseCheckpoint,completeCollateral,verifyCheckpoint} from "../verifier/history-checkpoint.mjs";
 import {httpCollateral,AMD_KDS} from "../verifier/collateral.mjs";
 
-const VERSION = "1.7.2";
+const VERSION = "1.7.3";
 
 // ---- platform constants -----------------------------------------------------
 // Addresses are Base mainnet (chain 8453), kept in lockstep with
