@@ -43,7 +43,8 @@ GET of the scheduler's state object ended it with the message above.
 - **An hourly job keeps that from recurring**: `scripts/storage/indexd-unblock-recovered.py` with its service and
   timer, installed in the storage VM. It unblocks contract hosts whose only block reason is uptime and that pass
   every usability check again; it does not touch price, collateral or manual blocks.
-- **The SDK bug is fixed in sia-s3 0.1.10** (enclave-apps `sia-s3/spike` a1830ce): the vector is the slab's full
+- **The SDK bug is fixed in sia-s3 0.1.10** (enclave-apps a1830ce; on its `main` since 2026-11-24, merge d35fa73's
+  parent: until then the app's whole source lived on the branch `sia-s3/spike`): the vector is the slab's full
   shard count, and a shard outside it or recovered twice is an error. Six tests cover unlisted hosts at every
   position. Run locally against the indexer, the objects that aborted 0.1.9 read back whole, and an object with
   only nine reachable shards failed with an error instead of ending the app. The fix had been written against
