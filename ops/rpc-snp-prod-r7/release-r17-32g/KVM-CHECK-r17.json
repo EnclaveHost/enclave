@@ -1,0 +1,944 @@
+{
+ "schema": "enclave-rpc-snp-image-check/1",
+ "image": "/vm/enclave-volumes/rpc-snp-image-r17",
+ "rootHash": "ad552fc20fac50fa98841bcde9eff888a5477ddf26a51b1e331484d71abaea16",
+ "memoryMiB": 8192,
+ "baseline": false,
+ "facts": {
+  "boot": [
+   [
+    "multi-user=active",
+    "waited=92s",
+    "kernel=6.8.0-147-generic",
+    "systemd=systemd-255"
+   ]
+  ],
+  "memtotal-kb": [
+   [
+    "8130716"
+   ]
+  ],
+  "overlay-mb-at-boot": [
+   [
+    "10"
+   ]
+  ],
+  "journal-mb-at-boot": [
+   [
+    "10"
+   ]
+  ],
+  "unit": [
+   [
+    "rsyslog.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "syslog.socket",
+    "masked",
+    "inactive"
+   ],
+   [
+    "apt-daily.timer",
+    "masked",
+    "inactive"
+   ],
+   [
+    "apt-daily.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "apt-daily-upgrade.timer",
+    "masked",
+    "inactive"
+   ],
+   [
+    "apt-daily-upgrade.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "unattended-upgrades.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "update-notifier-download.timer",
+    "masked",
+    "inactive"
+   ],
+   [
+    "update-notifier-download.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "update-notifier-motd.timer",
+    "masked",
+    "inactive"
+   ],
+   [
+    "update-notifier-motd.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "snapd.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "snapd.socket",
+    "masked",
+    "inactive"
+   ],
+   [
+    "snapd.seeded.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "snapd.snap-repair.timer",
+    "masked",
+    "inactive"
+   ],
+   [
+    "snapd.autoimport.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "snapd.core-fixup.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "snapd.recovery-chooser-trigger.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "snapd.apparmor.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "lxd-installer.socket",
+    "masked",
+    "inactive"
+   ],
+   [
+    "fwupd-refresh.timer",
+    "masked",
+    "inactive"
+   ],
+   [
+    "fwupd-refresh.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "fwupd.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "ua-timer.timer",
+    "masked",
+    "inactive"
+   ],
+   [
+    "ua-timer.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "ubuntu-advantage.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "ua-reboot-cmds.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "motd-news.timer",
+    "masked",
+    "inactive"
+   ],
+   [
+    "motd-news.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "man-db.timer",
+    "masked",
+    "inactive"
+   ],
+   [
+    "dpkg-db-backup.timer",
+    "masked",
+    "inactive"
+   ],
+   [
+    "apport.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "apport-autoreport.timer",
+    "masked",
+    "inactive"
+   ],
+   [
+    "apport-autoreport.path",
+    "masked",
+    "inactive"
+   ],
+   [
+    "apport-forward.socket",
+    "masked",
+    "inactive"
+   ],
+   [
+    "sysstat.service",
+    "masked",
+    "inactive"
+   ],
+   [
+    "sysstat-collect.timer",
+    "masked",
+    "inactive"
+   ],
+   [
+    "sysstat-summary.timer",
+    "masked",
+    "inactive"
+   ],
+   [
+    "ModemManager.service",
+    "masked",
+    "inactive"
+   ]
+  ],
+  "timer": [
+   [
+    "systemd-tmpfiles-clean.timer"
+   ],
+   [
+    "logrotate.timer"
+   ],
+   [
+    "fstrim.timer"
+   ],
+   [
+    "e2scrub_all.timer"
+   ],
+   [
+    "enclave-rpc-base-history.timer"
+   ],
+   [
+    "apport-autoreport.timer"
+   ],
+   [
+    "apt-daily-upgrade.timer"
+   ],
+   [
+    "apt-daily.timer"
+   ],
+   [
+    "dpkg-db-backup.timer"
+   ],
+   [
+    "fwupd-refresh.timer"
+   ],
+   [
+    "man-db.timer"
+   ],
+   [
+    "motd-news.timer"
+   ],
+   [
+    "snapd.snap-repair.timer"
+   ],
+   [
+    "sysstat-collect.timer"
+   ],
+   [
+    "sysstat-summary.timer"
+   ],
+   [
+    "ua-timer.timer"
+   ],
+   [
+    "update-notifier-download.timer"
+   ],
+   [
+    "update-notifier-motd.timer"
+   ]
+  ],
+  "running": [
+   [
+    "cron.service"
+   ],
+   [
+    "dbus.service"
+   ],
+   [
+    "enclave-rpc-beacon-patch.service"
+   ],
+   [
+    "enclave-rpc-memprobe.service"
+   ],
+   [
+    "getty@tty1.service"
+   ],
+   [
+    "multipathd.service"
+   ],
+   [
+    "serial-getty@ttyS0.service"
+   ],
+   [
+    "systemd-journald.service"
+   ],
+   [
+    "systemd-logind.service"
+   ],
+   [
+    "systemd-networkd.service"
+   ],
+   [
+    "systemd-resolved.service"
+   ],
+   [
+    "systemd-timesyncd.service"
+   ],
+   [
+    "systemd-udevd.service"
+   ]
+  ],
+  "rss-kb": [
+   [
+    "27300",
+    "multipathd"
+   ],
+   [
+    "23412",
+    "python3"
+   ],
+   [
+    "13384",
+    "systemd"
+   ],
+   [
+    "12960",
+    "systemd-resolve"
+   ],
+   [
+    "12460",
+    "python3"
+   ],
+   [
+    "10064",
+    "systemd-journal"
+   ],
+   [
+    "9512",
+    "systemd-network"
+   ],
+   [
+    "8096",
+    "systemd-logind"
+   ],
+   [
+    "7764",
+    "systemd-udevd"
+   ],
+   [
+    "7740",
+    "systemd-timesyn"
+   ],
+   [
+    "5444",
+    "dbus-daemon"
+   ],
+   [
+    "4316",
+    "ps"
+   ],
+   [
+    "3944",
+    "awk"
+   ],
+   [
+    "2884",
+    "cron"
+   ],
+   [
+    "2240",
+    "agetty"
+   ],
+   [
+    "2140",
+    "agetty"
+   ],
+   [
+    "2100",
+    "head"
+   ],
+   [
+    "1896",
+    "sh"
+   ],
+   [
+    "0",
+    "kthreadd"
+   ],
+   [
+    "0",
+    "pool_workqueue_release"
+   ],
+   [
+    "0",
+    "kworker/R-rcu_g"
+   ],
+   [
+    "0",
+    "kworker/R-rcu_p"
+   ],
+   [
+    "0",
+    "kworker/R-slub_"
+   ],
+   [
+    "0",
+    "kworker/R-netns"
+   ],
+   [
+    "0",
+    "kworker/0:0-events"
+   ]
+  ],
+  "rss-kb-all": [
+   [
+    "156084"
+   ]
+  ],
+  "meminfo-kb": [
+   [
+    "MemFree:",
+    "7787764"
+   ],
+   [
+    "MemAvailable:",
+    "7701740"
+   ],
+   [
+    "Cached:",
+    "102368"
+   ],
+   [
+    "AnonPages:",
+    "50600"
+   ],
+   [
+    "Shmem:",
+    "10984"
+   ],
+   [
+    "Slab:",
+    "65296"
+   ]
+  ],
+  "journald-conf": [
+   [
+    "ForwardToSyslog=yes"
+   ],
+   [
+    "Storage=persistent"
+   ],
+   [
+    "SystemMaxUse=256M"
+   ],
+   [
+    "SystemMaxFileSize=32M"
+   ],
+   [
+    "RuntimeMaxUse=32M"
+   ],
+   [
+    "ForwardToSyslog=no"
+   ]
+  ],
+  "journald-base-conf": [
+   [
+    "Storage=persistent"
+   ],
+   [
+    "SystemMaxUse=256M"
+   ],
+   [
+    "SystemMaxFileSize=32M"
+   ],
+   [
+    "RuntimeMaxUse=32M"
+   ],
+   [
+    "ForwardToSyslog=no"
+   ]
+  ],
+  "syslog-file": [
+   [
+    "185889"
+   ]
+  ],
+  "limit": [
+   [
+    "enclave-rpc-clients.slice",
+    "MemoryHigh=7493267456",
+    "MemoryMax=7826300928"
+   ],
+   [
+    "enclave-rpc-el.service",
+    "TimeoutStopUSec=5min",
+    "MemoryHigh=infinity",
+    "MemoryMax=3746631680"
+   ],
+   [
+    "enclave-rpc-cl.service",
+    "TimeoutStopUSec=5min",
+    "MemoryHigh=infinity",
+    "MemoryMax=3746631680"
+   ],
+   [
+    "enclave-rpc-base.service",
+    "TimeoutStopUSec=5min",
+    "MemoryHigh=infinity",
+    "MemoryMax=6244388864"
+   ]
+  ],
+  "probe-unit": [
+   [
+    "enabled",
+    "active"
+   ]
+  ],
+  "probe-before": [
+   [
+    "measuring",
+    "2",
+    "0",
+    "0",
+    "0",
+    "None"
+   ]
+  ],
+  "front": [
+   [
+    "activating"
+   ]
+  ],
+  "base-dropin": [
+   [
+    "beacon-patch.conf"
+   ],
+   [
+    "host.conf"
+   ],
+   [
+    "identity.conf"
+   ],
+   [
+    "limits.conf"
+   ],
+   [
+    "log-namespace.conf"
+   ],
+   [
+    "restart.conf"
+   ]
+  ],
+  "qual-base": [
+   [
+    "active",
+    "Slice=enclave-rpc-clients.slice",
+    "MemoryHigh=infinity",
+    "MemoryMax=6244388864",
+    "LogNamespace=base",
+    "User=rpcbase"
+   ]
+  ],
+  "ns-tail": [
+   [
+    "2026-11-25T00:27:22+00:00",
+    "rpc-owned-856ca36204b44e39816d6894807c8c6d",
+    "systemd[1]:",
+    "Starting",
+    "qual-base.service",
+    "-",
+    "Owned",
+    "RPC",
+    "base",
+    "client",
+    "with",
+    "pinned",
+    "state",
+    "and",
+    "binary..."
+   ],
+   [
+    "2026-11-25T00:27:22+00:00",
+    "rpc-owned-856ca36204b44e39816d6894807c8c6d",
+    "systemd[1]:",
+    "Started",
+    "qual-base.service",
+    "-",
+    "Owned",
+    "RPC",
+    "base",
+    "client",
+    "with",
+    "pinned",
+    "state",
+    "and",
+    "binary."
+   ],
+   [
+    "2026-11-25T00:27:22+00:00",
+    "rpc-owned-856ca36204b44e39816d6894807c8c6d",
+    "sh[1444]:",
+    "NSLINE-base-sandbox",
+    "rpcbase"
+   ],
+   [
+    "2026-11-25T00:27:28+00:00",
+    "rpc-owned-856ca36204b44e39816d6894807c8c6d",
+    "sh[1444]:",
+    "NSLINE-base-loaded"
+   ]
+  ],
+  "ns-every-namespace-sees-base": [
+   [
+    "2"
+   ]
+  ],
+  "ns-default-sees-base": [
+   [
+    "0"
+   ]
+  ],
+  "ns-base-sees-base": [
+   [
+    "2"
+   ]
+  ],
+  "ns-every-namespace-sees-default": [
+   [
+    "2"
+   ]
+  ],
+  "journald-base": [
+   [
+    "active"
+   ]
+  ],
+  "journal-dir": [
+   [
+    "/var/log/journal/4f0a4a7de8a840eca5f126f9dde7583b"
+   ],
+   [
+    "/var/log/journal/4f0a4a7de8a840eca5f126f9dde7583b.base"
+   ]
+  ],
+  "slice-loaded": [
+   [
+    "current=1696624640",
+    "high=7493267456",
+    "max=7826300928",
+    "reclaim=present"
+   ]
+  ],
+  "qual-base-cgroup": [
+   [
+    "current=1696612352",
+    "high=max",
+    "max=6244388864"
+   ]
+  ],
+  "slice-pressure": [
+   [
+    "some",
+    "avg10=0.00",
+    "avg60=0.00",
+    "avg300=0.00",
+    "total=0"
+   ]
+  ],
+  "flood": [
+   [
+    "seconds=14",
+    "base=inactive",
+    "main=inactive"
+   ]
+  ],
+  "journal-mb-after-flood": [
+   [
+    "/var/log/journal/4f0a4a7de8a840eca5f126f9dde7583b",
+    "253"
+   ],
+   [
+    "/var/log/journal/4f0a4a7de8a840eca5f126f9dde7583b.base",
+    "259"
+   ]
+  ],
+  "flood-suppressed": [
+   [
+    "base=0",
+    "main=0"
+   ]
+  ],
+  "journal-lines-kept": [
+   [
+    "base=427961",
+    "main=430760"
+   ]
+  ],
+  "syslog-file-after-flood": [
+   [
+    "185889"
+   ]
+  ],
+  "overlay-mb-after-flood": [
+   [
+    "512"
+   ]
+  ],
+  "df-mb": [
+   [
+    "/",
+    "used",
+    "512",
+    "of",
+    "3971"
+   ],
+   [
+    "/run",
+    "used",
+    "1",
+    "of",
+    "795"
+   ]
+  ],
+  "probe-after": [
+   [
+    "measuring",
+    "4",
+    "2",
+    "6778896",
+    "0",
+    "0",
+    "None"
+   ]
+  ],
+  "probe-state": [
+   [
+    "{\"schema\":\"enclave-rpc-memprobe/1\",\"cgroup\":\"/sys/fs/cgroup/enclave.slice/enclave-rpc.slice/enclave-rpc-clients.slice\",\"startedAt\":1795566349,\"updatedAt\":1795566529,\"measureSec\":172800,\"intervalSec\":60,\"quietPercent\":0.1,\"step\":0.002,\"phase\":\"measuring\",\"ticks\":4,\"asked\":2,\"askedBytes\":6778896,\"short\":0,\"held\":0,\"lastError\":null,\"holds\":[],\"samples\":[[1795566349,0,0,0,0.0]],\"measuringSince\":1795566349}"
+   ]
+  ],
+  "slice-probed": [
+   [
+    "current=1689153536",
+    "high=7493267456",
+    "max=7826300928"
+   ]
+  ],
+  "qual-base-still": [
+   [
+    "active"
+   ]
+  ],
+  "front-memory": [
+   [
+    "{\"at\":1795566530,\"meminfo\":{\"MemTotal\":8325853184,\"MemFree\":5731016704,\"MemAvailable\":7220719616,\"Buffers\":65695744,\"Cached\":2075148288,\"Active(file)\":109887488,\"Inactive(file)\":1485066240,\"Unevictable\":27947008,\"Dirty\":0,\"Writeback\":0,\"AnonPages\":63336448,\"Mapped\":116068352,\"Shmem\":536920064,\"Slab\":275771392,\"SReclaimable\":211914752,\"SUnreclaim\":63856640,\"KernelStack\":2359296,\"PageTables\":1810432,\"AnonHugePages\":0},\"pressure\":{\"some\":{\"avg10\":0.0,\"avg60\":0.0,\"avg300\":0.0,\"total\":1.0},\"full\":{\"avg10\":0.0,\"avg60\":0.0,\"avg300\":0.0,\"total\":1.0}},\"mounts\":{\"/\":{\"size\":4162924544,\"used\":535937024},\"/run\":{\"size\":832585728,\"used\":1028096},\"/tmp\":{\"size\":4162924544,\"used\":535937024},\"/dev/shm\":{\"size\":4162924544,\"used\":0}},\"trees\":{\"/var/log\":536178688,\"/var/log/journal\":535711744,\"/run/log/journal\":0,\"/var/lib\":260608000,\"/var/cache\":16838656},\"groups\":{\"clients\":{\"current\":1689153536,\"peak\":1700487168,\"high\":7493267456,\"max\":7826300928,\"stat\":{\"anon\":114688,\"file\":1499377664,\"kernel\":189661184,\"shmem\":0,\"file_mapped\":0,\"inactive_file\":1443553280,\"active_file\":55824384,\"slab\":189580248,\"workingset_refault_file\":0,\"workingset_activate_file\":0,\"pgscan\":1816,\"pgsteal\":1816},\"events\":{\"low\":0,\"high\":0,\"max\":0,\"oom\":0,\"oom_kill\":0,\"oom_group_kill\":0},\"pressure\":{\"some\":{\"avg10\":0.0,\"avg60\":0.0,\"avg300\":0.0,\"total\":0.0},\"full\":{\"avg10\":0.0,\"avg60\":0.0,\"avg300\":0.0,\"total\":0.0}}},\"system\":{\"current\":698556416,\"peak\":731357184,\"high\":null,\"max\":null,\"stat\":{\"anon\":60833792,\"file\":614895616,\"kernel\":22495232,\"shmem\":536887296,\"file_mapped\":103309312,\"inactive_file\":34906112,\"active_file\":38752256,\"slab\":19125272,\"workingset_refault_file\":0,\"workingset_activate_file\":0,\"pgscan\":0,\"pgsteal\":0},\"events\":{\"low\":0,\"high\":0,\"max\":0,\"oom\":0,\"oom_kill\":0,\"oom_group_kill\":0},\"pressure\":{\"some\":{\"avg10\":0.0,\"avg60\":0.0,\"avg300\":0.0,\"total\":1.0},\"full\":{\"avg10\":0.0,\"avg60\":0.0,\"avg300\":0.0,\"total\":1.0}}}},\"probe\":{\"schema\":\"enclave-rpc-memprobe/1\",\"cgroup\":\"/sys/fs/cgroup/enclave.slice/enclave-rpc.slice/enclave-rpc-clients.slice\",\"startedAt\":1795566349,\"updatedAt\":1795566529,\"measureSec\":172800,\"intervalSec\":60,\"quietPercent\":0.1,\"step\":0.002,\"phase\":\"measuring\",\"ticks\":4,\"asked\":2,\"askedBytes\":6778896,\"short\":0,\"held\":0,\"lastError\":null,\"holds\":[],\"samples\":[[1795566349,0,0,0,0.0]],\"measuringSince\":1795566349}}"
+   ]
+  ],
+  "front-journal": [
+   [
+    "200",
+    "200"
+   ]
+  ],
+  "end": [
+   []
+  ]
+ },
+ "checks": [
+  {
+   "check": "the check ran to its end",
+   "holds": true,
+   "seen": [
+    [
+     "multi-user=active",
+     "waited=92s",
+     "kernel=6.8.0-147-generic",
+     "systemd=systemd-255"
+    ]
+   ]
+  },
+  {
+   "check": "no unit failed",
+   "holds": true,
+   "seen": null
+  },
+  {
+   "check": "every stock unit the image masks is masked and not running",
+   "holds": true,
+   "seen": {}
+  },
+  {
+   "check": "the journal is capped and not copied to syslog",
+   "holds": true,
+   "seen": [
+    {
+     "ForwardToSyslog": "no",
+     "Storage": "persistent",
+     "SystemMaxUse": "256M",
+     "SystemMaxFileSize": "32M",
+     "RuntimeMaxUse": "32M"
+    },
+    {
+     "Storage": "persistent",
+     "SystemMaxUse": "256M",
+     "SystemMaxFileSize": "32M",
+     "RuntimeMaxUse": "32M",
+     "ForwardToSyslog": "no"
+    }
+   ]
+  },
+  {
+   "check": "no syslog file grows",
+   "holds": true,
+   "seen": [
+    [
+     [
+      "185889"
+     ]
+    ],
+    [
+     [
+      "185889"
+     ]
+    ]
+   ]
+  },
+  {
+   "check": "each journal stays within its cap after more text than it holds",
+   "holds": true,
+   "seen": [
+    {
+     "/var/log/journal/4f0a4a7de8a840eca5f126f9dde7583b": 253,
+     "/var/log/journal/4f0a4a7de8a840eca5f126f9dde7583b.base": 259
+    },
+    {
+     "base": "427961",
+     "main": "430760"
+    },
+    [
+     [
+      "seconds=14",
+      "base=inactive",
+      "main=inactive"
+     ]
+    ],
+    [
+     [
+      "base=0",
+      "main=0"
+     ]
+    ]
+   ]
+  },
+  {
+   "check": "the Base unit logs to its own journal and the front reads it",
+   "holds": true,
+   "seen": [
+    [
+     [
+      "2"
+     ]
+    ],
+    [
+     [
+      "0"
+     ]
+    ],
+    [
+     [
+      "200",
+      "200"
+     ]
+    ],
+    [
+     [
+      "active",
+      "Slice=enclave-rpc-clients.slice",
+      "MemoryHigh=infinity",
+      "MemoryMax=6244388864",
+      "LogNamespace=base",
+      "User=rpcbase"
+     ]
+    ]
+   ]
+  },
+  {
+   "check": "the limits are shares of the memory the guest was given",
+   "holds": true,
+   "seen": [
+    8325853184,
+    {
+     "current": "1696624640",
+     "high": "7493267456",
+     "max": "7826300928",
+     "reclaim": "present"
+    },
+    {
+     "current": "1696612352",
+     "high": "max",
+     "max": "6244388864"
+    }
+   ]
+  },
+  {
+   "check": "the probe asked the loaded slice and set no limit",
+   "holds": true,
+   "seen": [
+    [
+     "measuring",
+     "4",
+     "2",
+     "6778896",
+     "0",
+     "0",
+     "None"
+    ],
+    [
+     [
+      "current=1689153536",
+      "high=7493267456",
+      "max=7826300928"
+     ]
+    ]
+   ]
+  },
+  {
+   "check": "the front reports the guest's memory",
+   "holds": true,
+   "seen": "{\"at\":1795566530,\"meminfo\":{\"MemTotal\":8325853184,\"MemFree\":5731016704,\"MemAvail"
+  }
+ ]
+}

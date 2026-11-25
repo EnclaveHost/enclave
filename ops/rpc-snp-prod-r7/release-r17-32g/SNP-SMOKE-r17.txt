@@ -1,0 +1,4 @@
+r17 measurement, smoke deployment: accepted, /health 200
+r17 measurement only: accepted, /health 200
+r16 measurement: refused (enclave attestation refused: measurement 8d5a96926cf0f004… not on the Metal release allowl)
+another deployment: refused (enclave attestation refused: HOST_DATA is not this deployment)

@@ -1,7 +1,10 @@
 # Enclave RPC 1.5.0: image r16 (Base's state history rolls) in a 24 GiB guest
 
-Prepared 2026-11-25, **not published and not live**: the owner has signed nothing, the VM manager still binds image
-r15, and production is 1.4.3 (image r15, catalog version 8, 32 GiB).
+**Superseded by `../release-r17-32g/` and not to be started.** Published as version 9 and started by the owner on
+2026-11-25 00:19Z; stopped 50 s after boot, before Base ran, because its 2,000,000-block window does not contain the
+anchor (5.06 days, 2,184,313 blocks behind the tip), so the sentence below that the unwind option is kept for
+recent anchors is wrong: it would have ended at the first start. Nothing was pruned. What follows is the record as
+prepared, kept for the 32 GiB reading and the 24 GiB sizing.
 
 Two changes in one release, asked for together: a smaller guest and a bound on the one part of the Base disk that
 grows without limit.
