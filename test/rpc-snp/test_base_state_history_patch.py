@@ -88,7 +88,8 @@ class Patched(unittest.TestCase):
         self.assertLess(run.index('base_state_history_floor(datadir, profile, state_from)'), run.index('prune = prune_args('))
         self.assertIn('segment_files_present(datadir, profile, base_state_history_floor(datadir, profile, state_from), STATE_FILES)', run)
         self.assertEqual(self.src.count('base_state_history_floor('), 3)   # def, prune path, start check
-        self.assertEqual(self.new['BASE_STATE_HISTORY_WINDOW'], 2000000)
+        self.assertEqual(self.new['BASE_STATE_HISTORY_WINDOW'], 7000000)
+        self.assertEqual(self.new['BASE_STATE_HISTORY_WINDOW'], self.new['BASE_HISTORY_WINDOW'])
         # the snapshot check still compares the configured block, not the floor
         self.assertIn('history_from <= snap and state_from <= snap', run)
         self.assertLess(run.index('state_from = state_history_from_block(CONFIG)\n'), run.index('state_from <= snap'))
@@ -104,18 +105,27 @@ class Patched(unittest.TestCase):
             S.patch(str(q))
 
     def test_floor_never_below_the_configured_block(self):
-        self.files(52500000, 54000000)   # tip 1.5M above the configured block: inside the window
+        self.files(52500000, 59000000)   # tip 6.5M above the configured block: inside the window
         self.assertEqual(self.floor(), 52500000)
 
     def test_floor_on_production_today(self):
         self.files(52500000, 61500000)   # the chain disk on 2026-11-24: headers and changesets to 61,999,999
-        self.assertEqual(self.floor(), 59500000)
+        self.assertEqual(self.floor(), 54500000)
+
+    def test_the_window_holds_the_anchor_until_the_next_weekly_restart(self):
+        # 2026-11-25: anchor 2,184,313 blocks behind the tip; a week of Base is 3,024,000 blocks
+        self.files(52500000, 61500000)
+        floor, tip = self.floor(), 61878673
+        self.assertLessEqual(floor, tip - 2184313)                 # the anchor of the day the floor is set
+        # a week later, just before the next restart, an anchor that old is still above the same floor, with margin
+        self.assertGreaterEqual((tip + 3024000 - 2184313 - 3024000) - floor, 1000000)
+        self.assertGreaterEqual(7000000 - (2184313 + 3024000 + 500000), 1000000)   # age, a week, file rounding
 
     def test_floor_rolls_by_whole_files_and_respects_a_later_configured_block(self):
         self.files(52500000, 61500000)
         self.files(62000000, 62000000, ('headers',))
-        self.assertEqual(self.floor(), 60000000)
-        self.assertEqual(self.floor(configured=60200000), 60200000)
+        self.assertEqual(self.floor(), 55000000)
+        self.assertEqual(self.floor(configured=55200000), 55200000)
 
     def test_unequal_changeset_file_sizes_refuse(self):
         self.files(52500000, 61500000)
@@ -131,31 +141,31 @@ class Patched(unittest.TestCase):
         self.assertEqual(self.new['prune_args'](PROFILE, 54500000, 52500000), self.old['prune_args'](PROFILE, 54500000, 52500000))
 
     def test_advanced_floor_moves_state_history_only(self):
-        args = self.new['prune_args'](PROFILE, 54500000, 59500000)
+        args = self.new['prune_args'](PROFILE, 54500000, 55000000)
         pairs = befores(args)
         for seg in ('account-history', 'storage-history'):
-            self.assertEqual(pairs['--prune.%s.before' % seg], '59500000')
+            self.assertEqual(pairs['--prune.%s.before' % seg], '55000000')
         for seg in ('receipts', 'bodies', 'transaction-lookup'):
             self.assertEqual(pairs['--prune.%s.before' % seg], '54500000')
         self.assertEqual(sorted(a for a in args if a.startswith('--')),
                          sorted(a for a in self.old['prune_args'](PROFILE, 54500000, 52500000) if a.startswith('--')))
 
     def test_persisted_floor_above_the_window_refuses(self):
-        later = {**PROFILE, 'prune': {**PROFILE['prune'], 'segments': {**PROFILE['prune']['segments'], 'storage_history': {'before': 60000000}}}}
+        later = {**PROFILE, 'prune': {**PROFILE['prune'], 'segments': {**PROFILE['prune']['segments'], 'storage_history': {'before': 55500000}}}}
         with self.assertRaises(AssertionError):
-            self.new['prune_args'](later, 54500000, 59500000)
+            self.new['prune_args'](later, 54500000, 55000000)
 
     def test_start_check_follows_the_floor(self):
-        self.files(59500000, 61500000)   # a previous run pruned everything below the floor
+        self.files(54500000, 61500000)   # a previous run pruned everything below the floor
         floor = self.floor()
-        self.assertEqual(floor, 59500000)
+        self.assertEqual(floor, 54500000)
         self.new['segment_files_present'](str(self.datadir), PROFILE, floor, self.new['STATE_FILES'])
         with self.assertRaises(AssertionError):
             self.new['segment_files_present'](str(self.datadir), PROFILE, 52500000, self.new['STATE_FILES'])
 
     def test_start_check_refuses_a_missing_floor_file(self):
-        self.files(59500000, 61500000, ('headers', 'account-change-sets'))
-        self.files(60000000, 61500000, ('storage-change-sets',))
+        self.files(54500000, 61500000, ('headers', 'account-change-sets'))
+        self.files(55000000, 61500000, ('storage-change-sets',))
         with self.assertRaises(AssertionError):
             self.new['segment_files_present'](str(self.datadir), PROFILE, self.floor(), self.new['STATE_FILES'])
 

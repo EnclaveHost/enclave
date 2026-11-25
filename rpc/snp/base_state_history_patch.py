@@ -14,12 +14,21 @@ finalized anchor, then rebuild and check the state there) needs an anchor at or 
 profile of 140000 blocks was too short to be sure of ever meeting one, and deletes whole changeset files while
 serving. That bootstrap has not been run on production (ops/rpc-snp-prod-r7/ROOT-RESULT.md records none).
 
-This patch keeps `before` and keeps the option: the floor becomes the newest headers static file's first block minus
+This patch keeps `before`: the floor becomes the newest headers static file's first block minus
 BASE_STATE_HISTORY_WINDOW, rounded down to a whole changeset file, never below stateHistoryFromBlock. Every block
-of the last window can still be unwound to, which is every finalized anchor younger than the window (2000000
-blocks is about 4.6 days at Base's 5 blocks a second; Base's finalized head trails its tip by well under a day).
-What is given up is unwinding to an anchor OLDER than the window, down to 52500000. eth_getProof serves 1800 blocks
-and nothing else here reads state history, so no request changes its answer.
+of the last window can still be unwound to. eth_getProof serves 1800 blocks and nothing else here reads state
+history, so no request changes its answer.
+
+The window has to hold the anchor, and the anchor is old. It is the AnchorStateRegistry's finalized game, which
+finalizes only after its challenge clock and the finality delay: read on 2026-11-25 00:23Z (getAnchorRoot at L1
+finalized, public endpoints, not attested) it was L2 block 59694360, 2184313 blocks behind the tip, 5.06 days.
+The floor moves only when Base restarts, weekly (3024000 blocks), so just before a restart the anchor of the day
+is up to 2.2M + 3.0M blocks above a floor set a week earlier, and the floor is rounded down by up to 500000 more.
+7000000 blocks (16 days, the transaction window of base_history_patch.py) covers that with about 1.8M to spare.
+A first build of this patch used 2000000: that window did not contain the anchor at all and would have ended the
+option at its first start (image r16; started once for 50 s on 2026-11-25, stopped before Base ran, superseded).
+What is given up is unwinding to an anchor OLDER than the window, down to 52500000, and with it R1 as written
+("hold the floor at 52500000"). If the anchor ever trails by more than the margin, widen the window first.
 
 - The prune flags for account and storage history name the floor (the `before` branch already passes the block it
   is given, base_history_patch.py), so reth prunes the changeset files and the history indexes below it.
@@ -29,7 +38,8 @@ and nothing else here reads state history, so no request changes its answer.
 
 As with the history floor, reth fixes its prune configuration at start: the floor advances when Base restarts (the
 weekly timer of base_history_patch.py). Not measured: how long the FIRST start takes to prune the indexes of the
-7 million blocks that fall below the window (the changeset files themselves are deleted whole).
+blocks that fall below the window (the changeset files themselves are deleted whole): about 2 million at the
+first start, 4 of the 19 files of 2026-11-24.
 The build re-pins identity.json afterwards.
 """
 import sys
@@ -42,7 +52,7 @@ NEW_CHECK = ("        segment_files_present(datadir, profile, base_state_history
              "STATE_FILES)\n")
 REQUIRED = "        return [f'--prune.{flag}.before', str(history_from)]\n"   # base_history_patch.py's `before` branch
 ANCHOR = 'def run(side):\n'
-HELPER = '''BASE_STATE_HISTORY_WINDOW = 2000000
+HELPER = '''BASE_STATE_HISTORY_WINDOW = 7000000
 
 
 def base_state_history_floor(datadir, profile, configured):
