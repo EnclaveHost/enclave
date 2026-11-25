@@ -1,8 +1,10 @@
 # Enclave: VM-first platform and console
 
-Status: **proposal, 2026-11-24**. Nothing here is implemented or deployed by this document.
-Source facts were read from `main` at `8615b6938` and from the enclave-apps checkout and its
-side branches. Build-out is meant to start after the in-flight consolidation lands.
+Status: **proposal, 2026-11-24, revised 2026-11-25**. Nothing here is deployed by this document.
+Source facts were first read from `main` at `8615b6938`; the revision re-read `main` at
+`2a2da5faa` and enclave-apps `main` at `93aba2f` and is marked where it changed something.
+The consolidation this waited for has landed (section 7, step 0) and step 1 is in progress on
+the branch `platform/instance-primitive`, not on `main`.
 
 ## 1. The idea in one paragraph
 
@@ -29,11 +31,15 @@ runtime, the second host agent, the second catalog, and the app-store shaped UI.
 | The catalog version carries a free-form `config` JSON, including `runtime`, `image.rootHash` and `snp.measurements` | `EnclaveAppCatalog`, `snpVmExpectation()` | The catalog can serve as the image registry as it is |
 | Owner-committed startup packages (hash on the ledger, bytes delivered by anyone) | `isolation/m2/bootstrap`, `docs/design/decentralized-architecture.md` | This is "user data" for instances, already designed fail-closed |
 | The console can already run with the hosted API turned off | `site/js/core/api.js` independent mode, `independent-chain.js` | Chain plus direct-to-instance management is a proven path, not a hope |
+| *(2026-11-25)* A whole-VM front in Go: boot document, fresh report per nonce, certificate exchange, protected-port tunnels, in front of any app on the guest's loopback | `isolation/m2/vmfront`, `isolation/m2/tunnel` (`2a2da5faa`) | The guest agent for whole-VM images has a starting point that is not the RPC front |
+| *(2026-11-25)* The desktop as one SNP guest: verity root under a tmpfs overlay, a read-only model disk, booted on metal0 outside any lease with the predicted measurement | enclave-apps `kvm-box/vm` (`5e887ea`), `launch.py` `roDisks` | The Desktop family exists on the SNP path as a prototype, and its builder is the seed of the image builder. It has no GPU: "a whole VM has no route to a host's GPU workers yet" |
+| *(2026-11-25)* Authenticated encryption for snapshot objects over plain S3, with a context that binds app, owner, deployment, bucket and object | enclave-apps `snapshot-crypto` (format `EVMSNAP1`), used by risc-box | The snapshot object format for volumes exists. It wraps state someone else serialises; it is not a VM snapshot by itself |
+| *(2026-11-25)* Uploads authorised by the active session (`api.upload`), bound to a deployment | CLI 1.8.0 `enclave upload`, s3-ipfs-adapter 0.5.6 | The account-and-session pattern the service kit needs is in use, and it is the path for publishing an image by content address |
 
 Three things the survey shows are **not** there yet and that this design depends on:
 
-1. **Persistent instance storage.** kvm-box is RAM only. Enclave RPC's disks are bound by hand by
-   the host operator per deployment. There is no general volume.
+1. **Persistent instance storage.** kvm-box is RAM only, in all three of its forms. Enclave RPC's
+   disks are bound by hand by the host operator per deployment. There is no general volume.
 2. **A general-purpose base image.** Images today are purpose-built (RPC, desktop, app guest).
 3. **A finished general GPU.** Decided 2026-11-24: an instance needs full CUDA support through
    Shield. The mechanism exists and is further along than the rest of this list: the Shield
@@ -247,7 +253,26 @@ The Hyper-V driver is the existing `wmi-launcher`.
 
 What vm-manager needs to become general: fetch and verify the image by content address instead of
 a path the operator typed, allocate slots from capacity (guestd's `pool.go` already does this),
-and attach volumes by identity.
+and attach volumes by identity. Slot allocation is written (branch `platform/instance-primitive`:
+a `pool` in the manager's config, a slot per unbound deployment, and the supervisor's claim gate
+reading the pool from `/health`); it has not booted a VM on a host.
+
+**The Hyper-V driver is not last (revised 2026-11-25).** The first draft left Hyper-V parity to
+the retirement step and started on SNP alone. But the desktop with the Shield GPU runs on the
+Shield host (`nucbox-k11-4`, native desktop SVN25 and SVN26), and the SNP whole VM has no worker
+channel. An instance that uses its Shield GPU therefore exists first behind the Hyper-V driver.
+Mapping an instance onto the native desktop's existing admission is step 2 of the path, so the
+two drivers grow up together under one `/vms` contract instead of one being ported to the other
+at the end.
+
+**One verifier, and evidence that is refreshed in one place (pulled forward).** From the
+2026-11-18 microcode update until 2026-11-24, metal0 rejected every per-app guest because guestd
+judged them with its own copy of the VCEK, dated September, which nothing refreshed
+(`200725229`). vm-manager has its own judgement too (`attest.mjs`, `chain-policy.mjs`). Every
+launcher holding its own copy of platform evidence is the fault; an instance pool multiplies it.
+The single verifier library of section 6 is therefore a gate on step 1, not a clean-up at the end:
+no pool instance is offered on a host until the driver's report check and the host's refreshed
+evidence come from the same place as guestd's.
 
 `wasm/wasm_manager.py`, the runtime-set builds, `PROVISION_BACKEND`, and catalog bundle
 derivations V1 to V7 have no role once a Wasm service is a runner image.
@@ -258,6 +283,12 @@ derivations V1 to V7 have no role once a Wasm service is a runner image.
 the attestation endpoint, runs ACME, tunnels declared ports, talks to custody and mounts
 encrypted volumes. It becomes the guest agent baked into every image family. `metal/guest/agent.mjs`
 is a second implementation of the same job and folds into it.
+
+Since `2a2da5faa` there is a third: `isolation/m2/vmfront`, the whole-VM contract of the RPC
+front in Go, sharing the protected-port code with the per-app front through `isolation/m2/tunnel`.
+That is the right direction and the guest agent grows from it: vmfront is the part every image
+needs (key, report, certificate, tunnels), and the per-app front's custody, ACME and volume code
+move beside it as packages instead of staying inside one binary that also knows about Wasm.
 
 The startup package (already specified: at most 128 KiB, hash committed by the owner on the
 ledger, no fallback) is the instance's user data. For the runner image it names the components
@@ -275,6 +306,24 @@ This is the largest genuinely new piece.
   encrypted volume to Object Storage, and a new instance elsewhere restores it. This makes Object
   Storage a dependency of mobility and is the reason to build it early.
 - Loss of a provider loses any volume not snapshotted. The console must say so on the volume page.
+
+Revised 2026-11-25, two things make this smaller than first written:
+
+- **The snapshot object format exists.** `snapshot-crypto` (`EVMSNAP1`: 1 MiB authenticated
+  records, a key derived per save, a context binding owner, deployment, bucket and object) is
+  what a volume snapshot is written in. What it does not give: a monotonic revision, so an old
+  authentic snapshot can be replayed. The volume's current snapshot revision therefore has to be
+  recorded where the owner controls it (the startup package or the ledger's options), not trusted
+  from storage.
+- **A volume snapshot is disk state only.** Resumable CPU and RAM state is a different thing.
+  risc-box has it because it owns its machine serialiser; the native desktop does not
+  (`kvm-box/guest/native/SNAPSHOTS.md`: not implemented, not qualified), and SEV-SNP guest
+  migration is not attempted here. Restore means boot the image and attach the restored volume.
+
+Object Storage is also less of a single point than first recorded: sia-s3 0.2.0 replicates
+buckets across several indexers with a write quorum and recovers its index from pinned metadata
+(`sia-s3/REPLICATION.md`). Whether those indexers have independent operators is the deployer's to
+establish, so the console states the replica set of an endpoint instead of calling it replicated.
 
 ### 5.4 Shield GPU: one logical GPU in every instance
 
@@ -329,6 +378,13 @@ and does not change its rules.
 5. **Speed.** The ledger records masked execution slower than the CPU path for the measured
    Stable Diffusion fixture, and pad preparation costs trusted CPU time. Compatibility is the
    near claim; acceleration is per workload and must be measured before it is stated.
+   *Revised 2026-11-25:* for quantised language models this is now measured. The standard OpenCL
+   route was about fifty times slower than the natively integrated engine; the direct route
+   (`opencl/Q8_DIRECT.md`) brings it to 91–94% of native on Qwen 0.5B and 3B, and the 27B runs
+   on the live desktop (native SVN26). So an unmodified llama.cpp in an instance is expected to
+   run at close to the native engine's speed. That result is for the Q8 model path through
+   OpenCL. It says nothing yet about Stable Diffusion, about CUDA source through `cucc`, or about
+   anything outside the recognised GEMM family.
 6. **Public operands.** Offload needs one operand approved as public (model weights, by digest).
    Fully private products stay local by design.
 
@@ -347,7 +403,9 @@ name, which the HIP README itself warns proves nothing.
 - Add the channel to the `/vms` driver contract: a byte channel from the guest service to the
   host's worker (vsock on SNP, hv_sock on Hyper-V, the existing `shielded-bridge`), and nothing
   else. No device node, no passthrough. Admission keeps failing closed on unverified GPU
-  evidence.
+  evidence. The Hyper-V side of this exists and is live; the SNP side does not (`kvm-box/vm`
+  starts no Shield service for that reason), so on SNP the channel is new work in `launch.py`
+  and vm-manager and an instance there has a CPU-only logical GPU until it lands.
 - Bill it as today: `gpuMilli` share of the host's worker. The share buys offload capacity; the
   local CPU path is paid for by the instance's vCPUs, so GPU-heavy instance types need more of
   both.
@@ -441,12 +499,13 @@ trust the measured service with their data, and the signed budget caps the damag
 | Host agents | `supervisor.js`, `windows/node/host.mjs` | One node agent |
 | Launchers | wasm_manager, guestd, vm-manager, wmi-launcher | One driver per backend behind `/vms` |
 | GPU | `shielded/`, `wasm/ggml-shielded`, `kvm-box/shield-compute`, `kvm-box/shield-graphics` | One `shield/` package: core, compute, graphics |
-| In-guest fronts | `m2/front`, `metal/guest/agent.mjs`, kvm-box controller | One guest agent |
-| Verifiers | `verifier/` plus `relay/{snp,vbs,hvnode,pvm,shield,avf}-*` | One library, used by node, control, CLI and console |
+| In-guest fronts | `m2/front`, `m2/vmfront`, `rpc/snp/front.py`, `metal/guest/agent.mjs`, kvm-box controller | One guest agent, grown from `vmfront` and `m2/tunnel` |
+| Desktop builds | kvm-box two-guest broker, native NucBox profile, whole SNP VM | One desktop image family, one build per backend |
+| Verifiers | `verifier/` plus `relay/{snp,vbs,hvnode,pvm,shield,avf}-*`, and a copy of platform evidence in guestd and in vm-manager | One library and one refreshed evidence store, used by drivers, node, control, CLI and console |
 | Catalogs | Baked-in and on-chain | On-chain, as the image registry |
 | UI | Marketing site with an app store and a deployments monolith | Console with per-service modules |
 | Service code | `httpd.rs` identical in 15 apps, SigV4 client written 5 times, SSO ported 4 times, tenancy per app | One `enclave-service` crate with tenancy and metering |
-| Repositories | enclave and enclave-apps, with two services (sia-s3, cron) living only on side branches | One repository; services in `services/` with the crate |
+| Repositories | enclave and enclave-apps (sia-s3 and cron reached its `main` on 2026-11-24) | One repository; services in `services/` with the crate |
 | `ops/` | 43,764 tracked files, 971 MB of dated evidence and frozen source copies | An evidence archive outside the source tree |
 
 Removed outright: `mps-daemon/`, the retired serving half of `worker/` (its confidential-card
@@ -458,44 +517,62 @@ probes, TUNA remnants, one-off root scripts. Each removal preserves source and p
 
 Each step ends in something that runs. Nothing here is activated in production by merging.
 
-0. **Consolidation lands.** kvm-box reached enclave-apps `main` on 2026-11-24; sia-s3 and cron
-   have not. Once they do, enclave-apps is merged into this repository as `services/` with
-   history kept. This is the stated precondition.
-1. **Instance primitive on SNP.** Generalise vm-manager (content-addressed images, slot
-   allocation, measurement table per vCPU count). Build the base image with the guest agent and
-   startup package. `enclave vm create | ls | connect | stop`. Proof: a base instance on metal0
-   that a fresh client verifies and connects to.
-2. **Runner image and service kit.** Wasm services as a VM image, several components per
-   instance; the `enclave-service` crate with tenancy, authentication and the meter. Proof: two
-   accounts use one Notes endpoint, neither can read the other's notes, and the Wasm manager is
-   not involved.
-3. **Usage settlement.** `EnclaveMetering` with tests on a local chain, then a test network. The
-   stateless RPC gateway is the first metered service because it needs no storage. Proof: a
+0. **Consolidation: landed 2026-11-24.** kvm-box (with Shield Compute and graphics), sia-s3
+   0.2.0 and cron are on enclave-apps `main`; what did not land is recorded per branch in
+   `CONSOLIDATION-20261124.md` and `ops/branch-triage-20261124` and does not block this path. The
+   Enclave L2 work was parked off `main` (`l2/parked-20261124`): nothing here builds on it, and
+   the design already assumed Base. Still to do: merge enclave-apps into this repository as
+   `services/` with history kept. That is a mechanical step and is scheduled with step 3, when
+   the first code that spans both trees is written.
+1. **Instance primitive on SNP.** *In progress, branch `platform/instance-primitive`.* Done
+   there: slot allocation from a pool and the claim gate. On `main` from others: the whole-VM
+   front (`vmfront`) and read-only disks. Left: a measurement table per vCPU count, images
+   fetched and verified by content address, the base image (the `kvm-box/vm` builder generalised,
+   `vmfront`, startup package), `enclave vm create | ls | connect | stop`, and the verifier gate
+   of section 5.1. Proof: a base instance on metal0, launched by the manager under a lease, that
+   a fresh client verifies and connects to.
+2. **Desktop instance with its Shield GPU, on the Shield host.** Moved up from the last step.
+   The Hyper-V driver maps an instance of the desktop family onto the native desktop's existing
+   admission, with its Shield worker channel. The same family on SNP is the `kvm-box/vm` image,
+   CPU only until step 7. Proof: a desktop leased as an instance on `nucbox-k11-4`, verified by
+   a fresh client, running a model through the logical GPU with verified exchanges counted; and
+   the same `enclave vm` commands working against both hosts.
+3. **Runner image and service kit.** Wasm services as a VM image, several components per
+   instance; the `enclave-service` crate with tenancy, authentication (the session pattern of
+   `enclave upload`) and the meter. Proof: two accounts use one Notes endpoint, neither can read
+   the other's notes, and the Wasm manager is not involved.
+4. **Usage settlement.** `EnclaveMetering` with tests on a local chain, then a test network. The
+   stateless RPC gateway is the first metered service because it needs no storage, and since
+   images r16 and r17 its guest needs 24 to 32 GiB, which makes it cheap to host. Proof: a
    tenant authorizes a budget, uses the endpoint, the operator settles, the tenant revokes and is
    refunded the remainder. Mainnet deployment is a separate governance action.
-4. **Console shell, Instances, Object Storage.** New shell on the existing core libraries;
+5. **Console shell, Instances, Object Storage.** New shell on the existing core libraries;
    Instances; endpoint discovery and in-browser verification; Object Storage as the first shared
    storage service with per-tenant buckets, credentials and keys. The old dashboard stays up
-   beside it.
-5. **Volumes and snapshots.** Encrypted volumes with custody key release; snapshots to Object
-   Storage. Proof: an instance restored on a second provider from a snapshot.
-6. **Shield GPU and Desktops.** Promote Shield Compute and graphics into the platform tree; ship
-   the logical GPU in base and desktop images; add the worker channel to `/vms`; coverage view in
-   the console; close the kvm-box release gates. Proof: an unmodified CUDA source program is
-   compiled and run inside a fresh base instance with verified masked exchanges recorded, and a
-   corrupted worker reply retires the service without releasing output. After that, and not
-   blocking the platform, in this order: Shield cuBLAS and cuDNN with wider lowering, then the
-   driver-API and PTX front for prebuilt binaries.
-7. **Remaining services on the kit.** IPFS and IPNS, DNS, Depot, Scheduler, MCP Gateway,
+   beside it. The shell and the Instances page depend only on steps 1 and 2 and are built
+   alongside steps 3 and 4, not after them.
+6. **Volumes and snapshots.** Encrypted volumes with custody key release; snapshots to Object
+   Storage in the `snapshot-crypto` format with an owner-held revision. Proof: an instance
+   restored on a second provider from a snapshot.
+7. **Shield GPU as a platform package.** Promote Shield Compute and graphics into the platform
+   tree; ship the logical GPU in base and desktop images; add the worker channel to the SNP
+   driver; coverage view in the console; close the kvm-box release gates. Proof: an unmodified
+   CUDA source program is compiled and run inside a fresh base instance with verified masked
+   exchanges recorded, and a corrupted worker reply retires the service without releasing
+   output. After that, and not blocking the platform, in this order: Shield cuBLAS and cuDNN
+   with wider lowering, then the driver-API and PTX front for prebuilt binaries.
+8. **Remaining services on the kit.** IPFS and IPNS, DNS, Depot, Scheduler, MCP Gateway,
    Inference, each as an image plus a console module.
-8. **Retire.** Hyper-V driver parity, one node agent, then remove the Wasm manager, the old
+9. **Retire.** One node agent over the two drivers, then remove the Wasm manager, the old
    dashboard and the second catalog.
 
-Steps 1, 2 and 4 are the shortest route to something a user can see. Step 3 is small but touches
-money and governance. Steps 5 and 6 carry the most engineering risk. Object Storage is first
-among the storage services because the others keep their state in it; its known weakness (a lone
-small PUT takes about 45 seconds and a full slab on Sia) has to be fixed there, and packing small
-objects across tenants is one thing sharing makes easier.
+Steps 1, 2 and 5 are the shortest route to something a user can see: an instance, a desktop with
+a protected GPU, and a console to start them from. Step 4 is small but touches money and
+governance. Steps 6 and 7 carry the most engineering risk, less than first written: the snapshot
+format exists, and the speed of the masked path is measured for language models. Object Storage
+is first among the storage services because the others keep their state in it; its known weakness
+(a lone small PUT takes about 45 seconds and a full slab on Sia) has to be fixed there, and
+packing small objects across tenants is one thing sharing makes easier.
 
 ## 8. Decisions
 
@@ -518,3 +595,9 @@ All settled as of 2026-11-24. The first three are the user's; the rest were left
    release is still its own catalog publication.
 7. **First services.** RPC gateway to prove metering, Object Storage as the first real shared
    service, then Notes on top of it to prove one service consuming another.
+8. **Both backends from the start (2026-11-25).** The instance contract is proven on SNP and on
+   the Shield host in consecutive steps, because the protected GPU is live only on the second.
+   Hyper-V is not a port made at the end.
+9. **No pool instance before one verifier (2026-11-25).** A driver that judges reports with its
+   own copy of platform evidence is not offered to the market. This follows from the six days
+   metal0 refused its own guests.
