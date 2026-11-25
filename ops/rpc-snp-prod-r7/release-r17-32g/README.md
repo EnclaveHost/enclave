@@ -15,8 +15,11 @@ check asks for the floor's files. Nothing else differs from r15 (`IMAGE-r17.json
 **The window and the anchor.** The fixed floor was decision R1 of the anchor-bootstrap review: keep an unwind to a
 finalized anchor possible. That anchor is the AnchorStateRegistry's finalized game, read on 2026-11-25 00:23Z at L1
 finalized through public endpoints (not attested): L2 block 59,694,360, 2,184,313 blocks behind the tip, 5.06 days.
-The floor moves once a week (3,024,000 blocks) and rounds down by up to 500,000. 7,000,000 covers anchor age, week
-and rounding with about 1.3 million blocks left. An anchor older than the window, down to 52,500,000, can no longer
+The floor is at most the tip minus 7,000,000 at a Base restart and does not move until the next one, so the tight
+moment is right after a restart and the condition is simply that the anchor trails by less than 7,000,000 blocks
+(about 16 days): 2.18 million measured, about 4.8 million to spare. The week between restarts adds room. (The
+patch's docstring in the image counts the week against the margin; that is too cautious, not wrong in effect, and
+is not worth a new measurement.) An anchor older than the window, down to 52,500,000, can no longer
 be unwound to once r17 has started Base: that part of R1 is given up, on the owner's word ("keep it, widen
 window", relayed by the RPC session at 00:21Z). If the anchor's lag ever grows past the margin, widen first.
 
