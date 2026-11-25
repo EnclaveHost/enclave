@@ -253,9 +253,10 @@ The Hyper-V driver is the existing `wmi-launcher`.
 
 What vm-manager needs to become general: fetch and verify the image by content address instead of
 a path the operator typed, allocate slots from capacity (guestd's `pool.go` already does this),
-and attach volumes by identity. Slot allocation is written (branch `platform/instance-primitive`:
-a `pool` in the manager's config, a slot per unbound deployment, and the supervisor's claim gate
-reading the pool from `/health`); it has not booted a VM on a host.
+and attach volumes by identity. The first two are written (branch `platform/instance-primitive`:
+a `pool` in the manager's config, a slot per unbound deployment, the supervisor's claim gate
+reading the pool from `/health`, and `rpc/snp/image-fetch.mjs`); none of it has booted a VM on a
+host.
 
 **The Hyper-V driver is not last (revised 2026-11-25).** The first draft left Hyper-V parity to
 the retirement step and started on SNP alone. But the desktop with the Shield GPU runs on the
@@ -268,11 +269,15 @@ at the end.
 **One verifier, and evidence that is refreshed in one place (pulled forward).** From the
 2026-11-18 microcode update until 2026-11-24, metal0 rejected every per-app guest because guestd
 judged them with its own copy of the VCEK, dated September, which nothing refreshed
-(`200725229`). vm-manager has its own judgement too (`attest.mjs`, `chain-policy.mjs`). Every
-launcher holding its own copy of platform evidence is the fault; an instance pool multiplies it.
-The single verifier library of section 6 is therefore a gate on step 1, not a clean-up at the end:
-no pool instance is offered on a host until the driver's report check and the host's refreshed
-evidence come from the same place as guestd's.
+(`200725229`; a boot-time refresh, `scripts/host/refresh-vcek.sh`, now keeps it). Checked on
+2026-11-25 for the instance pool: vm-manager judges a front through `rpc/snp/attested-fetch.mjs`
+and `relay/snp-verify.mjs`, which looks the VCEK up at AMD by the report's own chip and reported
+TCB, so the pool does not share that fault. The network agent does: it admits a whole-VM app
+offline against the host's held copy (`network/snp-vm-app.mjs`, `kds: false`), the same copy
+guestd uses. So the fault is one held copy with three readers and one refresher, not several
+copies, and the gate on step 1 is narrower than first written: a pool instance is offered on a
+host only after its network agent has admitted a whole-VM guest since the host's last TCB change.
+The single verifier library of section 6 stays a consolidation target and is not a blocker.
 
 `wasm/wasm_manager.py`, the runtime-set builds, `PROVISION_BACKEND`, and catalog bundle
 derivations V1 to V7 have no role once a Wasm service is a runner image.
@@ -525,10 +530,12 @@ Each step ends in something that runs. Nothing here is activated in production b
    `services/` with history kept. That is a mechanical step and is scheduled with step 3, when
    the first code that spans both trees is written.
 1. **Instance primitive on SNP.** *In progress, branch `platform/instance-primitive`.* Done
-   there: slot allocation from a pool and the claim gate. On `main` from others: the whole-VM
-   front (`vmfront`) and read-only disks. Left: a measurement table per vCPU count, images
-   fetched and verified by content address, the base image (the `kvm-box/vm` builder generalised,
-   `vmfront`, startup package), `enclave vm create | ls | connect | stop`, and the verifier gate
+   there: slot allocation from a pool and the claim gate; sizes (a launch measurement per vCPU
+   count, the deployment's `snpVm` option names one and may raise memory); images fetched by
+   content address (`image.manifest`, every byte checked, the lease left unclaimed until the
+   image is on disk). On `main` from others: the whole-VM front (`vmfront`) and read-only disks.
+   Left: the base image (the `kvm-box/vm` builder generalised,
+   `vmfront`, startup package), `enclave vm create | ls | connect | stop`, and the evidence check
    of section 5.1. Proof: a base instance on metal0, launched by the manager under a lease, that
    a fresh client verifies and connects to.
 2. **Desktop instance with its Shield GPU, on the Shield host.** Moved up from the last step.
@@ -598,6 +605,6 @@ All settled as of 2026-11-24. The first three are the user's; the rest were left
 8. **Both backends from the start (2026-11-25).** The instance contract is proven on SNP and on
    the Shield host in consecutive steps, because the protected GPU is live only on the second.
    Hyper-V is not a port made at the end.
-9. **No pool instance before one verifier (2026-11-25).** A driver that judges reports with its
-   own copy of platform evidence is not offered to the market. This follows from the six days
-   metal0 refused its own guests.
+9. **Platform evidence has one refresher, and admission is seen to work after a TCB change
+   (2026-11-25).** This follows from the six days metal0 refused its own guests. It is a check
+   on a host before its pool is offered, not a rewrite of the verifiers.
