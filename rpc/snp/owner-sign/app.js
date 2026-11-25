@@ -10,7 +10,7 @@ function render(status) {
   $('steps').innerHTML = plan.steps.map((s, i) => {
     const done = status?.[s.id] === true, ready = status?.ready?.[s.id] === true;
     const tag = done ? '<span class="tag done">Done on chain</span>' : ready ? '<span class="tag ready">Ready</span>'
-      : `<span class="tag">${esc(status?.blocked?.[s.id] ? 'Waiting: ' + status.blocked[s.id] : 'Waiting for an earlier step')}</span>`;
+      : `<span class="tag">${esc(status?.blocked?.[s.id] ? 'Waiting: ' + status.blocked[s.id] : status ? 'Waiting for an earlier step' : 'Checking…')}</span>`;
     const rows = Object.entries(s.show).map(([k, v]) => `<tr><td>${esc(k)}</td><td><code>${esc(v)}</code></td></tr>`).join('');
     const note = status?.note?.[s.id] ? `<p class="why">${esc(status.note[s.id])}</p>` : '';
     return `<section class="step"><h2>${i + 1}. ${esc(s.title)} ${tag}</h2><p class="why">${esc(s.why)}</p>${note}
@@ -63,4 +63,5 @@ plan = await getJson('/plan');
 if (plan.title) { document.title = plan.title; $('title').textContent = plan.title; }
 if (plan.lead) $('lead').textContent = plan.lead;
 $('connect').onclick = () => connect().catch((e) => { $('who').textContent = 'Wallet error: ' + e.message; });
+render(null);   // the steps show at once; the first status can take many seconds (it asks the gateways for each file)
 refresh(); setInterval(refresh, 15000);
