@@ -562,11 +562,12 @@ Each step ends in something that runs. Nothing here is activated in production b
    guests, so the evidence gate of section 5.1 passes on this host today. Two faults were found
    and fixed in source: the run directory's name put QEMU's control socket past a UNIX socket
    address, and a pooled guest that ignores the power button held its slot for the 7 minutes a
-   bound VM is given to stop. One was found and not fixed: the pool's verifier looks the chip's
-   certificate up at AMD once per process, and AMD refuses repeated lookups, so a manager that
-   restarts while refused reports its instances as starting until AMD answers; the copy the
-   host already holds should be its fallback. An image must power off on the power button to
-   stop in under 20 seconds.
+   bound VM is given to stop. A third was found and fixed after: the pool's verifier looked the
+   chip's certificate up at AMD once per process, and AMD refuses repeated lookups, so a manager
+   that restarted while refused could attest nothing. With `amd` in its config (the files the
+   network agent reads) the manager now judges a report with the certificate the host holds and
+   asks AMD only when that copy is not the report's key; a test VM on metal0 attested this way
+   with lookups off. An image must power off on the power button to stop in under 20 seconds.
    Left: the base image (an app image on `isolation/vmboot` with the
    startup package), `enclave vm create | ls | connect | stop`, and the evidence check
    of section 5.1. Proof: a base instance on metal0, launched by the manager under a lease, that
