@@ -2,9 +2,9 @@
 
 Status: **proposal, 2026-11-24, revised 2026-11-25**. Nothing here is deployed by this document.
 Source facts were first read from `main` at `8615b6938`; the revision re-read `main` at
-`2a2da5faa` and enclave-apps `main` at `93aba2f` and is marked where it changed something.
-The consolidation this waited for has landed (section 7, step 0) and step 1 is in progress on
-the branch `platform/instance-primitive`, not on `main`.
+`a1a8a0415` and enclave-apps `main` at `93aba2f` and is marked where it changed something.
+The consolidation this waited for has landed (section 7, step 0) and step 1 is in progress; its
+host side is on `main` (`f8f40ace2`) and deployed nowhere.
 
 ## 1. The idea in one paragraph
 
@@ -295,6 +295,19 @@ That is the right direction and the guest agent grows from it: vmfront is the pa
 needs (key, report, certificate, tunnels), and the per-app front's custody, ACME and volume code
 move beside it as packages instead of staying inside one binary that also knows about Wasm.
 
+**`isolation/vmboot` is the image layer (`a1a8a0415`, 2026-11-25).** The front moved there
+(`vmboot/front`) with a report source per platform, `sev-snp` or `shield`, behind the same
+endpoints, together with the init (`vm-init.c`, disks found by label, the root read-only under an
+overlay, then `/vm/start`) and `build_boot.py`, which wraps one app image (`APP.json`, `root.img`,
+`root.verity`: one root hash) with the kernel, initramfs and launch identity of a platform. This
+is section 3.2's image model as code, and it settles how the two drivers share images: **an image
+family is an app image; a host type is a wrapper.** The base, desktop, runner and appliance
+families are therefore built as `enclave-vm-app/1` images on this layer, not with a builder of
+their own. Only the SEV-SNP wrapper is built; the Shield wrapper (an IGVM file, and a kernel with
+the paravisor TPM driver) is open, and it is what step 2 needs first. What the layer does not
+have yet and this design adds to it: the startup package, a writable encrypted volume in place of
+the tmpfs overlay, and a published manifest with content ids for `rpc/snp/image-fetch.mjs`.
+
 The startup package (already specified: at most 128 KiB, hash committed by the owner on the
 ledger, no fallback) is the instance's user data. For the runner image it names the components
 to run and their config.
@@ -504,7 +517,8 @@ trust the measured service with their data, and the signed budget caps the damag
 | Host agents | `supervisor.js`, `windows/node/host.mjs` | One node agent |
 | Launchers | wasm_manager, guestd, vm-manager, wmi-launcher | One driver per backend behind `/vms` |
 | GPU | `shielded/`, `wasm/ggml-shielded`, `kvm-box/shield-compute`, `kvm-box/shield-graphics` | One `shield/` package: core, compute, graphics |
-| In-guest fronts | `m2/front`, `m2/vmfront`, `rpc/snp/front.py`, `metal/guest/agent.mjs`, kvm-box controller | One guest agent, grown from `vmfront` and `m2/tunnel` |
+| In-guest fronts | `m2/front`, `vmboot/front`, `rpc/snp/front.py`, `metal/guest/agent.mjs`, kvm-box controller | One guest agent, grown from `vmboot/front` and `m2/tunnel` |
+| Image builders | `rpc/snp/build_image.py`, `kvm-box/vm/build_image.py`, the native desktop recipes, the app-guest image | App images on `isolation/vmboot`, one wrapper per host type |
 | Desktop builds | kvm-box two-guest broker, native NucBox profile, whole SNP VM | One desktop image family, one build per backend |
 | Verifiers | `verifier/` plus `relay/{snp,vbs,hvnode,pvm,shield,avf}-*`, and a copy of platform evidence in guestd and in vm-manager | One library and one refreshed evidence store, used by drivers, node, control, CLI and console |
 | Catalogs | Baked-in and on-chain | On-chain, as the image registry |
@@ -534,14 +548,15 @@ Each step ends in something that runs. Nothing here is activated in production b
    count, the deployment's `snpVm` option names one and may raise memory); images fetched by
    content address (`image.manifest`, every byte checked, the lease left unclaimed until the
    image is on disk). On `main` from others: the whole-VM front (`vmfront`) and read-only disks.
-   Left: the base image (the `kvm-box/vm` builder generalised,
-   `vmfront`, startup package), `enclave vm create | ls | connect | stop`, and the evidence check
+   Left: the base image (an app image on `isolation/vmboot` with the
+   startup package), `enclave vm create | ls | connect | stop`, and the evidence check
    of section 5.1. Proof: a base instance on metal0, launched by the manager under a lease, that
    a fresh client verifies and connects to.
 2. **Desktop instance with its Shield GPU, on the Shield host.** Moved up from the last step.
    The Hyper-V driver maps an instance of the desktop family onto the native desktop's existing
-   admission, with its Shield worker channel. The same family on SNP is the `kvm-box/vm` image,
-   CPU only until step 7. Proof: a desktop leased as an instance on `nucbox-k11-4`, verified by
+   admission, with its Shield worker channel, and moves to the `isolation/vmboot` Shield wrapper
+   when that exists, so the desktop is one app image on both host types. On SNP it is the
+   `kvm-box/vm` image today, CPU only until step 7. Proof: a desktop leased as an instance on `nucbox-k11-4`, verified by
    a fresh client, running a model through the logical GPU with verified exchanges counted; and
    the same `enclave vm` commands working against both hosts.
 3. **Runner image and service kit.** Wasm services as a VM image, several components per
