@@ -10,8 +10,9 @@ that belongs to the platform, so that an app ships **one image** and it boots on
 | kernel, `initrd.img` (`vm-init.c` and every kernel module), the kernel command line's platform half | `build_boot.py` | no: this is the wrapper |
 | how disks are presented (virtio serial, or `wrap_iso.py`'s container) | the host's launcher | no |
 
-Status, 2026-11-25: built and booted for SEV-SNP on metal0, outside any lease. For an Enclave Shield host the
-wrapper builds (below) and nothing of it has run on one. No catalog version uses this.
+Status, 2026-11-25: one app image (KVM Box, root hash 268b0332…) booted under both wrappers, with the same kernel:
+SEV-SNP on metal0 and an Enclave Shield partition on nucbox-k11-4, each outside any lease. No host launches it by
+itself, no verifier accepts the Shield report of a whole VM, and no catalog version uses this.
 
 ## The pieces
 
@@ -59,17 +60,41 @@ the kernel modules the app needs loaded, its protected ports and an optional mod
   bytes, and the Ubuntu kernel links it: loaded under plain KVM, its own start answers "no such device", as it
   must off Hyper-V.
 
-## One kernel on both platforms: what is known
+## Tried (nucbox-k11-4, 2026-11-25 17:10Z)
 
-The same kernel binary is in both wrappers, compressed for QEMU and as the ELF image inside it for the paravisor's
-loader. Under SEV-SNP it boots. Under an ordinary Hyper-V VM on the NucBox the same release boots (a test VM, UEFI,
-no paravisor). Whether it boots under the Shield path (VBS isolation, OpenHCL's direct Linux loader, no UEFI and no
-ACPI TPM table) is not known until one such partition is started: that is the next step and it touches the NucBox.
+One disposable partition defined the way the Shield launcher defines one (petri's pinned `New-CustomVM`, VBS
+isolation, the Shield wrapper's `image.igvm` as firmware, a copy of the host's guest-state master, TPM on, no
+network card, no hard disk), 4 vCPUs and 4 GiB, with `MODELS.iso`, `ROOT_HASH.iso` and `ROOT_DATA.iso` on SCSI DVD
+locations 0, 1 and 2, in that order on purpose. Its console, complete:
+
+```
+VMINIT start
+VMINIT root verified, starting /vm/start
+Starting systemd-udevd version 257.13-1~deb13u1
+VMSTART: desktop started, MemAvailable: 3490480 kB
+vmfront: shield, serving :8443, app name "", root 268b0332cb9e2542f8939ccfdbae986d08c02a94713163a483fc11d0f2afda5d
+vmfront: serving vsock port 8443
+```
+
+So, on a Shield host: the Ubuntu 6.8.0-147 kernel boots through the paravisor's direct loader; every module in the
+wrapper loads, the paravisor TPM driver among them (a module that fails to load ends the boot); vm-init finds the
+three discs by label, not position, and both dm-verity devices open; the desktop's services start; and the front
+got a report from the guest TPM that carries its key's hash (it serves only after that) and listens on the socket
+port. The partition was turned off after two minutes and removed with its files.
+
+What this did not show: nobody connected to the front (the host has no socket service registered for the port), so
+no report was read or verified outside the guest; the launch digest was not compared with the built one; no
+deployment was named; no Moonlight stream; nothing about how long it stays up.
+
+## One kernel on both platforms
+
+Yes, for booting: the same Ubuntu 6.8.0-147 binary is in both wrappers, compressed for QEMU and as the ELF image
+inside it for the paravisor's loader, and it booted the same app image on both.
 
 ## Not built, not tried
 
-- A boot of the Shield wrapper. The `shield` report source against a real paravisor, and what writes its
-  deployment file.
+- A verifier for the Shield report of a whole VM, and a check of the built digest against a running partition's.
+  What writes the `shield` source's deployment file.
 - How a Shield host's launcher attaches these images: the model volume's container is not made here (20 GB; the
   launcher's own model-volume path may serve it), and the node refuses whole-VM deployments.
 - The Shield image's version number (`guestSvn`) and how a host admits its digest: the probe used 1.
