@@ -49,7 +49,32 @@ function request(url, { method = 'GET', headers = {}, body, signal, ca, pin }) {
   });
 }
 
-export function createAttestedFetch({ attested, fallbackFetch = fetch, kds = true, minTcb, chainFetch = fetch } = {}) {
+// The report's AMD chain, judged with the VCEK this host holds before AMD is asked for one.
+// AMD's key server answers 429 after a couple of requests, and a verifier process remembers a VCEK only while it lives:
+// a manager that restarted while refused could attest nothing it runs (seen on metal0, 2026-11-25). A host's own chip
+// signs its guests' reports, so the copy the host keeps current (scripts/host/refresh-vcek.sh) is the one needed.
+// A held copy is trusted exactly as a served one is: verifyQuote requires it to have signed this report, to carry this
+// report's chip and TCB, and to chain to AMD's pinned root. A copy that does not (stale after a firmware update, or
+// another chip's) is not an answer: the report is then judged as if none were held.
+// heldVcek: () => DER bytes or null, read at each attestation so a refreshed file is taken up without a restart.
+export async function verifyReport(report, opts, heldVcek = null, verify = verifyQuote) {
+  let der = null, first = null; try { der = heldVcek ? heldVcek() : null; } catch { /* unreadable: none held */ }
+  if (der && der.length) {
+    const table = Buffer.alloc(48);   // the SNP certificate table: one VCEK entry, then the all-zero terminator
+    Buffer.from('63da758de6644564adc5f4b93be8accd', 'hex').copy(table, 0);
+    table.writeUInt32LE(48, 16); table.writeUInt32LE(der.length, 20);
+    first = await verify(report, { ...opts, auxblob: Buffer.concat([table, der]) });
+    if (first.ok && first.vcekVerified === true) return first;
+  }
+  const v = await verify(report, opts);
+  // When no VCEK could be had the other way either, the judgement made with the held copy is the informative one:
+  // "TCB below policy" or "VCEK signature invalid" (a stale copy), not "no VCEK available".
+  if (first && !first.ok && !v.ok && /no VCEK available/.test(String(v.reasons?.at(-1))))
+    return { ...first, reasons: [...(first.reasons || []), "judged with the VCEK this host holds; none could be had from AMD's key server"] };
+  return v;
+}
+
+export function createAttestedFetch({ attested, fallbackFetch = fetch, kds = true, minTcb, chainFetch = fetch, heldVcek = null } = {}) {
   const pins = new Map(), inflight = new Map(), chain = new Map();
   // The policy in force for an origin; for chain policies, re-read when stale.
   async function policyOf(origin) {
@@ -77,8 +102,8 @@ export function createAttestedFetch({ attested, fallbackFetch = fetch, kds = tru
     const served = spkiOf(r.peerDer);
     if (!served.equals(spkiOf(doc.certificate))) throw new Error('served certificate differs from the attested one');
     const report = Buffer.from(doc.report, 'base64');
-    const v = await verifyQuote(report, {
-      transportKeySpki: served, challenge: Buffer.alloc(0), allowedMeasurements: policy.allowedMeasurements, kds, minTcb });
+    const v = await verifyReport(report, {
+      transportKeySpki: served, challenge: Buffer.alloc(0), allowedMeasurements: policy.allowedMeasurements, kds, minTcb }, heldVcek);
     if (!v.ok || v.vcekVerified !== true) throw new Error('enclave attestation refused: ' + (v.reasons || []).slice(-1)[0]);
     // HOST_DATA (report offset 0xC0, 32 bytes) lies in the signed region verifyQuote just checked.
     const hostData = report.subarray(0xc0, 0xe0).toString('hex');

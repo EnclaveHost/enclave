@@ -22,6 +22,10 @@
 // "starting"; a unit that ended is "failed". Nothing here reaps on silence: an RPC with terabytes of state is stopped
 // only by an explicit DELETE.
 //
+// With CONFIG.amd set ({product, vcekFile, certChainFile}: the files the host's network agent already reads), that
+// check uses the VCEK this host holds for its own chip and asks AMD's key server only when the held copy is not the
+// report's key. Without it every manager process asks AMD, which refuses repeated requests.
+//
 // The app's address. With CONFIG.certs set, an attested guest also gets the certificate for its name in the app zone
 // (<first 8 hex of the deployment id>.app.enclave.host), so a browser reaches it like any other app. The guest made the
 // key and the request; this manager reads the request over the attested, pinned connection, checks it is for that very
@@ -37,6 +41,7 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ControlServer, parseKey } from "../../windows/vbslike/manager/control.mjs";
 import { createAttestedFetch } from "./attested-fetch.mjs";
+import { seedCertChain } from "../../relay/snp-verify.mjs";
 import { contentRef, fetchImage, fetchableImage } from "./image-fetch.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -133,6 +138,14 @@ export function validateConfig(c) {
       if (b.unit.startsWith(prefix + "-")) throw new Error(`binding ${name}: unit name is inside the pool's namespace`);
     }
   }
+  // The AMD evidence this host already keeps for its own chip (the files its network agent reads): with it the manager
+  // attests its VMs without asking AMD's key server, which refuses repeated requests.
+  if (c.amd !== undefined) {
+    const a = c.amd;
+    if (!a || typeof a !== "object" || Array.isArray(a) || Object.keys(a).sort().join() !== "certChainFile,product,vcekFile") throw new Error("amd must be {product, vcekFile, certChainFile}");
+    if (!["Milan", "Genoa", "Turin"].includes(a.product)) throw new Error("amd.product must be Milan, Genoa or Turin");
+    for (const k of ["vcekFile", "certChainFile"]) if (typeof a[k] !== "string" || !path.isAbsolute(a[k])) throw new Error(`amd.${k} must be an absolute path`);
+  }
   if (c.certs !== undefined) {
     const k = c.certs;
     if (!k || typeof k !== "object") throw new Error("certs must be an object");
@@ -171,7 +184,11 @@ export class SnpVmManager {
     this.cfg = validateConfig(cfg); this.exec = exec; this.now = now; this.readFile = readFile; this.writeFile = writeFile;
     this.diskUsers = diskUsers;
     this.launcher = launcher; this.ovmf = ovmf;
-    this.attest = attest || ((name, b, plan) => defaultAttest(b.attestOrigin, plan.measurements, name.slice(2)));
+    // a chain that is not AMD's pinned root refuses here, at start; a VCEK file that is missing or stale is simply not
+    // an answer (attested-fetch.mjs verifyReport), and AMD is asked as before
+    if (cfg.amd) seedCertChain(cfg.amd.product, String(readFile(cfg.amd.certChainFile, "utf8")));
+    const held = cfg.amd ? () => readFile(cfg.amd.vcekFile) : null;
+    this.attest = attest || ((name, b, plan) => defaultAttest(b.attestOrigin, plan.measurements, name.slice(2), held));
     this.instances = new Map();   // id -> { id, name, unit, plan, status, startedAt, attestedAt, error, channel, cert }
     this.fetch = fetch; this.sign = sign || (cfg.certs ? operatorSigner(cfg.certs, { readFile }) : null);
     // the certificate service's own request parser and signed text (relay/certs.js), so this cannot drift from what it accepts
@@ -449,8 +466,8 @@ export function processesWithArgs(paths) {
 
 /** The gateway's own attestation check against this host's forward of the guest's front. Returns the attested channel:
  *  a fetch pinned to the key the report names, and that key's SPKI SHA-256. */
-export async function defaultAttest(origin, measurements, hostData) {
-  const f = createAttestedFetch({ attested: { [origin]: { allowedMeasurements: measurements, hostData } } });
+export async function defaultAttest(origin, measurements, hostData, heldVcek = null) {
+  const f = createAttestedFetch({ attested: { [origin]: { allowedMeasurements: measurements, hostData } }, heldVcek });
   const r = await f(origin + "/health", { signal: AbortSignal.timeout(20_000) });
   if (!r.ok) throw new Error(`front /health answered ${r.status}`);
   return { fetch: f, spki: () => f.pins.get(origin)?.spki ?? null };
