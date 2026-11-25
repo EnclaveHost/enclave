@@ -15,7 +15,7 @@ therefore serves one fixed range [floor, tip], exactly as with the reviewed abso
 
 - The prune flags for receipts, bodies and the tx-hash lookup name the floor, so reth prunes up to it. Its
   `before` branch now passes the block it is given instead of the persisted one, which never exceeds it
-  (asserted, as before); for state history that block is stateHistoryFromBlock, unchanged.
+  (asserted, as before); for state history that block is stateHistoryFromBlock, unchanged here (base_state_history_patch.py rolls it).
 - The start check requires the static files holding the floor (not historyFromBlock, which a previous
   run's pruning may have deleted).
 - chain.json is untouched: its identity is what the coverage receipt reviewed, and the coverage, snapshot

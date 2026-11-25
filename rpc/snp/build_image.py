@@ -155,6 +155,9 @@ def seed_config(owner_pub, coverage=None):
     # reth fixes its prune flags at start, so a weekly restart of Base alone advances the floor (Base replays a few
     # minutes of blocks; the gateway serves public Base from its fallbacks meanwhile).
     add('/opt/enclave-rpc-build/base_history_patch.py', (HERE/'base_history_patch.py').read_bytes(), '0700')
+    # Base's state history (changesets and their indexes) rolls too, on the same restart; see
+    # base_state_history_patch.py. It needs base_history_patch.py applied first.
+    add('/opt/enclave-rpc-build/base_state_history_patch.py', (HERE/'base_state_history_patch.py').read_bytes(), '0700')
     add('/etc/systemd/system/enclave-rpc-base-history.service', (
         b'[Unit]\nDescription=Restart Base so its history floor advances (base_history_patch.py)\n'
         b'[Service]\nType=oneshot\nExecStart=/usr/bin/systemctl try-restart enclave-rpc-base.service\n'))
@@ -232,6 +235,7 @@ def seed_config(owner_pub, coverage=None):
         'python3 -I /opt/enclave-rpc-build/base_restart_patch.py /opt/enclave-rpc/chain_service.py',
         'python3 -I /opt/enclave-rpc-build/base_merkle_patch.py /opt/enclave-rpc/chain_service.py',
         'python3 -I /opt/enclave-rpc-build/base_history_patch.py /opt/enclave-rpc/chain_service.py',
+        'python3 -I /opt/enclave-rpc-build/base_state_history_patch.py /opt/enclave-rpc/chain_service.py',
         'systemctl enable enclave-rpc-base-history.timer',
         'rm -r /opt/enclave-rpc-build',
         'python3 -I -c "%s"' % REPIN_IDENTITY,
@@ -329,7 +333,7 @@ def main(out, coverage=None):
                            for n in ('vmlinuz', 'initrd.img', 'root.img', 'root.verity')},
              'sources': {n: sha(HERE/n) for n in ('front.py', 'front.html', 'memprobe.py', 'enclave-verity-hook', 'enclave-verity-local-top', 'build_image.py',
                                                     'l1_identity_patch.py', 'base_restart_patch.py', 'base_merkle_patch.py',
-                                                    'base_history_patch.py')},
+                                                    'base_history_patch.py', 'base_state_history_patch.py')},
              'coverage': {n: sha(coverage/n) for n in COVERAGE_FILES + ('base-bootstrap.json', 'blob-patch.json')
                           if (coverage/n).exists()} if coverage else None}
     (out/'IMAGE.json').write_text(json.dumps(image, indent=1)+'\n')
