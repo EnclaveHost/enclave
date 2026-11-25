@@ -26,13 +26,15 @@ export function snpVmRuntimeId(measurements){
   return createHash('sha256').update('enclave-snp-vm-runtime/1\n'+[...measurements].sort().join('\n')).digest('hex');
 }
 // -> {appSha256, runtimeId, measurements} from a whole-VM catalog version's config, null for any other version.
-// The same reading as the supervisor's launch plan (metal/snpvm-supervisor-patch.py snpVmPlanOf).
+// The same reading as the supervisor's launch plan (metal/snpvm-supervisor-patch.py snpVmPlanOf), except for the size:
+// a version may publish a measurement per vCPU count, the deployment's option picks one, and every one of them is a
+// launch of this version's image. The agent admits any of them; which size the owner is given is the lease's matter.
 export function snpVmExpectation(versionConfig){
   let c;try{c=JSON.parse(versionConfig);}catch{return null;}
   if(c?.runtime!==SNP_VM_RUNTIME)return null;
-  const published=c.snp?.measurements,keys=published&&typeof published==='object'?Object.keys(published):[];
-  if(keys.length!==1||!/^\d+$/.test(keys[0]))throw new Error('the version must publish its launch measurement for exactly one vCPU count');
-  const measurements=[].concat(published[keys[0]]).map(m=>String(m).toLowerCase()).sort(),appSha256=String(c.image?.rootHash||'').toLowerCase();
+  const published=c.snp?.measurements,keys=published&&typeof published==='object'&&!Array.isArray(published)?Object.keys(published):[];
+  if(!keys.length||keys.length>16||keys.some(k=>!/^[1-9]\d{0,2}$/.test(k)))throw new Error('the version must publish its launch measurements by vCPU count (1 to 16 sizes)');
+  const measurements=keys.flatMap(k=>[].concat(published[k])).map(m=>String(m).toLowerCase()).sort(),appSha256=String(c.image?.rootHash||'').toLowerCase();
   if(!HEX64.test(appSha256))throw new Error('the version names no image root hash');
   return {appSha256,runtimeId:snpVmRuntimeId(measurements),measurements};
 }

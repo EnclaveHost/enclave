@@ -4782,26 +4782,39 @@ if (process.env.LAUNCH_SPEC_SELFTEST) {
 // ---- whole-VM SEV-SNP apps (snpVm) --------------------------------------------------------------------------
 // {"snpVm":{"app":"<name>","measurementsFrom":"catalog://<appId>/<index>"}}: the deployment runs its catalog version's
 // own measured VM. measurementsFrom must name the deployment's own version: the measurement allowlist is that version's.
+// Optional "vcpus": which of the sizes the version publishes a launch measurement for (required when it publishes more
+// than one), and "memMiB": more memory than the version's minimum (memory size is not part of an SNP launch measurement).
 function parseSnpVmOption(v) {
   if (!v || Array.isArray(v) || typeof v !== "object") throw new Error("snpVm must be a JSON object");
-  const bad = Object.keys(v).filter((k) => !["app", "measurementsFrom"].includes(k));
+  const bad = Object.keys(v).filter((k) => !["app", "measurementsFrom", "vcpus", "memMiB"].includes(k));
   if (bad.length) throw new Error(`unknown snpVm option ${JSON.stringify(bad[0])}`);
   if (typeof v.app !== "string" || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(v.app)) throw new Error("snpVm.app must be a short lowercase name");
   if (!/^catalog:\/\/0x[0-9a-fA-F]{64}\/\d+$/.test(String(v.measurementsFrom))) throw new Error("snpVm.measurementsFrom must be catalog://<appId>/<index>");
-  return { app: v.app, measurementsFrom: v.measurementsFrom };
+  if (v.vcpus !== undefined && !(Number.isInteger(v.vcpus) && v.vcpus >= 1 && v.vcpus <= 512)) throw new Error("snpVm.vcpus must be a whole number of vCPUs");
+  if (v.memMiB !== undefined && !(Number.isInteger(v.memMiB) && v.memMiB >= 1024 && v.memMiB <= 4194304)) throw new Error("snpVm.memMiB must be a whole number of MiB, at least 1024");
+  return { app: v.app, measurementsFrom: v.measurementsFrom, ...(v.vcpus !== undefined ? { vcpus: v.vcpus } : {}), ...(v.memMiB !== undefined ? { memMiB: v.memMiB } : {}) };
 }
 // The launch plan, from the APPROVED catalog version gateAppReference just read: what the manager must match on disk.
-function snpVmPlanOf(g, appRef) {
+// A version publishes one launch measurement (or a short list) per vCPU count it may be booted with: the count is in the
+// measurement, so a size is offered only if its measurement was published. The deployment's option picks the size.
+function snpVmPlanOf(g, appRef, opt = {}) {
   let c; try { c = JSON.parse(g.config || ""); } catch { throw new Error("the version's config is not JSON"); }
   if (!c || c.runtime !== "sev-snp-vm") throw new Error("the catalog version is not a sev-snp-vm runtime");
   const ms = c.snp && c.snp.measurements;
-  const keys = ms && typeof ms === "object" ? Object.keys(ms) : [];
-  if (keys.length !== 1 || !/^\d+$/.test(keys[0])) throw new Error("the version must publish its launch measurement for exactly one vCPU count");
-  const m = [].concat(ms[keys[0]]).map((x) => String(x).toLowerCase());
+  const keys = ms && typeof ms === "object" && !Array.isArray(ms) ? Object.keys(ms) : [];
+  if (!keys.length || keys.length > 16 || keys.some((k) => !/^[1-9]\d{0,2}$/.test(k))) throw new Error("the version must publish its launch measurements by vCPU count (1 to 16 sizes)");
+  let key = keys[0];
+  if (opt.vcpus !== undefined) {
+    key = String(opt.vcpus);
+    if (!keys.includes(key)) throw new Error(`the version publishes no launch measurement for ${key} vCPUs (it has ${keys.join(", ")})`);
+  } else if (keys.length !== 1) throw new Error(`the version publishes ${keys.length} sizes (${keys.join(", ")} vCPUs): the deployment must name one in snpVm.vcpus`);
+  const m = [].concat(ms[key]).map((x) => String(x).toLowerCase());
   const im = c.image || {};
-  const memMiB = Number(g.min && g.min.memMb);
-  if (!Number.isSafeInteger(memMiB) || memMiB < 1024) throw new Error("the version declares no memory size");
-  return { appRef, vcpus: Number(keys[0]), memMiB, measurements: m, vcpuType: String(c.snp.vcpuType || ""),
+  const minMiB = Number(g.min && g.min.memMb);
+  if (!Number.isSafeInteger(minMiB) || minMiB < 1024) throw new Error("the version declares no memory size");
+  if (opt.memMiB !== undefined && opt.memMiB < minMiB) throw new Error(`the version needs at least ${minMiB} MiB`);
+  const memMiB = opt.memMiB !== undefined ? opt.memMiB : minMiB;
+  return { appRef, vcpus: Number(key), memMiB, measurements: m, vcpuType: String(c.snp.vcpuType || ""),
            image: { rootHash: String(im.rootHash || "").toLowerCase(), ovmfSha256: String(im.ovmfSha256 || "").toLowerCase(),
                     cmdlineSha256: String(im.cmdlineSha256 || "").toLowerCase() } };
 }
@@ -4853,7 +4866,7 @@ function snpVmPoolRefusal(pool, id, plan, resume = false) {
 }
 async function snpVmConsider(d, g, opt, { resume = false, hinted = false } = {}) {
   if (opt.measurementsFrom !== d.appRef) return "snpVm.measurementsFrom must name this deployment's own catalog version";
-  let plan; try { plan = snpVmPlanOf(g, d.appRef); } catch (e) { return "snpVm: " + e.message; }
+  let plan; try { plan = snpVmPlanOf(g, d.appRef, opt); } catch (e) { return "snpVm: " + e.message; }
   let h = null;
   try { const r = await snpVmReq("GET", "/health", null, 5000); h = r.status === 200 ? r.body : null; } catch { h = null; }
   if (!h || h.backend !== "snp-vm") return "this host has no whole-VM SEV-SNP manager (snp-vm) answering";

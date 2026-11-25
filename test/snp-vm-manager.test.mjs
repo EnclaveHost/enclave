@@ -177,7 +177,7 @@ function certHost(over = {}) {
   fs.writeFileSync(path.join(dir, "operator.key"), randomBytes(32).toString("hex") + "\n", { mode: 0o600 });
   cfg.certs = { relay: "https://relay.test", endpoint: ENDPOINT, operatorKeyFile: path.join(dir, "operator.key") };
   const g = guest(dir, over.name), h = fakeHost(), asks = [];
-  let clock = Date.parse("2026-11-12T12:00:00Z");
+  let clock = Date.now();   // the test certificate is issued now by openssl: a fixed start date drifts behind it and the 2/3-of-life renewal is never reached
   const answers = over.answers || [{ status: 202, body: { retryAfterSec: 30 } }, { status: 200, body: { certPem: g.certPem } }];
   const fetch = async (url, opts) => { asks.push({ url, body: JSON.parse(opts.body) }); const a = answers[Math.min(asks.length, answers.length) - 1]; return new Response(JSON.stringify(a.body), { status: a.status }); };
   const m = new SnpVmManager(cfg, { exec: h.exec, attest: async () => over.channel || g.channel, diskUsers: () => [], fetch, now: () => clock });

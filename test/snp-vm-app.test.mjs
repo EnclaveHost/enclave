@@ -34,7 +34,14 @@ test('the expectation is read from the catalog version, and only from a whole-VM
   assert.equal(snpVmExpectation(JSON.stringify({runtime:'wasm'})),null);
   assert.equal(snpVmExpectation(''),null);
   assert.equal(snpVmExpectation('not json'),null);
-  assert.throws(()=>snpVmExpectation(versionConfig({snp:{measurements:{8:MEAS,16:'33'.repeat(48)}}})),/exactly one vCPU count/);
+  // a version with several sizes: any published size is a launch of this image, and the set is the runtime
+  const M16='33'.repeat(48),sized=snpVmExpectation(versionConfig({snp:{measurements:{8:MEAS,16:M16}}}));
+  assert.deepEqual(sized.measurements,[MEAS,M16]);
+  assert.equal(sized.runtimeId,snpVmRuntimeId([M16,MEAS]));
+  assert.throws(()=>snpVmExpectation(versionConfig({snp:{measurements:{8:MEAS,16:MEAS}}})),/launch measurements required/);
+  assert.throws(()=>snpVmExpectation(versionConfig({snp:{measurements:{}}})),/by vCPU count/);
+  assert.throws(()=>snpVmExpectation(versionConfig({snp:{measurements:[MEAS]}})),/by vCPU count/);
+  assert.throws(()=>snpVmExpectation(versionConfig({snp:{measurements:{'08':MEAS}}})),/by vCPU count/);
   assert.throws(()=>snpVmExpectation(versionConfig({snp:{measurements:{8:'22'}}})),/launch measurements required/);
   assert.throws(()=>snpVmExpectation(versionConfig({image:{}})),/no image root hash/);
   // the identity names the set, not its order, and another set is another runtime

@@ -87,7 +87,7 @@ export async function resolveDeploymentPolicy(p, { fetchImpl = fetch, now = Date
   let cfg;
   try { cfg = JSON.parse(v.config); } catch { throw new Error('catalog version config is not JSON'); }
   const ms = cfg?.snp?.measurements;
-  const allowed = (Array.isArray(ms) ? ms : Object.values(ms || {})).map(lower).filter((m) => M48.test(m));
+  const allowed = (Array.isArray(ms) ? ms : Object.values(ms || {}).flat()).map(lower).filter((m) => M48.test(m));
   if (!allowed.length) throw new Error('catalog version names no SNP measurement');
   return { allowedMeasurements: allowed, hostData: lower(deployment).slice(2), leaseUntil: Number(d.leaseUntil),
     runner: d.runner, version: v.version, cid: v.cid };

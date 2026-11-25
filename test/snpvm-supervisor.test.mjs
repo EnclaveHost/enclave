@@ -42,6 +42,10 @@ test("snpVm option: strict object, short app name, a catalog reference", () => {
   assert.throws(() => ctx.parseSnpVmOption({ ...opt, extra: 1 }), /unknown snpVm option/);
   assert.throws(() => ctx.parseSnpVmOption({ ...opt, measurementsFrom: "ipfs://x" }), /catalog/);
   assert.throws(() => ctx.parseSnpVmOption([]), /JSON object/);
+  assert.deepEqual({ ...ctx.parseSnpVmOption({ ...opt, vcpus: 4, memMiB: 8192 }) }, { ...opt, vcpus: 4, memMiB: 8192 });
+  assert.throws(() => ctx.parseSnpVmOption({ ...opt, vcpus: "4" }), /whole number of vCPUs/);
+  assert.throws(() => ctx.parseSnpVmOption({ ...opt, vcpus: 0 }), /whole number of vCPUs/);
+  assert.throws(() => ctx.parseSnpVmOption({ ...opt, memMiB: 512 }), /at least 1024/);
 });
 
 test("the plan comes from the published r12 version: 8 vCPUs, its measurement, its image hashes, its memory", () => {
@@ -53,7 +57,23 @@ test("the plan comes from the published r12 version: 8 vCPUs, its measurement, i
   assert.equal(p.image.rootHash, RELEASE.config.image.rootHash);
   assert.equal(p.vcpuType, "EPYC-v4");
   assert.throws(() => ctx.snpVmPlanOf(gate({ config: '{"runtime":"wasm"}' }), APPREF), /sev-snp-vm/);
-  assert.throws(() => ctx.snpVmPlanOf(gate({ config: JSON.stringify({ ...RELEASE.config, snp: { measurements: { 4: "aa", 8: "bb" } } }) }), APPREF), /exactly one vCPU/);
+});
+
+test("a version with several sizes: the deployment names one, and gets that size's measurement and no other", () => {
+  const { ctx } = sandbox();
+  const sized = gate({ config: JSON.stringify({ ...RELEASE.config, snp: { ...RELEASE.config.snp, measurements: { 2: "AA", 4: ["bb", "cc"], 8: "dd" } } }), min: { memMb: 4096 } });
+  assert.throws(() => ctx.snpVmPlanOf(sized, APPREF), /3 sizes \(2, 4, 8 vCPUs\): the deployment must name one/);
+  assert.throws(() => ctx.snpVmPlanOf(sized, APPREF, { vcpus: 16 }), /no launch measurement for 16 vCPUs \(it has 2, 4, 8\)/);
+  const two = ctx.snpVmPlanOf(sized, APPREF, { vcpus: 2 });
+  assert.equal(two.vcpus, 2); assert.deepEqual([...two.measurements], ["aa"]); assert.equal(two.memMiB, 4096);
+  const four = ctx.snpVmPlanOf(sized, APPREF, { vcpus: 4, memMiB: 16384 });
+  assert.equal(four.vcpus, 4); assert.deepEqual([...four.measurements], ["bb", "cc"]); assert.equal(four.memMiB, 16384);
+  // memory may be raised above the version's minimum, never set below it
+  assert.throws(() => ctx.snpVmPlanOf(sized, APPREF, { vcpus: 4, memMiB: 2048 }), /at least 4096 MiB/);
+  // a one-size version needs no choice, and refuses a size it did not publish
+  assert.equal(ctx.snpVmPlanOf(gate(), APPREF, { vcpus: 8 }).vcpus, 8);
+  assert.throws(() => ctx.snpVmPlanOf(gate(), APPREF, { vcpus: 4 }), /no launch measurement for 4 vCPUs/);
+  assert.throws(() => ctx.snpVmPlanOf(gate({ config: JSON.stringify({ ...RELEASE.config, snp: { measurements: [] } }) }), APPREF), /by vCPU count/);
 });
 
 test("claim gate: own version only, a manager that answers, a binding for this deployment; then the ordinary tryClaim", async () => {
