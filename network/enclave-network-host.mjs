@@ -167,6 +167,9 @@ export async function createNetworkHost({config:c,account,runner,rpc,addressBook
  // paceMbps (optional): the host's uplink in Mbps; circuits pace their UDP to it so a small home-router buffer never drops
  // their bursts (docs/design/enclave-network.md, "Circuit TCP")
  const runtime=new WgCircuitRuntime({directory:path.join(directory,'network-circuits'),wgBinary:c.wgBinary,nodeBinary:c.nodeBinary,workerModule:c.workerModule,serviceWorkerModule:c.serviceWorkerModule||null,firewallBinary:c.firewallBinary,grants,authorize,forward,paceMbps:c.paceMbps||0,log});
+ // folders of circuits an earlier run of this role left behind (wg-circuit-runtime.mjs sweep): at start, then hourly
+ const sweepCircuits=()=>runtime.sweep().then(n=>{if(n)log(`removed ${n} circuit folder(s) no circuit holds`);},e=>log('circuit folder sweep: '+e.message));
+ void sweepCircuits();setInterval(sweepCircuits,3600000).unref();
  // An egress-only circuit's health: one HTTPS request through it.
  async function probeEgress(app,circuit){
   const f=guardedFetch(circuit.egress,{timeoutMs:15000,maxBytes:65536});

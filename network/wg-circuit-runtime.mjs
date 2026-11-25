@@ -63,9 +63,40 @@ export class WgCircuitRuntime {
   if([directory,wgBinary,nodeBinary,workerModule].some(v=>typeof v!=='string'||!path.isAbsolute(v))||(platform==='windows'&&!path.isAbsolute(firewallBinary||'')))throw new Error('explicit Enclave-network runtime paths required');
   if(serviceWorkerModule!==null&&(typeof serviceWorkerModule!=='string'||!path.isAbsolute(serviceWorkerModule)))throw new Error('explicit host-service worker path required');
   if(!(Number.isFinite(paceMbps)&&paceMbps>=0&&paceMbps<=100000))throw new Error('paceMbps must be a number of Mbps');
-  Object.assign(this,{directory,wgBinary,nodeBinary,workerModule,serviceWorkerModule,firewallBinary,grants,authorize,forward,platform,renewMs,resolvers,paceMbps,log});this.active=new Set();this.closed=false;
+  Object.assign(this,{directory,wgBinary,nodeBinary,workerModule,serviceWorkerModule,firewallBinary,grants,authorize,forward,platform,renewMs,resolvers,paceMbps,log});this.active=new Set();this.folders=new Set();this.closed=false;
  }
  async close(){this.closed=true;await Promise.all([...this.active].map(c=>c.close('runtime stopped')));}
+ // A circuit's two folders hold its own copies of the programs (on Windows 88 MB of node and 15 MB of enclave-wg, so
+ // that each AppContainer is granted exactly one folder) and its manifests. Nothing reads them after the circuit, and
+ // until 2026-11-25 nothing removed them: a host that opens a few hundred circuits a day kept every one (nucbox-k11-4:
+ // 19,486 folders, 990 GB, six weeks). close() removes its own; sweep() removes those of a runtime that was killed
+ // before it could (an install restarts the role) or whose removal failed. A folder whose firewall rule cannot be
+ // removed stays, because its manifest is the only record of that rule; one whose program is still running stays too
+ // (Windows refuses to delete a running image), and nothing of it is touched.
+ async removeFolder(folder){
+  if(this.platform==='windows'){
+   for(const exe of ['worker.exe','enclave-wg.exe'])
+    try{await fs.unlink(path.join(folder,exe));}catch(e){if(e.code!=='ENOENT')return false;}
+   const manifest=path.join(folder,'firewall.json');
+   try{await fs.access(manifest);await execute(this.firewallBinary,['remove',manifest],{timeout:20000});}
+   catch(e){if(e.code!=='ENOENT'){this.log('circuit cleanup: '+folder+': '+e.message);return false;}}
+  }
+  try{await fs.rm(folder,{recursive:true,force:true,maxRetries:3,retryDelay:200});return true;}
+  catch(e){this.log('circuit cleanup: '+folder+': '+e.message);return false;}
+ }
+ async sweep(){
+  let names;try{names=await fs.readdir(this.directory);}catch(e){if(e.code==='ENOENT')return 0;throw e;}
+  let removed=0;
+  for(const name of names){
+   const folder=path.join(this.directory,name);
+   if(!/^enclave-circuit-[0-9a-f]{32}$/.test(name)||this.folders.has(folder))continue;
+   const st=await fs.lstat(folder).catch(()=>null);
+   if(!st||!st.isDirectory()||st.isSymbolicLink())continue;
+   if(this.folders.has(folder))continue;   // opened while this pass was reading
+   if(await this.removeFolder(folder))removed++;
+  }
+  return removed;
+ }
  async prepare(dir){
   await fs.mkdir(dir,{recursive:true});if(this.platform!=='windows')return;
   const manifest=path.join(dir,'firewall.json');
@@ -99,7 +130,7 @@ export class WgCircuitRuntime {
   const dir=path.join(this.directory,'enclave-circuit-'+tag),wgDir=path.join(this.directory,'enclave-circuit-'+digest('wg'+tag).slice(0,32));
   const circuit=new EventEmitter();Object.assign(circuit,{id,deploymentId,kind,oneHop,closed:false,transport:kind==='byo'?'byo-wireguard':'enclave-network',fallback,
    providers:kind==='network'?{guard:guard||null,exit,public:{address:exit.address,fallback}}:{byo:{address:byo.endpoint.address}}});
-  this.active.add(circuit);
+  this.active.add(circuit);this.folders.add(dir);this.folders.add(wgDir);
   const children=[],exits=[],sockets=new Set(),installed=[];let broker,worker,wg,wgLines,egressServer,renewal,closing,pending,outer,keys,exitAsked=false,exitRefused=false;
   // a stop wakes whatever step is waiting (the tunnel's or the worker's readiness); `live()` after every other await
   const onAbort=()=>pending?.reject?.(cancelledStartup(signal));signal?.addEventListener('abort',onAbort,{once:true});
@@ -115,7 +146,14 @@ export class WgCircuitRuntime {
     broker?.revoke();for(const s of sockets)s.destroy();egressServer?.close();wgLines?.close();
     for(const c of children){c.stdin.destroy();if(c.exitCode===null)c.kill();}
     await Promise.all(exits);await broker?.close();
-    for(const folder of installed)await execute(this.firewallBinary,['remove',path.join(folder,'firewall.json')],{timeout:20000}).catch(e=>this.log('circuit cleanup: '+e.message));
+    const kept=new Set();
+    for(const folder of installed)await execute(this.firewallBinary,['remove',path.join(folder,'firewall.json')],{timeout:20000}).catch(e=>{kept.add(folder);this.log('circuit cleanup: '+e.message);});
+    // the rule is gone (or was never installed): the folder has no further use. The manifest is renamed first so that
+    // removeFolder does not ask for the same rule's removal twice.
+    for(const folder of [dir,wgDir]){
+     if(!kept.has(folder)){await fs.rename(path.join(folder,'firewall.json'),path.join(folder,'firewall-removed.json')).catch(()=>{});await this.removeFolder(folder);}
+     this.folders.delete(folder);
+    }
     this.active.delete(circuit);circuit.emit('down',reason||'closed');
    })();return closing;
   };
