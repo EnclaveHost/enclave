@@ -4,7 +4,7 @@
 // PLAN.json (rpc/snp/owner-sign/plan.mjs writes it for a first release, upgrade-plan.mjs for a new
 // version of a running deployment, topup-plan.mjs for ETH to a host's operator key, vault-version-plan.mjs for a
 // new version of an app the owner's session vault publishes and holds, placement-plan.mjs for pinning a deployment
-// to one host, edit-app-plan.mjs for an app's displayed name and description) lists each owner
+// to one host, edit-app-plan.mjs for an app's displayed name and description, version-art-plan.mjs for its thumbnail and banner) lists each owner
 // transaction with its exact calldata and the
 // decoded arguments shown to the owner. The page sends a step only when the
 // owner clicks it, from the owner's own wallet; this server signs and sends nothing. /status
@@ -22,6 +22,7 @@ import { CATALOG_ABI, LEDGER_ABI } from './abi.mjs';
 import { simulateTopup } from './topup.mjs';
 import { placementStatus } from './placement.mjs';
 import { editAppStatus } from './edit-app.mjs';
+import { versionArtStatus } from './version-art.mjs';
 import { upload, vaultVersionStatus } from './vault-version.mjs';
 import { OWNER_ABI } from '../../../network/lease-gas-owner.mjs';
 import { POLICY_FIELDS, policyOf } from './reserve-policy-plan.mjs';
@@ -142,7 +143,8 @@ const readJournal = () => (fs.existsSync(plan.journal) ? fs.readFileSync(plan.jo
 const servedCache = {};
 const STATUS = { upgrade: upgradeStatus, topup: topupStatus, placement: () => placementStatus(plan, pub, { journal: readJournal() }),
   'vault-version': () => vaultVersionStatus(plan, pub, { cache: servedCache, journal: readJournal() }),
-  'reserve-policy': reservePolicyStatus, 'edit-app': () => editAppStatus(plan, pub, { journal: readJournal() }) };
+  'reserve-policy': reservePolicyStatus, 'edit-app': () => editAppStatus(plan, pub, { journal: readJournal() }),
+  'version-art': () => versionArtStatus(plan, pub, { cache: servedCache, journal: readJournal() }) };
 
 http.createServer(async (req, res) => {
   const send = (code, body, type = 'application/json') => { res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store' }); res.end(type === 'application/json' ? JSON.stringify(body) : body); };
@@ -162,7 +164,7 @@ http.createServer(async (req, res) => {
       let body = ''; for await (const c of req) { body += c; if (body.length > 4096) throw new Error('too large'); }
       const { step, expiry, signature } = JSON.parse(body);
       if (!plan.steps.some((s) => s.id === step && s.upload)) return send(400, { error: 'bad submission' });
-      const cid = await upload(plan.status.upload, plan.owner, { expiry, signature });
+      const cid = await upload(plan.status.uploads?.[step] ?? plan.status.upload, plan.owner, { expiry, signature });   // a plan with several files names one per step
       fs.appendFileSync(plan.journal, JSON.stringify({ step, cid, at: new Date().toISOString() }) + '\n');
       return send(200, { ok: true, cid });
     }

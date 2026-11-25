@@ -41,7 +41,7 @@ export async function upload(u, owner, { expiry, signature }, fetchImpl = fetch)
   };
   const tok = await post(u.tokenUrl, { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ hash: u.sha256, expiry, signature }) });
   if (!/^[0-9a-f]{64}$/.test(tok.token || '') || String(tok.address).toLowerCase() !== owner.toLowerCase()) throw new Error('the relay returned no upload token for the owner');
-  const up = await post(u.uploadUrl, { headers: { 'content-type': 'application/wasm', 'x-upload-address': tok.address, 'x-upload-expiry': String(expiry), 'x-upload-token': tok.token }, body: bytes });
+  const up = await post(u.uploadUrl, { headers: { 'content-type': u.contentType || 'application/wasm', 'x-upload-address': tok.address, 'x-upload-expiry': String(expiry), 'x-upload-token': tok.token }, body: bytes });
   if (up.cid !== u.cid) throw new Error(`the gateway pinned it as ${up.cid}, not ${u.cid}: prepare the release again with that CID`);
   return up.cid;
 }
