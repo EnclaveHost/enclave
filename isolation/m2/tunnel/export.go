@@ -1,6 +1,6 @@
 // Package tunnel is the guest side of protected app ports (isolation/m4/PROTECTED-PORTS.md): HTTP/1.1 upgrades on
 // Prefix{tcp|udp}/{port}, protocol enclave-port/1, to ports the measured image declares on the guest's own loopback.
-// The per-app guest front (isolation/m2/front) and the whole-VM front (isolation/m2/vmfront) serve the same code.
+// The per-app guest front (isolation/m2/front) and the whole-VM front (isolation/vmboot/front) serve the same code.
 package tunnel
 
 // Prefix is the path every tunnel request starts with.

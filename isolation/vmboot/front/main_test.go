@@ -27,19 +27,32 @@ import (
 const deployment = "9a28642b" + "11111111111111111111111111111111111111111111111111111111"
 
 // A report as the AMD-SP lays it out, as far as the front reads it: report_data at 0x50, measurement at 0x90,
-// HOST_DATA at 0xc0.
-func fakeReporter(hostData string) reporter {
-	return func(rd []byte) ([]byte, error) {
-		rep := make([]byte, 0x4a0)
-		copy(rep[0x50:], rd)
-		for i := 0x90; i < 0xc0; i++ {
-			rep[i] = 0xab
-		}
-		hd, _ := hex.DecodeString(hostData)
-		copy(rep[0xc0:], hd)
-		return rep, nil
-	}
+// HOST_DATA at 0xc0. The test source keeps the real SEV-SNP field readers.
+type fakeSNP struct {
+	snpSource
+	hostData string
 }
+
+func (s *fakeSNP) Report(rd []byte) ([]byte, error) {
+	rep := make([]byte, 0x4a0)
+	copy(rep[0x50:], rd)
+	for i := 0x90; i < 0xc0; i++ {
+		rep[i] = 0xab
+	}
+	hd, _ := hex.DecodeString(s.hostData)
+	copy(rep[0xc0:], hd)
+	return rep, checkSNP(rep, rd)
+}
+func fakeReporter(hostData string) source { return &fakeSNP{hostData: hostData} }
+
+// A platform whose report has no deployment field: the launcher names it, as on an Enclave Shield host.
+type fakeShield struct{ deployment string }
+
+func (fakeShield) Platform() string                 { return "shield" }
+func (fakeShield) Format() string                   { return "shield-vm-v1" }
+func (fakeShield) Report(rd []byte) ([]byte, error) { return append([]byte("HCLA"), rd...), nil }
+func (fakeShield) Measurement([]byte) string        { return "" }
+func (s fakeShield) Deployment([]byte) string       { return s.deployment }
 
 type ca struct {
 	key  *ecdsa.PrivateKey
@@ -131,7 +144,7 @@ func TestFreshReportBindsTheNonce(t *testing.T) {
 	rep, _ := base64.StdEncoding.DecodeString(doc["report"])
 	n, _ := hex.DecodeString(nonce)
 	want := sha256.Sum256(append(append([]byte{}, f.spki...), n...))
-	if doc["format"] != freshFormat || doc["nonce"] != nonce || doc["hostData"] != deployment || doc["appSha256"] != strings.Repeat("5a", 32) ||
+	if doc["format"] != "sev-snp-vm-v1" || doc["platform"] != "sev-snp" || doc["nonce"] != nonce || doc["hostData"] != deployment || doc["appSha256"] != strings.Repeat("5a", 32) ||
 		!bytes.Equal(rep[0x50:0x70], want[:]) {
 		t.Fatalf("fresh document %v", doc)
 	}
@@ -223,5 +236,46 @@ func TestAppGetsEverythingButThePlatformNamespace(t *testing.T) {
 	}
 	if len(seen) != 1 || seen[0] != "/desktop/api/state||https" {
 		t.Fatalf("the app saw %v", seen)
+	}
+}
+
+func TestSameEndpointsOnAnotherPlatform(t *testing.T) {
+	roots := x509.NewCertPool()
+	f, err := newFront(fakeShield{deployment: deployment}, "enclave.roothash="+strings.Repeat("5a", 32), "enclave-rpc", "app.enclave.host", roots, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.appName != "9a28642b.app.enclave.host" || len(f.csr) == 0 {
+		t.Fatalf("app name %q", f.appName)
+	}
+	nonce := strings.Repeat("0f", 32)
+	body, busy, err := f.fresh(nonce)
+	var doc map[string]string
+	if err != nil || busy || json.Unmarshal(body, &doc) != nil {
+		t.Fatal(err, busy)
+	}
+	rep, _ := base64.StdEncoding.DecodeString(doc["report"])
+	n, _ := hex.DecodeString(nonce)
+	want := sha256.Sum256(append(append([]byte{}, f.spki...), n...))
+	if doc["format"] != "shield-vm-v1" || doc["platform"] != "shield" || doc["appSha256"] != strings.Repeat("5a", 32) ||
+		doc["hostData"] != deployment || !bytes.Equal(rep[4:36], want[:]) {
+		t.Fatalf("document %v", doc)
+	}
+	var boot map[string]string
+	if json.Unmarshal(f.bootDoc, &boot) != nil || boot["platform"] != "shield" {
+		t.Fatalf("boot document %v", boot)
+	}
+}
+
+func TestSourceIsChosenOrRefused(t *testing.T) {
+	dir := t.TempDir()
+	if s, err := pickSource("auto", dir, dir+"/no-tpm", dir+"/none"); err != nil || s.Platform() != "sev-snp" {
+		t.Fatalf("auto with a report interface: %v %v", s, err)
+	}
+	if _, err := pickSource("auto", dir+"/absent", dir+"/no-tpm", dir+"/none"); err == nil {
+		t.Fatal("a boot with no report source was accepted")
+	}
+	if _, err := pickSource("tdx", dir, dir, dir); err == nil {
+		t.Fatal("an unknown source was accepted")
 	}
 }

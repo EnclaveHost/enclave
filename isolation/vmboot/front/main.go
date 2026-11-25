@@ -1,12 +1,14 @@
-// vmfront is the attested front of a whole-VM app (catalog runtime "sev-snp-vm") that is not Enclave RPC: the same
-// contract as rpc/snp/front.py, for an app that serves its own HTTP on the guest's loopback and declares protected
-// ports (a desktop's GameStream ports).
+// The whole-VM front: the attested front of a whole-VM app that serves its own HTTP on the guest's loopback and
+// declares protected ports (a desktop's GameStream ports). The contract is rpc/snp/front.py's. One binary serves it
+// on every platform a whole VM runs on: where the report comes from is a source (source.go), AMD SEV-SNP on a host
+// like metal0, the paravisor's report on an Enclave Shield host, behind the same endpoints.
 //
-// At start it makes a TLS key that never leaves this process, asks the AMD-SP for a report whose report_data is
-// sha256(SubjectPublicKeyInfo) then 32 zero bytes, and serves on -listen:
+// At start it makes a TLS key that never leaves this process, asks the platform for a report over
+// sha256(SubjectPublicKeyInfo) then 32 zero bytes, and serves on -listen (and on -vsock, where the host reaches a
+// guest over sockets, not a network):
 //
 //	GET  /.well-known/enclave-attestation           {report, certificate, reportData, measurement}: the boot document
-//	GET  /.well-known/enclave-attestation?nonce=H   a fresh report over sha256(SPKI || nonce), format sev-snp-vm-v1
+//	GET  /.well-known/enclave-attestation?nonce=H   a fresh report over sha256(SPKI || nonce), in the source's format
 //	GET  /.well-known/enclave-ready                 200 once the front serves
 //	GET  /.well-known/enclave-csr                   a certificate request for the app name, signed by the same key
 //	POST /.well-known/enclave-cert                  a CA-issued chain for it, installed only if it verifies here
@@ -15,7 +17,7 @@
 //	everything else                                 the app, at -upstream on the loopback
 //
 // Two names, one key, as in the RPC front: the local name is served on the boot's self-signed certificate (the host's
-// manager pins the attested key and needs no CA); the app name is <first 8 hex of HOST_DATA>.<zone>, served on the
+// manager pins the attested key and needs no CA); the app name is <first 8 hex of the deployment id>.<zone>, served on the
 // chain a public CA issued once it has been delivered and has verified against the roots this image carries. Whoever
 // delivers the chain is not trusted and need not be.
 //
@@ -47,7 +49,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -55,13 +56,12 @@ import (
 	"time"
 
 	"enclave.host/isolation/m2/tunnel"
+	"enclave.host/isolation/m2/vsock"
 )
 
 const (
-	freshFormat  = "sev-snp-vm-v1"
 	maxChain     = 64 << 10
-	freshWaiters = 4 // the AMD-SP answers one report at a time; beyond this a caller is told to retry
-	reportMin    = 0x2a0
+	freshWaiters = 4 // a platform answers one report at a time; beyond this a caller is told to retry
 )
 
 var (
@@ -69,49 +69,19 @@ var (
 	rootHashArg = regexp.MustCompile(`(?:^|\s)enclave\.roothash=([0-9a-f]{64})(?:\s|$)`)
 )
 
-// reporter asks the platform for an SNP report over 64 bytes of report_data.
-type reporter func(reportData []byte) ([]byte, error)
-
-// tsmReport is the kernel's configfs-tsm interface; the provider must be the SEV guest driver.
-func tsmReport(root string) reporter {
-	var seq uint64
-	var mu sync.Mutex
-	return func(reportData []byte) ([]byte, error) {
-		mu.Lock()
-		seq++
-		entry := filepath.Join(root, fmt.Sprintf("vmfront-%d-%d", os.Getpid(), seq))
-		mu.Unlock()
-		if err := os.Mkdir(entry, 0o700); err != nil {
-			return nil, err
-		}
-		defer os.Remove(entry)
-		if err := os.WriteFile(filepath.Join(entry, "inblob"), reportData, 0); err != nil {
-			return nil, err
-		}
-		provider, err := os.ReadFile(filepath.Join(entry, "provider"))
-		if err != nil {
-			return nil, err
-		}
-		if strings.TrimSpace(string(provider)) != "sev_guest" {
-			return nil, errors.New("SEV-SNP report provider required")
-		}
-		return os.ReadFile(filepath.Join(entry, "outblob"))
-	}
-}
-
 type front struct {
-	key       *ecdsa.PrivateKey
-	spki      []byte
-	localCert tls.Certificate
-	localPEM  []byte
-	bootDoc   []byte
-	rootHash  string
-	hostData  string
-	appName   string
-	csr       []byte
-	report    reporter
-	roots     *x509.CertPool
-	now       func() time.Time
+	key        *ecdsa.PrivateKey
+	spki       []byte
+	localCert  tls.Certificate
+	localPEM   []byte
+	bootDoc    []byte
+	rootHash   string
+	deployment string
+	appName    string
+	csr        []byte
+	src        source
+	roots      *x509.CertPool
+	now        func() time.Time
 
 	reports sync.Mutex
 	waiters chan struct{}
@@ -126,7 +96,7 @@ type front struct {
 	tunnels  *tunnel.Tunnels
 }
 
-func newFront(report reporter, cmdline, localName, zone string, roots *x509.CertPool, now func() time.Time) (*front, error) {
+func newFront(src source, cmdline, localName, zone string, roots *x509.CertPool, now func() time.Time) (*front, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
@@ -146,30 +116,28 @@ func newFront(report reporter, cmdline, localName, zone string, roots *x509.Cert
 	if err != nil {
 		return nil, err
 	}
-	f := &front{key: key, spki: spki, report: report, roots: roots, now: now, waiters: make(chan struct{}, freshWaiters),
+	f := &front{key: key, spki: spki, src: src, roots: roots, now: now, waiters: make(chan struct{}, freshWaiters),
 		localCert: tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key},
 		localPEM:  pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})}
 	sum := sha256.Sum256(spki)
 	reportData := append(sum[:], make([]byte, 32)...)
-	rep, err := report(reportData)
+	rep, err := src.Report(reportData)
 	if err != nil {
 		return nil, fmt.Errorf("boot report: %w", err)
 	}
-	if len(rep) < reportMin || !bytes.Equal(rep[0x50:0x90], reportData) {
-		return nil, errors.New("the SNP report does not bind the front key")
-	}
-	f.hostData = hex.EncodeToString(rep[0xc0:0xe0]) // the deployment id the host launched this VM for, signed by the AMD-SP
+	f.deployment = src.Deployment(rep) // SEV-SNP: HOST_DATA, signed with the report; Shield: what the launcher named
 	if m := rootHashArg.FindStringSubmatch(cmdline); m != nil {
-		f.rootHash = m[1] // on the kernel command line, which the launch measurement covers
+		f.rootHash = m[1] // on the kernel command line, which the launch identity covers
 	}
-	f.bootDoc, err = json.Marshal(map[string]string{"schema": "enclave-vm-attestation/1", "report": base64.StdEncoding.EncodeToString(rep),
-		"certificate": string(f.localPEM), "reportData": hex.EncodeToString(reportData), "measurement": hex.EncodeToString(rep[0x90:0xc0])})
+	f.bootDoc, err = json.Marshal(map[string]string{"schema": "enclave-vm-attestation/1", "platform": src.Platform(),
+		"report": base64.StdEncoding.EncodeToString(rep), "certificate": string(f.localPEM),
+		"reportData": hex.EncodeToString(reportData), "measurement": src.Measurement(rep)})
 	if err != nil {
 		return nil, err
 	}
-	// A VM launched for no deployment (all-zero HOST_DATA: a smoke boot) has no app name and asks for no certificate.
-	if strings.Trim(f.hostData, "0") != "" && zone != "" {
-		f.appName = f.hostData[:8] + "." + zone
+	// A VM launched for no deployment (a smoke boot) has no app name and asks for no certificate.
+	if f.deployment != "" && zone != "" {
+		f.appName = f.deployment[:8] + "." + zone
 		csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: f.appName},
 			DNSNames: []string{f.appName}, SignatureAlgorithm: x509.ECDSAWithSHA256}, key)
 		if err != nil {
@@ -192,17 +160,16 @@ func (f *front) fresh(nonceHex string) (doc []byte, busy bool, err error) {
 	sum := sha256.Sum256(append(append([]byte{}, f.spki...), nonce...))
 	reportData := append(sum[:], make([]byte, 32)...)
 	f.reports.Lock()
-	rep, err := f.report(reportData)
+	rep, err := f.src.Report(reportData)
 	f.reports.Unlock()
 	if err != nil {
 		return nil, false, err
 	}
-	if len(rep) < reportMin || !bytes.Equal(rep[0x50:0x90], reportData) {
-		return nil, false, errors.New("the SNP report does not bind the nonce")
-	}
-	doc, err = json.Marshal(map[string]string{"format": freshFormat, "nonce": nonceHex, "transportKey": base64.StdEncoding.EncodeToString(f.spki),
-		"appSha256": f.rootHash, "report": base64.StdEncoding.EncodeToString(rep), "measurement": hex.EncodeToString(rep[0x90:0xc0]),
-		"hostData": hex.EncodeToString(rep[0xc0:0xe0])})
+	// hostData is the deployment under the name SEV-SNP verifiers already read; on that platform it is the report's
+	// own HOST_DATA field.
+	doc, err = json.Marshal(map[string]string{"format": f.src.Format(), "platform": f.src.Platform(), "nonce": nonceHex,
+		"transportKey": base64.StdEncoding.EncodeToString(f.spki), "appSha256": f.rootHash,
+		"report": base64.StdEncoding.EncodeToString(rep), "measurement": f.src.Measurement(rep), "hostData": f.src.Deployment(rep)})
 	return doc, false, err
 }
 
@@ -381,7 +348,11 @@ func newProxy(upstream string) http.Handler {
 }
 
 func main() {
-	listen := flag.String("listen", ":8443", "address to serve TLS on")
+	listen := flag.String("listen", ":8443", "TCP address to serve TLS on")
+	vsockPort := flag.Uint("vsock", 0, "also serve TLS on this AF_VSOCK port (virtio or Hyper-V sockets); 0 = no")
+	report := flag.String("report", "auto", "where reports come from: auto, sev-snp or shield")
+	tpm := flag.String("tpm", "/dev/tpm0", "the paravisor's TPM on an Enclave Shield host")
+	deploymentFile := flag.String("deployment-file", "/run/enclave/deployment", "Shield: the deployment id the launcher named for this guest; absent = none")
 	upstream := flag.String("upstream", "127.0.0.1:8000", "the app's HTTP port on the guest loopback")
 	ports := flag.String("ports", "/vm/app.ports", "the measured image's protected ports, one tcp:N or udp:N a line; absent = none")
 	localName := flag.String("local-name", "enclave-rpc", "the name the host side asks for; served on the boot certificate")
@@ -403,7 +374,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("vmfront: %v", err)
 	}
-	f, err := newFront(tsmReport(*tsm), string(cmdline), *localName, *zone, roots, time.Now)
+	src, err := pickSource(*report, *tsm, *tpm, *deploymentFile)
+	if err != nil {
+		log.Fatalf("vmfront: %v", err)
+	}
+	f, err := newFront(src, string(cmdline), *localName, *zone, roots, time.Now)
 	if err != nil {
 		log.Fatalf("vmfront: %v", err)
 	}
@@ -419,6 +394,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("vmfront: %v", err)
 	}
-	log.Printf("vmfront: serving %s, app name %q, root %s", *listen, f.appName, f.rootHash)
+	log.Printf("vmfront: %s, serving %s, app name %q, root %s", src.Platform(), *listen, f.appName, f.rootHash)
+	if *vsockPort != 0 {
+		// The same image runs where the host reaches the guest over a network (QEMU's forward) and where it has only
+		// sockets (Hyper-V). A boot without the socket family serves TCP alone and says so.
+		if vl, err := vsock.Listen(uint32(*vsockPort)); err != nil {
+			log.Printf("vmfront: no vsock listener: %v", err)
+		} else {
+			log.Printf("vmfront: serving vsock port %d", *vsockPort)
+			go func() { log.Fatalf("vmfront: %v", srv.ServeTLS(vl, "", "")) }()
+		}
+	}
 	log.Fatalf("vmfront: %v", srv.ServeTLS(l, "", ""))
 }

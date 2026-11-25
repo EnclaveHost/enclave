@@ -206,7 +206,9 @@ jobs:
       - name: Native guest source
         run: |
           (cd isolation/contract && go test ./...)
-          (cd isolation/m2 && go test ./front ./shieldbridge ./vsock)
+          (cd isolation/m2 && go test ./front ./tunnel ./shieldbridge ./vsock)
           (cd isolation/m2 && go test -tags native_desktop ./front)
           (cd isolation/m3 && go test ./desktop ./desktopworker ./monitor)
           (cd isolation/m3 && go test -tags native_desktop ./monitor)
+          (cd isolation/vmboot && go test ./front)
+          python3 -I test/vmboot/test_vmboot.py
