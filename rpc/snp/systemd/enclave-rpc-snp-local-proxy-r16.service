@@ -1,0 +1,13 @@
+# Installed to ~/.config/systemd/user/ (user manager, Linger=yes). See rpc/snp/systemd/README.md.
+[Unit]
+Description=Plain-HTTP view of the attested enclave for host-local tools (L1 EL :18645, beacon :15052), pinned to r16
+After=enclave-snpvm-manager.service
+
+[Service]
+WorkingDirectory=%h/.local/share/enclave-rpc-snp/releases/19572bf2c
+ExecStart=/usr/bin/node rpc/snp/local-proxy.mjs https://127.0.0.1:18443 092bcf15f6ac1b2be1cbfae0ba337b05e30cc4a853bfa51297ac8a7f88efaae01c2f04491fced16cf593298a3b3a9983 18645 15052
+Restart=always
+RestartSec=10s
+
+[Install]
+WantedBy=default.target
