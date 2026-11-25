@@ -4,7 +4,8 @@ Status: **proposal, 2026-11-24, revised 2026-11-25**. Nothing here is deployed b
 Source facts were first read from `main` at `8615b6938`; the revision re-read `main` at
 `a1a8a0415` and enclave-apps `main` at `93aba2f` and is marked where it changed something.
 The consolidation this waited for has landed (section 7, step 0) and step 1 is in progress; its
-host side is on `main` (`f8f40ace2`) and deployed nowhere.
+host side is on `main`, has booted test VMs on metal0 outside any lease (2026-11-25), and is
+deployed nowhere.
 
 ## 1. The idea in one paragraph
 
@@ -548,6 +549,20 @@ Each step ends in something that runs. Nothing here is activated in production b
    count, the deployment's `snpVm` option names one and may raise memory); images fetched by
    content address (`image.manifest`, every byte checked, the lease left unclaimed until the
    image is on disk). On `main` from others: the whole-VM front (`vmfront`) and read-only disks.
+   Tried on metal0, 2026-11-25, outside any lease: a second manager on its own port, beside the
+   live one, with a two-slot pool and a 3.7 MB test image wrapped by `isolation/vmboot`. The
+   pool fetched the image from a gateway, booted it at 2 and at 4 vCPUs (each with its own
+   measurement, memory as asked), refused a third VM, a size over its limit and a wrong
+   measurement or deployment, kept both slots across a manager restart, and gave a slot back
+   on delete. The network agent's check, with the certificate the host holds, accepted both
+   guests, so the evidence gate of section 5.1 passes on this host today. Two faults were found
+   and fixed in source: the run directory's name put QEMU's control socket past a UNIX socket
+   address, and a pooled guest that ignores the power button held its slot for the 7 minutes a
+   bound VM is given to stop. One was found and not fixed: the pool's verifier looks the chip's
+   certificate up at AMD once per process, and AMD refuses repeated lookups, so a manager that
+   restarts while refused reports its instances as starting until AMD answers; the copy the
+   host already holds should be its fallback. An image must power off on the power button to
+   stop in under 20 seconds.
    Left: the base image (an app image on `isolation/vmboot` with the
    startup package), `enclave vm create | ls | connect | stop`, and the evidence check
    of section 5.1. Proof: a base instance on metal0, launched by the manager under a lease, that
