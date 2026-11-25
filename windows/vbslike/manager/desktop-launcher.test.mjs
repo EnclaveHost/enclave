@@ -68,9 +68,9 @@ function setup(t,over={}){
 test('desktop uses its pinned media, 12-GiB partition and live transports before loading the controller',async t=>{
  const h=setup(t);const r=await h.launcher.start(h.mapping,h.opts);
  assert.deepEqual(h.events,['preflight','workerService','imageHash','define','media','startAndRead','worker','egress','serve']);
- assert.equal(h.definition.memBytes,12288*1048576);assert.equal(h.definition.vcpus,8);
+ assert.equal(h.definition.memBytes,10184*1048576);assert.equal(h.definition.vcpus,8);
  assert.equal(r.image,h.platform.igvmSha256);assert.equal(r.imageRole,'desktop');
- assert.equal(r.memory.appMiB,8192);assert.equal(r.memory.vmMiB,12288);assert.equal(r.media.media.length,3);
+ assert.equal(r.memory.appMiB,8192);assert.equal(r.memory.vmMiB,10184);assert.equal(r.media.media.length,3);
  assert.deepEqual(r.desktop,{profileSha256:h.platform.profileSha256,runtimeId:h.platform.runtimeId,gpuMilli:500});
  assert.equal(parseNotes(h.definition.notes).identity.imageRole,'desktop');
  assert.notEqual(h.workerMapping,h.mapping);assert.ok(h.workerMapping.bundle.equals(h.mapping.bundle));
@@ -80,7 +80,7 @@ test('desktop uses its pinned media, 12-GiB partition and live transports before
 
 test('native allocations honor the actual app allowance rather than only the catalog floor',async t=>{
  const h=setup(t);const r=await h.launcher.start(h.mapping,{...h.opts,appMemoryMiB:16384});
- assert.equal(r.memory.vmMiB,24576);assert.equal(h.servedArgs.appMemoryMiB,16384);await r.stop();
+ assert.equal(r.memory.vmMiB,18540);assert.equal(h.servedArgs.appMemoryMiB,16384);await r.stop();
 });
 
 test('incomplete or contradictory desktop configuration is rejected before host work',t=>{

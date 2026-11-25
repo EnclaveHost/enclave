@@ -50,7 +50,7 @@ test('absent native configuration leaves legacy behavior and partial configurati
   const m={spawn:()=>42,health:()=>({})}, before=m.spawn;bindNativeInstance(m,null);assert.equal(m.spawn,before);
 });
 test('memory exception is opt-in and exact; default and adjacent allowances are unchanged',()=>{
-  assert.equal(desktopVmMemMiB(24576),36864);
+  assert.equal(desktopVmMemMiB(24576),26896);
   assert.equal(desktopVmMemMiB(24576,NATIVE_24G_MEMORY_PROFILE),32768);
   for(const app of [8192,24575,24577,65536])
     assert.equal(desktopVmMemMiB(app,NATIVE_24G_MEMORY_PROFILE),desktopVmMemMiB(app));

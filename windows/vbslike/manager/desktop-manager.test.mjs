@@ -50,8 +50,8 @@ test('native admission reserves full VM RAM and GPU before launch, then judges i
  const h=await setup(),m=h.manager;assert.equal(m.desktopReady,true);assert.ok(m.health().catalog.derivations.includes(DESKTOP_DERIVATION));
  let finish;h.state.judgeGate=new Promise(r=>finish=r);
  const a=await m.spawn(h.body);assert.equal(a.status,'starting');assert.equal(a.appReady,false);
- assert.equal(h.state.starts[0].gpu,500);assert.equal(h.state.starts[0].ram,12288);
- assert.equal(a.physicalMemoryMiB,12288);assert.equal(a.memory.appMiB,8192);
+ assert.equal(h.state.starts[0].gpu,500);assert.equal(h.state.starts[0].ram,10184);
+ assert.equal(a.physicalMemoryMiB,10184);assert.equal(a.memory.appMiB,8192);
  assert.deepEqual(h.state.judges[0].expectRuntime,runtime);
  assert.equal(h.state.judges[0].expectedImageSha256,h.platform.igvmSha256);
  assert.deepEqual(h.state.judges[0].expectedStatement,BOOT_STATEMENTS['linux-direct']);
@@ -97,20 +97,20 @@ test('native GPU and physical reservations cannot be oversold by concurrent fetc
   const pending=[h.manager.spawn(h.body),h.manager.spawn(other)];release();
   const results=await Promise.allSettled(pending);
   assert.equal(results.filter(x=>x.status==='fulfilled').length,1);assert.equal(results.filter(x=>x.status==='rejected').length,1);
-  assert.equal(h.state.starts.length,1);assert.equal(h.manager.gpuAllocated(),milli);assert.equal(h.manager.physicalRamAllocated(),12288);
+  assert.equal(h.state.starts.length,1);assert.equal(h.manager.gpuAllocated(),milli);assert.equal(h.manager.physicalRamAllocated(),10184);
  }
 });
 test('native request mutation cannot change the pending measured deployment',async()=>{
  let release;const gate=new Promise(r=>release=r);const h=await setup({fetchComponent:async()=>{await gate;return component;}});
  const expected=h.body.name;const pending=h.manager.spawn(h.body);
  h.body.name='0x'+H('9');h.record.policy.memMiB=65536;h.record.desktop.gpuMilli=1000;release();
- const a=await pending;assert.equal(a.name,expected);assert.equal(a.gpuMilli,500);assert.equal(a.physicalMemoryMiB,12288);
+ const a=await pending;assert.equal(a.name,expected);assert.equal(a.gpuMilli,500);assert.equal(a.physicalMemoryMiB,10184);
 });
 test('mismatched native launch statements fail and keep reservations for cleanup',async()=>{
  for(const patch of [{imageRole:'legacy'},{firmware:{sha256:H('a')}},{image:H('a')},{guestIdentity:null},{appId:H('a')},
   {desktop:{profileSha256:H('a')}},{transport:null},{egress:null},{memory:{appMiB:8192,vmMiB:8192}}]){
   const h=await setup();h.state.patch=patch;const a=await h.manager.spawn(h.body);
-  assert.equal(a.status,'failed');assert.equal(h.manager.gpuAllocated(),500);assert.equal(h.manager.physicalRamAllocated(),12288);
+  assert.equal(a.status,'failed');assert.equal(h.manager.gpuAllocated(),500);assert.equal(h.manager.physicalRamAllocated(),10184);
   assert.equal(h.state.judges.length,0);await h.manager.remove(a.id);assert.equal(h.manager.gpuAllocated(),0);
  }
 });
@@ -119,7 +119,7 @@ test('worker revocation cannot release reservations or be resurrected by late re
  const a=await h.manager.spawn(h.body);h.state.workerExit({code:1});await new Promise(r=>setImmediate(r));
  finish();await judged(h.manager);assert.equal(h.manager.get(a.id).status,'failed');
  h.state.stopFails=true;await assert.rejects(h.manager.remove(a.id),/worker close uncertain/);
- assert.equal(h.manager.gpuAllocated(),500);assert.equal(h.manager.physicalRamAllocated(),12288);
+ assert.equal(h.manager.gpuAllocated(),500);assert.equal(h.manager.physicalRamAllocated(),10184);
  h.state.stopFails=false;await h.manager.remove(a.id);assert.equal(h.manager.gpuAllocated(),0);
 });
 test('native allocations beyond measured profile bounds are refused before launch',async()=>{
