@@ -93,6 +93,7 @@ test("spawn: unbound deployments and busy disks start nothing; a bound one start
   assert.equal(r.body.id, idFor(DEP));
   const run = h.calls.find((c) => c[0] === "systemd-run");
   assert.ok(run.includes("--unit=enclave-rpc-snp-guest") && run.includes("/opt/launch.py"));
+  assert.ok(run.includes("TimeoutStopSec=7min"));   // a bound VM stops its own clients cleanly
   const launch = JSON.parse(fs.readFileSync(run.at(-1), "utf8"));
   assert.equal(launch.hostData, DEP.slice(2));
   assert.equal(launch.disks.length, 2);
@@ -285,7 +286,7 @@ test("pool config: bounded slots and ports, absolute paths, no overlap with an o
   const { cfg } = poolFixture();
   assert.equal(validateConfig(cfg).pool.slots, 2);
   for (const [over, why] of [[{ slots: 0 }, /slots/], [{ slots: 65 }, /slots/], [{ portBase: 65535 }, /portBase/], [{ images: "images" }, /absolute/],
-    [{ maxVcpus: 0 }, /maxVcpus/], [{ maxMemMiB: 512 }, /maxMemMiB/], [{ unitPrefix: "a b" }, /unitPrefix/], [{ extra: 1 }, /unknown pool field/],
+    [{ maxVcpus: 0 }, /maxVcpus/], [{ run: "/" + "r".repeat(80) }, /at most 80 bytes/], [{ maxMemMiB: 512 }, /maxMemMiB/], [{ unitPrefix: "a b" }, /unitPrefix/], [{ extra: 1 }, /unknown pool field/],
     [{ portBase: 18443 }, /inside the pool's range/], [{ unitPrefix: "enclave-rpc-snp" }, /pool's namespace/],
     [{ fetch: true }, /pool\.fetch must be/], [{ fetch: { gateways: ["https://gw.test/ipfs/"] } }, /pool\.fetch must be/],
     [{ fetch: { gateways: ["http://gw.test/ipfs/"], maxImageBytes: 1 << 30 } }, /https URLs ending in \//], [{ fetch: { gateways: ["https://gw.test/ipfs"], maxImageBytes: 1 << 30 } }, /ending in \//],
@@ -301,9 +302,10 @@ test("pool: an unbound deployment takes a slot, boots the held image stateless o
   assert.equal(r.status, 201);
   const run = h.calls.find((c) => c[0] === "systemd-run");
   assert.ok(run.includes("--unit=enclave-vm-" + DEP2.slice(2, 18)));
+  assert.ok(run.includes("TimeoutStopSec=20s"));    // a pooled VM keeps nothing: a guest that ignores the power button does not hold the slot
   const launch = JSON.parse(fs.readFileSync(run.at(-1), "utf8"));
   assert.deepEqual([launch.image, launch.run, launch.cpus, launch.memoryMiB, launch.disks, launch.hostfwd, launch.hostData],
-    [path.join(cfg.pool.images, ROOT_HASH), path.join(cfg.pool.run, DEP2), 8, 65536, [], [[19000, 8443]], DEP2.slice(2)]);
+    [path.join(cfg.pool.images, ROOT_HASH), path.join(cfg.pool.run, DEP2.slice(2, 18)), 8, 65536, [], [[19000, 8443]], DEP2.slice(2)]);
   assert.deepEqual([m.health().pool.free, m.health().pool.allocated], [1, [DEP2]]);
   assert.equal((await m.handle({ method: "GET", path: `/vms/${r.body.id}` })).body.status, "running");
   // the operator's own binding is untouched by the pool and takes no slot

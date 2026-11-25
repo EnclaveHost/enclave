@@ -47,6 +47,9 @@ export const ATTEST_EVERY_MS = 5 * 60_000;
 export const APP_ZONE = "app.enclave.host";
 const CERT_RETRY_MIN_MS = 60_000, CERT_RETRY_MAX_MS = 60 * 60_000;
 export const POOL_UNIT_PREFIX = "enclave-vm", POOL_FRONT_PORT = 8443;
+// A bound VM is given 7 minutes to stop its own clients cleanly (chain databases). A pooled one keeps nothing on this
+// host, and its image is a stranger's: a guest that ignores the power button must not hold a slot for 7 minutes.
+export const POOL_STOP = "20s";
 export const FETCH_RETRY_MS = 15 * 60_000;   // a failed image fetch is not tried again sooner
 
 export const idFor = (name) => "sv" + sha256(String(name).toLowerCase()).slice(0, 16);
@@ -108,6 +111,8 @@ export function validateConfig(c) {
     const extra = Object.keys(p).filter((k) => !["images", "run", "slots", "portBase", "frontPort", "maxVcpus", "maxMemMiB", "unitPrefix", "fetch"].includes(k));
     if (extra.length) throw new Error(`unknown pool field ${extra[0]}`);
     for (const k of ["images", "run"]) if (typeof p[k] !== "string" || !path.isAbsolute(p[k])) throw new Error(`pool.${k} must be an absolute path`);
+    // QEMU's QMP socket lives in an instance's run directory and a UNIX socket path is under 108 bytes
+    if (Buffer.byteLength(p.run) > 80) throw new Error("pool.run must be at most 80 bytes (an instance's QMP socket path must fit a UNIX socket address)");
     if (!int(p.slots, 1, 64)) throw new Error("pool.slots must be 1..64");
     if (!int(p.portBase, 1024, 65535 - p.slots + 1)) throw new Error("pool.portBase must leave room for every slot below 65536");
     if (p.frontPort !== undefined && !int(p.frontPort, 1, 65535)) throw new Error("pool.frontPort must be a port");
@@ -187,7 +192,7 @@ export class SnpVmManager {
     const a = this.slots.get(name), p = this.cfg.pool;
     if (!a || !p) return null;
     const port = p.portBase + a.slot;
-    return { pooled: true, image: path.join(p.images, a.rootHash), run: path.join(p.run, name), unit: `${p.unitPrefix || POOL_UNIT_PREFIX}-${name.slice(2, 18)}`,
+    return { pooled: true, image: path.join(p.images, a.rootHash), run: path.join(p.run, name.slice(2, 18)), unit: `${p.unitPrefix || POOL_UNIT_PREFIX}-${name.slice(2, 18)}`,
              cpus: a.cpus, attestOrigin: `https://127.0.0.1:${port}`, hostfwd: [[port, p.frontPort || POOL_FRONT_PORT]], disks: [] };
   }
 
@@ -382,7 +387,7 @@ export class SnpVmManager {
       this.persistPlan(name, plan);
       this.dropRoute(name);   // a new VM has a new key: no route until it serves its own certificate
       await this.exec("systemctl", ["--user", "reset-failed", b.unit + ".service"]);
-      const r = await this.exec("systemd-run", ["--user", "--unit=" + b.unit, "--collect", "-p", "KillMode=mixed", "-p", "TimeoutStopSec=7min",
+      const r = await this.exec("systemd-run", ["--user", "--unit=" + b.unit, "--collect", "-p", "KillMode=mixed", "-p", "TimeoutStopSec=" + (b.pooled ? POOL_STOP : "7min"),
         "-p", "Description=Enclave SNP VM app " + name.slice(0, 10), "/usr/bin/python3", "-I", this.launcher, cfgPath]);
       if (r.code !== 0) throw fail(500, `systemd-run failed: ${r.stderr.trim().slice(0, 300)}`);
     } catch (e) {
