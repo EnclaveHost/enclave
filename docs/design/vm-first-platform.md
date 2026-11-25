@@ -304,8 +304,12 @@ overlay, then `/vm/start`) and `build_boot.py`, which wraps one app image (`APP.
 is section 3.2's image model as code, and it settles how the two drivers share images: **an image
 family is an app image; a host type is a wrapper.** The base, desktop, runner and appliance
 families are therefore built as `enclave-vm-app/1` images on this layer, not with a builder of
-their own. Only the SEV-SNP wrapper is built; the Shield wrapper (an IGVM file, and a kernel with
-the paravisor TPM driver) is open, and it is what step 2 needs first. What the layer does not
+their own. Both wrappers are built, and the Shield one booted the same image on nucbox-k11-4
+(2026-11-25). A catalog version lists the one root hash with a launch identity per platform
+(`snp.measurements`, `shield.launch`), and the host agent's probe and `enclave connect` judge
+either platform's whole-VM document (`network/snp-vm-app.mjs`, `network/shield-vm-app.mjs`); the
+Shield verifier has run on synthetic reports only, and the Shield node still refuses whole-VM
+deployments, which is what step 2 needs first. What the layer does not
 have yet and this design adds to it: the startup package, a writable encrypted volume in place of
 the tmpfs overlay, and a published manifest with content ids for `rpc/snp/image-fetch.mjs`.
 

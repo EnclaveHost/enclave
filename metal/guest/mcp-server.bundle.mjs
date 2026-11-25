@@ -41618,7 +41618,7 @@ var require_websocket = __commonJS({
     var http7 = __require("http");
     var net6 = __require("net");
     var tls3 = __require("tls");
-    var { randomBytes: randomBytes10, createHash: createHash25 } = __require("crypto");
+    var { randomBytes: randomBytes10, createHash: createHash26 } = __require("crypto");
     var { Duplex, Readable: Readable2 } = __require("stream");
     var { URL: URL2 } = __require("url");
     var PerMessageDeflate2 = require_permessage_deflate();
@@ -42286,7 +42286,7 @@ var require_websocket = __commonJS({
           abortHandshake(websocket, socket, "Invalid Upgrade header");
           return;
         }
-        const digest = createHash25("sha1").update(key2 + GUID).digest("base64");
+        const digest = createHash26("sha1").update(key2 + GUID).digest("base64");
         if (res.headers["sec-websocket-accept"] !== digest) {
           abortHandshake(websocket, socket, "Invalid Sec-WebSocket-Accept header");
           return;
@@ -42655,7 +42655,7 @@ var require_websocket_server = __commonJS({
     var EventEmitter = __require("events");
     var http7 = __require("http");
     var { Duplex } = __require("stream");
-    var { createHash: createHash25 } = __require("crypto");
+    var { createHash: createHash26 } = __require("crypto");
     var extension2 = require_extension();
     var PerMessageDeflate2 = require_permessage_deflate();
     var subprotocol2 = require_subprotocol();
@@ -42962,7 +42962,7 @@ var require_websocket_server = __commonJS({
           );
         }
         if (this._state > RUNNING) return abortHandshake(socket, 503);
-        const digest = createHash25("sha1").update(key2 + GUID).digest("base64");
+        const digest = createHash26("sha1").update(key2 + GUID).digest("base64");
         const headers = [
           "HTTP/1.1 101 Switching Protocols",
           "Upgrade: websocket",
@@ -137717,8 +137717,24 @@ function snpVmRuntimeId(measurements) {
     throw new Error("whole-VM launch measurements required");
   return createHash21("sha256").update("enclave-snp-vm-runtime/1\n" + [...measurements].sort().join("\n")).digest("hex");
 }
+function validShieldLaunch(launch) {
+  return Array.isArray(launch) && launch.length >= 1 && launch.length <= 16 && launch.every((e) => e && typeof e === "object" && !Array.isArray(e) && Object.keys(e).every((k3) => k3 === "bootDigest" || k3 === "guestSvn" || k3 === "identity") && typeof e.bootDigest === "string" && HEX643.test(e.bootDigest) && Number.isSafeInteger(e.guestSvn) && e.guestSvn >= 0 && e.guestSvn <= 4294967295 && (e.identity === void 0 || validImageIdentity(e.identity))) && new Set(launch.map((e) => e.bootDigest)).size === launch.length;
+}
+function wholeVmRuntimeId({ measurements = [], shield } = {}) {
+  if (shield === void 0) return snpVmRuntimeId(measurements);
+  if (!validShieldLaunch(shield)) throw new Error("whole-VM Shield launch identities required");
+  if (!Array.isArray(measurements) || measurements.length > 16 || measurements.some((m) => typeof m !== "string" || !HEX96.test(m)) || new Set(measurements).size !== measurements.length)
+    throw new Error("whole-VM launch measurements required");
+  const line = (e) => [e.bootDigest, e.guestSvn, ...e.identity ? [e.identity.signer, e.identity.productId, e.identity.moduleId] : []].join(":");
+  return createHash21("sha256").update("enclave-vm-runtime/2\nsev-snp\n" + [...measurements].sort().join("\n") + "\nshield\n" + shield.map(line).sort().join("\n")).digest("hex");
+}
 async function verifySnpVmProof(doc, spki, nonce2, { deploymentId, expected, minTcb, vcek, kds = false, verify: verify8 = verifyQuote }) {
-  if (!/^0x[0-9a-f]{64}$/.test(deploymentId || "") || !expected || snpVmRuntimeId(expected.measurements) !== expected.runtimeId) return { ok: false, reason: "the launch measurements are not the expected runtime" };
+  try {
+    if (!/^0x[0-9a-f]{64}$/.test(deploymentId || "") || !expected || wholeVmRuntimeId(expected) !== expected.runtimeId) return { ok: false, reason: "the launch measurements are not the expected runtime" };
+  } catch {
+    return { ok: false, reason: "the launch measurements are not the expected runtime" };
+  }
+  if (!Array.isArray(expected.measurements) || !expected.measurements.length) return { ok: false, reason: "the version publishes no SEV-SNP launch measurement" };
   if (minTcb === void 0) return { ok: false, reason: "no minimum-TCB policy" };
   if (typeof doc.report !== "string" || doc.report.length > 8192) return { ok: false, reason: "no report" };
   const report = Buffer.from(doc.report, "base64");
@@ -137728,20 +137744,85 @@ async function verifySnpVmProof(doc, spki, nonce2, { deploymentId, expected, min
   if (report.subarray(192, 224).toString("hex") !== deploymentId.slice(2)) return { ok: false, reason: "HOST_DATA is not this deployment" };
   return { ok: true, measurement: v.measurement };
 }
-var SNP_VM_FORMAT, HEX96;
+var SNP_VM_FORMAT, HEX643, HEX96;
 var init_snp_vm_app = __esm({
   "network/snp-vm-app.mjs"() {
     init_snp_verify();
     init_judge();
+    init_vbs_image_identity();
     SNP_VM_FORMAT = "sev-snp-vm-v1";
+    HEX643 = /^[0-9a-f]{64}$/;
     HEX96 = /^[0-9a-f]{96}$/;
+  }
+});
+
+// network/shield-vm-app.mjs
+import { createHash as createHash22 } from "node:crypto";
+function shieldVmUserData(spki, nonce2, deploymentId) {
+  return Buffer.concat([createHash22("sha256").update(spki).update(nonce2).digest(), Buffer.from(deploymentId.slice(2), "hex")]);
+}
+function judgeShieldVmReport(doc, spki, nonce2, { deploymentId, expected, idksPublicKey } = {}) {
+  const no3 = (reason) => ({ ok: false, reason });
+  try {
+    if (!Buffer.isBuffer(spki) || spki.length < 32 || spki.length > 4096 || !Buffer.isBuffer(nonce2) || nonce2.length !== 32) return no3("actual TLS SPKI and fresh nonce required");
+    if (!DEPLOYMENT.test(deploymentId || "") || /^0x0{64}$/.test(deploymentId)) return no3("a whole-VM report is judged only against a named deployment");
+    if (!expected || !validShieldLaunch(expected.shield) || wholeVmRuntimeId(expected) !== expected.runtimeId) return no3("the version publishes no Enclave Shield launch identity, or it is not the expected runtime");
+    if (doc?.format !== SHIELD_VM_FORMAT) return no3("not a Shield whole-VM document");
+    if (typeof doc.report !== "string" || !doc.report.length || doc.report.length > MAX_REPORT_CHARS || !/^[A-Za-z0-9+/]+={0,2}$/.test(doc.report)) return no3("no report");
+    const launch = expected.shield, pinned = launch.filter((e) => e.identity !== void 0);
+    if (pinned.length && pinned.length !== launch.length) return no3("the version pins the signer of some Shield boot images and not others");
+    const r = verifyVbsVmReport({
+      envelope: Buffer.from(doc.report, "base64"),
+      idksPublicKey,
+      expectedUserData: shieldVmUserData(spki, nonce2, deploymentId),
+      allowedMeasurements: launch.map((e) => e.bootDigest),
+      minimumGuestSvn: 0,
+      ...pinned.length ? { imageIdentities: launch.map((e) => ({ measurement: e.bootDigest, identity: e.identity, minimumGuestSvn: e.guestSvn })) } : {}
+    });
+    if (r.ok !== true) return no3(r.reason || "report refused");
+    const entry = launch.find((e) => e.bootDigest === r.measurement);
+    if (!entry || !(r.guestSvn >= entry.guestSvn)) return no3("guest SVN below the version's");
+    return { ok: true, measurement: r.measurement, guestSvn: r.guestSvn };
+  } catch (e) {
+    return no3(e.message);
+  }
+}
+function verifyShieldVmProof(doc, spki, nonce2, { deploymentId, expected, hostSession, policy } = {}) {
+  const no3 = (reason) => ({ ok: false, reason });
+  try {
+    if (!policy || !platformsValid(policy.platforms)) return no3('explicit TPM identity and platform firmware pins (or "attested") are required');
+    if (!hostSession || hostSession.capture) return no3("a complete authenticated host session is required");
+    const host = verifyHvNodeEvidence(hostSession, { ekRoots: policy.ekRoots });
+    if (!host.ok || !host.admissible) return no3("host boot verification failed: " + host.reasons.join("; "));
+    const key2 = vsmKey(parseTcgLog(Buffer.from(hostSession.evidence.log, "base64")).events, "IDKS");
+    if (!key2) return no3("authenticated boot log contains no IDKS");
+    const v = judgeShieldVmReport(doc, spki, nonce2, { deploymentId, expected, idksPublicKey: rsaKeyFromModulus(key2.modulus, key2.exponent) });
+    if (!v.ok) return v;
+    if (!platformAdmitted(policy.platforms, host.boot)) return no3("authenticated TPM/platform pair is not admitted");
+    return v;
+  } catch (e) {
+    return no3(e.message);
+  }
+}
+var SHIELD_VM_FORMAT, DEPLOYMENT, MAX_REPORT_CHARS;
+var init_shield_vm_app = __esm({
+  async "network/shield-vm-app.mjs"() {
+    await init_hvnode_verify();
+    init_vbs_tcglog();
+    await init_vbs_verify();
+    init_vbs_vm_report();
+    init_vbs_app_core();
+    init_snp_vm_app();
+    SHIELD_VM_FORMAT = "shield-vm-v1";
+    DEPLOYMENT = /^0x[0-9a-f]{64}$/;
+    MAX_REPORT_CHARS = 12e3;
   }
 });
 
 // network/guest-probe.mjs
 import https6 from "node:https";
 import { isIP as isIP3 } from "node:net";
-import { randomBytes as randomBytes8, createHash as createHash22 } from "node:crypto";
+import { randomBytes as randomBytes8, createHash as createHash23 } from "node:crypto";
 function get(hostname, address4, path12, agent, pin, port2 = 443) {
   return new Promise((resolve3, reject) => {
     const req = https6.get({ host: address4, port: port2, servername: hostname, headers: { host: hostname }, path: path12, agent, timeout: 15e3 }, (res) => {
@@ -137767,7 +137848,7 @@ function get(hostname, address4, path12, agent, pin, port2 = 443) {
     req.once("error", reject);
   });
 }
-async function probeGuest({ deploymentId, hostname, address: address4, port: port2 = 443, proxy, direct = false, expected, linux, shield, hostSession, pvm, snpVm, localUpstream: localUpstream2, openApp, domainIndependent = false, verifySnp = judge, verifySnpVm = verifySnpVmProof, pinnedSpkiSha256 = null, startupEgress = false, startupRoute = false, attestationBootstrap = false }) {
+async function probeGuest({ deploymentId, hostname, address: address4, port: port2 = 443, proxy, direct = false, expected, linux, shield, hostSession, pvm, snpVm, shieldVm, localUpstream: localUpstream2, openApp, domainIndependent = false, verifySnp = judge, verifySnpVm = verifySnpVmProof, verifyShieldVm = verifyShieldVmProof, pinnedSpkiSha256 = null, startupEgress = false, startupRoute = false, attestationBootstrap = false }) {
   if (startupRoute && (!/^[0-9a-f]{64}$/.test(pinnedSpkiSha256 || "") || expected?.requiresDesktop !== true || expected?.requiresConfigSocketServer !== true || expected?.requiresSecretsV1 !== true || !proxy && !direct || openApp || localUpstream2 || startupEgress || attestationBootstrap)) throw new Error("native startup route requires a current attested key and explicit native secret policy");
   if (startupEgress && (!openApp || proxy || pinnedSpkiSha256 || expected.requiresConfigSocketServer !== true || expected.requiresSecretsV1 !== true)) throw new Error("startup egress requires a local configured secret command proof");
   if ([proxy, localUpstream2, openApp, direct].filter(Boolean).length !== 1) throw new Error("guest probes require exactly one explicit app transport");
@@ -137778,7 +137859,7 @@ async function probeGuest({ deploymentId, hostname, address: address4, port: por
     tlsOptions: { ...domainIndependent || pinnedSpkiSha256 || attestationBootstrap ? { rejectUnauthorized: false } : {}, ...domainIndependent ? { servername: "" } : {} },
     ...pinnedSpkiSha256 || attestationBootstrap ? { verifyPeer: (connection) => {
       const key2 = connection.getPeerX509Certificate()?.publicKey.export({ format: "der", type: "spki" });
-      if (!key2 || verifiedKey && createHash22("sha256").update(key2).digest("hex") !== verifiedKey) throw new Error("guest TLS key changed");
+      if (!key2 || verifiedKey && createHash23("sha256").update(key2).digest("hex") !== verifiedKey) throw new Error("guest TLS key changed");
       observedPeerKeys.set(connection, key2);
     } } : {}
   };
@@ -137787,7 +137868,7 @@ async function probeGuest({ deploymentId, hostname, address: address4, port: por
   try {
     if (pinnedSpkiSha256) {
       const ready2 = await get(hostname, address4, "/.well-known/enclave-ready", agent, void 0, port2);
-      const spkiSha256 = createHash22("sha256").update(ready2.spki).digest("hex");
+      const spkiSha256 = createHash23("sha256").update(ready2.spki).digest("hex");
       if (spkiSha256 === pinnedSpkiSha256) {
         if (ready2.status !== 200 && !(startupRoute && ready2.status === 503)) throw new Error("guest readiness HTTP " + ready2.status);
         return { ready: ready2.status === 200, verified: true, deploymentId, appSha256: expected.appSha256, runtimeId: expected.runtimeId, spkiSha256, pinned: true };
@@ -137804,7 +137885,12 @@ async function probeGuest({ deploymentId, hostname, address: address4, port: por
     const doc = JSON.parse(response.bytes);
     if (doc.nonce !== nonce2.toString("hex") || doc.transportKey !== response.spki.toString("base64") || doc.appSha256 !== expected.appSha256) throw new Error("app, nonce or TLS binding mismatch");
     let verified = false;
-    if (doc.format === "sev-snp-guest-domain-v1" && linux) {
+    if (shieldVm) {
+      if (doc.format !== SHIELD_VM_FORMAT) throw new Error("whole-VM guest proof refused: not a Shield whole-VM document");
+      const verdict = await verifyShieldVm(doc, response.spki, nonce2, { deploymentId, expected, hostSession, policy: shield });
+      verified = verdict.ok === true;
+      if (!verified) throw new Error("whole-VM guest proof refused: " + verdict.reason);
+    } else if (doc.format === "sev-snp-guest-domain-v1" && linux) {
       if (runtimeId2(linux.runtime).toString("hex") !== expected.runtimeId) throw new Error("SNP runtime policy does not match expected runtime");
       const verdict = await verifySnp(doc, response.spki, nonce2, { ...linux, appSha: expected.appSha256, hostData: deploymentId, mode: "trusted" });
       verified = verdict.gateOpen === true && verdict.verdict === "attested";
@@ -137832,10 +137918,10 @@ async function probeGuest({ deploymentId, hostname, address: address4, port: por
       if (verdict.runtimeId !== expected.runtimeId) throw new Error("pVM guest proof refused: another runtime");
       verified = true;
     } else throw new Error("no independently trusted guest verification policy");
-    verifiedKey = createHash22("sha256").update(response.spki).digest("hex");
+    verifiedKey = createHash23("sha256").update(response.spki).digest("hex");
     const ready = await get(hostname, address4, "/.well-known/enclave-ready", agent, response.spki, port2);
     if (ready.status !== 200 && !(startupEgress && ready.status === 503)) throw new Error("guest readiness HTTP " + ready.status);
-    return { ready: ready.status === 200, verified, deploymentId, appSha256: expected.appSha256, runtimeId: expected.runtimeId, spkiSha256: createHash22("sha256").update(response.spki).digest("hex") };
+    return { ready: ready.status === 200, verified, deploymentId, appSha256: expected.appSha256, runtimeId: expected.runtimeId, spkiSha256: createHash23("sha256").update(response.spki).digest("hex") };
   } finally {
     agent.destroy();
   }
@@ -137850,6 +137936,7 @@ var init_guest_probe = __esm({
     await init_shield_app_policy();
     init_pvm_app_attest();
     init_snp_vm_app();
+    await init_shield_vm_app();
     observedPeerKeys = /* @__PURE__ */ new WeakMap();
     GUEST_BUSY = /attestation busy; retry|too many concurrent report requests/;
     GUEST_BUSY_RETRIES = 5;
@@ -137962,7 +138049,7 @@ var init_native_host_policy = __esm({
 // network/native-client.mjs
 import https7 from "node:https";
 import { isIP as isIP4 } from "node:net";
-import { createHash as createHash23 } from "node:crypto";
+import { createHash as createHash24 } from "node:crypto";
 import path8 from "node:path";
 import { PassThrough as PassThrough2, Readable, Transform as Transform2, pipeline as pipeline2 } from "node:stream";
 function bytesOf(value, message2) {
@@ -138289,7 +138376,7 @@ var init_native_client = __esm({
           if (signal?.aborted) throw Error("native request cancelled before sending");
           if (validUntil <= this.now() || identity(this.currentLease()) !== fingerprint2) throw Error("native authorization expired");
           const key2 = connection.getPeerX509Certificate()?.publicKey.export({ format: "der", type: "spki" });
-          if (!key2 || createHash23("sha256").update(key2).digest("hex") !== proof.spkiSha256) throw Error("guest TLS key changed");
+          if (!key2 || createHash24("sha256").update(key2).digest("hex") !== proof.spkiSha256) throw Error("guest TLS key changed");
           verified.add(connection);
         } });
         return { agent, verified, fingerprint: fingerprint2, chosen, result: { route: chosen, proof, expectation: current.provenance, leaseBlock: current.lease.blockNumber, validUntil } };
@@ -139609,7 +139696,7 @@ function registryAt(B3) {
 init_esm3();
 import fs16 from "node:fs";
 import path10 from "node:path";
-import { randomBytes as randomBytes9, createHash as createHash24, createPublicKey as createPublicKey8, verify as verifyBytes2 } from "node:crypto";
+import { randomBytes as randomBytes9, createHash as createHash25, createPublicKey as createPublicKey8, verify as verifyBytes2 } from "node:crypto";
 
 // mcp/independent-secrets.mjs
 init_esm3();
@@ -140333,7 +140420,7 @@ async function prepareSessionCalls(B3, session, steps) {
       deadline: deadline.toString(),
       args: s.args,
       digest,
-      digestSha256: "0x" + createHash24("sha256").update(Buffer.from(digest.slice(2), "hex")).digest("hex")
+      digestSha256: "0x" + createHash25("sha256").update(Buffer.from(digest.slice(2), "hex")).digest("hex")
     };
   });
   const walletHeld = steps.some((s) => s.id) ? "a wallet-held record also needs the owner's ledger setDelegate grant to this vault (build_delegate); the vault and ledger enforce it when the call executes" : void 0;

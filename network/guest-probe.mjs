@@ -8,6 +8,7 @@ import {runtimeId} from '../isolation/contract/runtime.mjs';
 import {verifyShieldAppPolicy} from '../relay/shield-app-policy.mjs';
 import {verifyPvmAppEvidence} from '../relay/pvm-app-attest.mjs';
 import {SNP_VM_FORMAT,verifySnpVmProof} from './snp-vm-app.mjs';
+import {SHIELD_VM_FORMAT,verifyShieldVmProof} from './shield-vm-app.mjs';
 
 const observedPeerKeys=new WeakMap();
 function get(hostname,address,path,agent,pin,port=443){return new Promise((resolve,reject)=>{
@@ -21,7 +22,7 @@ function get(hostname,address,path,agent,pin,port=443){return new Promise((resol
  req.once('close',()=>clearTimeout(deadline));req.once('timeout',()=>req.destroy(new Error('guest probe timeout')));req.once('error',reject);
 });}
 const GUEST_BUSY=/attestation busy; retry|too many concurrent report requests/,GUEST_BUSY_RETRIES=5;
-export async function probeGuest({deploymentId,hostname,address,port=443,proxy,direct=false,expected,linux,shield,hostSession,pvm,snpVm,localUpstream,openApp,domainIndependent=false,verifySnp=judge,verifySnpVm=verifySnpVmProof,pinnedSpkiSha256=null,startupEgress=false,startupRoute=false,attestationBootstrap=false}){
+export async function probeGuest({deploymentId,hostname,address,port=443,proxy,direct=false,expected,linux,shield,hostSession,pvm,snpVm,shieldVm,localUpstream,openApp,domainIndependent=false,verifySnp=judge,verifySnpVm=verifySnpVmProof,verifyShieldVm=verifyShieldVmProof,pinnedSpkiSha256=null,startupEgress=false,startupRoute=false,attestationBootstrap=false}){
  if(startupRoute&&(!/^[0-9a-f]{64}$/.test(pinnedSpkiSha256||'')||expected?.requiresDesktop!==true||expected?.requiresConfigSocketServer!==true||expected?.requiresSecretsV1!==true||(!proxy&&!direct)||openApp||localUpstream||startupEgress||attestationBootstrap))throw new Error('native startup route requires a current attested key and explicit native secret policy');
  if(startupEgress&&(!openApp||proxy||pinnedSpkiSha256||expected.requiresConfigSocketServer!==true||expected.requiresSecretsV1!==true))throw new Error('startup egress requires a local configured secret command proof');
  if([proxy,localUpstream,openApp,direct].filter(Boolean).length!==1)throw new Error('guest probes require exactly one explicit app transport');
@@ -74,7 +75,13 @@ export async function probeGuest({deploymentId,hostname,address,port=443,proxy,d
   const doc=JSON.parse(response.bytes);
   if(doc.nonce!==nonce.toString('hex')||doc.transportKey!==response.spki.toString('base64')||doc.appSha256!==expected.appSha256)throw new Error('app, nonce or TLS binding mismatch');
   let verified=false;
-  if(doc.format==='sev-snp-guest-domain-v1'&&linux){
+  if(shieldVm){
+    // a whole-VM app on an Enclave Shield host (shield-vm-app.mjs): the same front, this platform's report. Nothing but
+    // that report admits it: an ordinary Shield app's document for the same key is not a boot of the version's image.
+    if(doc.format!==SHIELD_VM_FORMAT)throw new Error('whole-VM guest proof refused: not a Shield whole-VM document');
+    const verdict=await verifyShieldVm(doc,response.spki,nonce,{deploymentId,expected,hostSession,policy:shield});
+    verified=verdict.ok===true;if(!verified)throw new Error('whole-VM guest proof refused: '+verdict.reason);
+  }else if(doc.format==='sev-snp-guest-domain-v1'&&linux){
     if(runtimeId(linux.runtime).toString('hex')!==expected.runtimeId)throw new Error('SNP runtime policy does not match expected runtime');
     const verdict=await verifySnp(doc,response.spki,nonce,{...linux,appSha:expected.appSha256,hostData:deploymentId,mode:'trusted'});
     verified=verdict.gateOpen===true&&verdict.verdict==='attested';if(!verified)throw new Error('SNP guest proof refused: '+JSON.stringify(verdict));

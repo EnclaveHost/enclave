@@ -24,8 +24,9 @@ itself, no verifier accepts the Shield report of a whole VM, and no catalog vers
   disk to try; a disk that is not the pinned bytes fails verification.
 - **`front/`**: the whole-VM front (the contract of `rpc/snp/front.py`, plus protected-port tunnels from
   `isolation/m2/tunnel`). `source.go` is where reports come from: `sev-snp` (configfs-tsm, the deployment is
-  HOST_DATA) or `shield` (the paravisor's report through the guest TPM, `isolation/m3/vtpmclient`; the deployment
-  is a file the boot wrapper writes, unattested, used only to pick the name a certificate is asked for). `-report
+  HOST_DATA) or `shield` (the paravisor's report through the guest TPM, `isolation/m3/vtpmclient`; that report has no
+  field the host sets per launch, so the deployment is a file the boot wrapper writes once and the front puts it in
+  the second half of every report's 64 bytes of data, under the platform's signature). `-report
   auto` takes what the boot offers and refuses a boot that offers neither. It serves TCP and, with `-vsock`, an
   AF_VSOCK port (virtio or Hyper-V sockets) for a host that reaches guests without a network.
 - **`build_boot.py`**: wraps an app image for one platform. The app's half of the command line (root hash,
@@ -38,6 +39,43 @@ itself, no verifier accepts the Shield report of a whole VM, and no catalog vers
   distribution kernel, in an Ubuntu 24.04 container with the kernel's own compiler. `tpm.h` there stands in for the
   kernel's private header, which header packages do not ship.
 - **`wrap_iso.py`**: the labelled ISO 9660 container Hyper-V's DVD backend needs around a raw image.
+- **`version_config.py`**: the catalog version config of an app image from the `IMAGE.json` of each wrapper: one
+  root hash, a launch identity per platform. It refuses two wrappers of different app images.
+
+## One version, a launch identity per platform
+
+A whole-VM catalog version names one root image and, for each platform it may be booted on, what that platform's
+report says of a boot of it:
+
+    {"runtime": "sev-snp-vm",
+     "image":  {"rootHash": "...", "ovmfSha256": "...", "cmdlineSha256": "..."},
+     "snp":    {"measurements": {"8": "<96 hex>"}, "vcpuType": "EPYC-v4"},
+     "shield": {"launch": [{"bootDigest": "<64 hex>", "guestSvn": 1}]}}
+
+`snp` is as before (a launch measurement per vCPU count; `image.ovmfSha256` and `image.cmdlineSha256` are the
+SEV-SNP wrapper's and stay where the SEV-SNP manager reads them). `shield.launch` lists the boot image's launch
+digest (the paravisor's report calls it the measurement; it is igvmfilegen's `vbs_boot_digest`, as for the native
+desktop images in service), the guest SVN, and optionally the signer (`identity`) of a signed boot image. A version
+lists one platform or both; the runtime name is the whole-VM runtime's historical one on either.
+
+Who reads it:
+
+- `network/snp-vm-app.mjs` `snpVmExpectation` -> `{appSha256, runtimeId, measurements, shield?}`. The runtime
+  identity covers every listed identity (`wholeVmRuntimeId`); for a version with SEV-SNP alone it is the value it
+  always was.
+- `verifySnpVmProof` (unchanged checks) for a `sev-snp-vm-v1` document; `network/shield-vm-app.mjs`
+  `verifyShieldVmProof` for a `shield-vm-v1` one: the report must be signed by the VSM identity key of a host boot
+  the caller authenticated, carry a listed boot digest at its SVN or above, and bind
+  sha256(TLS key || nonce) || deployment id.
+- `network/guest-probe.mjs` (the host agent's admission probe): `snpVm` for an SEV-SNP host, `shieldVm` with the
+  host's Shield policy and boot session for a Shield host. A whole-VM lease is admitted on its platform's whole-VM
+  document and no other.
+- `cli/connect.mjs`: `enclave connect <id> --shield --expect-shield DIGEST:SVN` (or the policy file's
+  `shieldLaunch`), next to `--expect` for SEV-SNP.
+
+For the KVM Box image built here (`268b0332...`), `version_config.py` gives the 8-vCPU SEV-SNP measurement
+`13ec4f0b...` and the Shield launch `0bfa57ea...` at SVN 1, and the agent's reader accepts it. That image predates
+the front's deployment binding, so its root hash is not the one a rebuild gives.
 
 ## What an app provides
 
@@ -93,15 +131,22 @@ inside it for the paravisor's loader, and it booted the same app image on both.
 
 ## Not built, not tried
 
-- A verifier for the Shield report of a whole VM, and a check of the built digest against a running partition's.
-  What writes the `shield` source's deployment file.
+- The Shield verifier has only been run on synthetic reports (the test fixture's signed envelope). No report of a
+  running whole-VM partition has been read from outside the guest, so three things are not shown: that the built
+  digest is the one a partition reports, what guest SVN an unsigned boot image reports, and the 64 bytes as the
+  paravisor returns them.
+- What writes the `shield` source's deployment file (the launcher's side, and `vm-init`).
 - How a Shield host's launcher attaches these images: the model volume's container is not made here (20 GB; the
   launcher's own model-volume path may serve it), and the node refuses whole-VM deployments.
 - The Shield image's version number (`guestSvn`) and how a host admits its digest: the probe used 1.
-- Verifiers: every whole-VM verifier accepts only `sev-snp-vm-v1`. A version that lists one root hash with a launch
-  identity per platform does not exist yet.
+- Verifiers not changed: the Enclave RPC gateway's (`rpc/snp/chain-policy.mjs`, `attested-fetch.mjs`: AMD reports
+  only, and it ignores a `shield` section), the browser verifier (`verifier/envelope.mjs` knows neither whole-VM
+  format), the relay's fresh-attestation endpoint for a Shield host's whole-VM app, and the Windows node, which
+  still refuses whole-VM deployments. The SEV-SNP supervisor refuses a version that lists Shield alone with its
+  "launch measurements by vCPU count" message.
+- No catalog version lists two platforms: nothing is published.
 - Enclave RPC still uses its own image and front (`rpc/snp`).
 
 ## Tests
 
-`go test ./front` here; `python3 -I test/vmboot/test_vmboot.py`.
+`go test ./front` here; `python3 -I test/vmboot/test_vmboot.py`; `node --test test/shield-vm-app.test.mjs test/snp-vm-app.test.mjs`.

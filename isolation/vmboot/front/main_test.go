@@ -53,6 +53,7 @@ func (fakeShield) Format() string                   { return "shield-vm-v1" }
 func (fakeShield) Report(rd []byte) ([]byte, error) { return append([]byte("HCLA"), rd...), nil }
 func (fakeShield) Measurement([]byte) string        { return "" }
 func (s fakeShield) Deployment([]byte) string       { return s.deployment }
+func (s fakeShield) Bind() []byte                   { return (&shieldSource{deployment: s.deployment}).Bind() }
 
 type ca struct {
 	key  *ecdsa.PrivateKey
@@ -260,6 +261,13 @@ func TestSameEndpointsOnAnotherPlatform(t *testing.T) {
 	if doc["format"] != "shield-vm-v1" || doc["platform"] != "shield" || doc["appSha256"] != strings.Repeat("5a", 32) ||
 		doc["hostData"] != deployment || !bytes.Equal(rep[4:36], want[:]) {
 		t.Fatalf("document %v", doc)
+	}
+	// this platform's report has no launch field for the deployment: the report's own data names it
+	if id, _ := hex.DecodeString(deployment); !bytes.Equal(rep[36:68], id) {
+		t.Fatal("the report does not bind the deployment")
+	}
+	if none := (&shieldSource{}).Bind(); !bytes.Equal(none, make([]byte, 32)) {
+		t.Fatal("a guest launched for no deployment must bind zeros")
 	}
 	var boot map[string]string
 	if json.Unmarshal(f.bootDoc, &boot) != nil || boot["platform"] != "shield" {

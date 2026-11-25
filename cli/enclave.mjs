@@ -1525,7 +1525,7 @@ async function cmdAttest(rest) {
 // are the caller's (--expect, --app-sha, …, or a --policy file an app ships), never read from the guest itself.
 async function cmdConnect(rest) {
   const f = flags(rest, { bool: ["--no-http", "--no-kds", "--unbound", "--shield", "--gamestream"],
-    val: ["--policy", "--origin", "--shield-host", "--servername", "--app-sha", "--runtime", "--vcek", "--amd-chain", "--host-data", "--listen", "--port", "--port-host",
+    val: ["--policy", "--origin", "--shield-host", "--expect-shield", "--servername", "--app-sha", "--runtime", "--vcek", "--amd-chain", "--host-data", "--listen", "--port", "--port-host",
           "--auth-env", "--auth-file", "--basic-file", "--state"] });
   const usage = "usage: enclave connect <id>|--origin https://host[:port] --expect MEASUREMENT[,…] [--app-sha HEX] [--policy FILE] [--port tcp:22,udp:47998] [--listen [127.0.0.1:]PORT]";
   if (!f._[0] && !f.origin && !f.policy) throw new Error(usage);
@@ -1551,7 +1551,11 @@ async function cmdConnect(rest) {
   if (f.shield || pol.shield) {
     if (!id) throw new Error("--shield verifies a platform deployment: give its id");
     const shieldHost = f["shield-host"] || pol.shieldHost || (await api("GET", `/v1/deployments/${id}`)).enclave;
-    shield = C.shieldVerifier({ apiBase: API_BASE, name: shieldHost, deployment: id.toLowerCase(), log: (s) => stderr.write(s + "\n") });
+    // a whole-VM app's Shield launch identities: --expect-shield DIGEST:SVN[,…], or the policy file's shieldLaunch (the
+    // version's shield.launch entries as published)
+    const launch = f["expect-shield"] ? String(f["expect-shield"]).split(",").map((e) => { const [bootDigest, svn] = e.trim().toLowerCase().split(":"); return { bootDigest, guestSvn: Number(svn) }; }) : pol.shieldLaunch || null;
+    if (launch && !(await import("../network/snp-vm-app.mjs")).validShieldLaunch(launch)) throw new Error("--expect-shield takes Shield boot digests with their guest SVN, DIGEST:SVN (64 hex, a whole number), comma-separated");
+    shield = C.shieldVerifier({ apiBase: API_BASE, name: shieldHost, deployment: id.toLowerCase(), launch, log: (s) => stderr.write(s + "\n") });
   }
   if (!measurements.length && !shield) throw new Error("connect needs the expected launch measurement (--expect), or --shield for an Enclave Shield guest");
   const snp = measurements.length ? await C.guestVerifier({

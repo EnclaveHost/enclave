@@ -279,7 +279,11 @@ export async function guestVerifier({ hostData = null, unbound = false, measurem
 // (derived from the deployment's catalog entry), the same trust verifier/web/shield-app.mjs places in them.
 export const SHIELD_FORMAT = 'hyperv-partition-domain/v1';
 const HEX64 = /^[0-9a-f]{64}$/;
-export function shieldVerifier({ apiBase = 'https://api.enclave.host', name, deployment, fetchImpl = globalThis.fetch, log = () => {}, hostTtlMs = 10 * 60 * 1000 } = {}) {
+// launch: a whole-VM app's Enclave Shield launch identities ([{bootDigest, guestSvn, identity?}], the caller's own, as its
+// catalog version lists them): with it a whole-VM document (network/shield-vm-app.mjs) is judged against them and this
+// deployment, under the IDKS of the same verified host session.
+export const SHIELD_VM_FORMAT = 'shield-vm-v1';
+export function shieldVerifier({ apiBase = 'https://api.enclave.host', name, deployment, launch = null, fetchImpl = globalThis.fetch, log = () => {}, hostTtlMs = 10 * 60 * 1000 } = {}) {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(name || '')) throw new Error('a Shield guest needs its host name (--shield-host)');
   if (!/^0x[0-9a-f]{64}$/.test(deployment || '')) throw new Error('a Shield guest needs its deployment id');
   const deps = { fetchImpl, randomBytes: (n) => globalThis.crypto.getRandomValues(new Uint8Array(n)), now: () => new Date() };
@@ -314,6 +318,15 @@ export function shieldVerifier({ apiBase = 'https://api.enclave.host', name, dep
     }
   }
   return async (doc, spki, nonce) => {
+    if (doc?.format === SHIELD_VM_FORMAT) {
+      if (!launch) return { ok: false, format: SHIELD_VM_FORMAT, reason: 'a whole-VM Shield guest needs its expected launch identity (--expect-shield DIGEST:SVN)' };
+      const h = await hostSession();
+      if (!h.idks) return { ok: false, format: SHIELD_VM_FORMAT, reason: 'authenticated boot log contains no IDKS' };
+      const [vm, snpVm, { rsaKeyFromModulus }] = await Promise.all([import('../network/shield-vm-app.mjs'), import('../network/snp-vm-app.mjs'), import('../relay/vbs-verify.mjs')]);
+      const expected = { measurements: [], shield: launch }; expected.runtimeId = snpVm.wholeVmRuntimeId(expected);
+      const r = vm.judgeShieldVmReport(doc, Buffer.from(spki), Buffer.from(nonce), { deploymentId: deployment, expected, idksPublicKey: rsaKeyFromModulus(Buffer.from(h.idks.modulus), Buffer.from(h.idks.exponent)) });
+      return { ok: r.ok, format: SHIELD_VM_FORMAT, measurement: r.measurement, reason: r.reason, limited: true, omissions: [...h.omissions] };
+    }
     const h = await hostSession(), e = await expectations();
     const { verifyShieldAppEvidenceWeb } = await import('../verifier/web/shield-app.mjs');
     const v = await verifyShieldAppEvidenceWeb({ doc, handshakeSpki: spki, nonce, expectedAppSha256: e.appSha256, expectedRuntimeId: e.runtimeId, idks: h.idks, boot: h.boot }, e.policy);
@@ -325,8 +338,8 @@ export function shieldVerifier({ apiBase = 'https://api.enclave.host', name, dep
 // One verifier per evidence format; a format nobody asked to accept is refused with what would accept it.
 export function composeVerifier({ snp = null, shield = null }) {
   return async (doc, spki, nonce) => {
-    if (doc?.format === SHIELD_FORMAT) return shield ? shield(doc, spki, nonce)
-      : { ok: false, format: SHIELD_FORMAT, reason: 'this is an Enclave Shield (Hyper-V) guest: host-attested, the host is not excluded; pass --shield to accept that' };
+    if (doc?.format === SHIELD_FORMAT || doc?.format === SHIELD_VM_FORMAT) return shield ? shield(doc, spki, nonce)
+      : { ok: false, format: doc.format, reason: 'this is an Enclave Shield (Hyper-V) guest: host-attested, the host is not excluded; pass --shield to accept that' };
     return snp ? snp(doc, spki, nonce) : { ok: false, format: doc?.format, reason: 'an SEV-SNP guest needs its expected launch measurement (--expect)' };
   };
 }

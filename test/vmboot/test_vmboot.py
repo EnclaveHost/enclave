@@ -17,7 +17,7 @@ def load(name):
     return module
 
 
-boot, iso = load('build_boot'), load('wrap_iso')
+boot, iso, version = load('build_boot'), load('wrap_iso'), load('version_config')
 sha = lambda b: hashlib.sha256(b).hexdigest()
 
 
@@ -118,6 +118,46 @@ class DiscWrapper(unittest.TestCase):
             src.write_bytes(b'\x01' * 100)
             with self.assertRaises(ValueError):
                 iso.wrap('ROOT_DATA', src, dst, sha(b'\x01'*100))
+
+
+class VersionConfig(unittest.TestCase):
+    """One root image, a launch identity per platform."""
+    app = {'rootHash': 'ab'*32}
+    snp = {'schema': 'enclave-vm-image/1', 'platform': 'sev-snp', 'rootHash': 'ab'*32, 'app': app, 'appJsonSha256': 'cd'*32,
+           'cmdline': 'console=ttyS0 panic=-1 enclave.roothash='+'ab'*32}
+    shield = {'schema': 'enclave-vm-image/1', 'platform': 'shield', 'rootHash': 'ab'*32, 'app': app, 'appJsonSha256': 'cd'*32,
+              'cmdline': 'console=ttyS0 loglevel=3 panic=-1 enclave.roothash='+'ab'*32,
+              'launchIdentity': {'vbsBootDigest': 'ef'*32, 'guestSvn': 4}}
+    given = dict(snp={'8': '11'*48, '16': '22'*48}, ovmf_sha256='33'*32, vcpu_type='EPYC-v4')
+
+    def test_both_platforms_share_the_root(self):
+        c = version.config([self.snp, self.shield], **self.given)
+        self.assertEqual(c, {'runtime': 'sev-snp-vm',
+                             'image': {'rootHash': 'ab'*32, 'ovmfSha256': '33'*32, 'cmdlineSha256': sha(self.snp['cmdline'].encode())},
+                             'snp': {'measurements': {'8': '11'*48, '16': '22'*48}, 'vcpuType': 'EPYC-v4'},
+                             'shield': {'launch': [{'bootDigest': 'ef'*32, 'guestSvn': 4}]}})
+        self.assertEqual(version.config([self.shield, self.snp], **self.given), c)
+
+    def test_one_platform_alone(self):
+        self.assertEqual(version.config([self.shield]), {'runtime': 'sev-snp-vm', 'image': {'rootHash': 'ab'*32},
+                                                         'shield': {'launch': [{'bootDigest': 'ef'*32, 'guestSvn': 4}]}})
+        self.assertNotIn('shield', version.config([self.snp], **self.given))
+
+    def test_refusals(self):
+        other_root = {**self.shield, 'rootHash': '99'*32, 'app': {'rootHash': '99'*32}}
+        other_app = {**self.shield, 'appJsonSha256': '98'*32}
+        for images, kw in (([self.snp, other_root], self.given), ([self.snp, other_app], self.given),
+                           ([self.snp, self.snp], self.given), ([], {}), ([self.snp], {}),
+                           ([self.snp], {**self.given, 'snp': {'8': '11'*48, '16': '11'*48}}),
+                           ([self.snp], {**self.given, 'snp': {'08': '11'*48}}),
+                           ([self.snp], {**self.given, 'snp': {'8': '11'*32}}),
+                           ([self.shield], self.given),
+                           ([{**self.shield, 'launchIdentity': {'vbsBootDigest': 'ef'*32}}], {}),
+                           ([{**self.shield, 'launchIdentity': {'vbsBootDigest': 'EF'*32, 'guestSvn': 1}}], {}),
+                           ([{**self.shield, 'platform': 'tdx'}], {}),
+                           ([{**self.shield, 'app': {'rootHash': '97'*32}}], {})):
+            with self.assertRaises(ValueError, msg=repr((images, kw))[:120]):
+                version.config(images, **kw)
 
 
 if __name__ == '__main__':

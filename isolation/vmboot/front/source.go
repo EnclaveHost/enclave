@@ -29,6 +29,10 @@ type source interface {
 	Measurement(report []byte) string
 	// Deployment is the 32-byte deployment id this guest was launched for, hex, or "" for none (a smoke boot).
 	Deployment(report []byte) string
+	// Bind is the second half of every report's 64 bytes of data, after the key hash. A platform whose report has
+	// its own launch field for the deployment leaves it zero; one without puts the deployment here, so the report
+	// that binds the key also says, under the platform's signature, which deployment this guest was launched for.
+	Bind() []byte
 }
 
 const snpReportMin = 0x2a0
@@ -75,6 +79,7 @@ func checkSNP(rep, reportData []byte) error {
 	return nil
 }
 func (s *snpSource) Measurement(rep []byte) string { return hex.EncodeToString(rep[0x90:0xc0]) }
+func (s *snpSource) Bind() []byte                  { return make([]byte, 32) }
 func (s *snpSource) Deployment(rep []byte) string {
 	if hd := hex.EncodeToString(rep[0xc0:0xe0]); strings.Trim(hd, "0") != "" {
 		return hd
@@ -87,9 +92,10 @@ var deploymentHex = regexp.MustCompile(`^[0-9a-f]{64}$`)
 // shieldSource is an Enclave Shield host (a Hyper-V partition under the OpenHCL paravisor): the report is the
 // paravisor's HCLA envelope around a VBS VM report, read through the guest TPM (isolation/m3/vtpmclient, which
 // checks that the envelope carries the requested bytes). That report has no field the host sets per launch, so the
-// deployment comes from a file the platform's boot wrapper writes: it names what the LAUNCHER launched this guest
-// for, it is not attested, and it is used only to choose the name a certificate is asked for. Who may hold that
-// name is the certificate service's decision, from the lease.
+// deployment comes from a file the platform's boot wrapper writes once, before anything of the app runs: it names
+// what the LAUNCHER launched this guest for, as HOST_DATA does on SEV-SNP. It is read once, here, and every report
+// carries it in the second half of its data (Bind), so a verifier that expects a deployment refuses the report of
+// a guest launched for another. A guest launched for none binds zeros.
 type shieldSource struct {
 	tpm        *vtpmclient.Client
 	deployment string
@@ -117,6 +123,10 @@ func (s *shieldSource) Format() string                   { return "shield-vm-v1"
 func (s *shieldSource) Report(rd []byte) ([]byte, error) { return s.tpm.Report(rd) }
 func (s *shieldSource) Measurement([]byte) string        { return "" }
 func (s *shieldSource) Deployment([]byte) string         { return s.deployment }
+func (s *shieldSource) Bind() []byte {
+	b, _ := hex.DecodeString(s.deployment)
+	return append(b, make([]byte, 32-len(b))...)
+}
 
 // pickSource chooses by name, or for "auto" by what this boot offers: the SEV guest's report interface if the
 // platform's boot wrapper loaded it, else the paravisor's TPM. Neither is a refusal, never a front without reports.

@@ -4,11 +4,12 @@
 // like metal0, the paravisor's report on an Enclave Shield host, behind the same endpoints.
 //
 // At start it makes a TLS key that never leaves this process, asks the platform for a report over
-// sha256(SubjectPublicKeyInfo) then 32 zero bytes, and serves on -listen (and on -vsock, where the host reaches a
+// sha256(SubjectPublicKeyInfo) then the source's 32 binding bytes (zero on SEV-SNP, whose report names the deployment
+// in HOST_DATA; the deployment id on Shield, whose report has no such field), and serves on -listen (and on -vsock, where the host reaches a
 // guest over sockets, not a network):
 //
 //	GET  /.well-known/enclave-attestation           {report, certificate, reportData, measurement}: the boot document
-//	GET  /.well-known/enclave-attestation?nonce=H   a fresh report over sha256(SPKI || nonce), in the source's format
+//	GET  /.well-known/enclave-attestation?nonce=H   a fresh report over sha256(SPKI || nonce) then the same binding bytes
 //	GET  /.well-known/enclave-ready                 200 once the front serves
 //	GET  /.well-known/enclave-csr                   a certificate request for the app name, signed by the same key
 //	POST /.well-known/enclave-cert                  a CA-issued chain for it, installed only if it verifies here
@@ -120,7 +121,7 @@ func newFront(src source, cmdline, localName, zone string, roots *x509.CertPool,
 		localCert: tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key},
 		localPEM:  pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})}
 	sum := sha256.Sum256(spki)
-	reportData := append(sum[:], make([]byte, 32)...)
+	reportData := append(sum[:], src.Bind()...)
 	rep, err := src.Report(reportData)
 	if err != nil {
 		return nil, fmt.Errorf("boot report: %w", err)
@@ -158,7 +159,7 @@ func (f *front) fresh(nonceHex string) (doc []byte, busy bool, err error) {
 	}
 	nonce, _ := hex.DecodeString(nonceHex)
 	sum := sha256.Sum256(append(append([]byte{}, f.spki...), nonce...))
-	reportData := append(sum[:], make([]byte, 32)...)
+	reportData := append(sum[:], f.src.Bind()...)
 	f.reports.Lock()
 	rep, err := f.src.Report(reportData)
 	f.reports.Unlock()
