@@ -8,20 +8,29 @@ python3 -I isolation/vmboot/build_boot.py SPEC.json
 SPEC.json (unknown fields refuse):
   out         new directory for the bootable image
   app         an app image directory: APP.json, root.img, root.verity (see APP.json below)
-  platform    "sev-snp": QEMU/KVM with SEV-SNP, the layout rpc/snp/launch.py boots. ("shield", an Enclave Shield
-              host, is not built yet: its boot image is an IGVM file and its kernel question is open.)
+  platform    "sev-snp": QEMU/KVM with SEV-SNP, the layout rpc/snp/launch.py boots.
+              "shield": an Enclave Shield host (a Hyper-V partition under the OpenHCL paravisor). Built, never booted.
   kernel      {"vmlinuz": path, "sha256": hex}
   kernelRoot  {"image": path, "sha256": hex, "release": "6.8.0-147-generic"}: an ext4 image carrying that kernel's
               modules under /usr/lib/modules/<release>
+  shield      for platform "shield" only: {"igvmfilegen", "openhclBoot", "underhillKernel", "underhillInitrd":
+              {"path", "sha256"} each (the reviewed OpenHCL set, pinned below), "tpmModule": {"path", "sha256"} (the
+              paravisor TPM driver built for this kernel, shield-tpm/build.sh), "guestSvn": the image's security
+              version number}
 
 APP.json, written by the app's own build:
   schema "enclave-vm-app/1"; rootHash, rootBlocks, rootSalt (dm-verity, sha256, 4096-byte blocks, no superblock);
   artifacts {"root.img": {bytes, sha256}, "root.verity": {...}}; kernelModules: names the app needs loaded;
   ports: its protected ports; models (optional): {dataBlocks, rootHash, salt}.
 
-Out: vmlinuz, initrd.img, root.img and root.verity (hard links to the app's when possible), IMAGE.json with the
-command line the launch identity covers. The app half of the command line (root hash and geometry, model volume) is
-derived from APP.json alone, so it is the same string on every platform.
+Out, sev-snp: vmlinuz, initrd.img, root.img and root.verity (hard links to the app's when possible), IMAGE.json with
+the command line the launch measurement covers.
+Out, shield: image.igvm (the paravisor, the kernel as an ELF image, the initramfs and the command line, which is what
+Hyper-V loads and what the launch identity, the VBS boot digest, covers), image-vbs.json (igvmfilegen's statement
+of that digest), ROOT_DATA.iso and ROOT_HASH.iso (the app's disks in wrap_iso.py's container), IMAGE.json.
+
+The app half of the command line (root hash and geometry, model volume) is derived from APP.json alone, so it is the
+same string on every platform.
 """
 import hashlib
 import json
@@ -34,11 +43,23 @@ import sys
 
 HERE = Path(__file__).resolve().parent
 FIELDS = {'out', 'app', 'platform', 'kernel', 'kernelRoot'}
+SHIELD_FIELDS = {'igvmfilegen', 'openhclBoot', 'underhillKernel', 'underhillInitrd', 'tpmModule', 'guestSvn'}
 HEX64 = re.compile('[0-9a-f]{64}')
 # What the boot itself needs per platform, before and beyond what an app asks for. vm-init needs dm-verity and
 # overlay everywhere; the rest is how the platform presents disks and makes reports.
-PLATFORM_MODULES = {'sev-snp': ['dm-verity', 'overlay', 'tsm', 'sev-guest']}
-PLATFORM_CMDLINE = {'sev-snp': 'console=ttyS0 panic=-1'}
+PLATFORM_MODULES = {'sev-snp': ['dm-verity', 'overlay', 'tsm', 'sev-guest'],
+                    # Hyper-V's bus, its SCSI (the DVD drives the disks arrive on) and its sockets (how the host
+                    # reaches the front); the paravisor TPM driver is a file of its own (spec.shield.tpmModule)
+                    'shield': ['dm-verity', 'overlay', 'hv_vmbus', 'hv_storvsc', 'hv_sock']}
+PLATFORM_CMDLINE = {'sev-snp': 'console=ttyS0 panic=-1', 'shield': 'console=ttyS0 loglevel=3 panic=-1'}
+# The OpenHCL set the Shield hosts' admitted desktop image is built from (the non-debug recipe; the paravisor
+# initramfs carries the guest-only volatile report input patch). Anything else is an unreviewed paravisor.
+SHIELD_PINS = {'igvmfilegen': '81647f66a88559d68c4d7565dfdcc355305c00cc842b49403a3c5188c36e1a1c',
+               'openhclBoot': '18dbeae950c1c143364638892ace4c2cf2128eb12d67f3de05bdbe37b2fd16bc',
+               'underhillKernel': '4d6c417654d5d26374c3bc44ed1c6473d5a0d9e7b9773d2bb1dab2abe5306762',
+               'underhillInitrd': '71a91101f8f9b870199946076db2b220c68167e029539d4619a6b7600432124e'}
+TPM_MODULE = 'enclave_openhcl_tpm.ko'
+ZSTD_MAGIC = b'\x28\xb5\x2f\xfd'
 MODULE_NAME = re.compile(r'[a-z0-9][a-z0-9_-]{0,40}')
 
 
@@ -86,6 +107,59 @@ def read_app(directory):
     return app, cmdline
 
 
+def elf_kernel(vmlinuz, out):
+    """The uncompressed ELF kernel inside a zstd bzImage (what scripts/extract-vmlinux does): the paravisor's
+    direct-boot loader takes an ELF image, a distribution ships the compressed one."""
+    raw = Path(vmlinuz).read_bytes()
+    at = -1
+    while (at := raw.find(ZSTD_MAGIC, at+1)) >= 0:
+        r = subprocess.run(['zstd', '-dcq'], input=raw[at:], capture_output=True)
+        if r.stdout[:4] == b'\x7fELF' and r.stdout[4] == 2 and int.from_bytes(r.stdout[18:20], 'little') == 62:
+            Path(out).write_bytes(r.stdout)
+            return
+    raise ValueError('no zstd-compressed x86-64 ELF kernel in the kernel image')
+
+
+def igvm_manifest(guest_svn, cmdline):
+    """The reviewed non-debug VBS recipe (the Shield desktop's), with this image's command line and version."""
+    if type(guest_svn) is not int or not 1 <= guest_svn <= 0xffff:
+        raise ValueError('guestSvn')
+    if not re.fullmatch(r'[\x20-\x7e]{1,2000}', cmdline) or '"' in cmdline or '\\' in cmdline:
+        raise ValueError('command line')
+    return {'guest_arch': 'x64', 'guest_configs': [{
+        'guest_svn': guest_svn, 'max_vtl': 2, 'isolation_type': {'vbs': {'enable_debug': False}},
+        'image': {'openhcl': {'command_line': 'OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux', 'memory_page_count': 16384,
+                              'memory_page_base': 32768, 'linux': {'use_initrd': True, 'command_line': cmdline},
+                              'static_command_line': True}}}]}
+
+
+def build_igvm(shield, kernel_elf, initrd, cmdline, out, name):
+    """Run the pinned igvmfilegen. Returns the VBS boot digest it states for the image."""
+    work = out/('.igvm-'+name)
+    work.mkdir()
+    tool = work/'igvmfilegen'
+    shutil.copyfile(shield['igvmfilegen'], tool)
+    os.chmod(tool, 0o500)
+    (work/'manifest.json').write_text(json.dumps(igvm_manifest(shield['guestSvn'], cmdline), indent=2))
+    (work/'resources.json').write_text(json.dumps({'resources': {
+        'openhcl_boot': str(shield['openhclBoot']), 'underhill_kernel': str(shield['underhillKernel']),
+        'underhill_initrd': str(shield['underhillInitrd']), 'linux_kernel': str(kernel_elf), 'linux_initrd': str(initrd)}}))
+    r = subprocess.run([str(tool), 'manifest', '-m', str(work/'manifest.json'), '-r', str(work/'resources.json'),
+                        '-o', str(work/(name+'.bin'))], stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                       env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C'}, timeout=120)
+    if r.returncode != 0:
+        raise RuntimeError('igvmfilegen failed: '+(r.stderr or r.stdout).strip().splitlines()[-1])
+    vbs = json.loads((work/(name+'-vbs.json')).read_text())
+    series = vbs['series']
+    if len(series) != 1 or series[0]['endorsement']['build_info']['debug_build'] is not False \
+            or series[0]['endorsement']['vbs_isvsvn'] != shield['guestSvn']:
+        raise RuntimeError('the image is not the non-debug build at the stated version')
+    digest = series[0]['reference']['vbs_boot_digest'].lower()
+    if not HEX64.fullmatch(digest) or int(digest, 16) == 0:
+        raise RuntimeError('no VBS boot digest')
+    return work, digest
+
+
 def module_order(modules, names):
     """The files to load for these modules, dependencies first, from the kernel's own modules.dep."""
     dep = {}
@@ -113,11 +187,21 @@ def module_order(modules, names):
 def main(specpath):
     os.umask(0o022)
     spec = json.loads(Path(specpath).read_text())
-    if set(spec) != FIELDS:
-        raise ValueError('unsupported build specification')
-    platform = spec['platform']
+    platform = spec.get('platform')
     if platform not in PLATFORM_MODULES:
         raise ValueError('platform %r is not built here' % platform)
+    if set(spec) != FIELDS | ({'shield'} if platform == 'shield' else set()):
+        raise ValueError('unsupported build specification')
+    shield = None
+    if platform == 'shield':
+        if set(spec['shield']) != SHIELD_FIELDS:
+            raise ValueError('unsupported shield specification')
+        shield = {'guestSvn': spec['shield']['guestSvn']}
+        for name, pin in SHIELD_PINS.items():
+            if spec['shield'][name].get('sha256') != pin:
+                raise ValueError('unreviewed OpenHCL input: '+name)
+            shield[name] = pinned(spec['shield'][name], 'path')
+        shield['tpmModule'] = pinned(spec['shield']['tpmModule'], 'path')
     appdir = Path(spec['app']).resolve(strict=True)
     app, app_cmdline = read_app(appdir)
     vmlinuz = pinned(spec['kernel'], 'vmlinuz')
@@ -146,6 +230,13 @@ def main(specpath):
             shutil.copyfile(modules/f, initrd/'modules'/name)
         os.chmod(initrd/'modules'/name, 0o444)
         lines.append('/modules/'+name)
+    if shield:
+        # built for this very kernel, or the kernel refuses it: the release is in the module's vermagic
+        if (b'vermagic='+release.encode()+b' ') not in shield['tpmModule'].read_bytes():
+            raise ValueError('the TPM module was not built for '+release)
+        shutil.copyfile(shield['tpmModule'], initrd/'modules'/TPM_MODULE)
+        os.chmod(initrd/'modules'/TPM_MODULE, 0o444)
+        lines.append('/modules/'+TPM_MODULE)
     (initrd/'module-order.txt').write_text('\n'.join(lines)+'\n')
     run(['gcc', '-static', '-O2', '-Wall', '-Wextra', '-Werror', HERE/'vm-init.c', '-o', initrd/'init'])
     for d in ('proc', 'sys', 'dev', 'lower', 'rw', 'newroot'):
@@ -161,26 +252,47 @@ def main(specpath):
         cpio.communicate(('\n'.join(entries)+'\n').encode())
         if cpio.returncode or gz.wait():
             raise RuntimeError('packing the initramfs failed')
-    shutil.copyfile(vmlinuz, out/'vmlinuz')
-    for name in ('root.img', 'root.verity'):
-        try:
-            os.link(appdir/name, out/name)
-        except OSError:
-            shutil.copyfile(appdir/name, out/name)
     cmdline = PLATFORM_CMDLINE[platform] + ' ' + app_cmdline
     image = {'schema': 'enclave-vm-image/1', 'platform': platform, 'kernel': release, 'cmdline': cmdline,
              'rootHash': app['rootHash'], 'app': app, 'appJsonSha256': sha(appdir/'APP.json'),
-             'artifacts': {n: {'bytes': (out/n).stat().st_size, 'sha256': sha(out/n)}
-                           for n in ('vmlinuz', 'initrd.img', 'root.img', 'root.verity')},
              'modules': [Path(x).name for x in lines],
-             'inputs': {'kernelRootSha256': spec['kernelRoot']['sha256'],
+             'inputs': {'kernelRootSha256': spec['kernelRoot']['sha256'], 'kernelSha256': spec['kernel']['sha256'],
                         'sources': {n: sha(HERE/n) for n in ('vm-init.c', 'build_boot.py')}}}
+    if platform == 'sev-snp':
+        shutil.copyfile(vmlinuz, out/'vmlinuz')
+        for name in ('root.img', 'root.verity'):
+            try:
+                os.link(appdir/name, out/name)
+            except OSError:
+                shutil.copyfile(appdir/name, out/name)
+        names = ('vmlinuz', 'initrd.img', 'root.img', 'root.verity')
+    else:
+        elf_kernel(vmlinuz, work/'vmlinux.elf')
+        # twice, from the same inputs: an image whose bytes or digest differ between runs has no identity to publish
+        first, digest = build_igvm(shield, work/'vmlinux.elf', out/'initrd.img', cmdline, work, 'image')
+        second, again = build_igvm(shield, work/'vmlinux.elf', out/'initrd.img', cmdline, work, 'again')
+        if digest != again or sha(first/'image.bin') != sha(second/'again.bin'):
+            raise RuntimeError('the boot image is not deterministic')
+        shutil.copyfile(first/'image.bin', out/'image.igvm')
+        shutil.copyfile(first/'image-vbs.json', out/'image-vbs.json')
+        import wrap_iso
+        discs = {}
+        for label, name in (('ROOT_DATA', 'root.img'), ('ROOT_HASH', 'root.verity')):
+            discs[label] = wrap_iso.wrap(label, appdir/name, out/(label+'.iso'), app['artifacts'][name]['sha256'])
+        (out/'initrd.img').unlink()   # it is inside image.igvm; a second copy beside it would only invite a mismatch
+        image.update({'launchIdentity': {'vbsBootDigest': digest, 'guestSvn': shield['guestSvn']}, 'discs': discs,
+                      'kernelElfSha256': sha(work/'vmlinux.elf')})
+        image['inputs'].update({'openhcl': SHIELD_PINS, 'tpmModuleSha256': spec['shield']['tpmModule']['sha256']})
+        names = ('image.igvm', 'image-vbs.json', 'ROOT_DATA.iso', 'ROOT_HASH.iso')
+    image['artifacts'] = {n: {'bytes': (out/n).stat().st_size, 'sha256': sha(out/n)} for n in names}
     (out/'IMAGE.json').write_text(json.dumps(image, indent=1)+'\n')
     shutil.rmtree(work)
-    print(json.dumps({'platform': platform, 'rootHash': app['rootHash'], 'cmdline': cmdline}))
+    print(json.dumps({'platform': platform, 'rootHash': app['rootHash'], 'cmdline': cmdline,
+                      **({'vbsBootDigest': image['launchIdentity']['vbsBootDigest']} if shield else {})}))
 
 
 if __name__ == '__main__':
+    sys.path.insert(0, str(HERE))
     if len(sys.argv) != 2:
         raise SystemExit('usage: build_boot.py SPEC.json')
     main(sys.argv[1])

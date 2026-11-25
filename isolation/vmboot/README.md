@@ -10,8 +10,8 @@ that belongs to the platform, so that an app ships **one image** and it boots on
 | kernel, `initrd.img` (`vm-init.c` and every kernel module), the kernel command line's platform half | `build_boot.py` | no: this is the wrapper |
 | how disks are presented (virtio serial, or `wrap_iso.py`'s container) | the host's launcher | no |
 
-Status, 2026-11-25: built and booted for SEV-SNP on metal0, outside any lease. Nothing for an Enclave Shield host is
-built except the pieces named below, and none of it has run on one. No catalog version uses this.
+Status, 2026-11-25: built and booted for SEV-SNP on metal0, outside any lease. For an Enclave Shield host the
+wrapper builds (below) and nothing of it has run on one. No catalog version uses this.
 
 ## The pieces
 
@@ -28,8 +28,14 @@ built except the pieces named below, and none of it has run on one. No catalog v
   auto` takes what the boot offers and refuses a boot that offers neither. It serves TCP and, with `-vsock`, an
   AF_VSOCK port (virtio or Hyper-V sockets) for a host that reaches guests without a network.
 - **`build_boot.py`**: wraps an app image for one platform. The app's half of the command line (root hash,
-  geometry, model volume) is derived from `APP.json` alone and is the same string everywhere. Only `sev-snp` is
-  built.
+  geometry, model volume) is derived from `APP.json` alone and is the same string everywhere. `sev-snp` gives the
+  layout `rpc/snp/launch.py` boots. `shield` gives `image.igvm` (the reviewed OpenHCL set, the kernel as an ELF image
+  taken out of the distribution's compressed one, the initramfs, the command line), the VBS boot digest
+  igvmfilegen states for it, and the app's disks in `wrap_iso.py` containers; it builds the image twice and refuses
+  one whose bytes or digest differ.
+- **`shield-tpm/`**: the paravisor TPM driver (`isolation/m3/vtpm/enclave_openhcl_tpm.c`) built as a module for a
+  distribution kernel, in an Ubuntu 24.04 container with the kernel's own compiler. `tpm.h` there stands in for the
+  kernel's private header, which header packages do not ship.
 - **`wrap_iso.py`**: the labelled ISO 9660 container Hyper-V's DVD backend needs around a raw image.
 
 ## What an app provides
@@ -48,12 +54,25 @@ the kernel modules the app needs loaded, its protected ports and an optional mod
   no report source, and the guest powered off. With two discs carrying one label and none carrying the other,
   vm-init refused.
 
+- Shield wrapper of the same KVM Box app image, with the same Ubuntu 6.8.0-147 kernel as the SEV-SNP wrapper: it
+  builds, twice to the same bytes (58 MB) and the same VBS boot digest. The TPM module built twice to the same
+  bytes, and the Ubuntu kernel links it: loaded under plain KVM, its own start answers "no such device", as it
+  must off Hyper-V.
+
+## One kernel on both platforms: what is known
+
+The same kernel binary is in both wrappers, compressed for QEMU and as the ELF image inside it for the paravisor's
+loader. Under SEV-SNP it boots. Under an ordinary Hyper-V VM on the NucBox the same release boots (a test VM, UEFI,
+no paravisor). Whether it boots under the Shield path (VBS isolation, OpenHCL's direct Linux loader, no UEFI and no
+ACPI TPM table) is not known until one such partition is started: that is the next step and it touches the NucBox.
+
 ## Not built, not tried
 
-- A Shield wrapper: its boot image is an IGVM file holding an ELF kernel, and whether one kernel serves both
-  platforms is open (the Ubuntu 6.8 kernel used here has the Hyper-V drivers as modules but not the paravisor TPM
-  driver, `isolation/m3/vtpm/enclave_openhcl_tpm.c`).
-- The `shield` report source against a real paravisor, and what writes its deployment file.
+- A boot of the Shield wrapper. The `shield` report source against a real paravisor, and what writes its
+  deployment file.
+- How a Shield host's launcher attaches these images: the model volume's container is not made here (20 GB; the
+  launcher's own model-volume path may serve it), and the node refuses whole-VM deployments.
+- The Shield image's version number (`guestSvn`) and how a host admits its digest: the probe used 1.
 - Verifiers: every whole-VM verifier accepts only `sev-snp-vm-v1`. A version that lists one root hash with a launch
   identity per platform does not exist yet.
 - Enclave RPC still uses its own image and front (`rpc/snp`).

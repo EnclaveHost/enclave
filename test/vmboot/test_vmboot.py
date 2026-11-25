@@ -56,6 +56,44 @@ class AppImage(unittest.TestCase):
         self.assertIn('dm-verity', boot.PLATFORM_MODULES['sev-snp'])
 
 
+class ShieldWrapper(unittest.TestCase):
+    def test_the_boot_recipe_is_the_non_debug_one_with_this_images_command_line(self):
+        m = boot.igvm_manifest(7, 'console=ttyS0 enclave.roothash=' + 'ab'*32)
+        c = m['guest_configs'][0]
+        self.assertEqual((c['guest_svn'], c['max_vtl'], c['isolation_type']), (7, 2, {'vbs': {'enable_debug': False}}))
+        self.assertEqual(c['image']['openhcl']['linux'], {'use_initrd': True, 'command_line': 'console=ttyS0 enclave.roothash=' + 'ab'*32})
+        self.assertIs(c['image']['openhcl']['static_command_line'], True)
+        for svn, line in ((0, 'x'), (70000, 'x'), (True, 'x'), (1, ''), (1, 'a"b'), (1, 'a\nb'), (1, 'a\\b')):
+            with self.assertRaises(ValueError, msg=repr((svn, line))):
+                boot.igvm_manifest(svn, line)
+
+    def test_only_the_reviewed_paravisor_is_wrapped(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            app_dir(d)
+            for name in ('k', 'r', 'x'):
+                (d/name).write_bytes(name.encode())
+            pin = lambda n: {'path': str(d/n), 'sha256': sha(n.encode())}
+            spec = {'out': str(d/'out'), 'app': str(d), 'platform': 'shield', 'kernel': {'vmlinuz': str(d/'k'), 'sha256': sha(b'k')},
+                    'kernelRoot': {'image': str(d/'r'), 'sha256': sha(b'r'), 'release': '6.8.0-147-generic'},
+                    'shield': {n: pin('x') for n in ('igvmfilegen', 'openhclBoot', 'underhillKernel', 'underhillInitrd', 'tpmModule')} | {'guestSvn': 1}}
+            (d/'spec.json').write_text(json.dumps(spec))
+            with self.assertRaisesRegex(ValueError, 'unreviewed OpenHCL input'):
+                boot.main(d/'spec.json')
+            self.assertFalse((d/'out').exists())
+            spec.pop('shield')
+            (d/'spec.json').write_text(json.dumps(spec))
+            with self.assertRaisesRegex(ValueError, 'unsupported build specification'):
+                boot.main(d/'spec.json')
+
+    def test_a_kernel_image_without_an_elf_kernel_is_refused(self):
+        with tempfile.TemporaryDirectory() as t:
+            (Path(t)/'k').write_bytes(b'MZ' + b'\x00' * 4096)
+            with self.assertRaises(ValueError):
+                boot.elf_kernel(Path(t)/'k', Path(t)/'out')
+            self.assertFalse((Path(t)/'out').exists())
+
+
 class DiscWrapper(unittest.TestCase):
     def test_label_where_vm_init_reads_it_and_payload_at_65536(self):
         with tempfile.TemporaryDirectory() as t:
