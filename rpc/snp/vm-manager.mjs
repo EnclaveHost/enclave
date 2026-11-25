@@ -37,6 +37,7 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ControlServer, parseKey } from "../../windows/vbslike/manager/control.mjs";
 import { createAttestedFetch } from "./attested-fetch.mjs";
+import { contentRef, fetchImage, fetchableImage } from "./image-fetch.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ID32 = /^0x[0-9a-f]{64}$/, HEX = (n) => new RegExp(`^[0-9a-f]{${n}}$`);
@@ -46,6 +47,7 @@ export const ATTEST_EVERY_MS = 5 * 60_000;
 export const APP_ZONE = "app.enclave.host";
 const CERT_RETRY_MIN_MS = 60_000, CERT_RETRY_MAX_MS = 60 * 60_000;
 export const POOL_UNIT_PREFIX = "enclave-vm", POOL_FRONT_PORT = 8443;
+export const FETCH_RETRY_MS = 15 * 60_000;   // a failed image fetch is not tried again sooner
 
 export const idFor = (name) => "sv" + sha256(String(name).toLowerCase()).slice(0, 16);
 const fail = (status, message, extra = {}) => Object.assign(new Error(message), { status, ...extra });
@@ -64,8 +66,12 @@ export function parsePlan(p) {
   if (p.vcpuType !== "EPYC-v4") throw fail(400, "snpVm.vcpuType must be EPYC-v4 (the type launch.py boots)");
   const im = p.image || {};
   for (const k of ["rootHash", "ovmfSha256", "cmdlineSha256"]) if (!HEX(64).test(String(im[k]))) throw fail(400, `snpVm.image.${k} must be 32-byte hex`);
+  const extraIm = Object.keys(im).filter((k) => !["rootHash", "ovmfSha256", "cmdlineSha256", "manifest"].includes(k));
+  if (extraIm.length) throw fail(400, `unknown snpVm.image field ${extraIm[0]}`);
+  let manifest = null;
+  if (im.manifest !== undefined) try { manifest = contentRef(im.manifest, "snpVm.image.manifest"); } catch (e) { throw fail(400, e.message); }
   return { appRef: p.appRef, vcpus: p.vcpus, memMiB: p.memMiB, measurements: [...p.measurements], vcpuType: p.vcpuType,
-           image: { rootHash: im.rootHash, ovmfSha256: im.ovmfSha256, cmdlineSha256: im.cmdlineSha256 } };
+           image: { rootHash: im.rootHash, ovmfSha256: im.ovmfSha256, cmdlineSha256: im.cmdlineSha256, ...(manifest ? { manifest } : {}) } };
 }
 
 /** Does the bound image on disk match what the catalog version pins? Returns the launch config launch.py takes. */
@@ -99,7 +105,7 @@ export function validateConfig(c) {
   if (c.pool !== undefined) {
     const p = c.pool, int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
     if (!p || typeof p !== "object" || Array.isArray(p)) throw new Error("pool must be an object");
-    const extra = Object.keys(p).filter((k) => !["images", "run", "slots", "portBase", "frontPort", "maxVcpus", "maxMemMiB", "unitPrefix"].includes(k));
+    const extra = Object.keys(p).filter((k) => !["images", "run", "slots", "portBase", "frontPort", "maxVcpus", "maxMemMiB", "unitPrefix", "fetch"].includes(k));
     if (extra.length) throw new Error(`unknown pool field ${extra[0]}`);
     for (const k of ["images", "run"]) if (typeof p[k] !== "string" || !path.isAbsolute(p[k])) throw new Error(`pool.${k} must be an absolute path`);
     if (!int(p.slots, 1, 64)) throw new Error("pool.slots must be 1..64");
@@ -108,6 +114,14 @@ export function validateConfig(c) {
     if (!int(p.maxVcpus, 1, 64)) throw new Error("pool.maxVcpus must be 1..64");
     if (!int(p.maxMemMiB, 1024, 1 << 20)) throw new Error("pool.maxMemMiB must be 1024..1048576");
     if (p.unitPrefix !== undefined && !/^[A-Za-z0-9@._-]+$/.test(String(p.unitPrefix))) throw new Error("pool.unitPrefix is not safe");
+    if (p.fetch !== undefined) {
+      // fetch: this host takes images it does not hold from these gateways, each byte checked against the version's manifest
+      const f = p.fetch;
+      if (!f || typeof f !== "object" || Array.isArray(f) || Object.keys(f).sort().join() !== "gateways,maxImageBytes") throw new Error("pool.fetch must be {gateways, maxImageBytes}");
+      if (!Array.isArray(f.gateways) || !f.gateways.length || f.gateways.length > 8 || f.gateways.some((g) => !/^https:\/\/[^\s?#]+\/$/.test(String(g))))
+        throw new Error("pool.fetch.gateways must be 1 to 8 https URLs ending in / (the CID is appended)");
+      if (!Number.isSafeInteger(f.maxImageBytes) || f.maxImageBytes < 1 << 20) throw new Error("pool.fetch.maxImageBytes must be at least 1 MiB");
+    }
     const prefix = p.unitPrefix || POOL_UNIT_PREFIX;
     for (const [name, b] of Object.entries(c.bindings || {})) {
       if (b.hostfwd.some(([h]) => h >= p.portBase && h < p.portBase + p.slots)) throw new Error(`binding ${name} forwards a port inside the pool's range`);
@@ -159,6 +173,8 @@ export class SnpVmManager {
     this.csr = csr || (() => import("../../relay/certs.js").then((m) => ({ parse: m.parseCsr, message: m.issueMessage })));
     this.stateDir = cfg.stateDir || path.join(HERE, "state");
     this.slots = new Map();   // pooled deployment id -> { slot, rootHash, cpus }
+    this.fetching = new Map();      // image root hash -> the fetch in flight
+    this.fetchFailed = new Map();   // image root hash -> { at, error } of its last failed fetch
   }
 
   /** The operator's binding for a deployment, or the one its pool slot gives it. null: this host does not run it. */
@@ -181,6 +197,25 @@ export class SnpVmManager {
   poolImages() {
     let names = []; try { names = fs.readdirSync(this.cfg.pool.images); } catch { return []; }
     return names.filter((n) => HEX(64).test(n) && fs.existsSync(path.join(this.cfg.pool.images, n, "IMAGE.json"))).sort();
+  }
+
+  /** Start fetching an image this pool does not hold. Answers at once: held, fetching, or why not. One fetch per image;
+   *  a failed one is reported in /health and not retried for FETCH_RETRY_MS. */
+  fetchPoolImage(body) {
+    const f = this.cfg.pool?.fetch;
+    if (!f) throw fail(403, "this host fetches no images");
+    let image; try { image = fetchableImage(body?.image); } catch (e) { throw fail(400, e.message); }
+    const root = image.rootHash;
+    if (this.poolImages().includes(root)) return { status: 200, body: { rootHash: root, held: true } };
+    if (!this.fetching.has(root)) {
+      const last = this.fetchFailed.get(root);
+      if (last && this.now() - last.at < FETCH_RETRY_MS) throw fail(409, `the last fetch of this image failed: ${last.error}`);
+      this.fetching.set(root, fetchImage(image, this.cfg.pool.images, { gateways: f.gateways, maxBytes: f.maxImageBytes, fetch: this.fetch })
+        .then(() => { this.fetchFailed.delete(root); console.log(`[snp-vm] image ${root.slice(0, 12)}… fetched`); },
+              (e) => { this.fetchFailed.set(root, { at: this.now(), error: String(e.message).slice(0, 300) }); console.log(`[snp-vm] image ${root.slice(0, 12)}… not fetched: ${e.message}`); })
+        .finally(() => this.fetching.delete(root)));
+    }
+    return { status: 202, body: { rootHash: root, fetching: true } };
   }
 
   /** Take (or re-point) this deployment's pool slot for a plan. Refuses what the pool cannot hold; starts nothing. */
@@ -234,7 +269,8 @@ export class SnpVmManager {
     return { backend: "snp-vm", proto: "guestd-control/1", bindings: Object.keys(this.cfg.bindings || {}),
              supports: { snpVm: true, ports: false, secrets: false }, instances: this.instances.size,
              ...(p ? { pool: { slots: p.slots, free: p.slots - this.slots.size, maxVcpus: p.maxVcpus, maxMemMiB: p.maxMemMiB,
-                               images: this.poolImages(), allocated: [...this.slots.keys()] } } : {}) };
+                               images: this.poolImages(), allocated: [...this.slots.keys()], fetch: !!p.fetch,
+                               fetching: [...this.fetching.keys()], fetchFailed: Object.fromEntries([...this.fetchFailed].map(([k, v]) => [k, v.error])) } } : {}) };
   }
 
   async refresh(inst) {
@@ -386,6 +422,7 @@ export class SnpVmManager {
       if (method === "GET" && route === "/vms") return { status: 200, body: { vms: await this.list() } };
       if (method === "POST" && route === "/vms/lease") return { status: 200, body: { unvouched: [] } };
       if (method === "POST" && route === "/vms") return { status: 201, body: await this.spawn(json()) };
+      if (method === "POST" && route === "/images") return this.fetchPoolImage(json());
       const m = route.match(/^\/vms\/(sv[0-9a-f]{16})$/);
       if (m && method === "GET") { const v = await this.get(m[1]); return v ? { status: 200, body: v } : { status: 404, body: { error: "not_found" } }; }
       if (m && method === "DELETE") { const r = await this.remove(m[1]); return r.absent ? { status: 404, body: { error: "not_found" } } : { status: 200, body: { ok: true } }; }

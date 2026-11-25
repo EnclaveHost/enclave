@@ -106,6 +106,23 @@ test("claim gate: an unbound deployment is taken by the manager's instance pool 
   // a deployment that already holds a slot, and a resume, are not refused for a full pool
   assert.equal(await withPool(pool({ free: 0, allocated: [DEP.toUpperCase().replace("0X", "0x")] })).ctx.snpVmConsider(row(), gate(), opt), "claimed");
   assert.equal(await withPool(pool({ free: 0 })).ctx.snpVmConsider(row(), gate(), opt, { resume: true }), "claimed");
+  // an image the host may fetch is asked for and the lease left for a later turn; nothing is claimed meanwhile
+  const manifest = { cid: "bafkreigcdalt2wtxwqrf2pvn2mjgit3yfod7aytpiwmju6yifn26z6flmi", sha256: "ab".repeat(32), bytes: 900 };
+  const published = gate({ config: JSON.stringify({ ...RELEASE.config, image: { ...RELEASE.config.image, manifest } }) });
+  const asked = [];
+  const fetching = (p, answer = { status: 202, body: { fetching: true } }) => sandbox({ snpVmReq: async (m, path, b) => {
+    if (path === "/health") return { status: 200, body: { backend: "snp-vm", bindings: [], pool: p } };
+    asked.push([m, path, b]); return answer; } });
+  const s = fetching(pool({ images: [], fetch: true }));
+  assert.match(await s.ctx.snpVmConsider(row(), published, opt), /is fetching this version's image/);
+  assert.deepEqual([asked[0][0], asked[0][1], asked[0][2].image.rootHash, { ...asked[0][2].image.manifest }], ["POST", "/images", root, manifest]);
+  assert.equal(s.calls.tryClaim.length, 0);
+  assert.match(await fetching(pool({ images: [], fetch: true }), { status: 409, body: { error: "the last fetch of this image failed: x" } }).ctx.snpVmConsider(row(), published, opt), /does not hold this version's image.*fetch refused: the last fetch/);
+  // a version that names no manifest, or a host that fetches nothing, is refused as before and nothing is asked
+  asked.length = 0;
+  assert.match(await fetching(pool({ images: [], fetch: true })).ctx.snpVmConsider(row(), gate(), opt), /does not hold this version's image for its instance pool$/);
+  assert.match(await fetching(pool({ images: [] })).ctx.snpVmConsider(row(), published, opt), /does not hold this version's image for its instance pool$/);
+  assert.equal(asked.length, 0);
   assert.match(await withPool(null).ctx.snpVmConsider(row(), gate(), opt), /no snp-vm binding/);
 });
 

@@ -286,14 +286,17 @@ test("pool config: bounded slots and ports, absolute paths, no overlap with an o
   assert.equal(validateConfig(cfg).pool.slots, 2);
   for (const [over, why] of [[{ slots: 0 }, /slots/], [{ slots: 65 }, /slots/], [{ portBase: 65535 }, /portBase/], [{ images: "images" }, /absolute/],
     [{ maxVcpus: 0 }, /maxVcpus/], [{ maxMemMiB: 512 }, /maxMemMiB/], [{ unitPrefix: "a b" }, /unitPrefix/], [{ extra: 1 }, /unknown pool field/],
-    [{ portBase: 18443 }, /inside the pool's range/], [{ unitPrefix: "enclave-rpc-snp" }, /pool's namespace/]])
+    [{ portBase: 18443 }, /inside the pool's range/], [{ unitPrefix: "enclave-rpc-snp" }, /pool's namespace/],
+    [{ fetch: true }, /pool\.fetch must be/], [{ fetch: { gateways: ["https://gw.test/ipfs/"] } }, /pool\.fetch must be/],
+    [{ fetch: { gateways: ["http://gw.test/ipfs/"], maxImageBytes: 1 << 30 } }, /https URLs ending in \//], [{ fetch: { gateways: ["https://gw.test/ipfs"], maxImageBytes: 1 << 30 } }, /ending in \//],
+    [{ fetch: { gateways: [], maxImageBytes: 1 << 30 } }, /1 to 8/], [{ fetch: { gateways: ["https://gw.test/ipfs/"], maxImageBytes: 5 } }, /at least 1 MiB/]])
     assert.throws(() => validateConfig({ ...cfg, pool: { ...cfg.pool, ...over } }), why, JSON.stringify(over));
 });
 
 test("pool: an unbound deployment takes a slot, boots the held image stateless on the slot's port, and health says what is left", async () => {
   const { cfg } = poolFixture();
   const h = fakeHost(), m = pooled(h, cfg);
-  assert.deepEqual(m.health().pool, { slots: 2, free: 2, maxVcpus: 8, maxMemMiB: 65536, images: [ROOT_HASH], allocated: [] });
+  assert.deepEqual(m.health().pool, { slots: 2, free: 2, maxVcpus: 8, maxMemMiB: 65536, images: [ROOT_HASH], allocated: [], fetch: false, fetching: [], fetchFailed: {} });
   const r = await post(m, DEP2);
   assert.equal(r.status, 201);
   const run = h.calls.find((c) => c[0] === "systemd-run");
@@ -353,4 +356,68 @@ test("pool: after a manager restart a running pooled VM keeps its slot and port;
   assert.equal((await m2.handle({ method: "GET", path: `/vms/${b.body.id}` })).body.status, "running");
   assert.equal((await post(m2, DEP2)).status, 201);                    // and DEP2 can be launched again, in the freed slot
   assert.equal(m2.binding(DEP2).attestOrigin, "https://127.0.0.1:19000");
+});
+
+// ---- images fetched by content address (rpc/snp/image-fetch.mjs) -------------------------------------------------
+const cidOf = (b) => "bafkrei" + sha(b).replace(/[^a-z2-7]/g, "a").slice(0, 52);
+function publishedImage(root = "4e".repeat(32)) {
+  const cmdline = "root=/dev/mapper/vroot ro enclave.roothash=" + root + " console=ttyS0";
+  const files = Object.fromEntries(["vmlinuz", "initrd.img", "root.img", "root.verity"].map((n) => [n, Buffer.from(n + " of " + root)]));
+  const manifest = Buffer.from(JSON.stringify({ cmdline, rootHash: root, artifacts: Object.fromEntries(Object.entries(files).map(([n, b]) => [n, { bytes: b.length, sha256: sha(b), cid: cidOf(b) }])) }));
+  const store = new Map([[cidOf(manifest), manifest], ...Object.values(files).map((b) => [cidOf(b), b])]);
+  const image = { rootHash: root, ovmfSha256: sha(OVMF), cmdlineSha256: sha(cmdline), manifest: { cid: cidOf(manifest), sha256: sha(manifest), bytes: manifest.length } };
+  return { root, store, image };
+}
+const gatewayOf = (store, state = { up: true }) => async (url) => {
+  const b = state.up && store.get(String(url).slice(String(url).lastIndexOf("/") + 1));
+  return b ? { ok: true, status: 200, body: (async function* () { yield b; })() } : { ok: false, status: 502, body: null };
+};
+const FETCH = { gateways: ["https://gw.test/ipfs/"], maxImageBytes: 1 << 20 };
+const images = (m, image) => m.handle({ method: "POST", path: "/images", body: JSON.stringify({ image }) });
+
+test("a plan may name its image's manifest, and only as a content reference", () => {
+  const p = publishedImage();
+  assert.deepEqual(parsePlan(plan({ image: p.image })).image.manifest, p.image.manifest);
+  assert.equal(parsePlan(plan()).image.manifest, undefined);
+  assert.throws(() => parsePlan(plan({ image: { ...p.image, manifest: { ...p.image.manifest, cid: "../x" } } })), /manifest\.cid is not a CID/);
+  assert.throws(() => parsePlan(plan({ image: { ...p.image, url: "https://x/" } })), /unknown snpVm\.image field url/);
+});
+
+test("images: a pool that fetches takes an image it does not hold, says so in health, and then launches it", async () => {
+  const p = publishedImage(), { cfg } = poolFixture({ fetch: FETCH });
+  const h = fakeHost();
+  const m = new SnpVmManager(cfg, { exec: h.exec, attest: async () => true, diskUsers: () => [], launcher: "/opt/launch.py", ovmf: cfg.bindings[DEP].ovmf, fetch: gatewayOf(p.store) });
+  assert.equal(m.health().pool.fetch, true);
+  const lease = plan({ image: p.image });
+  assert.equal((await post(m, DEP2, lease)).status, 409, "nothing launches from an image that is not held");
+  const first = await images(m, p.image);
+  assert.deepEqual([first.status, first.body], [202, { rootHash: p.root, fetching: true }]);
+  assert.deepEqual(m.health().pool.fetching, [p.root]);
+  assert.equal((await images(m, p.image)).status, 202, "asked again while fetching: the same fetch");
+  await m.fetching.get(p.root);
+  assert.deepEqual([m.health().pool.images, m.health().pool.fetching, m.health().pool.fetchFailed], [[ROOT_HASH, p.root].sort(), [], {}]);
+  assert.deepEqual((await images(m, p.image)).body, { rootHash: p.root, held: true });
+  assert.equal((await post(m, DEP2, lease)).status, 201);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(cfg.stateDir, DEP2 + ".launch.json"), "utf8")).image, path.join(cfg.pool.images, p.root));
+});
+
+test("images: a failed fetch is reported, not retried at once, and retried later; a pool without fetch takes none", async () => {
+  const p = publishedImage(), { cfg } = poolFixture({ fetch: FETCH });
+  const state = { up: false }; let clock = 1_000_000;
+  const m = new SnpVmManager(cfg, { exec: fakeHost().exec, attest: async () => true, diskUsers: () => [], fetch: gatewayOf(p.store, state), now: () => clock });
+  assert.equal((await images(m, p.image)).status, 202);
+  await m.fetching.get(p.root);
+  assert.match(m.health().pool.fetchFailed[p.root], /no gateway served .*gw\.test: answered 502/);
+  assert.deepEqual(fs.readdirSync(cfg.pool.images).sort(), [ROOT_HASH, "not-an-image"].sort(), "no partial image is left");
+  state.up = true;
+  const soon = await images(m, p.image);
+  assert.equal(soon.status, 409); assert.match(soon.body.error, /last fetch of this image failed/);
+  clock += 15 * 60_000;
+  assert.equal((await images(m, p.image)).status, 202);
+  await m.fetching.get(p.root);
+  assert.deepEqual(m.health().pool.fetchFailed, {});
+  assert.ok(m.health().pool.images.includes(p.root));
+  assert.equal((await images(m, { rootHash: p.root })).status, 400);
+  const none = new SnpVmManager(poolFixture().cfg, { exec: fakeHost().exec, attest: async () => true, diskUsers: () => [] });
+  assert.equal((await images(none, p.image)).status, 403);
 });

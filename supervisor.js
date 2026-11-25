@@ -4790,8 +4790,8 @@ function parseSnpVmOption(v) {
   if (bad.length) throw new Error(`unknown snpVm option ${JSON.stringify(bad[0])}`);
   if (typeof v.app !== "string" || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(v.app)) throw new Error("snpVm.app must be a short lowercase name");
   if (!/^catalog:\/\/0x[0-9a-fA-F]{64}\/\d+$/.test(String(v.measurementsFrom))) throw new Error("snpVm.measurementsFrom must be catalog://<appId>/<index>");
-  if (v.vcpus !== undefined && !(Number.isInteger(v.vcpus) && v.vcpus >= 1 && v.vcpus <= 512)) throw new Error("snpVm.vcpus must be a whole number of vCPUs");
-  if (v.memMiB !== undefined && !(Number.isInteger(v.memMiB) && v.memMiB >= 1024 && v.memMiB <= 4194304)) throw new Error("snpVm.memMiB must be a whole number of MiB, at least 1024");
+  if (v.vcpus !== undefined && !(Number.isInteger(v.vcpus) && v.vcpus >= 1 && v.vcpus <= 64)) throw new Error("snpVm.vcpus must be a whole number of vCPUs");
+  if (v.memMiB !== undefined && !(Number.isInteger(v.memMiB) && v.memMiB >= 1024 && v.memMiB <= 1048576)) throw new Error("snpVm.memMiB must be a whole number of MiB, at least 1024");
   return { app: v.app, measurementsFrom: v.measurementsFrom, ...(v.vcpus !== undefined ? { vcpus: v.vcpus } : {}), ...(v.memMiB !== undefined ? { memMiB: v.memMiB } : {}) };
 }
 // The launch plan, from the APPROVED catalog version gateAppReference just read: what the manager must match on disk.
@@ -4814,9 +4814,13 @@ function snpVmPlanOf(g, appRef, opt = {}) {
   if (!Number.isSafeInteger(minMiB) || minMiB < 1024) throw new Error("the version declares no memory size");
   if (opt.memMiB !== undefined && opt.memMiB < minMiB) throw new Error(`the version needs at least ${minMiB} MiB`);
   const memMiB = opt.memMiB !== undefined ? opt.memMiB : minMiB;
+  // image.manifest {cid, sha256, bytes}: where a host that does not hold the image may fetch it (rpc/snp/image-fetch.mjs).
+  // Passed as published; the manager checks it and every byte it leads to.
+  const mf = im.manifest && typeof im.manifest === "object" && !Array.isArray(im.manifest)
+    ? { manifest: { cid: String(im.manifest.cid), sha256: String(im.manifest.sha256), bytes: Number(im.manifest.bytes) } } : {};
   return { appRef, vcpus: Number(key), memMiB, measurements: m, vcpuType: String(c.snp.vcpuType || ""),
            image: { rootHash: String(im.rootHash || "").toLowerCase(), ovmfSha256: String(im.ovmfSha256 || "").toLowerCase(),
-                    cmdlineSha256: String(im.cmdlineSha256 || "").toLowerCase() } };
+                    cmdlineSha256: String(im.cmdlineSha256 || "").toLowerCase(), ...mf } };
 }
 // A whole VM runs on the host's own cores and RAM, the same ones the node's pool sells, so it holds a CPU share like any
 // other deployment: what its owner dialed, or what the VM needs of this node if that is more. (Until 2026-11-19 it was
@@ -4856,10 +4860,11 @@ function snpVmResize(rec, d) {
 // A deployment the operator bound nothing to can still run in the manager's instance pool: a stateless whole VM in a
 // free slot, from an image the host already holds, within the pool's size. null: the pool takes it. A deployment that
 // holds a slot already (a resume, or a launch being retried) is never refused for the sake of the others.
+const SNPVM_NO_IMAGE = "this host does not hold this version's image for its instance pool";
 function snpVmPoolRefusal(pool, id, plan, resume = false) {
   if (!pool || typeof pool !== "object") return "this host has no snp-vm binding (image, chain disks) for this deployment";
   if ((pool.allocated || []).map(lc).includes(lc(id))) return null;
-  if (!(pool.images || []).map(lc).includes(plan.image.rootHash)) return "this host does not hold this version's image for its instance pool";
+  if (!(pool.images || []).map(lc).includes(plan.image.rootHash)) return SNPVM_NO_IMAGE;
   if (plan.vcpus > Number(pool.maxVcpus) || plan.memMiB > Number(pool.maxMemMiB)) return "this whole VM is larger than this host's instance pool takes";
   if (!resume && !(Number(pool.free) >= 1)) return "no free instance slot here right now";
   return null;
@@ -4870,7 +4875,16 @@ async function snpVmConsider(d, g, opt, { resume = false, hinted = false } = {})
   let h = null;
   try { const r = await snpVmReq("GET", "/health", null, 5000); h = r.status === 200 ? r.body : null; } catch { h = null; }
   if (!h || h.backend !== "snp-vm") return "this host has no whole-VM SEV-SNP manager (snp-vm) answering";
-  if (!(h.bindings || []).map(lc).includes(lc(d.id))) { const why = snpVmPoolRefusal(h.pool, d.id, plan, resume); if (why) return why; }
+  if (!(h.bindings || []).map(lc).includes(lc(d.id))) {
+    const why = snpVmPoolRefusal(h.pool, d.id, plan, resume);
+    // An image this host may fetch is asked for now and the lease is left for a later turn: nothing is claimed for
+    // an image that is not on disk. The manager fetches once per image and answers at once.
+    if (why === SNPVM_NO_IMAGE && h.pool.fetch === true && plan.image.manifest) {
+      try { const r = await snpVmReq("POST", "/images", { image: plan.image }, 10000); if (r.status === 200 || r.status === 202) return "this host is fetching this version's image; it takes the lease once it holds it"; return `${why} (fetch refused: ${String(r.body && r.body.error || r.status).slice(0, 160)})`; }
+      catch (e) { return `${why} (fetch not asked: ${String(e.message).slice(0, 160)})`; }
+    }
+    if (why) return why;
+  }
   const firewall = parseFirewall({ ports: g.ports ? String(g.ports).split(",") : [] });
   let slice; try { slice = snpVmSlice(plan, d.cpuMilli); } catch (e) { return "snpVm: " + e.message; }
   const room = claimFreeCpu();
