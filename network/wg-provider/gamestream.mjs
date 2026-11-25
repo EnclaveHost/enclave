@@ -20,7 +20,7 @@
 //
 // The UDP ports carry live video, audio and input, and a tunnel is TCP: on a path that loses packets a plain tunnel
 // queues them and the picture falls behind without bound. So a UDP association asks the app's front for a FLOW
-// (port-flow.mjs; isolation/m2/front/tunnel_flow.go): `flowLanes` connections per port instead of one, each end
+// (port-flow.mjs; isolation/m2/tunnel/tunnel_flow.go): `flowLanes` connections per port instead of one, each end
 // reporting what it received, the front dropping what would be late and sending again what a stalled connection
 // holds, this end delivering in order. A front that does not answer the flow header gets the plain tunnel.
 import net from 'node:net';

@@ -5,6 +5,8 @@ python3 -I rpc/snp/launch.py CONFIG.json   (as the main process of its systemd u
 CONFIG: {"image": DIR with IMAGE.json, "run": private run dir, "memoryMiB", "cpus",
          "disks": [{"path": qcow2, "serial": "RPC-l1", "cache": optional "none" (default) or "writeback",
                     "discard": optional true}...],
+         "roDisks": optional [{"path": raw image, "serial": "MODELS"}...], attached read-only,
+         "name": optional QEMU process name (default enclave-rpc-snp),
          "hostfwd": [[host, guest]...],
          "hostData": optional 64 hex chars, the EnclaveDeployments id this guest serves}
 
@@ -12,6 +14,8 @@ The image artifacts are checked against IMAGE.json before launch; the kernel,
 initrd and the cmdline carrying the verity root hash are what SEV-SNP measures
 (kernel-hashes=on), so a changed artifact either refuses here or changes the
 attested measurement. Chain disks are ordinary writable disks owned by this host.
+A read-only disk (a model volume) is equally the host's to serve: an image that uses one opens it through dm-verity
+with a root hash on its measured cmdline, so what the guest reads is either the pinned bytes or an I/O error.
 hostData becomes SNP HOST_DATA: carried in every attestation report but not in the
 measurement, so one measured image can serve a deployment created after it was published,
 and consumers (rpc/snp/chain-policy.mjs) require the report to name their deployment.
@@ -23,6 +27,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import socket
 import subprocess
@@ -62,8 +67,11 @@ def main(config_path):
         if len(host_data) != 32:
             raise ValueError('hostData must be 32 bytes')
         snp += ',host-data=' + base64.b64encode(host_data).decode()
+    name = c.get('name', 'enclave-rpc-snp')
+    if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,40}', name):
+        raise ValueError('name must be lowercase letters, digits and dashes')
     fwd = ','.join('hostfwd=tcp:127.0.0.1:%d-:%d' % (h, g) for h, g in c['hostfwd'])
-    args = ['/usr/sbin/qemu-system-x86_64', '-name', 'enclave-rpc-snp',
+    args = ['/usr/sbin/qemu-system-x86_64', '-name', name,
             '-machine', 'q35,accel=kvm,confidential-guest-support=cx0,memory-backend=ram0', '-cpu', 'EPYC-v4',
             '-smp', str(c['cpus']), '-m', str(c['memoryMiB']),
             '-object', 'memory-backend-memfd,id=ram0,size=%dM,share=true,prealloc=false' % c['memoryMiB'],
@@ -77,6 +85,11 @@ def main(config_path):
             '-device', 'virtio-blk-pci,drive=rooth,serial=ROOT-HASH',
             '-netdev', 'user,id=net0'+(','+fwd if fwd else ''), '-device', 'virtio-net-pci,netdev=net0']
     binds = []
+    for i, d in enumerate(c.get('roDisks', [])):
+        if set(d) != {'path', 'serial'} or not re.fullmatch(r'[A-Z0-9-]{1,20}', d['serial']) or ',' in d['path']:
+            raise ValueError('a read-only disk is {"path", "serial"}')
+        args += ['-drive', 'file=%s,format=raw,if=none,id=ro%d,readonly=on' % (d['path'], i),
+                 '-device', 'virtio-blk-pci,drive=ro%d,serial=%s' % (i, d['serial'])]
     for i, d in enumerate(c.get('disks', [])):
         # cache=writeback puts the host page cache under the guest's own: Base's execution stage
         # issues one random state read at a time and waited on the NVMe with no vCPU busy

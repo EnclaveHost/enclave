@@ -1,4 +1,4 @@
-package main
+package tunnel
 
 // TLS terminates inside this measured front. Untrusted hops see ciphertext.
 // Destinations come only from the measured bundle, never from client addresses.

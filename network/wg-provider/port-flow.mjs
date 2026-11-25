@@ -1,4 +1,4 @@
-// The client's side of a port-tunnel flow (isolation/m2/front/tunnel_flow.go has the protocol and the reasons): a UDP
+// The client's side of a port-tunnel flow (isolation/m2/tunnel/tunnel_flow.go has the protocol and the reasons): a UDP
 // tunnel over several connections ("lanes") whose two ends report what they received, so live datagrams stay current
 // when a connection falls behind instead of queueing behind it.
 //

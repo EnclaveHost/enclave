@@ -39,7 +39,7 @@ another lane, sends again on another lane what a stalled lane holds, drops
 what would arrive too late to matter, and closes a lane that stays stalled;
 the client delivers in sequence, once, makes a missing datagram from its
 parity group when the rest is there, and otherwise waits for it about the
-repair time. `front/tunnel_flow.go` has the rules and the reasons;
+repair time. `isolation/m2/tunnel/tunnel_flow.go` has the rules and the reasons;
 `network/wg-provider/port-flow.mjs` is the client's side.
 
 The local connector adapts ordinary SSH and GameStream clients, binding

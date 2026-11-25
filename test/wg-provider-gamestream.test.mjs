@@ -1,6 +1,6 @@
 // The provider's public GameStream ingress (network/wg-provider/gamestream.mjs): which app a flow reaches, and that a
 // flow without a name or a binding reaches none. The app's front is a local stand-in speaking the port tunnel
-// (isolation/m2/front/tunnel.go) without TLS; clients differ by loopback source address.
+// (isolation/m2/tunnel/tunnel.go) without TLS; clients differ by loopback source address.
 import test from 'node:test';import assert from 'node:assert/strict';
 import net from 'node:net';import tls from 'node:tls';import dgram from 'node:dgram';import {once} from 'node:events';
 import {createGameStream,openTunnel} from '../network/wg-provider/gamestream.mjs';

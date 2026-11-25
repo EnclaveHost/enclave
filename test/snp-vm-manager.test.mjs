@@ -62,6 +62,12 @@ test("the bound image must match the version's root hash, cmdline, OVMF and vCPU
   assert.throws(() => launchConfigFor(DEP, b, parsePlan(plan({ image: { ...plan().image, cmdlineSha256: "ee".repeat(32) } }))), /cmdline/);
   assert.throws(() => launchConfigFor(DEP, b, parsePlan(plan({ image: { ...plan().image, ovmfSha256: "ee".repeat(32) } }))), /OVMF/);
   assert.throws(() => launchConfigFor(DEP, b, parsePlan(plan({ vcpus: 4 }))), /vCPUs/);
+  // a desktop's binding: a read-only model disk and its own VM name reach the launcher; a binding without them adds neither
+  assert.equal("roDisks" in c, false); assert.equal("name" in c, false);
+  const d = launchConfigFor(DEP, { ...b, roDisks: [{ path: "/vm/models.img", serial: "MODELS" }], vmName: "enclave-kvm-box" }, parsePlan(plan()));
+  assert.deepEqual(d.roDisks, [{ path: "/vm/models.img", serial: "MODELS" }]); assert.equal(d.name, "enclave-kvm-box");
+  for (const bad of [{ roDisks: [{ path: "/x", serial: "models" }] }, { roDisks: [{ path: "/x", serial: "MODELS", cache: "none" }] }, { roDisks: "x" }, { vmName: "Bad Name" }])
+    assert.throws(() => validateConfig({ ...cfg, bindings: { [DEP]: { ...b, ...bad } } }), /roDisks|vmName/);
 });
 
 test("config: a disk bound to two deployments is refused", () => {

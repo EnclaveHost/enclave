@@ -72,7 +72,8 @@ export function launchConfigFor(name, binding, plan, { readFile = fs.readFileSyn
   if (sha256(readFile(binding.ovmf || ovmf)) !== plan.image.ovmfSha256) throw fail(409, "this host's OVMF is not the version's");
   if (binding.cpus !== plan.vcpus) throw fail(409, `the binding boots ${binding.cpus} vCPUs, the version's measurement is for ${plan.vcpus}`);
   return { image: binding.image, run: binding.run, memoryMiB: plan.memMiB, cpus: plan.vcpus, disks: binding.disks,
-           hostfwd: binding.hostfwd, hostData: name.slice(2) };
+           hostfwd: binding.hostfwd, hostData: name.slice(2),
+           ...(binding.roDisks ? { roDisks: binding.roDisks } : {}), ...(binding.vmName ? { name: binding.vmName } : {}) };
 }
 
 export function validateConfig(c) {
@@ -84,6 +85,10 @@ export function validateConfig(c) {
     if (!/^[A-Za-z0-9@._-]+$/.test(b.unit)) throw new Error(`binding ${name}: unit name is not safe`);
     if (!Number.isInteger(b.cpus) || b.cpus < 1) throw new Error(`binding ${name}: cpus is required`);
     if (!Array.isArray(b.disks) || !Array.isArray(b.hostfwd)) throw new Error(`binding ${name}: disks and hostfwd must be lists`);
+    // read-only disks (a model volume the image opens through dm-verity) may be shared between bindings; writable ones never
+    if (b.roDisks !== undefined && (!Array.isArray(b.roDisks) || b.roDisks.some((d) => !d || typeof d.path !== "string" || !/^[A-Z0-9-]{1,20}$/.test(String(d.serial)) || Object.keys(d).length !== 2)))
+      throw new Error(`binding ${name}: roDisks must be a list of {path, serial}`);
+    if (b.vmName !== undefined && !/^[a-z0-9][a-z0-9-]{0,40}$/.test(String(b.vmName))) throw new Error(`binding ${name}: vmName is not safe`);
   }
   const disks = Object.values(c.bindings || {}).flatMap((b) => b.disks.map((d) => path.resolve(d.path)));
   if (new Set(disks).size !== disks.length) throw new Error("a disk is bound to more than one deployment");

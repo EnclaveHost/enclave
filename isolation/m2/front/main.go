@@ -60,6 +60,7 @@ import (
 	"enclave.host/isolation/m2/egress"
 	"enclave.host/isolation/m2/release"
 	"enclave.host/isolation/m2/shieldconfig"
+	"enclave.host/isolation/m2/tunnel"
 	"enclave.host/isolation/m2/vsock"
 )
 
@@ -111,7 +112,7 @@ type front struct {
 	monitor          string      // M3: the monitor's socket, and then this process never opens configfs at all
 	plane            *appidPlane // M4b: the measured SVSM names this plane and computes the binding itself
 	boundary         string      // the self-test init produced; relayed verbatim, never composed here
-	tunnels          *portTunnels
+	tunnels          *tunnel.Tunnels
 	app              http.Handler
 	certs            *certState                    // a CA certificate for this domain's own key and deployment name (certs.go)
 	names            *ownerNames                   // direct startup: the owner-committed names (names.go); nil = none
@@ -428,13 +429,13 @@ func main() {
 	var portNumber int
 	_, err = fmt.Sscanf(hp, "%d", &portNumber)
 	must(err)
-	f.tunnels, err = loadPortTunnels("/app.ports", portNumber)
+	f.tunnels, err = tunnel.Load("/app.ports", portNumber)
 	must(err)
 	must(srv.Serve(tl))
 }
 
 func (f *front) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if strings.HasPrefix(r.URL.Path, tunnelPrefix) {
+	if strings.HasPrefix(r.URL.Path, tunnel.Prefix) {
 		f.tunnels.ServeHTTP(w, r)
 		return
 	}

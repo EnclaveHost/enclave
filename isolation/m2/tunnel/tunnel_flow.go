@@ -1,4 +1,4 @@
-package main
+package tunnel
 
 // A UDP tunnel carries datagrams inside TLS over TCP, and TCP never drops: when the path loses packets or carries
 // less than the app sends, live traffic (a GameStream video) queues in every buffer between here and the client and
