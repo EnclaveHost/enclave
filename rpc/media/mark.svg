@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512" viewBox="0 0 512 512">
+<path fill-rule="nonzero" fill="rgb(4.313725%, 6.666667%, 9.411765%)" fill-opacity="1" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="round" stroke="rgb(18.431373%, 90.196078%, 65.882353%)" stroke-opacity="1" stroke-miterlimit="4" d="M 16 2 L 28 9 L 28 23 L 16 30 L 4 23 L 4 9 Z M 16 2 " transform="matrix(16, 0, 0, 16, 0, 0)"/>
+<path fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" stroke="rgb(90.588235%, 93.333333%, 96.470588%)" stroke-opacity="1" stroke-miterlimit="4" d="M 9.600098 12.600098 L 21.800049 12.600098 M 18.600098 9.399902 L 21.800049 12.600098 L 18.600098 15.800049 " transform="matrix(16, 0, 0, 16, 0, 0)"/>
+<path fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" stroke="rgb(18.431373%, 90.196078%, 65.882353%)" stroke-opacity="1" stroke-miterlimit="4" d="M 22.399902 19.399902 L 10.199951 19.399902 M 13.399902 16.199951 L 10.199951 19.399902 L 13.399902 22.600098 " transform="matrix(16, 0, 0, 16, 0, 0)"/>
+</svg>

@@ -5,6 +5,7 @@ export const CATALOG_ABI = [
     { name: 'version', type: 'string' }, { name: 'cid', type: 'string' }, { name: 'res', type: 'uint32[4]' },
     { name: 'ports', type: 'string' }, { name: 'config', type: 'string' }, { name: 'feePerSec6', type: 'uint256' }],
     outputs: [{ type: 'bytes32' }, { type: 'uint256' }] },
+  { type: 'function', name: 'editApp', stateMutability: 'nonpayable', inputs: [{ name: 'slug', type: 'string' }, { name: 'name', type: 'string' }, { name: 'description', type: 'string' }], outputs: [] },
   { type: 'function', name: 'numVersions', stateMutability: 'view', inputs: [{ type: 'bytes32' }], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'owner', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
   { type: 'function', name: 'getVersion', stateMutability: 'view', inputs: [{ type: 'bytes32' }, { type: 'uint256' }], outputs: [{ type: 'tuple', components: [

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="400" viewBox="0 0 1600 400" role="img" aria-label="Enclave RPC: Ethereum and Base RPC you can verify">
+<defs><linearGradient id="bg" x2="1"><stop stop-color="#070A0F"/><stop offset="1" stop-color="#0C131C"/></linearGradient><radialGradient id="glow" gradientUnits="userSpaceOnUse" cx="1216" cy="200" r="420"><stop stop-color="#2FE6A8" stop-opacity=".16"/><stop offset="1" stop-color="#2FE6A8" stop-opacity="0"/></radialGradient></defs>
+<rect width="1600" height="400" fill="url(#bg)"/><rect width="1600" height="400" fill="url(#glow)"/>
+<g fill="none" stroke="#1E2937" stroke-width="1.5" stroke-linejoin="round"><path transform="translate(1216 200) scale(17) translate(-16 -16)" d="M16 2 28 9v14L16 30 4 23V9z" stroke-width=".09"/></g>
+<g transform="translate(1088 72) scale(8)"><path d="M16 2 28 9v14L16 30 4 23V9z" fill="#0B1118" stroke="#2FE6A8" stroke-width="1.6" stroke-linejoin="round"/><g fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 12.6h12.2M18.6 9.4l3.2 3.2-3.2 3.2" stroke="#E7EEF6"/><path d="M22.4 19.4H10.2M13.4 16.2l-3.2 3.2 3.2 3.2" stroke="#2FE6A8"/></g></g>
+<g font-family="Adwaita Mono" fill="#E7EEF6">
+<text x="242" y="112" font-size="22" letter-spacing="8" fill="#93A1B5">ENCLAVE RPC</text>
+<text x="240" y="196" font-size="62" font-weight="700" letter-spacing="-1.5">Ethereum and Base RPC</text>
+<text x="240" y="268" font-size="62" font-weight="700" letter-spacing="-1.5" fill="#2FE6A8">you can verify.</text>
+<text x="242" y="328" font-size="21" fill="#7A8AA0">Every answer comes from an attested node.</text>
+</g>
+</svg>

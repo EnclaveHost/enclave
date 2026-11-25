@@ -19,10 +19,10 @@ OVMF = Path('/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd')
 OWNER = '0x0b2d009c0c9Af05b12100D77F3c815fea822eE61'
 APP_ID = '0x0f628585d36c4272ae23c55b4f9ec6d5805f25e26d4744474710e46e4edbb537'
 SLUG, NAME = 'enclave-rpc', 'Enclave RPC'
-DESCRIPTION = ('Ethereum and Base JSON-RPC served from an AMD SEV-SNP confidential VM. Clients verify the '
-               "enclave's AMD-signed attestation before use: the launch measurement is pinned in this version's "
-               "config and the report's HOST_DATA names the serving deployment. Read-only methods plus "
-               'eth_sendRawTransaction; the enclave holds no keys and signs nothing. Zero publisher fee.')
+DESCRIPTION = ('Ethereum and Base JSON-RPC served by full nodes inside a confidential VM. Clients verify the '
+               "VM's hardware-signed attestation before use: the launch measurement is pinned in this version's "
+               'config and the report names the serving deployment. Read-only methods plus '
+               'eth_sendRawTransaction; the VM holds no keys and signs nothing. Zero publisher fee.')
 
 
 def sha(path):

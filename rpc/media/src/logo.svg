@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-label="Enclave RPC">
+<defs><radialGradient id="glow" cx="24%" cy="50%" r="55%"><stop stop-color="#2FE6A8" stop-opacity=".13"/><stop offset="1" stop-color="#2FE6A8" stop-opacity="0"/></radialGradient></defs>
+<rect width="1280" height="720" fill="#0B0F16"/><rect width="1280" height="720" fill="url(#glow)"/>
+<g transform="translate(112 152) scale(13)"><path d="M16 2 28 9v14L16 30 4 23V9z" fill="#0B1118" stroke="#2FE6A8" stroke-width="1.6" stroke-linejoin="round"/><g fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 12.6h12.2M18.6 9.4l3.2 3.2-3.2 3.2" stroke="#E7EEF6"/><path d="M22.4 19.4H10.2M13.4 16.2l-3.2 3.2 3.2 3.2" stroke="#2FE6A8"/></g></g>
+<g font-family="Adwaita Mono" fill="#E7EEF6">
+<text x="610" y="268" font-size="44" letter-spacing="19" fill="#93A1B5">ENCLAVE</text>
+<text x="598" y="470" font-size="250" font-weight="700" letter-spacing="-4">RPC</text>
+<text x="610" y="556" font-size="36" letter-spacing="8" fill="#93A1B5">ETHEREUM <tspan fill="#2FE6A8">/</tspan> BASE</text>
+</g>
+</svg>
