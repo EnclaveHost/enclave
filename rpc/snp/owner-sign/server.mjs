@@ -22,6 +22,8 @@ import { CATALOG_ABI, LEDGER_ABI } from './abi.mjs';
 import { simulateTopup } from './topup.mjs';
 import { placementStatus } from './placement.mjs';
 import { upload, vaultVersionStatus } from './vault-version.mjs';
+import { OWNER_ABI } from '../../../network/lease-gas-owner.mjs';
+import { POLICY_FIELDS, policyOf } from './reserve-policy-plan.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const [planPath, port = '42290'] = process.argv.slice(2);
@@ -114,10 +116,32 @@ async function topupStatus() {
     note: { [step.id]: `The operator key holds ${formatEther(operatorBal)} ETH now.` }, operatorBalanceWei: String(operatorBal), journal };
 }
 
+// A reserve-policy plan (reserve-policy-plan.mjs): one configure() per deployment. A step is done when the field
+// has the planned value; it is offered only while every OTHER field is still what the step restates (so a policy
+// changed since the plan was written is not written over), no submitted transaction is still pending, and the call
+// simulates from the owner.
+async function reservePolicyStatus() {
+  const s = plan.status, journal = readJournal(), out = { ready: {}, blocked: {}, journal };
+  for (const step of plan.steps) {
+    const t = s.steps[step.id];
+    const now = policyOf(await pub.readContract({ address: s.reserve, abi: OWNER_ABI, functionName: 'reserveOf', args: [t.id, plan.owner] }));
+    const done = String(now[t.field]) === String(t.value);
+    const drift = POLICY_FIELDS.filter((k) => k !== t.field && String(now[k]) !== String(t.before[k]));
+    const receipts = await Promise.all(journal.filter((j) => j.step === step.id).map((j) => pub.getTransactionReceipt({ hash: j.hash }).catch(() => null)));
+    let blocked = done ? null : receipts.some((r) => r === null) ? 'sent, waiting for it to be included'
+      : drift.length ? 'the policy changed since this plan was written (' + drift.join(', ') + '); make a new plan' : null;
+    if (!done && !blocked) await pub.call({ account: plan.owner, to: step.to, data: step.data })
+      .catch((e) => { blocked = 'it would revert: ' + String(e.shortMessage || e.message).slice(0, 160); });
+    out[step.id] = done; out.ready[step.id] = !done && !blocked; out.blocked[step.id] = blocked;
+  }
+  return out;
+}
+
 const readJournal = () => (fs.existsSync(plan.journal) ? fs.readFileSync(plan.journal, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
 const servedCache = {};
 const STATUS = { upgrade: upgradeStatus, topup: topupStatus, placement: () => placementStatus(plan, pub, { journal: readJournal() }),
-  'vault-version': () => vaultVersionStatus(plan, pub, { cache: servedCache, journal: readJournal() }) };
+  'vault-version': () => vaultVersionStatus(plan, pub, { cache: servedCache, journal: readJournal() }),
+  'reserve-policy': reservePolicyStatus };
 
 http.createServer(async (req, res) => {
   const send = (code, body, type = 'application/json') => { res.writeHead(code, { 'content-type': type, 'cache-control': 'no-store' }); res.end(type === 'application/json' ? JSON.stringify(body) : body); };

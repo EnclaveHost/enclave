@@ -316,7 +316,7 @@ export function safeBatch(reqs, chainId, { name = "Enclave lease-gas" } = {}) {
 // =====================================================================================================================
 
 export const POLICY_DEFAULTS = Object.freeze({ enabled: true, claimPolicy: 1, sponsorRelease: true, maxClaimsPerEpoch: 4, epochSec: 3600,
-  renewWindow: 300, minExtension: 600, claimCooldown: 1800 });
+  renewWindow: 300, minExtension: 600, claimCooldown: 900 });
 const CLAIM_POLICY = { any: 0, "self-hosted": 1, allowlist: 2 };
 export const claimPolicyName = (n) => Object.keys(CLAIM_POLICY).find((k) => CLAIM_POLICY[k] === Number(n)) || `policy ${n}`;
 export function parseClaimPolicy(v) {
